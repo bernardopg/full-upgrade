@@ -26,7 +26,8 @@ _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 [[ -n "$_git_ver" ]] && SCRIPT_VERSION="$_git_ver"
 unset _git_ver
 SCRIPT_SHA256="$(sha256sum "$_self" 2>/dev/null | awk '{print $1}' || printf 'unknown')"
-export SCRIPT_VERSION SCRIPT_SHA256
+SCRIPT_PATH="$_self"
+export SCRIPT_VERSION SCRIPT_SHA256 SCRIPT_PATH
 
 # ── Carregamento das libs na ordem de dependência ───────────────────────────────
 # shellcheck source=lib/globals.sh

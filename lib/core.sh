@@ -146,19 +146,29 @@ _ts() {
   printf '%02d:%02d' $((secs / 60)) $((secs % 60))
 }
 
+# Resolve a categoria de um step pelo catálogo (vazio se não-catalogado).
+_category_of() {
+  local name="$1" category rest
+  IFS='|' read -r category rest < <(catalog_info_for_step "$name")
+  printf '%s' "$category"
+}
+
 step_start() {
   local name="$1"
   STEP_NAMES+=("$name")
+  STEP_CATEGORIES+=("$(_category_of "$name")")
   STEP_START=$SECONDS
   STEP_START_ISO="$(date -Is)"
   local done_count
   done_count="$(_step_counter)"
   # N = steps já concluídos + 1 (este)
   local step_n=$(( done_count + 1 ))
-  local counter="${step_n}"
-  (( ${TOTAL_STEPS:-0} > 0 )) && counter="${step_n}/${TOTAL_STEPS}"
+  local prefix="[${step_n}]"
+  if (( ${TOTAL_STEPS:-0} > 0 )); then
+    prefix="[${step_n}/${TOTAL_STEPS}] $(ui_bar "$step_n" "$TOTAL_STEPS" 14)"
+  fi
   log ""
-  log "${C_BLUE}${C_BOLD}==> [${counter}] ${name}${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
+  log "${C_BLUE}${C_BOLD}${SYM_ARROW} ${prefix} ${name}${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
 }
 
 step_ok() {
@@ -168,7 +178,7 @@ step_ok() {
   write_step_event_json "${STEP_NAMES[-1]}" "ok" "$dur" "$STEP_LAST_RC" ""
   local time_color="$C_DIM"
   (( dur >= 30 )) && time_color="${C_YELLOW}${C_BOLD}"
-  log "${C_GREEN}[ ok ]${C_RESET} ${STEP_NAMES[-1]} ${time_color}($(elapsed "$dur"))${C_RESET}"
+  log "${C_GREEN}${SYM_OK}${C_RESET} ${STEP_NAMES[-1]} ${time_color}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_fail() {
@@ -177,7 +187,7 @@ step_fail() {
   STEP_TIMES+=("$dur")
   HAS_FAIL=1
   write_step_event_json "${STEP_NAMES[-1]}" "fail" "$dur" "$STEP_LAST_RC" ""
-  log "${C_RED}[FAIL]${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_RED}${SYM_FAIL}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_warn() {
@@ -185,7 +195,7 @@ step_warn() {
   STEP_RESULTS+=("warn")
   STEP_TIMES+=("$dur")
   write_step_event_json "${STEP_NAMES[-1]}" "warn" "$dur" "$STEP_LAST_RC" ""
-  log "${C_YELLOW}[warn]${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_YELLOW}${SYM_WARN}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_todo() {
@@ -193,18 +203,19 @@ step_todo() {
   STEP_RESULTS+=("todo")
   STEP_TIMES+=("$dur")
   write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" ""
-  log "${C_CYAN}[todo]${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_CYAN}${SYM_TODO}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_skip() {
   local name="$1"
   local reason="$2"
   STEP_NAMES+=("$name")
+  STEP_CATEGORIES+=("$(_category_of "$name")")
   STEP_RESULTS+=("skip")
   STEP_TIMES+=(0)
   STEP_START_ISO="$(date -Is)"
   write_step_event_json "$name" "skip" 0 0 "$reason"
-  log "${C_YELLOW}[skip]${C_RESET} ${name} ${C_DIM}(${reason})${C_RESET}"
+  log "${C_YELLOW}${SYM_SKIP}${C_RESET} ${name} ${C_DIM}(${reason})${C_RESET}"
 }
 
 run_step() {

@@ -1,51 +1,6 @@
 #!/usr/bin/env bash
-# lib/main.sh — banner, dispatch dos steps, finalização
+# lib/main.sh — dispatch dos steps + finalização. (Banner está em ui.sh.)
 # shellcheck shell=bash
-
-print_banner() {
-log_always "${C_BOLD}${C_CYAN}╔════════════════════════════════════════╗${C_RESET}"
-log_always "${C_BOLD}${C_CYAN}║              full-upgrade  v2          ║${C_RESET}"
-log_always "${C_BOLD}${C_CYAN}╚════════════════════════════════════════╝${C_RESET}"
-log_always "${C_DIM}$(date '+%Y-%m-%d %H:%M:%S')  •  host: $(hostname)  •  kernel: $(uname -r)${C_RESET}"
-log_always "${C_DIM}Script: ${SCRIPT_VERSION}  •  sha256: ${SCRIPT_SHA256}${C_RESET}"
-log_always "${C_DIM}Log: ${LOG_FILE}${C_RESET}"
-log_always "${C_DIM}JSONL: ${JSONL_FILE}${C_RESET}"
-if (( DRY_RUN )); then
-  log_always "${C_YELLOW}${C_BOLD}  [DRY-RUN] Nenhum comando será executado.${C_RESET}"
-fi
-if (( QUIET )); then
-  log_always "${C_DIM}  [QUIET] Output suprimido; log completo em: ${LOG_FILE}${C_RESET}"
-fi
-if (( VERBOSE )); then
-  log_always "${C_DIM}  [VERBOSE] Função e argumentos de cada step serão exibidos.${C_RESET}"
-fi
-if [[ -n "$MODE" && "$MODE" != "full" ]]; then
-  log_always "${C_CYAN}${C_BOLD}  [MODE:${MODE}] Rodando apenas steps do modo ${MODE}.${C_RESET}"
-fi
-if [[ -n "$ONLY_CATEGORY" ]]; then
-  log_always "${C_CYAN}  [ONLY] Rodando apenas categoria/tag: ${ONLY_CATEGORY}${C_RESET}"
-fi
-if (( NO_REPAIR )); then
-  log_always "${C_YELLOW}  [NO-REPAIR] Reparos mutáveis serão pulados.${C_RESET}"
-fi
-if (( NO_CLEANUP )); then
-  log_always "${C_YELLOW}  [NO-CLEANUP] Limpeza de cache/órfãos/symlinks/journal será pulada.${C_RESET}"
-fi
-if (( DEVEL_UPDATE )); then
-  log_always "${C_CYAN}  [--devel] Pacotes AUR -git/-svn incluídos no update.${C_RESET}"
-fi
-if (( JSON_SUMMARY )); then
-  log_always "${C_CYAN}  [JSON] Resumo JSON será impresso ao final.${C_RESET}"
-fi
-if [[ -n "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
-  skip_count="$(skip_step_count)"
-  if (( skip_count > 8 )); then
-    log_always "${C_YELLOW}  [SKIP] ${skip_count} step(s) ignorados; o resumo final lista os nomes.${C_RESET}"
-  else
-    log_always "${C_YELLOW}  [SKIP] Steps ignorados: ${FULL_UPGRADE_SKIP}${C_RESET}"
-  fi
-fi
-}
 
 run_all_steps() {
 # ── Lock de execução ────────────────────────────────────────────────────────────
