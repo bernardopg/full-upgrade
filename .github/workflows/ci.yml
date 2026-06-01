@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Syntax check (bash -n)
+        run: |
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh; do
+            [[ -e "$f" ]] || continue
+            bash -n "$f"
+          done
+
+      - name: ShellCheck
+        run: shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+
+      - name: Smoke test (--help / --list-steps / --dry-run)
+        run: |
+          bash full-upgrade.sh --help
+          bash full-upgrade.sh --list-steps
+          XDG_CONFIG_HOME=/tmp/nocfg bash full-upgrade.sh --dry-run --mode full
+
+      - name: Build standalone
+        run: ./build.sh
