@@ -83,6 +83,20 @@ catalog_match_token() {
   [[ ",${category},${tags}," == *",${token},"* ]]
 }
 
+# Conta steps do catálogo que NÃO estão na lista de skip (FULL_UPGRADE_SKIP).
+# Após apply_mode_and_early_exits, FULL_UPGRADE_SKIP já reflete --mode/--only/--skip-category,
+# então isto é uma estimativa fiel do total de steps planejados (p/ a barra de progresso).
+count_effective_steps() {
+  local name category tags effect timeout cmd_deps func_name desc
+  local total=0
+  while IFS='|' read -r name category tags effect timeout cmd_deps func_name desc; do
+    [[ -n "$name" ]] || continue
+    _step_skip_requested "$name" && continue
+    ((total++))
+  done < <(step_catalog)
+  printf '%d' "$total"
+}
+
 catalog_has_token() {
   local token="$1"
   local name category tags effect timeout cmd_deps func_name desc

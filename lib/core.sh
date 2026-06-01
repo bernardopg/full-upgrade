@@ -155,8 +155,10 @@ step_start() {
   done_count="$(_step_counter)"
   # N = steps já concluídos + 1 (este)
   local step_n=$(( done_count + 1 ))
+  local counter="${step_n}"
+  (( ${TOTAL_STEPS:-0} > 0 )) && counter="${step_n}/${TOTAL_STEPS}"
   log ""
-  log "${C_BLUE}${C_BOLD}==> [${step_n}] ${name}${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
+  log "${C_BLUE}${C_BOLD}==> [${counter}] ${name}${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
 }
 
 step_ok() {

@@ -73,6 +73,9 @@ if (( ${ENABLE_CUSTOM_TOOLS:-0} )); then
   unset _p
 fi
 
+TOTAL_STEPS="$(count_effective_steps)"   # lib/catalog.sh — total p/ barra de progresso
+export TOTAL_STEPS
+
 setup_logging                     # lib/json.sh — define RUN_ID/LOG_FILE, rotaciona, abre run
 print_banner                      # lib/main.sh
 run_all_steps                     # lib/main.sh
