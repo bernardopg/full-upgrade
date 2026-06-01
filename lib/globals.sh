@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # lib/globals.sh — variáveis globais de estado, paths de log, arrays de step.
 # Sourced por full-upgrade.sh. Não executar direto.
+# shellcheck disable=SC2034  # globais cross-module
 #
 # NOTA: SCRIPT_VERSION / SCRIPT_PATH / SCRIPT_SHA256 são definidos pelo
 # entrypoint (full-upgrade.sh) ANTES de sourcing este arquivo, pois dependem

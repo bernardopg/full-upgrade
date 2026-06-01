@@ -3,9 +3,9 @@
 # shellcheck shell=bash
 
 update_adguardvpn() {
-  local cli_bin="/usr/local/bin/adguardvpn-cli"
-  if [[ ! -x "$cli_bin" ]]; then
-    log "  adguardvpn-cli não encontrado em /usr/local/bin."
+  local cli_bin="${ADGUARD_BIN:-$(command -v adguardvpn-cli 2>/dev/null || true)}"
+  if [[ -z "$cli_bin" || ! -x "$cli_bin" ]]; then
+    log "  adguardvpn-cli não encontrado (defina ADGUARD_BIN no config)."
     return 0
   fi
 

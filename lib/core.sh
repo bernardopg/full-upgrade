@@ -2,6 +2,7 @@
 # lib/core.sh — helpers, logging, framework de steps (run_step)
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # globais cross-module setadas/usadas entre arquivos
 
 has() {
   command -v "$1" >/dev/null 2>&1

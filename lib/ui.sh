@@ -2,6 +2,7 @@
 # lib/ui.sh — cores, banner, símbolos, resumo (visual layer)
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # globais cross-module
 
 if [[ -t 1 ]]; then
   C_BOLD=$'\033[1m'

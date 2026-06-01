@@ -79,10 +79,12 @@ if has pacman || has yay || has paru; then
       step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
       step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
     else
-      run_step "Garantir Burp Suite e Wireshark"              ensure_security_tools
+      # Burp/Wireshark são tools custom do autor (gated).
+      custom_step_or_skip "Garantir Burp Suite e Wireshark"   ensure_security_tools
+      # Shadowing é reparo genérico, útil p/ todos.
       run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
-      run_step "Reparar permissoes de captura do Wireshark"   repair_wireshark_capture_permissions
-      run_step "Reparar atalhos antigos do Burp"              repair_broken_burpsuite_desktop_entries
+      custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
+      custom_step_or_skip "Reparar atalhos antigos do Burp"   repair_broken_burpsuite_desktop_entries
     fi
   else
     for _s in \
@@ -251,7 +253,7 @@ fi
 
 # ── Google Cloud SDK ──────────────────────────────────────────────────────────
 
-if [[ -x "$HOME/google-cloud-sdk/bin/gcloud" ]]; then
+if [[ -n "${GCLOUD_BIN:-}" && -x "${GCLOUD_BIN}" ]]; then
   run_step "Atualizar Google Cloud SDK" update_gcloud
 else
   step_skip "Atualizar Google Cloud SDK" "gcloud não encontrado"
@@ -275,17 +277,8 @@ fi
 
 # ── Hermes ───────────────────────────────────────────────────────────────────
 
-if has hermes; then
-  run_step "Atualizar Hermes" update_hermes
-else
-  step_skip "Atualizar Hermes" "Hermes não instalado"
-fi
-
-if [[ -x "/usr/local/bin/adguardvpn-cli" ]]; then
-  run_step "Atualizar AdGuard VPN CLI" update_adguardvpn
-else
-  step_skip "Atualizar AdGuard VPN CLI" "adguardvpn-cli não encontrado"
-fi
+custom_step_or_skip "Atualizar Hermes" update_hermes
+custom_step_or_skip "Atualizar AdGuard VPN CLI" update_adguardvpn
 
 # ── AI CLIs ──────────────────────────────────────────────────────────────────
 
@@ -295,11 +288,7 @@ else
   step_skip "Atualizar Claude Code CLI" "claude não instalado"
 fi
 
-if [[ -x "${HOME}/.local/bin/copilot" ]]; then
-  run_step "Atualizar GitHub Copilot CLI" update_copilot_cli
-else
-  step_skip "Atualizar GitHub Copilot CLI" "copilot não encontrado"
-fi
+custom_step_or_skip "Atualizar GitHub Copilot CLI" update_copilot_cli
 
 # ── Shell ─────────────────────────────────────────────────────────────────────
 
@@ -311,11 +300,7 @@ else
   step_skip "Atualizar plugins customizados do Zsh" "oh-my-zsh não encontrado"
 fi
 
-if [[ -d "${HOME}/.config/DankMaterialShell/plugins" ]]; then
-  run_step "Atualizar plugins DankMaterialShell" update_dms_plugins
-else
-  step_skip "Atualizar plugins DankMaterialShell" "DMS não encontrado"
-fi
+custom_step_or_skip "Atualizar plugins DankMaterialShell" update_dms_plugins
 
 # ── Editor ────────────────────────────────────────────────────────────────────
 

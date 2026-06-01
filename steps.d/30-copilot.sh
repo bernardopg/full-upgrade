@@ -3,9 +3,9 @@
 # shellcheck shell=bash
 
 update_copilot_cli() {
-  local copilot_bin="${HOME}/.local/bin/copilot"
-  if [[ ! -x "$copilot_bin" ]]; then
-    log "  GitHub Copilot CLI não encontrado em ~/.local/bin/copilot."
+  local copilot_bin="${COPILOT_BIN:-$(command -v copilot 2>/dev/null || true)}"
+  if [[ -z "$copilot_bin" || ! -x "$copilot_bin" ]]; then
+    log "  GitHub Copilot CLI não encontrado (defina COPILOT_BIN no config)."
     return 0
   fi
   local output rc

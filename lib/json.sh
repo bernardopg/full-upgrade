@@ -2,6 +2,7 @@
 # lib/json.sh — logging JSONL + rotação de logs
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # globais cross-module
 
 setup_logging() {
   mkdir -p "${LOG_DIR}"

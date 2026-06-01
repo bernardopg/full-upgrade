@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # lib/cli.sh — usage, parse de flags, aplicação de modo
 # shellcheck shell=bash
+# As flags setam variáveis globais consumidas por main.sh/core.sh (cross-module).
+# shellcheck disable=SC2034
 
 usage() {
   cat <<'EOF'

@@ -1,0 +1,41 @@
+# full-upgrade — configuração do usuário
+# Copie para ~/.config/full-upgrade/config e edite.
+# É um arquivo bash sourced: use sintaxe shell (VAR=valor, arrays, etc).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# full-upgrade — user configuration
+# Copy to ~/.config/full-upgrade/config and edit.
+# It is a sourced bash file: use shell syntax (VAR=value, arrays, etc).
+
+# ── Idioma / Language ──────────────────────────────────────────────────────────
+# auto = detecta de $LANG | pt = Português | en = English
+LANG_OVERRIDE=auto
+
+# ── Tools custom (Hermes, AdGuard, Copilot, DMS, Burp) / Custom tools ───────────
+# 0 = só steps genéricos (default) | 1 = habilita plugins em steps.d/
+# 0 = generic steps only (default)  | 1 = enable steps.d/ plugins
+ENABLE_CUSTOM_TOOLS=0
+
+# ── Snapshot pré-upgrade / Pre-upgrade snapshot ─────────────────────────────────
+# auto = detecta snapper/timeshift | snapper | timeshift | none
+SNAPSHOT_TOOL=auto
+
+# ── Mirror refresh ──────────────────────────────────────────────────────────────
+# auto = detecta reflector/rate-mirrors | reflector | rate-mirrors | none
+MIRROR_TOOL=auto
+
+# ── Espaço mínimo livre (GiB) em / e /boot / Min free space ─────────────────────
+MIN_FREE_GIB=2
+
+# ── Listas de ignore / Ignore lists ─────────────────────────────────────────────
+# Pacotes AUR a não atualizar automaticamente / AUR packages to skip
+# Ex: FULL_UPGRADE_AUR_IGNORE="burpsuite"
+FULL_UPGRADE_AUR_IGNORE=""
+# Pacotes pip --user a ignorar / pip --user packages to skip
+FULL_UPGRADE_PIP_USER_IGNORE=""
+
+# ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
+# GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
+# COPILOT_BIN="$HOME/.local/bin/copilot"
+# ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
+# DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"

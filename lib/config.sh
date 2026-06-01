@@ -38,3 +38,14 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN DMS_PLUGINS_DIR
 }
+
+# Step custom só roda se: tools custom habilitados E a função foi carregada de steps.d/.
+# Uso: custom_step_or_skip "Nome do step" funcao_impl
+custom_step_or_skip() {
+  local name="$1" fn="$2"
+  if (( ${ENABLE_CUSTOM_TOOLS:-0} )) && declare -F "$fn" >/dev/null 2>&1; then
+    run_step "$name" "$fn"
+  else
+    step_skip "$name" "tool custom desabilitado (ENABLE_CUSTOM_TOOLS=0)"
+  fi
+}

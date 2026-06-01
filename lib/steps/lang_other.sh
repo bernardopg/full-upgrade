@@ -100,7 +100,7 @@ update_dotnet_tools() {
 
 update_gcloud() {
   local output rc
-  output="$(_retry 2 ~/google-cloud-sdk/bin/gcloud components update --quiet 2>&1)"
+  output="$(_retry 2 "${GCLOUD_BIN:-gcloud}" components update --quiet 2>&1)"
   rc=$?
   printf '%s\n' "$output" >> "$LOG_FILE"
   (( rc == RC_WARN )) && { log "  gcloud: falha de rede transitória após 2 tentativas."; return "$RC_WARN"; }
