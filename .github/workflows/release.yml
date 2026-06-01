@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ex: v3.0.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # criar release + anexar assets
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Validate before release
+        run: |
+          shopt -s nullglob
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh; do
+            bash -n "$f"
+          done
+          shellcheck -S warning -x \
+            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+
+      - name: Build standalone
+        run: |
+          ./build.sh
+          sha256sum dist/full-upgrade-standalone.sh > dist/full-upgrade-standalone.sh.sha256
+          cat dist/full-upgrade-standalone.sh.sha256
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: full-upgrade ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          files: |
+            dist/full-upgrade-standalone.sh
+            dist/full-upgrade-standalone.sh.sha256

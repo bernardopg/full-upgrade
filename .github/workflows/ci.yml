@@ -4,31 +4,52 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
+    name: Lint & Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Syntax check (bash -n)
         run: |
+          shopt -s nullglob
           for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh; do
-            [[ -e "$f" ]] || continue
+            echo "bash -n $f"
             bash -n "$f"
           done
 
       - name: ShellCheck
-        run: shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+        run: |
+          shellcheck -S warning -x \
+            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 
-      - name: Smoke test (--help / --list-steps / --dry-run)
+      - name: Smoke test
         run: |
           bash full-upgrade.sh --help
           bash full-upgrade.sh --list-steps
-          XDG_CONFIG_HOME=/tmp/nocfg bash full-upgrade.sh --dry-run --mode full
+          XDG_CONFIG_HOME="$RUNNER_TEMP/nocfg" bash full-upgrade.sh --dry-run --mode full
 
       - name: Build standalone
         run: ./build.sh
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-upgrade-standalone
+          path: dist/full-upgrade-standalone.sh
+          if-no-files-found: error
+          retention-days: 14
