@@ -24,8 +24,9 @@ SNAPSHOT_TOOL=auto
 # auto = detecta reflector/rate-mirrors | reflector | rate-mirrors | none
 MIRROR_TOOL=auto
 
-# ── Espaço mínimo livre (GiB) em / e /boot / Min free space ─────────────────────
-MIN_FREE_GIB=2
+# ── Espaço mínimo livre / Min free space ────────────────────────────────────────
+MIN_FREE_GIB=2          # em / (GiB)
+MIN_BOOT_FREE_MIB=200   # em /boot (MiB — ESP costuma ser pequeno)
 
 # ── Listas de ignore / Ignore lists ─────────────────────────────────────────────
 # Pacotes AUR a não atualizar automaticamente / AUR packages to skip

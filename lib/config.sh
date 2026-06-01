@@ -13,7 +13,8 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${LANG_OVERRIDE:=auto}"          # auto|pt|en
 : "${SNAPSHOT_TOOL:=auto}"          # auto|snapper|timeshift|none
 : "${MIRROR_TOOL:=auto}"            # auto|reflector|rate-mirrors|none
-: "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / e /boot
+: "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
+: "${MIN_BOOT_FREE_MIB:=200}"       # espaço livre mínimo em /boot (MiB; ESP é pequeno)
 # Overrides de path (vazio = auto-detecta via command -v / locais conhecidos)
 : "${GCLOUD_BIN:=}"
 : "${COPILOT_BIN:=}"
@@ -35,7 +36,7 @@ load_config() {
   [[ -z "$ADGUARD_BIN" ]] && ADGUARD_BIN="$(command -v adguardvpn-cli 2>/dev/null || true)"
   [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="${HOME}/.config/DankMaterialShell/plugins"
 
-  export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB
+  export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN DMS_PLUGINS_DIR
 }
 

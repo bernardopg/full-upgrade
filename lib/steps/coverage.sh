@@ -40,17 +40,24 @@ release_run_lock() {
 # ── Pré-flight: espaço em disco + keyring ───────────────────────────────────────
 preflight_disk_and_keyring() {
   local status=0 min_gib="${MIN_FREE_GIB:-2}"
-  local mp avail_gib
+  # Threshold por mount: / usa MIN_FREE_GIB; /boot (ESP) é pequeno, usa MIN_BOOT_FREE_MIB.
+  local min_boot_mib="${MIN_BOOT_FREE_MIB:-200}"
+  local mp avail_mib thresh_mib
   for mp in / /boot; do
     [[ -d "$mp" ]] || continue
     findmnt -no TARGET "$mp" >/dev/null 2>&1 || continue
-    avail_gib="$(df -BG --output=avail "$mp" 2>/dev/null | awk 'NR==2{gsub(/G/,"");print $1}')"
-    [[ -n "$avail_gib" ]] || continue
-    if (( avail_gib < min_gib )); then
-      log "  ${C_RED}Espaço baixo em ${mp}: ${avail_gib}GiB livre (< ${min_gib}GiB).${C_RESET}"
+    avail_mib="$(df -BM --output=avail "$mp" 2>/dev/null | awk 'NR==2{gsub(/M/,"");print $1}')"
+    [[ -n "$avail_mib" ]] || continue
+    if [[ "$mp" == "/boot" ]]; then
+      thresh_mib="$min_boot_mib"
+    else
+      thresh_mib=$(( min_gib * 1024 ))
+    fi
+    if (( avail_mib < thresh_mib )); then
+      log "  ${C_RED}Espaço baixo em ${mp}: $(( avail_mib / 1024 ))GiB (${avail_mib}MiB) livre (< $(( thresh_mib / 1024 ))GiB).${C_RESET}"
       status="$RC_WARN"
     else
-      log "  ${mp}: ${avail_gib}GiB livre (OK)."
+      log "  ${mp}: $(( avail_mib / 1024 ))GiB (${avail_mib}MiB) livre (OK)."
     fi
   done
 

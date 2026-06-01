@@ -32,7 +32,6 @@ print(f"{version}\t{sha256}\t{url}")
 PY
 }
 
-
 burpsuite_java_bin() {
   local candidate
 
@@ -49,7 +48,6 @@ burpsuite_java_bin() {
 
   return 1
 }
-
 
 install_burpsuite_desktop_fallback() {
   local info version sha256 url pkgver current tmpdir jar source_candidate cache_dir cache_candidate java_bin
@@ -117,72 +115,6 @@ license=('custom')
 source=("burpsuite-\${pkgver}.jar")
 sha256sums=('${sha256}')
 
-
-install_arch_package() {
-  local pkg="$1"
-
-  if pacman -Q "$pkg" >/dev/null 2>&1; then
-    log "  ${pkg} ja instalado."
-    return 0
-  fi
-
-  _install_arch_package_via_helper "$pkg"
-}
-
-
-upgrade_arch_package() {
-  local pkg="$1"
-  local installed_ver available_ver
-
-  installed_ver="$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' || true)"
-
-  if [[ -n "$installed_ver" ]]; then
-    # checar se há versão nova disponível antes de invocar o helper
-    available_ver="$(paru -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
-    if [[ -n "$available_ver" && "$installed_ver" == "$available_ver" ]]; then
-      log "  ${pkg} ${installed_ver} já na versão mais recente."
-      return 0
-    fi
-    if [[ -n "$available_ver" ]]; then
-      log "  ${pkg}: ${installed_ver} → ${available_ver}"
-    fi
-  fi
-
-  _install_arch_package_via_helper "$pkg"
-}
-
-
-_install_arch_package_via_helper() {
-  local pkg="$1"
-
-  if has paru; then
-    if run_logged paru -S --needed --skipreview --noconfirm "$pkg"; then
-      return 0
-    fi
-    if [[ "$pkg" == "burpsuite" ]]; then
-      log "  AUR burpsuite falhou; tentando fallback com JAR oficial validado."
-      install_burpsuite_desktop_fallback
-      return $?
-    fi
-    return 1
-  fi
-
-  if has yay; then
-    if run_logged yay -S --needed --noconfirm --answerclean None --answerdiff None --answeredit None "$pkg"; then
-      return 0
-    fi
-    if [[ "$pkg" == "burpsuite" ]]; then
-      log "  AUR burpsuite falhou; tentando fallback com JAR oficial validado."
-      install_burpsuite_desktop_fallback
-      return $?
-    fi
-    return 1
-  fi
-
-  run_logged sudo pacman -S --needed --noconfirm "$pkg"
-}
-
-
 package() {
   install -Dm644 "burpsuite-\${pkgver}.jar" "\${pkgdir}/usr/share/burpsuite/burpsuite.jar"
   install -Dm644 /dev/null "\${pkgdir}/usr/share/applications/burpsuite.desktop"
@@ -229,6 +161,67 @@ EOF
   rm -rf -- "$tmpdir"
 }
 
+install_arch_package() {
+  local pkg="$1"
+
+  if pacman -Q "$pkg" >/dev/null 2>&1; then
+    log "  ${pkg} ja instalado."
+    return 0
+  fi
+
+  _install_arch_package_via_helper "$pkg"
+}
+
+upgrade_arch_package() {
+  local pkg="$1"
+  local installed_ver available_ver
+
+  installed_ver="$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' || true)"
+
+  if [[ -n "$installed_ver" ]]; then
+    # checar se há versão nova disponível antes de invocar o helper
+    available_ver="$(paru -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
+    if [[ -n "$available_ver" && "$installed_ver" == "$available_ver" ]]; then
+      log "  ${pkg} ${installed_ver} já na versão mais recente."
+      return 0
+    fi
+    if [[ -n "$available_ver" ]]; then
+      log "  ${pkg}: ${installed_ver} → ${available_ver}"
+    fi
+  fi
+
+  _install_arch_package_via_helper "$pkg"
+}
+
+_install_arch_package_via_helper() {
+  local pkg="$1"
+
+  if has paru; then
+    if run_logged paru -S --needed --skipreview --noconfirm "$pkg"; then
+      return 0
+    fi
+    if [[ "$pkg" == "burpsuite" ]]; then
+      log "  AUR burpsuite falhou; tentando fallback com JAR oficial validado."
+      install_burpsuite_desktop_fallback
+      return $?
+    fi
+    return 1
+  fi
+
+  if has yay; then
+    if run_logged yay -S --needed --noconfirm --answerclean None --answerdiff None --answeredit None "$pkg"; then
+      return 0
+    fi
+    if [[ "$pkg" == "burpsuite" ]]; then
+      log "  AUR burpsuite falhou; tentando fallback com JAR oficial validado."
+      install_burpsuite_desktop_fallback
+      return $?
+    fi
+    return 1
+  fi
+
+  run_logged sudo pacman -S --needed --noconfirm "$pkg"
+}
 
 ensure_security_tools() {
   local -a failed=()
@@ -284,7 +277,6 @@ repair_wireshark_capture_permissions() {
   fi
 }
 
-
 repair_broken_burpsuite_desktop_entries() {
   local dir="${HOME}/.local/share/applications"
   local -a entries=()
@@ -307,5 +299,4 @@ repair_broken_burpsuite_desktop_entries() {
     fi
   done
 }
-
 
