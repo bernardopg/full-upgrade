@@ -8,7 +8,11 @@ step_catalog() {
   # timeout: segundos (0 = sem limite); cmd_deps: binários separados por vírgula (vazio = nenhum)
   # func_name: nome exato da função Bash que implementa o step (vazio = sem função direta)
   cat <<'EOF'
+Adquirir lock de execução|core|lock,preflight|read|15||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
 Validar sudo|core|sudo,preflight|read|30||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
+Pré-flight: disco e keyring|core|disk,keyring,sudo,preflight|mutating|120|pacman|preflight_disk_and_keyring|Verifica espaço livre mínimo e atualiza archlinux-keyring.
+Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
+Atualizar mirrors|pacman|mirror,network,sudo|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
 Limpar lock stale do pacman|repair|pacman,mutating|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
 Reparar ambiente GnuPG/AUR|repair|aur,gnupg,mutating|mutating|60||repair_gnupg_runtime|Corrige permissões de GnuPG e reinicia dirmngr para evitar falhas no AUR.
 Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutating|600|paru|update_system_aur|Atualiza pacotes oficiais e AUR com paru/yay/pacman.

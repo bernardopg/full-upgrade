@@ -48,6 +48,10 @@ fi
 }
 
 run_all_steps() {
+# ── Lock de execução ────────────────────────────────────────────────────────────
+
+run_step "Adquirir lock de execução" acquire_run_lock
+
 # ── Sudo ──────────────────────────────────────────────────────────────────────
 
 if has sudo; then
@@ -57,6 +61,12 @@ if has sudo; then
   fi
 else
   step_skip "Validar sudo" "sudo não instalado"
+fi
+
+# ── Pré-flight: disco + keyring ─────────────────────────────────────────────────
+
+if has pacman; then
+  run_step "Pré-flight: disco e keyring" preflight_disk_and_keyring
 fi
 
 # ── Pacman / AUR ──────────────────────────────────────────────────────────────
@@ -71,6 +81,8 @@ if has pacman || has yay || has paru; then
       run_step "Reparar ambiente GnuPG/AUR"                   repair_gnupg_runtime
     fi
 
+    run_step "Snapshot pré-upgrade" preupgrade_snapshot
+    run_step "Atualizar mirrors" refresh_mirrors
     run_step "Atualizar pacotes do sistema e AUR" update_system_aur
 
     if (( NO_REPAIR )); then
