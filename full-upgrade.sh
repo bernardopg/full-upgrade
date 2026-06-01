@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# full-upgrade.sh — orquestrador modular de upgrade para Arch Linux.
+# Entrypoint fino: resolve o diretório do projeto, carrega lib/* na ordem de
+# dependência, faz parse de flags e executa o fluxo.
+#
+# Uso: full-upgrade.sh [opções]   (veja --help)
+# Repo: https://github.com/bernardopg/full-upgrade
+set -uo pipefail
+
+# ── Resolução do diretório do projeto ──────────────────────────────────────────
+# Segue symlinks para achar a raiz real (suporta instalação via symlink em ~/.local/bin).
+_self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf '%s' "${BASH_SOURCE[0]}")"
+FU_ROOT="$(cd -- "$(dirname -- "$_self")" && pwd)"
+FU_LIB="${FU_ROOT}/lib"
+export FU_ROOT FU_LIB
+
+if [[ ! -d "$FU_LIB" ]]; then
+  printf 'full-upgrade: diretório lib/ não encontrado em %s\n' "$FU_ROOT" >&2
+  printf 'O script precisa do diretório lib/ ao lado dele (ou via symlink resolvido).\n' >&2
+  exit 1
+fi
+
+# ── Metadados do script (dependem deste arquivo, não das libs) ──────────────────
+SCRIPT_VERSION="3.0.0"
+_git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
+[[ -n "$_git_ver" ]] && SCRIPT_VERSION="$_git_ver"
+unset _git_ver
+SCRIPT_SHA256="$(sha256sum "$_self" 2>/dev/null | awk '{print $1}' || printf 'unknown')"
+export SCRIPT_VERSION SCRIPT_SHA256
+
+# ── Carregamento das libs na ordem de dependência ───────────────────────────────
+# shellcheck source=lib/globals.sh
+source "${FU_LIB}/globals.sh"
+# shellcheck source=lib/ui.sh
+source "${FU_LIB}/ui.sh"
+# shellcheck source=lib/core.sh
+source "${FU_LIB}/core.sh"
+# shellcheck source=lib/json.sh
+source "${FU_LIB}/json.sh"
+# shellcheck source=lib/sudo.sh
+source "${FU_LIB}/sudo.sh"
+# shellcheck source=lib/config.sh
+source "${FU_LIB}/config.sh"
+# shellcheck source=lib/catalog.sh
+source "${FU_LIB}/catalog.sh"
+# shellcheck source=lib/cli.sh
+source "${FU_LIB}/cli.sh"
+
+# Implementações de steps (ordem não importa — só definições de função).
+for _m in "${FU_LIB}"/steps/*.sh; do
+  [[ -e "$_m" ]] || continue
+  # shellcheck source=/dev/null
+  source "$_m"
+done
+unset _m
+
+# lib/main.sh por último (usa tudo acima).
+# shellcheck source=lib/main.sh
+source "${FU_LIB}/main.sh"
+
+# ── Fluxo principal ─────────────────────────────────────────────────────────────
+load_config                       # lib/config.sh — carrega ~/.config/full-upgrade/config
+parse_args "$@"                   # lib/cli.sh
+apply_mode_and_early_exits        # lib/cli.sh — resolve --list-steps/--explain-step/--mode
+
+# Plugins do usuário (steps.d/) só se habilitado no config.
+if (( ${ENABLE_CUSTOM_TOOLS:-0} )); then
+  for _p in "${FU_CONFIG_DIR}"/steps.d/*.sh "${FU_ROOT}"/steps.d/*.sh; do
+    [[ -e "$_p" ]] || continue
+    # shellcheck source=/dev/null
+    source "$_p"
+  done
+  unset _p
+fi
+
+setup_logging                     # lib/json.sh — define RUN_ID/LOG_FILE, rotaciona, abre run
+print_banner                      # lib/main.sh
+run_all_steps                     # lib/main.sh
+finalize                          # lib/main.sh
