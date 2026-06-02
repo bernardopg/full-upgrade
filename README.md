@@ -1,97 +1,400 @@
+<!-- markdownlint-disable MD013 -->
+
 # full-upgrade
 
-> Orquestrador modular de upgrade para Arch Linux — atualiza pacman/AUR, Flatpak,
-> Docker, toolchains de linguagem, firmware, plugins de editor/shell e roda
-> auditorias de saúde (doctor), tudo num único comando com log estruturado.
->
-> *Modular Arch Linux upgrade orchestrator — system + AUR + Flatpak + Docker +
-> language toolchains + firmware + health audits, in one command.*
+> Orquestrador modular de upgrade, manutenção e auditoria para Arch Linux.
+> Atualiza o sistema, AUR, runtimes, toolchains, containers, firmware, plugins de
+> shell/editor e ainda gera um diagnóstico de saúde da máquina com logs humanos e
+> JSONL para automação.
 
 ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnu-bash&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)
+![version](https://img.shields.io/badge/version-3.0.0-informational)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
----
+`full-upgrade` foi feito para quem mantém uma estação Arch com muitas camadas:
+pacotes oficiais, AUR, Flatpak, Docker, linguagens, CLIs de IA, firmware, shell,
+editor e componentes de desktop. A proposta é simples: um comando, passos
+declarados, execução rastreável e um resumo final que mostra o que atualizou, o
+que falhou, o que virou aviso e o que ainda exige ação manual.
 
-## PT-BR
+```text
+full-upgrade
+  -> preflight
+  -> snapshot e mirrors
+  -> pacman / AUR
+  -> apps, containers e firmware
+  -> toolchains de linguagem
+  -> shell, editor, Hyprland e CLIs
+  -> limpeza
+  -> doctor
+  -> resumo + log + JSONL
+```
 
-### O que faz
-Roda ~69 steps agrupados: preflight (lock, sudo, disco, keyring), snapshot
-pré-upgrade, refresh de mirrors, update de pacman/AUR, Flatpak, Docker, npm/pnpm,
-pip/pipx/uv/poetry, rust/cargo, go, .NET, gems, ghcup, firmware, Neovim, Hyprland,
-limpeza (cache/órfãos/journal) e auditorias **doctor** (reboot pendente, units
-falhadas, CVEs, SMART, rede, etc). Cada step tem timeout, log e evento JSONL.
+## Destaques
 
-### Instalação
+| Área | O que entrega |
+| --- | --- |
+| Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
+| Catálogo técnico | 69 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
+| Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. |
+| Arch completo | `pacman`, AUR via `paru`/`yay`, keyring, mirrors, snapshot btrfs, `.pacnew`, órfãos e cache. |
+| Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
+| Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
+| Doctor | Auditorias de reboot pendente, systemd, journal, fwupd security, pacman, boot, rede, SMART/NVMe, Python, JavaScript e CLIs de IA. |
+| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON. |
+
+## Instalação
+
 ```bash
 git clone https://github.com/bernardopg/full-upgrade
 cd full-upgrade
-./install.sh          # ~/.local/share/full-upgrade + symlink em ~/.local/bin
+./install.sh
 full-upgrade --help
 ```
 
-### Uso
+O instalador copia a aplicação para:
+
+| Caminho | Função |
+| --- | --- |
+| `~/.local/share/full-upgrade` | Instalação modular com `full-upgrade.sh`, `lib/`, `steps.d/` e `config.example`. |
+| `~/.local/bin/full-upgrade` | Symlink para o executável. Garanta que `~/.local/bin` esteja no `PATH`. |
+| `~/.config/full-upgrade/config` | Configuração inicial criada a partir de `config.example`, sem sobrescrever arquivo existente. |
+
+Também é possível gerar um arquivo único:
+
 ```bash
-full-upgrade                 # modo full (update + repair + doctor + cleanup)
-full-upgrade --mode update   # só update + limpeza
-full-upgrade --mode doctor   # só auditorias (read-only)
-full-upgrade --dry-run       # simula, não executa
-full-upgrade --list-steps    # lista o catálogo
-full-upgrade -y              # não-interativo
+./build.sh
+./dist/full-upgrade-standalone.sh --help
 ```
 
-### Configuração
-Zero-config funciona. Para personalizar, copie `config.example` para
-`~/.config/full-upgrade/config`. Chaves principais:
+## Uso Rápido
 
-| Chave | Default | Função |
-|-------|---------|--------|
-| `ENABLE_CUSTOM_TOOLS` | `0` | Habilita plugins em `steps.d/` |
-| `SNAPSHOT_TOOL` | `auto` | `snapper`/`timeshift`/`none` |
-| `MIRROR_TOOL` | `auto` | `reflector`/`rate-mirrors`/`none` |
-| `MIN_FREE_GIB` | `2` | Espaço mínimo em `/` e `/boot` |
-| `FULL_UPGRADE_AUR_IGNORE` | _(vazio)_ | Pacotes AUR a não atualizar |
-| `GCLOUD_BIN` etc | _(auto)_ | Override de caminhos |
-
-### Plugins (steps.d/)
-Coloque `.sh` em `~/.config/full-upgrade/steps.d/` (ou no repo) definindo funções
-de step e ative com `ENABLE_CUSTOM_TOOLS=1`. Exemplos inclusos: Hermes, AdGuard
-VPN, GitHub Copilot, DankMaterialShell, Burp Suite.
-
-### Requisitos
-- Arch Linux (ou derivado), bash ≥ 4, `pacman`. Opcionais auto-detectados:
-  `paru`/`yay`, `flatpak`, `docker`, `reflector`, `snapper`/`timeshift`, etc.
-
----
-
-## English
-
-### What it does
-Runs ~69 grouped steps: preflight (lock, sudo, disk, keyring), pre-upgrade
-snapshot, mirror refresh, pacman/AUR update, Flatpak, Docker, language toolchains
-(npm/pnpm, pip/pipx/uv/poetry, rust/cargo, go, .NET, gems, ghcup), firmware,
-Neovim, Hyprland, cleanup, and **doctor** health audits. Each step has a timeout,
-log, and JSONL event.
-
-### Install
 ```bash
-git clone https://github.com/bernardopg/full-upgrade
-cd full-upgrade && ./install.sh
-full-upgrade --help
+full-upgrade
+full-upgrade --mode update
+full-upgrade --mode doctor
+full-upgrade --mode repair
+full-upgrade --dry-run
+full-upgrade --list-steps
+full-upgrade --explain-step "Doctor: saúde de rede"
 ```
 
-### Usage
+Comandos úteis no dia a dia:
+
+| Comando | Quando usar |
+| --- | --- |
+| `full-upgrade` | Fluxo completo: updates, reparos habilitados, limpeza, checks finais e auditorias. |
+| `full-upgrade -y` | Execução não interativa, assumindo confirmações seguras. |
+| `full-upgrade --dry-run` | Ver o plano de execução sem rodar comandos mutáveis. |
+| `full-upgrade --mode update` | Atualizar e limpar, pulando `repair` e `doctor`. |
+| `full-upgrade --mode doctor` | Focar nas auditorias de saúde. O fluxo ainda passa pelo preflight compartilhado. |
+| `full-upgrade --mode repair` | Rodar apenas reparos conhecidos, além dos steps compartilhados necessários. |
+| `full-upgrade --only lang` | Rodar apenas steps de uma categoria ou tag. |
+| `full-upgrade --skip-category slow` | Pular steps marcados com uma tag específica. |
+| `full-upgrade --skip "Atualizar ghcup"` | Pular um step pelo nome exato. |
+| `full-upgrade --json` | Imprimir uma linha JSON de resumo ao final. |
+| `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
+| `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
+
+## Modos e Filtros
+
+O script combina modos formais com filtros de catálogo:
+
+| Modo | Escopo |
+| --- | --- |
+| `full` | Padrão. Executa o fluxo completo disponível no ambiente. |
+| `update` | Updates e limpeza, sem reparos mutáveis opcionais e sem doctor. |
+| `doctor` | Auditorias e checks de saúde, preservando steps compartilhados de preflight/finalização. |
+| `repair` | Reparos conhecidos, sem limpeza. |
+
+Filtros:
+
 ```bash
-full-upgrade                 # full mode
-full-upgrade --mode doctor   # audits only (read-only)
-full-upgrade --dry-run       # simulate
-full-upgrade --list-steps    # show catalog
+full-upgrade --only doctor
+full-upgrade --only docker
+full-upgrade --only network
+full-upgrade --skip-category aur
+full-upgrade --skip-category cleanup
+FULL_UPGRADE_SKIP="Atualizar ghcup,Atualizar gems de usuário" full-upgrade
 ```
 
-### Configuration
-Zero-config works. Copy `config.example` to `~/.config/full-upgrade/config` to
-customize. See the table above. Output is currently **Portuguese** (bilingual
-support planned).
+Categorias e tags vêm do catálogo. Para descobrir os nomes válidos:
 
-### License
-MIT — see [LICENSE](LICENSE).
+```bash
+full-upgrade --list-steps
+full-upgrade --explain-step "Atualizar pacotes do sistema e AUR"
+```
+
+## Catálogo de Steps
+
+Cada step tem metadados no formato:
+
+```text
+nome | categoria | tags | efeito | timeout | dependências | função | descrição
+```
+
+Exemplo:
+
+```text
+Doctor: saúde de rede
+Categoria: doctor
+Tags: network,read
+Efeito: read
+Timeout: 30s
+Função: doctor_network_health
+Descrição: Verifica DNS e conectividade HTTPS para mirrors Arch.
+```
+
+Status possíveis no resumo:
+
+| Status | Significado | Impacto no exit code |
+| --- | --- | --- |
+| `ok` | Step concluído. | Mantém sucesso. |
+| `warn` | Problema não bloqueante ou falha transitória tratada. | Mantém sucesso. |
+| `todo` | Requer decisão ou ação manual. | Mantém sucesso. |
+| `fail` | Falha operacional real. | Finaliza com exit code `2`. |
+| `skip` | Step pulado por filtro, ausência de dependência, ambiente ou dry-run. | Mantém sucesso. |
+
+## O Que Ele Atualiza
+
+| Domínio | Cobertura principal |
+| --- | --- |
+| Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`. |
+| Snapshot e mirrors | `snapper`/`timeshift` em btrfs, `reflector`/`rate-mirrors` com backup da mirrorlist. |
+| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais e `.pacnew/.pacsave`. |
+| Apps | Flatpak e Snap quando presentes. |
+| Containers | Pull de imagens Docker remotas e aviso de containers usando imagem antiga. |
+| Firmware e boot | `fwupdmgr` e `bootctl`. |
+| JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais. |
+| Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry. |
+| Rust | `rustup`, `cargo-install-update` e auditoria com `cargo-audit`. |
+| Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
+| Shell/editor | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason e Hyprland `hyprpm`. |
+| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, Burp Suite e Wireshark quando habilitados. |
+
+Ferramentas ausentes não quebram a execução normal: o step é marcado como
+`skip` com o motivo, e o restante do fluxo continua.
+
+## Doctor
+
+O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
+
+| Check | Detecta |
+| --- | --- |
+| Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
+| systemd | Units falhadas no sistema e no usuário. |
+| Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
+| Firmware | Resultado de `fwupdmgr security`. |
+| Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |
+| Disco | Uso de espaço e inodes em mounts essenciais. |
+| Boot | Estado do systemd-boot, kernel/initrd e espaço no ESP. |
+| Rede | DNS e HTTPS contra endpoints de mirrors Arch. |
+| Serviços antigos | Serviços usando bibliotecas atualizadas via `needrestart` ou `checkservices`. |
+| Pacman | Arquivos ausentes via `pacman -Qkq`. |
+| ALPM | Hooks com falha no journal do boot atual. |
+| SMART/NVMe | Saúde de discos via `smartctl` e `nvme`. |
+| Desktop | Portais, PipeWire, WirePlumber e informações gráficas quando disponíveis. |
+| IA | Versões de `claude`, `copilot` e `hermes`. |
+| Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos e conflitos npm/pnpm. |
+
+## Logs e Automação
+
+Arquivos ficam em:
+
+```text
+~/.cache/system-upgrade/
+  full-upgrade-<run_id>.log
+  full-upgrade-<run_id>.jsonl
+  latest.log -> último log humano
+  latest.jsonl -> último log estruturado
+```
+
+O script mantém os 20 logs mais recentes de cada tipo.
+
+JSONL registra eventos de run e step. Campos importantes:
+
+| Campo | Descrição |
+| --- | --- |
+| `event` | `run_start`, `step`, `run_end` ou `summary`. |
+| `run_id` | Identificador único da execução. |
+| `step` | Nome do step, quando aplicável. |
+| `status` | `ok`, `warn`, `todo`, `fail` ou `skip`. |
+| `duration_seconds` | Duração do step ou do run. |
+| `exit_code` | Código retornado pela função do step. |
+| `category`, `tags`, `effect`, `timeout` | Metadados vindos do catálogo. |
+| `log_file`, `jsonl_file` | Caminhos dos artefatos da execução. |
+
+Exemplos:
+
+```bash
+tail -f ~/.cache/system-upgrade/latest.log
+jq -c 'select(.event == "summary")' ~/.cache/system-upgrade/latest.jsonl
+jq -r 'select(.event == "step" and .status != "ok") | [.status, .step, .reason] | @tsv' ~/.cache/system-upgrade/latest.jsonl
+```
+
+## Configuração
+
+Funciona sem configuração. Para personalizar:
+
+```bash
+mkdir -p ~/.config/full-upgrade
+cp config.example ~/.config/full-upgrade/config
+$EDITOR ~/.config/full-upgrade/config
+```
+
+Principais chaves:
+
+| Chave | Default | Descrição |
+| --- | --- | --- |
+| `ENABLE_CUSTOM_TOOLS` | `0` | Habilita hooks extras em `steps.d/`. |
+| `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
+| `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
+| `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
+| `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
+| `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |
+| `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
+| `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. |
+| `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
+| `COPILOT_BIN` | auto | Override do binário `copilot`. |
+| `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |
+| `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
+
+Como o arquivo é carregado com `source`, use sintaxe Bash válida.
+
+## Plugins e Ferramentas Customizadas
+
+`steps.d/` é usado para carregar implementações opcionais de ferramentas que não
+devem rodar por padrão. O comportamento é propositalmente conservador:
+
+1. `ENABLE_CUSTOM_TOOLS=1` precisa estar definido no config.
+2. Arquivos `.sh` em `~/.config/full-upgrade/steps.d/` e no `steps.d/` instalado são carregados.
+3. As funções carregadas só rodam quando existe um hook correspondente chamado pelo fluxo principal.
+
+Exemplos incluídos:
+
+| Arquivo | Hook |
+| --- | --- |
+| `steps.d/10-hermes.sh` | `update_hermes` |
+| `steps.d/20-adguardvpn.sh` | `update_adguardvpn` |
+| `steps.d/30-copilot.sh` | `update_copilot_cli` |
+| `steps.d/40-dms.sh` | `update_dms_plugins` |
+| `steps.d/50-burp-wireshark.sh` | `ensure_security_tools`, reparos de Wireshark e atalhos do Burp |
+
+Para adicionar steps totalmente novos, adicione a função, registre o step em
+`lib/catalog.sh` e chame-o no ponto correto de `lib/main.sh`.
+
+## Requisitos
+
+Obrigatórios:
+
+| Requisito | Observação |
+| --- | --- |
+| Arch Linux ou derivado | O fluxo assume `pacman` e convenções de Arch. |
+| Bash 4+ | Usa arrays e recursos modernos de Bash. |
+| `sudo` | Necessário para steps de sistema. Sem sudo, vários steps serão `skip`. |
+
+Opcionais detectados automaticamente:
+
+```text
+paru, yay, pacman-contrib, reflector, rate-mirrors, snapper, timeshift,
+flatpak, snap, docker, fwupdmgr, bootctl, npm, corepack, pnpm, python, pipx,
+uv, poetry, rustup, cargo, cargo-install-update, cargo-audit, go, dotnet,
+gem, ghcup, arduino-cli, gcloud, claude, hermes, copilot, nvim, hyprpm,
+needrestart, checkservices, smartctl, nvme, vulkaninfo, glxinfo
+```
+
+## Arquitetura
+
+```text
+.
+├── full-upgrade.sh          # entrypoint: resolve paths, carrega libs e inicia o fluxo
+├── install.sh               # instalação em ~/.local/share + symlink no PATH
+├── build.sh                 # gera dist/full-upgrade-standalone.sh
+├── config.example           # template de configuração do usuário
+├── lib/
+│   ├── globals.sh           # estado global, paths e flags
+│   ├── ui.sh                # cores, símbolos, banner e resumo
+│   ├── core.sh              # helpers, run_step, status e timeouts
+│   ├── json.sh              # log JSONL e rotação
+│   ├── sudo.sh              # validação e keepalive de sudo
+│   ├── config.sh            # XDG config e auto-detecção
+│   ├── catalog.sh           # metadados dos steps e filtros
+│   ├── cli.sh               # flags, modos e saídas precoces
+│   ├── main.sh              # ordem de execução
+│   └── steps/               # implementação por domínio
+└── steps.d/                 # hooks opcionais de ferramentas customizadas
+```
+
+O padrão central é `run_step "Nome" funcao`. Ele:
+
+1. aplica `--skip`, `--only`, `--skip-category` e `FULL_UPGRADE_SKIP`;
+2. respeita `--dry-run`;
+3. valida dependências declaradas no catálogo;
+4. aplica timeout por step;
+5. traduz códigos especiais em `warn` e `todo`;
+6. grava log humano e evento JSONL.
+
+## Boas Práticas
+
+Antes de uma execução real:
+
+```bash
+full-upgrade --dry-run
+full-upgrade --list-steps
+```
+
+Para manutenção assistida:
+
+```bash
+full-upgrade --mode update --json
+full-upgrade --mode doctor --json
+```
+
+Para reduzir risco em automações:
+
+```bash
+full-upgrade --mode update --no-repair --no-cleanup --json --quiet
+```
+
+Para investigar uma falha:
+
+```bash
+tail -n 120 ~/.cache/system-upgrade/latest.log
+jq -r 'select(.event == "step" and .status == "fail")' ~/.cache/system-upgrade/latest.jsonl
+```
+
+## Troubleshooting
+
+| Sintoma | Diagnóstico provável | Ação |
+| --- | --- | --- |
+| `full-upgrade: diretório lib/ não encontrado` | O symlink não resolve para uma instalação modular válida. | Rode `./install.sh` de novo ou use o standalone gerado por `./build.sh`. |
+| Muitos steps `skip` por sudo | Execução sem TTY, sudo ausente ou credencial indisponível. | Rode em terminal interativo ou ajuste os steps para modo sem sudo. |
+| `--only`/`--skip-category` rejeita categoria | Token não existe no catálogo. | Use `full-upgrade --list-steps` para copiar categoria/tag válida. |
+| Um step demora demais | Timeout por step foi atingido e o status vira `warn`. | Veja `latest.log` e rode `--explain-step` para entender timeout/deps. |
+| JSONL parece incompleto | Execução foi interrompida antes do resumo. | Confira eventos `run_start`, `step` e `run_end` em `latest.jsonl`. |
+| Doctor retorna `todo` | O script encontrou ação manual, não necessariamente uma falha. | Leia o bloco do step no log e decida a correção. |
+
+## Desenvolvimento
+
+Validações rápidas:
+
+```bash
+bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh steps.d/*.sh
+./full-upgrade.sh --help
+./full-upgrade.sh --list-steps
+./build.sh
+```
+
+Ao criar ou alterar steps:
+
+1. mantenha a função no arquivo de domínio em `lib/steps/`;
+2. registre metadados em `lib/catalog.sh`;
+3. chame o step em `lib/main.sh`;
+4. defina timeout realista;
+5. use `RC_WARN` para problema não bloqueante e `RC_TODO` para ação manual;
+6. garanta que dependências ausentes gerem `skip`, não falha desnecessária.
+
+## Licença
+
+MIT. Veja [LICENSE](LICENSE).
