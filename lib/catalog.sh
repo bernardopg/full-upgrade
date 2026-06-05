@@ -44,10 +44,11 @@ Atualizar ferramentas .NET|lang|dotnet,update,network|mutating|300|dotnet|update
 Atualizar Google Cloud SDK|lang|gcloud,update,network,slow|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
 Atualizar gems de usuário|lang|ruby,gem,update,network|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
 Atualizar ghcup|lang|haskell,ghcup,update,network|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
-Atualizar Hermes|ai|hermes,update,network|mutating|120|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
-Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
-Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_claude_code|Atualiza Claude Code CLI.
-Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
+ Atualizar Hermes|ai|hermes,update,network|mutating|120|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
+ Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
+ Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
+ Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_claude_code|Atualiza Claude Code CLI.
+ Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.

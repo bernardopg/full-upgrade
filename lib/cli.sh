@@ -53,153 +53,153 @@ EOF
 }
 
 parse_args() {
-  while (( $# > 0 )); do
-  case "$1" in
-    -y|--yes)       ASSUME_YES=1 ;;
-    -d|--devel)     DEVEL_UPDATE=1 ;;
-    -n|--dry-run)   DRY_RUN=1 ;;
-    -q|--quiet)     QUIET=1 ;;
-    -v|--verbose)   VERBOSE=1 ;;
-    --doctor)       MODE=doctor ;;
-    --mode)
-      shift
-      case "${1:-}" in
-        update|doctor|repair|full) MODE="$1" ;;
-        "")
-          echo "Opção --mode requer um valor: update, doctor, repair ou full." >&2
-          usage >&2; exit 2 ;;
-        *)
-          echo "Modo inválido: $1. Use: update, doctor, repair ou full." >&2
-          usage >&2; exit 2 ;;
-      esac
-      ;;
-    --mode=update|--mode=doctor|--mode=repair|--mode=full)
-      MODE="${1#--mode=}"
-      ;;
-    --no-repair)    NO_REPAIR=1 ;;
-    --no-cleanup)   NO_CLEANUP=1 ;;
-    --restart-services) RESTART_SERVICES=1 ;;
-    --skip)
-      shift
-      if (( $# == 0 )) || [[ "$1" == -* ]]; then
-        echo "Opção --skip requer o nome exato de um step." >&2
-        usage >&2
-        exit 2
-      fi
-      add_skip_step "$1"
-      ;;
-    --skip=*)
-      add_skip_step "${1#--skip=}"
-      ;;
-    --skip-category)
-      shift
-      if (( $# == 0 )) || [[ "$1" == -* ]]; then
-        echo "Opção --skip-category requer uma categoria/tag." >&2
-        usage >&2
-        exit 2
-      fi
-      if ! add_skip_category "$1"; then
-        echo "Categoria/tag desconhecida para --skip-category: $1" >&2
-        usage >&2
-        exit 2
-      fi
-      ;;
-    --skip-category=*)
-      if ! add_skip_category "${1#--skip-category=}"; then
-        echo "Categoria/tag desconhecida para --skip-category: ${1#--skip-category=}" >&2
-        usage >&2
-        exit 2
-      fi
-      ;;
-    --only)
-      shift
-      case "${1:-}" in
-        doctor) MODE=doctor ;;
-        "")
-          echo "Opção --only requer uma categoria." >&2
-          usage >&2
-          exit 2
-          ;;
-        *) ONLY_CATEGORY="$1" ;;
-      esac
-      ;;
-    --only=doctor) MODE=doctor ;;
-    --only=*)
-      ONLY_CATEGORY="${1#--only=}"
-      ;;
-    --list-steps)
-      LIST_STEPS=1
-      ;;
-    --json)
-      JSON_SUMMARY=1
-      ;;
-    --explain-step)
-      shift
-      if (( $# == 0 )) || [[ "$1" == -* ]]; then
-        echo "Opção --explain-step requer o nome exato de um step." >&2
-        usage >&2
-        exit 2
-      fi
-      EXPLAIN_STEP="$1"
-      ;;
-    --explain-step=*)
-      EXPLAIN_STEP="${1#--explain-step=}"
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Opção inválida: $1" >&2
-      usage >&2
-      exit 2
-      ;;
-  esac
-    shift
-  done
+    while (( $# > 0 )); do
+        case "$1" in
+            -y|--yes)       ASSUME_YES=1 ;;
+            -d|--devel)     DEVEL_UPDATE=1 ;;
+            -n|--dry-run)   DRY_RUN=1 ;;
+            -q|--quiet)     QUIET=1 ;;
+            -v|--verbose)   VERBOSE=1 ;;
+            --doctor)       MODE=doctor ;;
+            --mode)
+                shift
+                case "${1:-}" in
+                    update|doctor|repair|full) MODE="$1" ;;
+                    "")
+                        echo "Opção --mode requer um valor: update, doctor, repair ou full." >&2
+                    usage >&2; exit 2 ;;
+                    *)
+                        echo "Modo inválido: $1. Use: update, doctor, repair ou full." >&2
+                    usage >&2; exit 2 ;;
+                esac
+            ;;
+            --mode=update|--mode=doctor|--mode=repair|--mode=full)
+                MODE="${1#--mode=}"
+            ;;
+            --no-repair)    NO_REPAIR=1 ;;
+            --no-cleanup)   NO_CLEANUP=1 ;;
+            --restart-services) RESTART_SERVICES=1 ;;
+            --skip)
+                shift
+                if (( $# == 0 )) || [[ "$1" == -* ]]; then
+                    echo "Opção --skip requer o nome exato de um step." >&2
+                    usage >&2
+                    exit 2
+                fi
+                add_skip_step "$1"
+            ;;
+            --skip=*)
+                add_skip_step "${1#--skip=}"
+            ;;
+            --skip-category)
+                shift
+                if (( $# == 0 )) || [[ "$1" == -* ]]; then
+                    echo "Opção --skip-category requer uma categoria/tag." >&2
+                    usage >&2
+                    exit 2
+                fi
+                if ! add_skip_category "$1"; then
+                    echo "Categoria/tag desconhecida para --skip-category: $1" >&2
+                    usage >&2
+                    exit 2
+                fi
+            ;;
+            --skip-category=*)
+                if ! add_skip_category "${1#--skip-category=}"; then
+                    echo "Categoria/tag desconhecida para --skip-category: ${1#--skip-category=}" >&2
+                    usage >&2
+                    exit 2
+                fi
+            ;;
+            --only)
+                shift
+                case "${1:-}" in
+                    doctor) MODE=doctor ;;
+                    "")
+                        echo "Opção --only requer uma categoria." >&2
+                        usage >&2
+                        exit 2
+                    ;;
+                    *) ONLY_CATEGORY="$1" ;;
+                esac
+            ;;
+            --only=doctor) MODE=doctor ;;
+            --only=*)
+                ONLY_CATEGORY="${1#--only=}"
+            ;;
+            --list-steps)
+                LIST_STEPS=1
+            ;;
+            --json)
+                JSON_SUMMARY=1
+            ;;
+            --explain-step)
+                shift
+                if (( $# == 0 )) || [[ "$1" == -* ]]; then
+                    echo "Opção --explain-step requer o nome exato de um step." >&2
+                    usage >&2
+                    exit 2
+                fi
+                EXPLAIN_STEP="$1"
+            ;;
+            --explain-step=*)
+                EXPLAIN_STEP="${1#--explain-step=}"
+            ;;
+            -h|--help)
+                usage
+                exit 0
+            ;;
+            *)
+                echo "Opção inválida: $1" >&2
+                usage >&2
+                exit 2
+            ;;
+        esac
+        shift
+    done
 }
 
 # Saídas precoces (--explain-step, --list-steps) e tradução de --mode/--only.
 apply_mode_and_early_exits() {
-if [[ -n "$EXPLAIN_STEP" ]]; then
-  explain_step "$EXPLAIN_STEP"
-  exit $?
-fi
-
-if (( LIST_STEPS )); then
-  print_step_catalog
-  exit 0
-fi
-
-# traduzir --mode para flags canônicas
-case "$MODE" in
-  doctor)
-    if ! apply_only_category doctor; then
-      echo "Categoria 'doctor' não encontrada no catálogo." >&2; exit 2
+    if [[ -n "$EXPLAIN_STEP" ]]; then
+        explain_step "$EXPLAIN_STEP"
+        exit $?
     fi
-    ;;
-  repair)
-    # apenas categoria repair (+ core implícito)
-    if ! apply_only_category repair; then
-      echo "Categoria 'repair' não encontrada no catálogo." >&2; exit 2
+    
+    if (( LIST_STEPS )); then
+        print_step_catalog
+        exit 0
     fi
-    NO_CLEANUP=1
-    ;;
-  update)
-    # update + limpeza; sem repair, sem doctor
-    NO_REPAIR=1
-    add_skip_category doctor || true
-    ;;
-  full|"")
-    # comportamento padrão: tudo
-    ;;
-esac
-
-if [[ -n "$ONLY_CATEGORY" ]]; then
-  if ! apply_only_category "$ONLY_CATEGORY"; then
-    echo "Categoria/tag desconhecida para --only: $ONLY_CATEGORY" >&2
-    usage >&2
-    exit 2
-  fi
-fi
+    
+    # traduzir --mode para flags canônicas
+    case "$MODE" in
+        doctor)
+            if ! apply_only_category doctor; then
+                echo "Categoria 'doctor' não encontrada no catálogo." >&2; exit 2
+            fi
+        ;;
+        repair)
+            # apenas categoria repair (+ core implícito)
+            if ! apply_only_category repair; then
+                echo "Categoria 'repair' não encontrada no catálogo." >&2; exit 2
+            fi
+            NO_CLEANUP=1
+        ;;
+        update)
+            # update + limpeza; sem repair, sem doctor
+            NO_REPAIR=1
+            add_skip_category doctor || true
+        ;;
+        full|"")
+            # comportamento padrão: tudo
+        ;;
+    esac
+    
+    if [[ -n "$ONLY_CATEGORY" ]]; then
+        if ! apply_only_category "$ONLY_CATEGORY"; then
+            echo "Categoria/tag desconhecida para --only: $ONLY_CATEGORY" >&2
+            usage >&2
+            exit 2
+        fi
+    fi
 }
