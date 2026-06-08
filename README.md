@@ -9,7 +9,7 @@
 
 ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnu-bash&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)
-![version](https://img.shields.io/badge/version-3.0.0-informational)
+![version](https://img.shields.io/badge/version-3.0.2-informational)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 `full-upgrade` foi feito para quem mantém uma estação Arch com muitas camadas:
@@ -258,9 +258,23 @@ Principais chaves:
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
 | `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |
+| `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
 | `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
 
 Como o arquivo é carregado com `source`, use sintaxe Bash válida.
+
+### Filtro de ruído do journal
+
+O check `Doctor: journal erros críticos` agrupa erros do boot atual e filtra ruído
+conhecido (ex.: falhas HFP do `bluetoothd`). Para silenciar padrões específicos da
+sua máquina, crie `~/.config/full-upgrade/journal-noise.txt` com um regex estendido
+(`grep -E`) por linha; linhas em branco e começando com `#` são ignoradas:
+
+```text
+# um regex-E por linha
+codeisland\.service: (Failed at step CHDIR|Changing to the requested)
+ftdi_sio .*Unable to read latency timer
+```
 
 ## Plugins e Ferramentas Customizadas
 
