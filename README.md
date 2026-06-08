@@ -409,6 +409,20 @@ Ao criar ou alterar steps:
 5. use `RC_WARN` para problema não bloqueante e `RC_TODO` para ação manual;
 6. garanta que dependências ausentes gerem `skip`, não falha desnecessária.
 
+## Apoie o projeto
+
+Se o `full-upgrade` te poupa tempo, considere apoiar o desenvolvimento:
+
+- [GitHub Sponsors](https://github.com/sponsors/bernardopg)
+- [Ko-fi](https://ko-fi.com/bernardopg)
+- [Buy Me a Coffee](https://www.buymeacoffee.com/wctwom9emu)
+
+## Contribuindo
+
+Contribuições são bem-vindas. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para o
+fluxo de validação e o padrão de steps, e [SECURITY.md](SECURITY.md) para
+reportar vulnerabilidades.
+
 ## Licença
 
 MIT. Veja [LICENSE](LICENSE).
