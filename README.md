@@ -84,6 +84,28 @@ Também é possível gerar um arquivo único:
 ./dist/full-upgrade-standalone.sh --help
 ```
 
+## Atualização
+
+O `full-upgrade` se mantém atualizado sozinho a partir das releases do GitHub:
+
+```bash
+full-upgrade --version      # mostra a versão instalada
+full-upgrade --update       # baixa e instala a última release (pede confirmação)
+full-upgrade --update -y    # atualiza sem perguntar
+```
+
+Durante o fluxo normal, o step **"Checar atualização do full-upgrade"** apenas
+avisa quando há uma versão nova (não baixa nada) — você decide quando rodar
+`--update`. O canal e a origem são configuráveis:
+
+| Chave | Default | Descrição |
+| --- | --- | --- |
+| `FULL_UPGRADE_REPO` | `bernardopg/full-upgrade` | Repositório `owner/repo` no GitHub. |
+| `FULL_UPGRADE_UPDATE_CHANNEL` | `release` | `release` (última tag) ou `main` (bleeding edge). |
+
+O `--update` baixa o tarball da tag, extrai e roda o `install.sh` — requer
+apenas `curl` e `tar`, sem depender do `git` ou do `gh`.
+
 ## Uso Rápido
 
 ```bash

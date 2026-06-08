@@ -15,6 +15,7 @@ ORDER=(
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh
   lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh lib/steps/doctor.sh
+  lib/steps/self_update.sh
   lib/main.sh
 )
 
@@ -23,7 +24,10 @@ ORDER=(
   printf '# full-upgrade — standalone (gerado por build.sh; NÃO edite à mão)\n'
   printf 'set -uo pipefail\n\n'
   # Metadados (sem resolução de lib/ — é single-file).
-  printf 'SCRIPT_VERSION="%s"\n' "$(git -C "$ROOT" describe --tags --always 2>/dev/null || echo 3.0.0)"
+  _build_ver="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+  [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]] && _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
+  [[ -z "$_build_ver" ]] && _build_ver="3.0.4"
+  printf 'SCRIPT_VERSION="%s"\n' "${_build_ver#v}"
   printf 'SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf %%s "${BASH_SOURCE[0]}")"\n'
   printf 'SCRIPT_SHA256="$(sha256sum "$SCRIPT_PATH" 2>/dev/null | awk '"'"'{print $1}'"'"' || printf unknown)"\n'
   printf 'FU_ROOT="$(dirname -- "$SCRIPT_PATH")"\n\n'

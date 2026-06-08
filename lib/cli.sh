@@ -32,6 +32,8 @@ Opções:
                    Explicar um step pelo nome exato
   --json           Imprimir uma linha JSON de resumo ao final
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
+  -u, --update     Baixar e instalar a última versão do full-upgrade e sair
+  -V, --version    Mostrar a versão instalada e sair
   -h, --help       Mostra esta ajuda
 
 Status no resumo:
@@ -145,6 +147,12 @@ parse_args() {
             --explain-step=*)
                 EXPLAIN_STEP="${1#--explain-step=}"
             ;;
+            -V|--version)
+                SHOW_VERSION=1
+            ;;
+            -u|--update)
+                DO_SELF_UPDATE=1
+            ;;
             -h|--help)
                 usage
                 exit 0
@@ -159,13 +167,26 @@ parse_args() {
     done
 }
 
-# Saídas precoces (--explain-step, --list-steps) e tradução de --mode/--only.
+# Saídas precoces (--version, --update, --explain-step, --list-steps) e tradução de --mode/--only.
 apply_mode_and_early_exits() {
+    if (( SHOW_VERSION )); then
+        printf '%s\n' "${SCRIPT_VERSION}"
+        exit 0
+    fi
+
+    if (( DO_SELF_UPDATE )); then
+        self_perform_update
+        local _rc=$?
+        # RC_WARN (rede/erro) vira exit 1; sucesso/cancelado vira 0.
+        (( _rc == 0 )) && exit 0
+        exit 1
+    fi
+
     if [[ -n "$EXPLAIN_STEP" ]]; then
         explain_step "$EXPLAIN_STEP"
         exit $?
     fi
-    
+
     if (( LIST_STEPS )); then
         print_step_catalog
         exit 0

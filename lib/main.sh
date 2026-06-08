@@ -354,6 +354,7 @@ run_all_steps() {
     # ── Verificação final ─────────────────────────────────────────────────────────
     
     run_step "Verificação final de pendências" final_check_pending
+    run_step "Checar atualização do full-upgrade" self_update_notice
     run_step "Doctor: reboot pendente" doctor_reboot_pending
     run_step "Doctor: units systemd falhadas" doctor_failed_systemd_units
     run_step "Doctor: configuração paru Devel" doctor_paru_devel_mode
