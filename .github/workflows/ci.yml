@@ -43,6 +43,12 @@ jobs:
           bash full-upgrade.sh --list-steps
           XDG_CONFIG_HOME="$RUNNER_TEMP/nocfg" bash full-upgrade.sh --dry-run --mode full
 
+      - name: Install bats
+        run: sudo apt-get install -y bats
+
+      - name: Unit tests (bats)
+        run: bats tests/
+
       - name: Build standalone
         run: ./build.sh
 

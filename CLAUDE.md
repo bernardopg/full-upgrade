@@ -13,6 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 
+# Unit tests (bats — pure functions only; safe anywhere, no mutation)
+bats tests/
+bats tests/core.bats          # single file
+
 # Smoke tests (no mutation; safe to run anywhere, even non-Arch CI)
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps
@@ -26,7 +30,7 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 ./install.sh
 ```
 
-There is no unit test framework. Verification = `bash -n` + `shellcheck` + `--dry-run`. `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
+Verification = `bash -n` + `shellcheck` + `bats tests/` + `--dry-run`. The `bats` suite covers pure functions only (catalog parser, RC/skip helpers, catalog integrity) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
 
 ## Architecture
 

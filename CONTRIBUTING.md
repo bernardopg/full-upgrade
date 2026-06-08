@@ -14,6 +14,9 @@ bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 # Lint
 shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 
+# Testes unitários (bats — funções puras, sem mutação)
+bats tests/
+
 # Smoke (sem mutação — seguro em qualquer máquina, inclusive CI não-Arch)
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps

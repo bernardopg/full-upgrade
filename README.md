@@ -9,7 +9,7 @@
 
 ![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnu-bash&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)
-![version](https://img.shields.io/badge/version-3.0.2-informational)
+![version](https://img.shields.io/badge/version-3.0.3-informational)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
 `full-upgrade` foi feito para quem mantém uma estação Arch com muitas camadas:
@@ -395,6 +395,8 @@ Validações rápidas:
 
 ```bash
 bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh steps.d/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+bats tests/                 # testes unitários (funções puras, sem mutação)
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps
 ./build.sh

@@ -2,6 +2,26 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.3] — 2026-06-08
+
+### Adicionado
+
+- **Suíte de testes `bats`** (`tests/`): primeira rede de testes unitários do
+  projeto, cobrindo funções puras sem mutação:
+  - `core.bats` — `elapsed`, `_strip_ansi`, `has`, `add_skip_step`/
+    `skip_step_count`, `_step_skip_requested` (com trim), `aur_ignore_args`.
+  - `catalog.bats` — `catalog_match_token`, `catalog_info_for_step`,
+    `catalog_has_token`, `count_effective_steps`, `apply_only_category`.
+  - `catalog_integrity.bats` — invariantes do `step_catalog`: 8 campos por linha,
+    timeout inteiro, efeito `read`/`mutating`, nomes de step únicos (a chave de
+    junção do framework) e todo `func_name` referenciado existindo em
+    `lib/steps/*.sh`, `lib/sudo.sh` ou `steps.d/*.sh`.
+  - `tests/test_helper.bash` carrega as libs num shell isolado
+    (`globals → ui → core → catalog`) com I/O neutralizado.
+- **CI**: novo passo `Unit tests (bats)` no workflow de CI, entre o smoke test e
+  o build do standalone.
+- Documentação de teste em `README.md`, `CLAUDE.md` e `CONTRIBUTING.md`.
+
 ## [3.0.2] — 2026-06-08
 
 ### Corrigido
