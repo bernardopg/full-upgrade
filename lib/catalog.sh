@@ -61,6 +61,7 @@ Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
 Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
+Checar atualização do full-upgrade|final|self-update,read,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
 Doctor: reboot pendente|doctor|kernel,read|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
 Doctor: units systemd falhadas|doctor|systemd,read|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
 Doctor: configuração paru Devel|doctor|paru,aur,read|read|10|paru|doctor_paru_devel_mode|Detecta configuração global Devel no paru.

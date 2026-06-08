@@ -41,3 +41,10 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
+
+# ── Auto-atualização do próprio full-upgrade / Self-update ──────────────────────
+# Repositório de origem (owner/repo no GitHub) e canal de atualização.
+# release = última tag publicada (estável) | main = topo da branch (bleeding edge)
+# Usados por 'full-upgrade --update' e pelo aviso passivo de nova versão.
+FULL_UPGRADE_REPO="bernardopg/full-upgrade"
+FULL_UPGRADE_UPDATE_CHANNEL="release"

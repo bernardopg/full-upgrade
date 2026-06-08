@@ -2,6 +2,33 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.4] — 2026-06-08
+
+### Adicionado
+
+- **Auto-atualização do próprio script** (`lib/steps/self_update.sh`):
+  - `full-upgrade --update` / `-u`: baixa a última release do GitHub (tarball da
+    tag), extrai e roda o `install.sh`. Pede confirmação, exceto com `-y`.
+    Requer apenas `curl` e `tar` — sem depender de `git`/`gh`.
+  - `full-upgrade --version` / `-V`: imprime a versão instalada.
+  - Step **"Checar atualização do full-upgrade"** no fluxo normal: avisa
+    (`todo`) quando há versão nova, sem baixar nada.
+  - Configurável via `FULL_UPGRADE_REPO` e `FULL_UPGRADE_UPDATE_CHANNEL`
+    (`release` | `main`) no config.
+- `tests/self_update.bats`: 12 testes da comparação de versão semver (pura),
+  incluindo ordenação numérica (`3.0.10 > 3.0.3`) e normalização de sufixos do
+  `git describe`.
+
+### Corrigido
+
+- **Versão exibida como `3.0.0` em instalações.** Como `install.sh` não copia o
+  `.git`, `git describe` falhava e a versão caía no fallback embutido. Agora a
+  instalação grava um arquivo `VERSION` e o entrypoint resolve a versão na ordem
+  `git describe → VERSION → fallback`. `build.sh` também passa a embutir a versão
+  sem o prefixo `v`, consistente com o modo modular.
+- `log`/`log_always` toleram `LOG_FILE` vazio (chamadas antes de `setup_logging`,
+  como em `--update`).
+
 ## [3.0.3] — 2026-06-08
 
 ### Adicionado

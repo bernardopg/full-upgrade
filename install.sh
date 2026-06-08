@@ -19,6 +19,17 @@ cp -a "${SRC_DIR}/full-upgrade.sh" "${SRC_DIR}/lib" "$DEST_DIR/"
 cp -f "${SRC_DIR}/config.example" "$DEST_DIR/" 2>/dev/null || true
 chmod +x "${DEST_DIR}/full-upgrade.sh"
 
+# Grava a versão instalada: a instalação não leva o .git, então sem este arquivo
+# o entrypoint cairia no fallback embutido. Prioridade: git describe > VERSION do repo.
+_inst_ver="$(git -C "$SRC_DIR" describe --tags --always 2>/dev/null || true)"
+if [[ -z "$_inst_ver" && -r "${SRC_DIR}/VERSION" ]]; then
+  _inst_ver="$(tr -d '[:space:]' < "${SRC_DIR}/VERSION")"
+fi
+if [[ -n "$_inst_ver" ]]; then
+  printf '%s\n' "${_inst_ver#v}" > "${DEST_DIR}/VERSION"
+  echo "  versão : ${_inst_ver#v}"
+fi
+
 # Symlink no PATH.
 mkdir -p "$BIN_DIR"
 ln -sf "${DEST_DIR}/full-upgrade.sh" "${BIN_DIR}/full-upgrade"

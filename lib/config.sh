@@ -15,6 +15,9 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${MIRROR_TOOL:=auto}"            # auto|reflector|rate-mirrors|none
 : "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
 : "${MIN_BOOT_FREE_MIB:=200}"       # espaço livre mínimo em /boot (MiB; ESP é pequeno)
+# Auto-atualização do próprio script
+: "${FULL_UPGRADE_REPO:=bernardopg/full-upgrade}"   # slug owner/repo no GitHub
+: "${FULL_UPGRADE_UPDATE_CHANNEL:=release}"         # release (última tag) | main (bleeding edge)
 # Overrides de path (vazio = auto-detecta via command -v / locais conhecidos)
 : "${GCLOUD_BIN:=}"
 : "${COPILOT_BIN:=}"
@@ -40,6 +43,7 @@ load_config() {
 
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
+  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
 
 # Step custom só roda se: tools custom habilitados E a função foi carregada de steps.d/.

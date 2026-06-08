@@ -46,18 +46,23 @@ skip_step_count() {
 }
 
 log() {
+  # Antes de setup_logging (ex.: --update), LOG_FILE ainda é vazio.
+  local _lf="${LOG_FILE:-/dev/null}"
+  [[ -z "$_lf" ]] && _lf="/dev/null"
   if (( QUIET )); then
-    printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"
+    printf '%b\n' "$*" | _strip_ansi >> "$_lf"
   else
     printf '%b\n' "$*"                          # terminal: mantém cores
-    printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"   # arquivo: sem ANSI
+    printf '%b\n' "$*" | _strip_ansi >> "$_lf"  # arquivo: sem ANSI
   fi
 }
 
 # Sempre imprime no terminal (mesmo em --quiet): use para resumo e erros críticos.
 log_always() {
+  local _lf="${LOG_FILE:-/dev/null}"
+  [[ -z "$_lf" ]] && _lf="/dev/null"
   printf '%b\n' "$*"                            # terminal: mantém cores
-  printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"     # arquivo: sem ANSI
+  printf '%b\n' "$*" | _strip_ansi >> "$_lf"    # arquivo: sem ANSI
 }
 
 run_logged() {
