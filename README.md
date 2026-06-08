@@ -36,7 +36,7 @@ full-upgrade
 | Área | O que entrega |
 | --- | --- |
 | Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
-| Catálogo técnico | 69 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
+| Catálogo técnico | 71 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
 | Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. |
 | Arch completo | `pacman`, AUR via `paru`/`yay`, keyring, mirrors, snapshot btrfs, `.pacnew`, órfãos e cache. |
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
