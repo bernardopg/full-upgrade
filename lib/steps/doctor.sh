@@ -2,6 +2,7 @@
 # steps/doctor.sh — auditorias read-only
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 doctor_reboot_pending() {
   if ! has pacman || ! pacman -Q linux >/dev/null 2>&1; then
@@ -84,11 +85,11 @@ doctor_failed_systemd_units() {
 
   if [[ -n "${failed_system//[[:space:]]/}" ]]; then
     log "  Units systemd falhadas:"
-    printf '%s\n' "$failed_system" | tee -a "$LOG_FILE"
+    printf '%s\n' "$failed_system" | tee >(_strip_ansi >> "$LOG_FILE")
   fi
   if [[ -n "${failed_user//[[:space:]]/}" ]]; then
     log "  Units systemd --user falhadas:"
-    printf '%s\n' "$failed_user" | tee -a "$LOG_FILE"
+    printf '%s\n' "$failed_user" | tee >(_strip_ansi >> "$LOG_FILE")
   fi
 
   return "$RC_TODO"
@@ -167,11 +168,24 @@ doctor_journal_errors() {
 
   line_count="$(printf '%s\n' "$output" | wc -l)"
 
-  # Filtrar ruído antes de agrupar
-  filtered="$output"
-  for pat in "${_journal_noise[@]}"; do
-    filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
-  done
+  # Filtrar ruído antes de agrupar.
+  # Uma única passada com grep -Evf (todos os padrões de uma vez) em vez de
+  # N subshells encadeados — com journals grandes (dezenas de milhares de
+  # linhas), o loop antigo reprocessava a string inteira a cada padrão e
+  # estourava o timeout do step.
+  local _noise_pat_file
+  _noise_pat_file="$(mktemp 2>/dev/null || printf '')"
+  if [[ -n "$_noise_pat_file" ]]; then
+    printf '%s\n' "${_journal_noise[@]}" > "$_noise_pat_file"
+    filtered="$(printf '%s\n' "$output" | grep -Evf "$_noise_pat_file" || true)"
+    rm -f "$_noise_pat_file"
+  else
+    # Fallback defensivo se mktemp falhar: aplica padrões em sequência.
+    filtered="$output"
+    for pat in "${_journal_noise[@]}"; do
+      filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
+    done
+  fi
   filtered="$(
     printf '%s\n' "$filtered" \
       | sed -E 's/^[0-9T:+.-]+[[:space:]]+[^[:space:]]+[[:space:]]+[^:]+:[[:space:]]*//' \
@@ -198,12 +212,13 @@ doctor_journal_errors() {
   local noise_note=""
   (( noise_count > 0 )) && noise_note=", ${noise_count} de ruído filtrado"
   log "  Journal: ${filtered_count} erro(s) crítico(s) reais neste boot (${unique_count} assinatura(s)${noise_note}):"
-  printf '%s\n' "$grouped" | tee -a "$LOG_FILE"
+  printf '%s\n' "$grouped" | tee >(_strip_ansi >> "$LOG_FILE")
   log "  Últimas 80 linhas brutas (pós-filtro) gravadas no log para auditoria."
   {
     printf '\n--- journalctl -p 3 -b últimas 80 linhas filtradas ---\n'
     printf '%s\n' "$filtered" | tail -n 80
   } >> "$LOG_FILE"
+  STEP_REASON="${filtered_count} erro(s) crítico(s) reais (${unique_count} assinatura(s))"
   return "$RC_WARN"
 }
 
@@ -217,7 +232,7 @@ doctor_fwupd_security() {
   local output rc
   output="$(fwupdmgr security 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   if (( rc != 0 )); then
     log "  fwupdmgr security retornou código ${rc}:"
@@ -226,7 +241,28 @@ doctor_fwupd_security() {
   fi
 
   printf '%s\n' "$output" | grep -v '^$' || true
-  if printf '%s\n' "$output" | grep -q '✘\|problemas de tempo de execução\|HSI:.*!'; then
+
+  # O nível HSI agregado (0–4) é o sinal de verdade. O sufixo "!" indica apenas
+  # que há medições de runtime presentes (HSI-Runtime), não insegurança. E os
+  # marcadores "✘" em sub-itens são esperados mesmo em níveis altos (atributos
+  # não suportados/não aplicáveis no hardware), então NÃO devem disparar aviso
+  # por si só. Critério: avisar somente quando o nível agregado é baixo (< 2).
+  local hsi_level
+  hsi_level="$(printf '%s\n' "$output" | grep -oiE 'HSI:[0-9]+' | head -n1 | grep -oE '[0-9]+' || true)"
+
+  if [[ -n "$hsi_level" ]]; then
+    if (( hsi_level < 2 )); then
+      STEP_REASON="nível HSI baixo (HSI:${hsi_level} de 4)"
+      log "  fwupd security: nível HSI:${hsi_level} abaixo do recomendado (>= 2)."
+      return "$RC_WARN"
+    fi
+    log "  fwupd security: HSI:${hsi_level} de 4 (aceitável). Marcadores ✘ em sub-itens são normais."
+    return 0
+  fi
+
+  # Sem nível HSI legível (formato inesperado): cair para heurística de falha.
+  if printf '%s\n' "$output" | grep -q '✘'; then
+    STEP_REASON="fwupd security reportou falha(s) sem nível HSI legível"
     return "$RC_WARN"
   fi
   return 0
@@ -242,7 +278,7 @@ doctor_flatpak_repair_dry_run() {
   local output rc
   output="$(flatpak repair --user --dry-run 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   if (( rc != 0 )); then
     log "  flatpak repair --user --dry-run retornou código ${rc}:"
@@ -286,9 +322,9 @@ doctor_disk_health() {
   local status=0
   local line mount used_pct inode_pct
   log "  Uso de espaço:"
-  df -Ph -- "${paths[@]}" | tee -a "$LOG_FILE"
+  df -Ph -- "${paths[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
   log "  Uso de inodes:"
-  df -Pih -- "${paths[@]}" | tee -a "$LOG_FILE"
+  df -Pih -- "${paths[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
 
   while IFS= read -r line; do
     mount="$(awk '{print $6}' <<<"$line")"
@@ -483,8 +519,9 @@ doctor_stale_services() {
     kstat="$(printf '%s\n' "$output" | awk -F'=' '/NEEDRESTART-KSTA/{print $2; exit}')"
     if (( svc_count > 0 )); then
       log "  needrestart: ${svc_count} serviço(s) usando bibliotecas antigas:"
-      printf '%s\n' "$output" | grep 'NEEDRESTART-SVC' | awk -F'=' '{print "    " $2}' | tee -a "$LOG_FILE"
+      printf '%s\n' "$output" | grep 'NEEDRESTART-SVC' | awk -F'=' '{print "    " $2}' | tee >(_strip_ansi >> "$LOG_FILE")
       status="$RC_TODO"
+      STEP_REASON="${svc_count} serviço(s) com bibliotecas antigas (needrestart)"
     else
       log "  needrestart: nenhum serviço usando bibliotecas antigas."
     fi
@@ -512,7 +549,8 @@ doctor_stale_services() {
     local svc_count
     svc_count="$(printf '%s\n' "$problems" | wc -l)"
     log "  checkservices: ${svc_count} item(ns) com problema:"
-    printf '%s\n' "$problems" | tee -a "$LOG_FILE"
+    printf '%s\n' "$problems" | tee >(_strip_ansi >> "$LOG_FILE")
+    STEP_REASON="${svc_count} item(ns) reportado(s) por checkservices"
 
     if (( RESTART_SERVICES )); then
       # Extrai os comandos sugeridos: linhas "systemctl restart 'nome.service'"
@@ -603,7 +641,7 @@ doctor_pacman_health() {
 
   if [[ "$check_cmd_label" == "pacman -Qkq" ]] && grep -Eqi 'permission denied|permiss[aã]o negada' <<<"$output"; then
     log "  pacman -Qkq encontrou caminhos sem permissão; rode com sudo para uma auditoria conclusiva."
-    printf '%s\n' "$output" | grep -Ei 'permission denied|permiss[aã]o negada' | tee -a "$LOG_FILE" | head -n 20
+    printf '%s\n' "$output" | grep -Ei 'permission denied|permiss[aã]o negada' | tee >(_strip_ansi >> "$LOG_FILE") | head -n 20
     return "$RC_WARN"
   fi
 
@@ -623,7 +661,7 @@ doctor_pacman_health() {
   local noise_note=""
   (( noise_count > 0 )) && noise_note=" (+ ${noise_count} falso(s) positivo(s) filtrado(s))"
   log "  ${check_cmd_label}: ${count} arquivo(s)/pacote(s) com problema${noise_note} (mostrando até 60):"
-  printf '%s\n' "$filtered" | grep '[^[:space:]]' | tee -a "$LOG_FILE" | head -n 60
+  printf '%s\n' "$filtered" | grep '[^[:space:]]' | tee >(_strip_ansi >> "$LOG_FILE") | head -n 60
   if (( count > 60 )); then
     log "  Saída completa registrada no log."
   fi
@@ -652,7 +690,7 @@ doctor_pacman_hooks() {
   local count
   count="$(printf '%s\n' "$failed_hooks" | grep -c '[^[:space:]]' || true)"
   log "  ${count} mensagem(ns) de erro em hooks ALPM no boot atual (mostrando até 20):"
-  printf '%s\n' "$failed_hooks" | head -n 20 | tee -a "$LOG_FILE"
+  printf '%s\n' "$failed_hooks" | head -n 20 | tee >(_strip_ansi >> "$LOG_FILE")
   (( count > 20 )) && log "  Saída completa registrada no log."
   return "$RC_TODO"
 }
@@ -736,6 +774,18 @@ doctor_desktop_health() {
     fi
   else
     log "  xdg-desktop-portal: não instalado."
+    # Sugestão de backend conforme o compositor/sessão em uso.
+    local _portal_pkg="xdg-desktop-portal"
+    if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || pgrep -x Hyprland >/dev/null 2>&1 || has hyprctl; then
+      _portal_pkg="xdg-desktop-portal-hyprland xdg-desktop-portal"
+    elif [[ "${XDG_CURRENT_DESKTOP:-}" == *GNOME* ]]; then
+      _portal_pkg="xdg-desktop-portal-gnome xdg-desktop-portal"
+    elif [[ "${XDG_CURRENT_DESKTOP:-}" == *KDE* ]]; then
+      _portal_pkg="xdg-desktop-portal-kde xdg-desktop-portal"
+    elif [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
+      _portal_pkg="xdg-desktop-portal-wlr xdg-desktop-portal"
+    fi
+    log "    Sugestão: instale com 'sudo pacman -S --needed ${_portal_pkg}' (necessário p/ screencast, file pickers e flatpaks)."
   fi
 
   # PipeWire
@@ -893,7 +943,7 @@ PYEOF
         local cc
         cc="$(printf '%s\n' "$conflicts" | wc -l)"
         log "  Conflito npm/pnpm global: ${cc} pacote(s) instalado(s) em ambos:"
-        printf '%s\n' "$conflicts" | tee -a "$LOG_FILE"
+        printf '%s\n' "$conflicts" | tee >(_strip_ansi >> "$LOG_FILE")
         log "  Remova de um dos gestores para evitar versões divergentes."
         (( status == 0 )) && status="$RC_WARN"
       else
@@ -928,12 +978,12 @@ doctor_python_env() {
     local pip_check_out pip_check_rc
     pip_check_out="$(python -m pip check 2>&1)"
     pip_check_rc=$?
-    printf '%s\n' "$pip_check_out" >> "$LOG_FILE"
+    log_raw "$pip_check_out"
     if (( pip_check_rc == 0 )); then
       log "  pip check: sem dependências Python quebradas."
     else
       log "  pip check encontrou dependências Python quebradas:"
-      printf '%s\n' "$pip_check_out" | grep -v '^$' | tee -a "$LOG_FILE"
+      printf '%s\n' "$pip_check_out" | grep -v '^$' | tee >(_strip_ansi >> "$LOG_FILE")
       (( status == 0 )) && status="$RC_WARN"
     fi
   fi
@@ -959,7 +1009,7 @@ for b in broken:
         local bc
         bc="$(printf '%s\n' "$broken_count" | wc -l)"
         log "  pipx: ${bc} venv(s) quebrada(s) — interpreter ausente:"
-        printf '%s\n' "$broken_count" | tee -a "$LOG_FILE"
+        printf '%s\n' "$broken_count" | tee >(_strip_ansi >> "$LOG_FILE")
         log "  Repare com: pipx reinstall-all"
         (( status == 0 )) && status="$RC_TODO"
       else
@@ -989,7 +1039,7 @@ for tool in (data if isinstance(data, list) else []):
         local buc
         buc="$(printf '%s\n' "$broken_uv" | wc -l)"
         log "  uv tools: ${buc} ferramenta(s) com interpreter ausente:"
-        printf '%s\n' "$broken_uv" | tee -a "$LOG_FILE"
+        printf '%s\n' "$broken_uv" | tee >(_strip_ansi >> "$LOG_FILE")
         log "  Repare com: uv tool install --reinstall <nome>"
         (( status == 0 )) && status="$RC_TODO"
       else

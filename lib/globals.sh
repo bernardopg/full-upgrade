@@ -63,5 +63,6 @@ declare -a STEP_CATEGORIES=()   # NOVO: categoria por step (p/ resumo agrupado)
 STEP_START=0
 STEP_START_ISO=""
 STEP_LAST_RC=0
+STEP_REASON=""                  # motivo opcional p/ warn/todo/fail (gravado no JSONL)
 TOTAL_START=$SECONDS
 TOTAL_STEPS=0                    # NOVO: total efetivo (p/ barra de progresso)

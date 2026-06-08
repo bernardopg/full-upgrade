@@ -178,7 +178,7 @@ update_npm_self() {
   log "  npm: ${installed} → ${latest}"
   output="$(npm install -g "npm@${latest}" 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' || true
   return "$rc"
 }
@@ -200,7 +200,7 @@ update_npm_globals() {
   outdated="$(npm outdated -g --depth=0 --json 2>/dev/null || true)"
   if [[ -n "${outdated//[[:space:]]/}" && "$outdated" != "{}" ]]; then
     log "  Pacotes npm globais desatualizados:"
-    npm outdated -g --depth=0 2>/dev/null | tee -a "$LOG_FILE" || true
+    npm outdated -g --depth=0 2>/dev/null | tee >(_strip_ansi >> "$LOG_FILE") || true
   else
     log "  Sem pacotes npm globais pendentes."
     (( prefix_rc == RC_WARN )) && return "$RC_WARN"
@@ -291,7 +291,7 @@ update_corepack() {
   log "  corepack: ${installed} → ${latest}"
   output="$(npm install -g "corepack@${latest}" 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' || true
   return "$rc"
 }
@@ -309,7 +309,7 @@ update_pnpm_self() {
 
   output="$(pnpm self-update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   # "newer than latest" = pnpm à frente do registry — não é falha
   if printf '%s\n' "$output" | grep -q 'newer than'; then
@@ -348,7 +348,7 @@ for name, info in deps.items():
 
   output="$(_retry 2 pnpm -g update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   if (( rc == RC_WARN )); then
     log "  pnpm global: falha de rede transitória após 2 tentativas."

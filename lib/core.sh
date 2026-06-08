@@ -8,6 +8,20 @@ has() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Remove sequências de escape ANSI (cores/estilo) de stdin.
+# Usado para manter o arquivo de log legível mesmo quando comandos externos
+# (ex.: fwupdmgr) emitem escapes crus.
+_strip_ansi() {
+  sed -E 's/\x1b\[[0-9;]*[mGKHfABCD]//g'
+}
+
+# Grava conteúdo SOMENTE no arquivo de log (não no terminal), removendo ANSI.
+# Use para gravar a saída crua de comandos externos no log de auditoria, no
+# lugar de 'printf ... >> "$LOG_FILE"', que preservaria escapes de cor.
+log_raw() {
+  printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"
+}
+
 add_skip_step() {
   local name="$1"
   if [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
@@ -33,22 +47,25 @@ skip_step_count() {
 
 log() {
   if (( QUIET )); then
-    printf '%b\n' "$*" >> "$LOG_FILE"
+    printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"
   else
-    printf '%b\n' "$*" | tee -a "$LOG_FILE"
+    printf '%b\n' "$*"                          # terminal: mantém cores
+    printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"   # arquivo: sem ANSI
   fi
 }
 
 # Sempre imprime no terminal (mesmo em --quiet): use para resumo e erros críticos.
 log_always() {
-  printf '%b\n' "$*" | tee -a "$LOG_FILE"
+  printf '%b\n' "$*"                            # terminal: mantém cores
+  printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"     # arquivo: sem ANSI
 }
 
 run_logged() {
   if (( QUIET )); then
-    "$@" >> "$LOG_FILE" 2>&1
+    "$@" > >(_strip_ansi >> "$LOG_FILE") 2>&1
   else
-    "$@" 2>&1 | tee -a "$LOG_FILE"
+    # Terminal mantém cores; arquivo recebe versão sem ANSI.
+    "$@" 2>&1 | tee >(_strip_ansi >> "$LOG_FILE")
   fi
   return ${PIPESTATUS[0]}
 }
@@ -59,7 +76,8 @@ run_network_cmd() {
   local _out _rc
   _out="$("$@" 2>&1)"
   _rc=$?
-  printf '%s\n' "$_out" | tee -a "$LOG_FILE"
+  printf '%s\n' "$_out"
+  printf '%s\n' "$_out" | _strip_ansi >> "$LOG_FILE"
   if (( _rc != 0 )); then
     if printf '%s\n' "$_out" | grep -qiE \
         'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
@@ -80,7 +98,8 @@ _retry() {
   for (( attempt=1; attempt<=n; attempt++ )); do
     out="$("$@" 2>&1)"
     rc=$?
-    printf '%s\n' "$out" | tee -a "$LOG_FILE"
+    printf '%s\n' "$out"
+    printf '%s\n' "$out" | _strip_ansi >> "$LOG_FILE"
     if (( rc == 0 )); then
       return 0
     fi
@@ -159,6 +178,7 @@ step_start() {
   STEP_CATEGORIES+=("$(_category_of "$name")")
   STEP_START=$SECONDS
   STEP_START_ISO="$(date -Is)"
+  STEP_REASON=""   # limpa motivo do step anterior; a função do step pode redefinir
   local done_count
   done_count="$(_step_counter)"
   # N = steps já concluídos + 1 (este)
@@ -175,7 +195,7 @@ step_ok() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("ok")
   STEP_TIMES+=("$dur")
-  write_step_event_json "${STEP_NAMES[-1]}" "ok" "$dur" "$STEP_LAST_RC" ""
+  write_step_event_json "${STEP_NAMES[-1]}" "ok" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   local time_color="$C_DIM"
   (( dur >= 30 )) && time_color="${C_YELLOW}${C_BOLD}"
   log "${C_GREEN}${SYM_OK}${C_RESET} ${STEP_NAMES[-1]} ${time_color}($(elapsed "$dur"))${C_RESET}"
@@ -186,7 +206,7 @@ step_fail() {
   STEP_RESULTS+=("fail")
   STEP_TIMES+=("$dur")
   HAS_FAIL=1
-  write_step_event_json "${STEP_NAMES[-1]}" "fail" "$dur" "$STEP_LAST_RC" ""
+  write_step_event_json "${STEP_NAMES[-1]}" "fail" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   log "${C_RED}${SYM_FAIL}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
@@ -194,7 +214,7 @@ step_warn() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("warn")
   STEP_TIMES+=("$dur")
-  write_step_event_json "${STEP_NAMES[-1]}" "warn" "$dur" "$STEP_LAST_RC" ""
+  write_step_event_json "${STEP_NAMES[-1]}" "warn" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   log "${C_YELLOW}${SYM_WARN}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
@@ -202,7 +222,7 @@ step_todo() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("todo")
   STEP_TIMES+=("$dur")
-  write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" ""
+  write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   log "${C_CYAN}${SYM_TODO}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
@@ -263,8 +283,12 @@ run_step() {
     rc=$?
   else
     # timeout de função Bash: background da função + sleep sentinela + wait -n
-    # quem terminar primeiro (função ou sleep) determina o resultado
-    ( "$@" ) &
+    # quem terminar primeiro (função ou sleep) determina o resultado.
+    # A função roda em subshell, então STEP_REASON definido dentro dela não
+    # propaga ao processo pai — capturamos via arquivo temporário.
+    local _reason_file
+    _reason_file="$(mktemp 2>/dev/null || printf '')"
+    ( "$@"; _rc=$?; [[ -n "$_reason_file" && -n "$STEP_REASON" ]] && printf '%s' "$STEP_REASON" > "$_reason_file"; exit "$_rc" ) &
     local _bg_pid=$!
     ( sleep "$_to" ) &
     local _sleep_pid=$!
@@ -284,6 +308,12 @@ run_step() {
       wait "$_sleep_pid" 2>/dev/null
       rc=$_first_rc
     fi
+
+    # Recupera o motivo definido dentro do subshell (se houver).
+    if [[ -n "$_reason_file" && -s "$_reason_file" ]]; then
+      STEP_REASON="$(cat "$_reason_file")"
+    fi
+    [[ -n "$_reason_file" ]] && rm -f "$_reason_file"
 
     if (( rc == 124 )); then
       STEP_LAST_RC=$rc

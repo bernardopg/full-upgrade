@@ -119,7 +119,7 @@ update_flatpak() {
   # Atualizar metadados appstream antes do upgrade de apps
   local appstream_output
   appstream_output="$(flatpak update --appstream 2>&1)"
-  printf '%s\n' "$appstream_output" >> "$LOG_FILE"
+  log_raw "$appstream_output"
   printf '%s\n' "$appstream_output" | grep -v '^$' | grep -v 'Nothing to do' || true
   run_logged flatpak update -y
 }
