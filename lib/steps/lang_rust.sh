@@ -2,11 +2,12 @@
 # steps/lang_rust.sh — rustup, cargo bins, cargo-audit
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 update_rustup() {
   local check_out
   check_out="$(rustup check 2>&1)"
-  printf '%s\n' "$check_out" | tee -a "$LOG_FILE"
+  printf '%s\n' "$check_out" | tee >(_strip_ansi >> "$LOG_FILE")
 
   if ! printf '%s\n' "$check_out" | grep -qi 'update available\|needs updating'; then
     log "  rustup: toolchain já atualizado, pulando sync."
@@ -47,7 +48,7 @@ audit_cargo_bins() {
     output="$(cargo audit bin "${bins[@]}" 2>&1)"
     rc_audit=$?
   fi
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   if (( rc_audit != 0 )) && printf '%s\n' "$output" | grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
     log "  cargo audit: falha de rede transitória ao buscar advisory DB."
     return "$RC_WARN"
@@ -63,6 +64,7 @@ audit_cargo_bins() {
 
   if (( vuln_count > 0 )); then
     log "  Aviso: ${vuln_count} binário(s) com CVEs conhecidas (ver log). Atualize com 'cargo install-update -a'."
+    STEP_REASON="${vuln_count} binário(s) cargo com CVE conhecida"
     return "$RC_WARN"
   else
     log "  Sem CVEs críticas em binários cargo do usuário."

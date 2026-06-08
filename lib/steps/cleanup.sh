@@ -2,6 +2,7 @@
 # steps/cleanup.sh — symlinks, journal, verificação final
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 cleanup_broken_symlinks_local_bin() {
   local dir="${HOME}/.local/bin"
@@ -48,7 +49,7 @@ final_check_pending() {
     if [[ -n "${out//[[:space:]]/}" ]]; then
       pending=1
       log "  Pendencias em repositorios oficiais:"
-      printf '%s\n' "$out" | tee -a "$LOG_FILE"
+      printf '%s\n' "$out" | tee >(_strip_ansi >> "$LOG_FILE")
     fi
   fi
 
@@ -75,7 +76,7 @@ final_check_pending() {
     if [[ -n "${filtered//[[:space:]]/}" ]]; then
       pending=1
       log "  Pendencias no AUR:"
-      printf '%s\n' "$filtered" | tee -a "$LOG_FILE"
+      printf '%s\n' "$filtered" | tee >(_strip_ansi >> "$LOG_FILE")
     elif [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
       log "  Pendencias restantes apenas em pacotes AUR ignorados: ${FULL_UPGRADE_AUR_IGNORE}"
     fi
@@ -86,6 +87,7 @@ final_check_pending() {
     return 0
   fi
 
+  STEP_REASON="atualizações pendentes em pacman/AUR"
   return "$RC_TODO"
 }
 

@@ -2,6 +2,7 @@
 # steps/pacman.sh — sistema, AUR, lock, gnupg, cache, órfãos, pacnew
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 ensure_pacman_lock_is_clean() {
   local lock="/var/lib/pacman/db.lck"
@@ -113,7 +114,7 @@ update_system_aur() {
       }
       _paru_out="$("${cmd[@]}" 2>&1)"
       _paru_rc=$?
-      printf '%s\n' "$_paru_out" | tee -a "$LOG_FILE"
+      printf '%s\n' "$_paru_out" | tee >(_strip_ansi >> "$LOG_FILE")
       (( _paru_rc == 0 )) && break
     done
     if (( _paru_rc != 0 )); then
@@ -216,6 +217,7 @@ check_pacnew_files() {
     log "    ${f}"
   done
   log "  Execute: sudo pacdiff  (ou use DIFFPROG=meld pacdiff)"
+  STEP_REASON="${#pacnew[@]} arquivo(s) .pacnew/.pacsave pendente(s) de merge"
   return "$RC_TODO"
 }
 

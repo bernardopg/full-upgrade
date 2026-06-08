@@ -56,7 +56,7 @@ update_omz() {
   local output rc
   output="$(ZSH="$zsh_dir" zsh "$zsh_dir/tools/upgrade.sh" 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   # Filtrar: "Updating Oh My Zsh", ASCII art, links sociais, linhas vazias
   printf '%s\n' "$output" \

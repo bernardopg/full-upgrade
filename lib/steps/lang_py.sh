@@ -52,7 +52,7 @@ update_pipx() {
   local output rc
   output="$(pipx upgrade-all 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
 
   # "No packages upgraded" = nada a fazer — substituir por msg limpa em pt-BR
   if printf '%s\n' "$output" | grep -q 'No packages upgraded'; then
@@ -70,7 +70,7 @@ update_uv_self() {
   local output rc
   output="$(uv self update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee -a "$LOG_FILE"
+  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
   return "$rc"
 }
 
@@ -107,7 +107,7 @@ update_uv_python() {
   local output rc
   output="$(uv python upgrade "${minor_versions[@]}" 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee -a "$LOG_FILE"
+  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
   return "$rc"
 }
 
@@ -117,7 +117,7 @@ update_uv_tools() {
 
   output="$(uv tool upgrade --all 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee -a "$LOG_FILE"
+  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
 
   if (( rc != 0 )); then
     if grep -qi 'no tools installed\|nothing to upgrade' <<<"$output"; then

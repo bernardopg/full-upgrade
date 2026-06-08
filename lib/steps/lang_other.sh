@@ -82,7 +82,7 @@ update_dotnet_tools() {
     local _out _rc
     _out="$(dotnet tool update -g "$tool" 2>&1)"
     _rc=$?
-    printf '%s\n' "$_out" >> "$LOG_FILE"
+    log_raw "$_out"
     if (( _rc == 0 )); then
       printf '%s\n' "$_out" | grep -v '^$' || true
     elif printf '%s\n' "$_out" | grep -qi "is already the latest version\|já está na versão mais recente\|No packages installed were updated\|No se actualizaron"; then
@@ -102,7 +102,7 @@ update_gcloud() {
   local output rc
   output="$(_retry 2 "${GCLOUD_BIN:-gcloud}" components update --quiet 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   (( rc == RC_WARN )) && { log "  gcloud: falha de rede transitória após 2 tentativas."; return "$RC_WARN"; }
   printf '%s\n' "$output" | grep -v '^Beginning update\.' || true
   return "$rc"
@@ -133,7 +133,7 @@ update_gem_user() {
         log "  Gems do usuário: todas atualizadas."
       else
         log "  Gems do usuário desatualizadas:"
-        printf '%s\n' "$outdated_user" | tee -a "$LOG_FILE"
+        printf '%s\n' "$outdated_user" | tee >(_strip_ansi >> "$LOG_FILE")
         GEM_HOME="$gem_user_dir" run_logged gem update
       fi
     fi
@@ -148,7 +148,7 @@ update_gem_user() {
   fi
 
   log "  Gems desatualizadas:"
-  printf '%s\n' "$outdated" | tee -a "$LOG_FILE"
+  printf '%s\n' "$outdated" | tee >(_strip_ansi >> "$LOG_FILE")
   # rdoc/rake/rubygems-update podem gerar conflito com versão do Arch — ignorar erros não-fatais
   run_logged gem update || log "  Aviso: gem update retornou erro (possível conflito rdoc/rake com pacman — inofensivo)."
 }
@@ -158,7 +158,7 @@ update_ghcup() {
   local output rc
   output="$(ghcup upgrade 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   printf '%s\n' "$output" | grep -E '^\[' || true
   return "$rc"
 }
@@ -174,7 +174,7 @@ update_arduino() {
   local idx_output rc_idx
   idx_output="$(arduino-cli update 2>&1)"
   rc_idx=$?
-  printf '%s\n' "$idx_output" >> "$LOG_FILE"
+  log_raw "$idx_output"
   # suprimir linhas de progresso (Downloading... X%)
   printf '%s\n' "$idx_output" | grep -v 'Downloading\|0 B /' || true
 
@@ -182,7 +182,7 @@ update_arduino() {
   local upg_output rc_upg
   upg_output="$(arduino-cli upgrade 2>&1)"
   rc_upg=$?
-  printf '%s\n' "$upg_output" | tee -a "$LOG_FILE"
+  printf '%s\n' "$upg_output" | tee >(_strip_ansi >> "$LOG_FILE")
 
   if (( rc_idx != 0 || rc_upg != 0 )); then return 1; fi
 
