@@ -1,0 +1,43 @@
+name: Relatar bug
+description: Algo não funciona como esperado
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Versão
+      description: Saída de `full-upgrade --version`
+      placeholder: v3.0.2
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu
+      description: Descreva o comportamento observado e o esperado.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Rodei `full-upgrade --mode doctor`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        Trecho relevante de `~/.cache/system-upgrade/latest.log` ou `latest.jsonl`.
+        Remova dados sensíveis.
+      render: text
+  - type: input
+    id: env
+    attributes:
+      label: Ambiente
+      placeholder: "Arch Linux, kernel 6.x, bash 5.x, gerenciador AUR: paru"
+    validations:
+      required: true

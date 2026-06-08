@@ -1,0 +1,24 @@
+name: Sugerir funcionalidade
+description: Propor um novo step, cobertura ou melhoria
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / motivação
+      description: Que necessidade isso resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: >
+        Comportamento desejado. Se for um novo step, indique a categoria, as
+        dependências de comando e o efeito (read/mutating).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
