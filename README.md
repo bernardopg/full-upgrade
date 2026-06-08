@@ -1,16 +1,32 @@
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD013 MD033 MD041 -->
 
-# full-upgrade
+<div align="center">
 
-> Orquestrador modular de upgrade, manutenção e auditoria para Arch Linux.
-> Atualiza o sistema, AUR, runtimes, toolchains, containers, firmware, plugins de
-> shell/editor e ainda gera um diagnóstico de saúde da máquina com logs humanos e
-> JSONL para automação.
+<img src="assets/banner.png" alt="full-upgrade — Orquestrador modular de upgrade, manutenção e auditoria para Arch Linux" width="100%">
 
-![shell](https://img.shields.io/badge/shell-bash-4EAA25?logo=gnu-bash&logoColor=white)
-![platform](https://img.shields.io/badge/platform-Arch%20Linux-1793D1?logo=arch-linux&logoColor=white)
-![version](https://img.shields.io/badge/version-3.0.3-informational)
-![license](https://img.shields.io/badge/license-MIT-blue)
+<br>
+
+<a href="https://github.com/bernardopg/full-upgrade/releases/latest"><img src="https://img.shields.io/github/v/release/bernardopg/full-upgrade?style=for-the-badge&logo=github&color=1793D1&label=release" alt="release"></a>
+<a href="https://github.com/bernardopg/full-upgrade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/bernardopg/full-upgrade/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+<img src="https://img.shields.io/badge/shell-bash%204%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="bash">
+<img src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white" alt="Arch Linux">
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="license"></a>
+
+<p>
+  <b>Um comando.</b> Atualiza sistema, AUR, runtimes, toolchains, containers, firmware
+  e plugins de shell/editor — e ainda audita a saúde da máquina com logs humanos e JSONL.
+</p>
+
+<a href="#instalação"><b>Instalação</b></a> ·
+<a href="#uso-rápido"><b>Uso</b></a> ·
+<a href="#modos-e-filtros"><b>Modos</b></a> ·
+<a href="#doctor"><b>Doctor</b></a> ·
+<a href="#configuração"><b>Configuração</b></a> ·
+<a href="#contribuindo"><b>Contribuir</b></a>
+
+</div>
+
+---
 
 `full-upgrade` foi feito para quem mantém uma estação Arch com muitas camadas:
 pacotes oficiais, AUR, Flatpak, Docker, linguagens, CLIs de IA, firmware, shell,
@@ -415,9 +431,9 @@ Ao criar ou alterar steps:
 
 Se o `full-upgrade` te poupa tempo, considere apoiar o desenvolvimento:
 
-- [GitHub Sponsors](https://github.com/sponsors/bernardopg)
-- [Ko-fi](https://ko-fi.com/bernardopg)
-- [Buy Me a Coffee](https://www.buymeacoffee.com/wctwom9emu)
+<a href="https://github.com/sponsors/bernardopg"><img src="https://img.shields.io/badge/GitHub%20Sponsors-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="GitHub Sponsors"></a>
+<a href="https://ko-fi.com/bernardopg"><img src="https://img.shields.io/badge/Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
+<a href="https://www.buymeacoffee.com/wctwom9emu"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" alt="Buy Me a Coffee"></a>
 
 ## Contribuindo
 
@@ -428,3 +444,8 @@ reportar vulnerabilidades.
 ## Licença
 
 MIT. Veja [LICENSE](LICENSE).
+
+<div align="center">
+<br>
+<sub>Feito com ☕ e Bash por <a href="https://github.com/bernardopg">@bernardopg</a> · <a href="https://github.com/bernardopg/full-upgrade/releases/latest">Última release</a></sub>
+</div>
