@@ -2,6 +2,15 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Corrigido
+
+- `run_network_cmd`/`_retry`/`log_raw` gravam no log via `log_raw` com guarda de
+  `LOG_FILE` vazio, evitando o erro `core.sh: arquivo ou diretório inexistente`
+  quando esses helpers são usados antes de `setup_logging` (ex.: durante
+  `--update`).
+
 ## [3.0.4] — 2026-06-08
 
 ### Adicionado
