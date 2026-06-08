@@ -19,7 +19,9 @@ _strip_ansi() {
 # Use para gravar a saída crua de comandos externos no log de auditoria, no
 # lugar de 'printf ... >> "$LOG_FILE"', que preservaria escapes de cor.
 log_raw() {
-  printf '%b\n' "$*" | _strip_ansi >> "$LOG_FILE"
+  local _lf="${LOG_FILE:-/dev/null}"
+  [[ -z "$_lf" ]] && _lf="/dev/null"
+  printf '%b\n' "$*" | _strip_ansi >> "$_lf"
 }
 
 add_skip_step() {
@@ -82,7 +84,7 @@ run_network_cmd() {
   _out="$("$@" 2>&1)"
   _rc=$?
   printf '%s\n' "$_out"
-  printf '%s\n' "$_out" | _strip_ansi >> "$LOG_FILE"
+  log_raw "$_out"
   if (( _rc != 0 )); then
     if printf '%s\n' "$_out" | grep -qiE \
         'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
@@ -104,7 +106,7 @@ _retry() {
     out="$("$@" 2>&1)"
     rc=$?
     printf '%s\n' "$out"
-    printf '%s\n' "$out" | _strip_ansi >> "$LOG_FILE"
+    log_raw "$out"
     if (( rc == 0 )); then
       return 0
     fi
