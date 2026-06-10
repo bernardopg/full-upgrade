@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.1.1] — 2026-06-10
+
 ### Corrigido
 
 - **Versão embutida errada ao buildar de um tarball dentro de outro repo git.**
