@@ -4,6 +4,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Segurança
+
+- **`--update` agora verifica a integridade do download (C2).** No canal
+  `release`, baixa o standalone publicado **e** seu `.sha256`, confere o
+  SHA-256 e só instala se bater — binário adulterado/corrompido em trânsito é
+  recusado **antes** de qualquer execução, com backup do binário anterior em
+  `~/.local/bin/full-upgrade.bak`. Sem `.sha256` na release ou sem
+  `sha256sum`/`shasum` disponível, a atualização aborta por segurança. O canal
+  `main` mantém o tarball-fonte, agora avisando explicitamente que a
+  integridade não é verificada por checksum (somente TLS). Helpers puros novos
+  em `lib/core.sh`: `parse_sha256_field`, `file_sha256`, `verify_sha256`
+  (cobertos por testes, incluindo cenário de adulteração).
+
 ### Adicionado
 
 - **Backup de configs críticas antes das mutações** (`lib/steps/backup.sh`,

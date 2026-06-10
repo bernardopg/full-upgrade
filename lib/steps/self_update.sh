@@ -166,6 +166,17 @@ self_perform_update() {
   # shellcheck disable=SC2064  # expandir tmp agora é intencional
   trap "rm -rf '$tmp'" RETURN
 
+  # Canal release: instala o STANDALONE publicado, com verificação de checksum
+  # ponta-a-ponta (asset .sha256). É a via segura e preferida.
+  if [[ "$channel" != "main" ]]; then
+    self_install_verified_standalone "$repo" "$latest" "$ref" "$tmp"
+    return $?
+  fi
+
+  # Canal main: não há release nem checksum publicado para o topo da branch.
+  # Cai no tarball-fonte + install.sh, avisando que a integridade NÃO é
+  # verificada criptograficamente (apenas TLS do GitHub).
+  log_always "${C_YELLOW}Canal 'main': integridade não verificada por checksum (somente TLS).${C_RESET}"
   log_always "Baixando ${tarball} ..."
   if ! run_network_cmd curl -fsSL --max-time 60 -o "${tmp}/src.tar.gz" "$tarball"; then
     return "$RC_WARN"
@@ -191,4 +202,78 @@ self_perform_update() {
   fi
   log_always "Falha ao executar o instalador."
   return "$RC_WARN"
+}
+
+# Baixa o standalone publicado na release v<latest> + seu .sha256, VERIFICA o
+# checksum e só então instala o binário em ~/.local/bin/full-upgrade (com
+# backup do anterior). Abortar antes de instalar se o checksum não bater é o
+# ponto central de segurança (C2): tarball/binário adulterado em trânsito não
+# é executado.
+# Args: <repo> <latest_sem_v> <ref> <tmpdir>. Retorna 0 ok / RC_WARN falha.
+self_install_verified_standalone() {
+  local repo="$1" latest="$2" ref="$3" tmp="$4"
+  local base="https://github.com/${repo}/releases/download/v${latest}"
+  local bin_url="${base}/full-upgrade-standalone.sh"
+  local sum_url="${base}/full-upgrade-standalone.sh.sha256"
+  local bin="${tmp}/full-upgrade-standalone.sh"
+  local sum="${tmp}/full-upgrade-standalone.sh.sha256"
+
+  log_always "Baixando standalone ${ref} ..."
+  if ! run_network_cmd curl -fsSL --max-time 60 -o "$bin" "$bin_url"; then
+    log_always "Falha ao baixar o standalone (release sem asset?). Tente o canal 'main'."
+    return "$RC_WARN"
+  fi
+  if ! run_network_cmd curl -fsSL --max-time 30 -o "$sum" "$sum_url"; then
+    log_always "${C_YELLOW}Checksum (.sha256) indisponível na release; abortando por segurança.${C_RESET}"
+    log_always "Não instalando binário não verificado. Verifique a release de ${ref}."
+    return "$RC_WARN"
+  fi
+
+  if ! has sha256sum && ! has shasum; then
+    log_always "Sem sha256sum/shasum para verificar integridade; abortando por segurança."
+    return "$RC_WARN"
+  fi
+
+  local expected
+  expected="$(parse_sha256_field "$(cat "$sum" 2>/dev/null)" 2>/dev/null || true)"
+  if [[ -z "$expected" ]]; then
+    log_always "Arquivo de checksum inválido; abortando por segurança."
+    return "$RC_WARN"
+  fi
+
+  if ! verify_sha256 "$bin" "$expected"; then
+    log_always "${C_RED}ERRO: checksum do standalone NÃO confere — download corrompido ou adulterado.${C_RESET}"
+    log_always "Esperado: ${expected}"
+    log_always "Obtido:   $(file_sha256 "$bin" 2>/dev/null || echo '?')"
+    log_always "Atualização ABORTADA. Nada foi instalado."
+    return "$RC_WARN"
+  fi
+  log_always "Checksum verificado (SHA-256 confere)."
+
+  # Sanidade extra: o binário verificado deve ter sintaxe Bash válida.
+  if ! bash -n "$bin" 2>/dev/null; then
+    log_always "Standalone verificado falhou no bash -n; abortando."
+    return "$RC_WARN"
+  fi
+
+  # Instala em ~/.local/bin/full-upgrade, fazendo backup do anterior.
+  local bin_dir="${HOME}/.local/bin"
+  local dest="${bin_dir}/full-upgrade"
+  mkdir -p "$bin_dir" 2>/dev/null || { log_always "Não foi possível criar ${bin_dir}."; return "$RC_WARN"; }
+
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    cp -a -- "$dest" "${dest}.bak" 2>/dev/null \
+      && log_always "Backup do binário anterior: ${dest}.bak"
+  fi
+
+  if ! install -m 0755 -- "$bin" "$dest" 2>/dev/null; then
+    # install pode não existir em ambientes mínimos; fallback cp+chmod.
+    cp -f -- "$bin" "$dest" && chmod 0755 "$dest" || {
+      log_always "Falha ao instalar o standalone em ${dest}."
+      return "$RC_WARN"
+    }
+  fi
+
+  log_always "${C_GREEN}full-upgrade atualizado para ${ref} (standalone verificado): ${dest}${C_RESET}"
+  return 0
 }

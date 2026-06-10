@@ -211,3 +211,75 @@ setup() {
   run space_is_sufficient "xyz" 2
   [ "$status" -ne 0 ]
 }
+
+# ── parse_sha256_field ──────────────────────────────────────────────────────────
+
+@test "parse_sha256_field: extrai hash do formato sha256sum" {
+  run parse_sha256_field "06394af259db19355ccf0b668c77ec0fdd9b8d5aa388d848e1bb5959e80e2a24  arquivo.sh"
+  [ "$status" -eq 0 ]
+  [ "$output" = "06394af259db19355ccf0b668c77ec0fdd9b8d5aa388d848e1bb5959e80e2a24" ]
+}
+
+@test "parse_sha256_field: aceita linha só com hash" {
+  run parse_sha256_field "06394af259db19355ccf0b668c77ec0fdd9b8d5aa388d848e1bb5959e80e2a24"
+  [ "$status" -eq 0 ]
+  [ "$output" = "06394af259db19355ccf0b668c77ec0fdd9b8d5aa388d848e1bb5959e80e2a24" ]
+}
+
+@test "parse_sha256_field: normaliza maiúsculas" {
+  run parse_sha256_field "06394AF259DB19355CCF0B668C77EC0FDD9B8D5AA388D848E1BB5959E80E2A24  x"
+  [ "$output" = "06394af259db19355ccf0b668c77ec0fdd9b8d5aa388d848e1bb5959e80e2a24" ]
+}
+
+@test "parse_sha256_field: rejeita string que não é hash de 64 hex" {
+  run parse_sha256_field "não-é-hash"
+  [ "$status" -ne 0 ]
+  run parse_sha256_field "abc123"
+  [ "$status" -ne 0 ]
+}
+
+# ── file_sha256 / verify_sha256 ─────────────────────────────────────────────────
+
+@test "file_sha256: calcula o hash de um arquivo" {
+  tmp="$(mktemp)"
+  printf 'conteudo conhecido' > "$tmp"
+  expected="$(sha256sum "$tmp" | awk '{print $1}')"
+  run file_sha256 "$tmp"
+  rm -f "$tmp"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+}
+
+@test "verify_sha256: confere quando o hash bate" {
+  tmp="$(mktemp)"
+  printf 'payload' > "$tmp"
+  h="$(sha256sum "$tmp" | awk '{print $1}')"
+  run verify_sha256 "$tmp" "$h"
+  rm -f "$tmp"
+  [ "$status" -eq 0 ]
+}
+
+@test "verify_sha256: falha quando o hash não bate (adulteração)" {
+  tmp="$(mktemp)"
+  printf 'payload original' > "$tmp"
+  wrong="0000000000000000000000000000000000000000000000000000000000000000"
+  run verify_sha256 "$tmp" "$wrong"
+  rm -f "$tmp"
+  [ "$status" -ne 0 ]
+}
+
+@test "verify_sha256: aceita linha completa estilo sha256sum como esperado" {
+  tmp="$(mktemp)"
+  printf 'data' > "$tmp"
+  line="$(sha256sum "$tmp")"   # "<hash>  <arquivo>"
+  run verify_sha256 "$tmp" "$line"
+  rm -f "$tmp"
+  [ "$status" -eq 0 ]
+}
+
+@test "verify_sha256: hash esperado inválido falha" {
+  tmp="$(mktemp)"; printf 'x' > "$tmp"
+  run verify_sha256 "$tmp" "lixo"
+  rm -f "$tmp"
+  [ "$status" -ne 0 ]
+}

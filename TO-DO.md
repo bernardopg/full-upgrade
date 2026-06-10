@@ -34,8 +34,13 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   tiver espaço em borda (`^ ` ou ` $`); `--explain-step "Atualizar Hermes"`
   retorna timeout/deps corretos (não o default).
 
-### C2 — 🔴 ☐ self_update sem verificação de integridade do tarball
-- **Arquivos:** `lib/steps/self_update.sh`
+### C2 — 🔴 ☑ self_update sem verificação de integridade do tarball
+> **Concluído (PR #8).** Canal `release` baixa standalone + `.sha256`, verifica
+> SHA-256 e só instala se bater (backup do anterior); aborta sem checksum.
+> Canal `main` avisa que não há verificação por checksum. Helpers puros
+> `parse_sha256_field`/`file_sha256`/`verify_sha256` com testes (inclui
+> cenário de adulteração).
+- **Arquivos:** `lib/steps/self_update.sh`, `lib/core.sh`
 - **Problema:** `--update` baixa o tarball da release e roda `install.sh` sem
   validar checksum/assinatura. Tarball adulterado em trânsito = execução
   arbitrária com as permissões do usuário.
@@ -175,7 +180,7 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 ## Ordem de execução sugerida
 
-1. ~~**C1**~~ ✅ + **C2** (correções de alto impacto: join key + segurança do self-update).
+1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. **F3, F4** (cobertura doctor: btrfs + boot time).
 4. **M3, F2** (observabilidade: sumário por categoria + relatório).
@@ -186,6 +191,6 @@ verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1, M1, F1 (PR #6).
-- **Próximo:** C2 (verificação de integridade no self-update).
-- **Restante:** C2–C5, M2–M5, F2–F5.
+- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8).
+- **Próximo:** F3/F4 (cobertura doctor: btrfs + boot time).
+- **Restante:** C3–C5, M2–M5, F2–F5.
