@@ -171,6 +171,25 @@ classify_cargo_bin() {
   esac
 }
 
+# Espaço suficiente? Recebe KiB disponíveis (coluna do `df -k`) e o mínimo em
+# GiB. Retorna 0 (suficiente) se avail_kib >= min_gib*1048576, senão 1.
+# Aritmética inteira pura — sem I/O, testável. min_gib<=0 sempre suficiente.
+space_is_sufficient() {
+  local avail_kib="$1" min_gib="$2"
+  [[ "$avail_kib" =~ ^[0-9]+$ ]] || return 1
+  [[ "$min_gib" =~ ^[0-9]+$ ]] || min_gib=0
+  (( min_gib <= 0 )) && return 0
+  (( avail_kib >= min_gib * 1048576 ))
+}
+
+# KiB disponíveis no filesystem que contém <path>. Emite o inteiro em stdout,
+# vazio se não der pra determinar. Isola o I/O do `df` para o step testar a
+# lógica via space_is_sufficient.
+avail_kib_for_path() {
+  local path="$1"
+  df -Pk "$path" 2>/dev/null | awk 'NR==2 { print $4 }'
+}
+
 elapsed() {
   local secs="$1"
   if (( secs >= 60 )); then

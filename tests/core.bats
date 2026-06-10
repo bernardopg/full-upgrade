@@ -182,3 +182,32 @@ setup() {
   [ "$(classify_cargo_bin ripgrep)" = "cargo" ]
   [ "$(classify_cargo_bin bat)" = "cargo" ]
 }
+
+# ── space_is_sufficient ─────────────────────────────────────────────────────────
+
+@test "space_is_sufficient: avail acima do mínimo retorna 0" {
+  # 5 GiB disponíveis (5*1048576 KiB), mínimo 2 GiB
+  run space_is_sufficient $((5 * 1048576)) 2
+  [ "$status" -eq 0 ]
+}
+
+@test "space_is_sufficient: avail abaixo do mínimo retorna 1" {
+  # 1 GiB disponível, mínimo 2 GiB
+  run space_is_sufficient $((1 * 1048576)) 2
+  [ "$status" -ne 0 ]
+}
+
+@test "space_is_sufficient: exatamente no limiar é suficiente" {
+  run space_is_sufficient $((2 * 1048576)) 2
+  [ "$status" -eq 0 ]
+}
+
+@test "space_is_sufficient: mínimo 0 desabilita (sempre suficiente)" {
+  run space_is_sufficient 0 0
+  [ "$status" -eq 0 ]
+}
+
+@test "space_is_sufficient: avail não-numérico retorna 1" {
+  run space_is_sufficient "xyz" 2
+  [ "$status" -ne 0 ]
+}
