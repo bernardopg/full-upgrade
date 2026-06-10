@@ -40,9 +40,23 @@ unset _missing _f
   printf '# full-upgrade — standalone (gerado por build.sh; NÃO edite à mão)\n'
   printf 'set -uo pipefail\n\n'
   # Metadados (sem resolução de lib/ — é single-file).
-  _build_ver="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
-  [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]] && _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
-  [[ -z "$_build_ver" ]] && _build_ver="3.0.4"
+  # Prioridade da versão embutida:
+  #   1. git describe SOMENTE se o repo git for ESTE projeto (toplevel contém
+  #      full-upgrade.sh + build.sh) — dá o estado de dev (vX.Y.Z-N-gHASH);
+  #   2. arquivo VERSION (fonte autoritativa em releases/tarballs);
+  #   3. fallback embutido.
+  # A checagem do toplevel é essencial: buildar a partir de um tarball extraído
+  # dentro de OUTRO repo git (ex.: makepkg no clone do AUR) pegaria a versão
+  # errada do repo pai — por isso git describe não é usado nesse caso.
+  _build_ver=""
+  _git_top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
+    _build_ver="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+  fi
+  if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
+    _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
+  fi
+  [[ -z "$_build_ver" ]] && _build_ver="3.1.0"
   printf 'SCRIPT_VERSION="%s"\n' "${_build_ver#v}"
   printf 'SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf %%s "${BASH_SOURCE[0]}")"\n'
   printf 'SCRIPT_SHA256="$(sha256sum "$SCRIPT_PATH" 2>/dev/null | awk '"'"'{print $1}'"'"' || printf unknown)"\n'

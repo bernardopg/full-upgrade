@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Versão embutida errada ao buildar de um tarball dentro de outro repo git.**
+  `build.sh`/`install.sh` rodavam `git describe` sem checar o repositório: ao
+  construir o pacote AUR (makepkg extrai o tarball dentro do clone git do AUR),
+  o `SCRIPT_VERSION` virava o commit do repo do AUR (ex.: `a0c4017`) em vez de
+  `3.1.0`. Agora só usam `git describe` quando o toplevel do git é o próprio
+  projeto (contém `full-upgrade.sh` + `build.sh`/`install.sh`); caso contrário
+  usam o arquivo `VERSION`. Detectado testando a instalação real via AUR.
+
 ## [3.1.0] — 2026-06-10
 
 ### Distribuição

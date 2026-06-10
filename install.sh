@@ -20,8 +20,14 @@ cp -f "${SRC_DIR}/config.example" "$DEST_DIR/" 2>/dev/null || true
 chmod +x "${DEST_DIR}/full-upgrade.sh"
 
 # Grava a versão instalada: a instalação não leva o .git, então sem este arquivo
-# o entrypoint cairia no fallback embutido. Prioridade: git describe > VERSION do repo.
-_inst_ver="$(git -C "$SRC_DIR" describe --tags --always 2>/dev/null || true)"
+# o entrypoint cairia no fallback embutido. Prioridade: git describe (só se o
+# repo for ESTE projeto) > VERSION do repo. A checagem de toplevel evita pegar a
+# versão de um repo git pai quando se instala de um tarball extraído.
+_inst_ver=""
+_git_top="$(git -C "$SRC_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/install.sh" ]]; then
+  _inst_ver="$(git -C "$SRC_DIR" describe --tags --always 2>/dev/null || true)"
+fi
 if [[ -z "$_inst_ver" && -r "${SRC_DIR}/VERSION" ]]; then
   _inst_ver="$(tr -d '[:space:]' < "${SRC_DIR}/VERSION")"
 fi
