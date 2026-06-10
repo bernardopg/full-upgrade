@@ -2,6 +2,7 @@
 # lib/steps/coverage.sh — coberturas extra: lockfile, snapshot, mirrors, pré-flight.
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 # ── Lockfile: impede instâncias concorrentes do próprio script ──────────────────
 # Usa flock num descritor dedicado. O lock é liberado no EXIT (trap em sudo.sh chama
@@ -94,6 +95,23 @@ preupgrade_snapshot() {
     if has snapper; then tool="snapper"
     elif has timeshift; then tool="timeshift"
     else log "  Nenhuma ferramenta de snapshot (snapper/timeshift) instalada; pulando."; return 0; fi
+  fi
+
+  # Pré-flight de espaço: um snapshot CoW começa barato, mas a divergência
+  # subsequente pode encher o subvolume. Se o livre estiver abaixo do limiar,
+  # avisa e NÃO cria (snapshot que estoura o disco é pior que não ter). 0 = off.
+  local min_free="${SNAPSHOT_MIN_FREE_GIB:-2}"
+  if [[ "$min_free" =~ ^[0-9]+$ ]] && (( min_free > 0 )); then
+    local avail_kib
+    avail_kib="$(avail_kib_for_path /)"
+    if [[ -n "$avail_kib" ]] && ! space_is_sufficient "$avail_kib" "$min_free"; then
+      local avail_gib=$(( avail_kib / 1048576 ))
+      log "  ${C_YELLOW}Espaço livre em / (${avail_gib} GiB) abaixo do mínimo p/ snapshot (${min_free} GiB).${C_RESET}"
+      log "  Pulando snapshot para não arriscar encher o subvolume."
+      log "  Remediação: libere espaço (paccache -r, limpe snapshots antigos) ou ajuste SNAPSHOT_MIN_FREE_GIB."
+      STEP_REASON="espaço livre (${avail_gib} GiB) < mínimo p/ snapshot (${min_free} GiB)"
+      return "$RC_WARN"
+    fi
   fi
 
   local desc

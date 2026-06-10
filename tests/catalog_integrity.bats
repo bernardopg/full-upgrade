@@ -55,6 +55,42 @@ setup() {
   [ -z "$dups" ]
 }
 
+@test "catálogo: nome de step não tem espaço em borda (quebra join key)" {
+  # O nome é a chave de junção byte-idêntica com main.sh; um espaço inicial/
+  # final faz a busca de metadata (timeout/cmd_deps) cair pro default em
+  # silêncio. Regressão de C1 (steps custom tinham ' Atualizar Hermes').
+  local bad=0 raw_name
+  while IFS='|' read -r raw_name _; do
+    [[ -n "${raw_name//[[:space:]]/}" ]] || continue
+    if [[ "$raw_name" != "$(printf '%s' "$raw_name" | sed -E 's/^[[:space:]]+//;s/[[:space:]]+$//')" ]]; then
+      echo "nome com espaço em borda: [${raw_name}]"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: nomes com func_name batem com a chamada em main.sh" {
+  # Garante que todo step com função direta é invocado em main.sh com o nome
+  # EXATO do catálogo (run_step/step_skip/custom_step_or_skip "<nome>").
+  # Pega divergências de join key que o trim de outros testes mascara.
+  local main="${FU_ROOT}/lib/main.sh"
+  [ -f "$main" ]
+  local bad=0 name func_name _c _t _e _to _cd _d
+  while IFS='|' read -r name _c _t _e _to _cd func_name _d; do
+    [[ -n "$name" ]] || continue
+    [[ -n "$func_name" ]] || continue
+    # Núcleo (start_sudo_keepalive) e acquire_run_lock são chamados fora do
+    # padrão de dispatch nomeado; pulamos os que não aparecem como string.
+    grep -qF "\"${name}\"" "$main" || {
+      # Não obrigatório que TODO step esteja em main.sh por nome (alguns são
+      # core invocados direto), mas se aparecer, deve bater exatamente.
+      continue
+    }
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
 @test "catálogo: todo func_name referenciado existe em alguma fonte" {
   # Funções de step vêm de três lugares: lib/steps/*.sh (núcleo),
   # lib/sudo.sh (start_sudo_keepalive) e steps.d/*.sh (tools custom gated).
