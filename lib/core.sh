@@ -228,6 +228,39 @@ verify_sha256() {
   [[ "$actual" == "$expected" ]]
 }
 
+# Soma todos os contadores *_errs de uma saída de `btrfs device stats` (lida em
+# stdin). Emite o total inteiro (0 se nenhum erro). Linhas têm o formato
+# "[/dev/x].write_io_errs   0". Puro, testável.
+sum_btrfs_dev_errors() {
+  awk '
+    /_errs/ {
+      v = $NF
+      if (v ~ /^[0-9]+$/) total += v
+    }
+    END { print total + 0 }
+  '
+}
+
+# Converte uma duração estilo systemd ("1min 23.456s", "2min 5s", "45.6s",
+# "1h 2min 3s") em segundos inteiros (arredonda pra baixo). Lê o texto de $1.
+# Emite o inteiro; 0 se não casar nada. Puro, testável.
+systemd_time_to_seconds() {
+  local s="$1"
+  awk -v str="$s" '
+    BEGIN {
+      total = 0
+      n = split(str, toks, /[[:space:]]+/)
+      for (i = 1; i <= n; i++) {
+        t = toks[i]
+        if (t ~ /h$/)        { sub(/h$/, "", t);   total += t * 3600 }
+        else if (t ~ /min$/) { sub(/min$/, "", t); total += t * 60 }
+        else if (t ~ /ms$/)  { sub(/ms$/, "", t);  total += t / 1000 }
+        else if (t ~ /s$/)   { sub(/s$/, "", t);   total += t }
+      }
+      printf "%d", total
+    }'
+}
+
 elapsed() {
   local secs="$1"
   if (( secs >= 60 )); then

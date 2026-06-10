@@ -153,16 +153,22 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** `--report /tmp/r.md` produz Markdown válido refletindo o run;
   funciona a partir de um JSONL existente (`--report --from <run_id>`).
 
-### F3 — 🟡 ☐ Doctor: status de scrub/erros btrfs
-- **Arquivos:** `lib/steps/doctor.sh`, `lib/catalog.sh`, `lib/main.sh`
+### F3 — 🟡 ☑ Doctor: status de scrub/erros btrfs
+> **Concluído (PR #9).** `doctor_btrfs_health` + helper puro
+> `sum_btrfs_dev_errors`; `BTRFS_SCRUB_MAX_DAYS`. Testado real (sem erros,
+> scrub ausente → `RC_TODO`).
+- **Arquivos:** `lib/steps/doctor.sh`, `lib/core.sh`, `lib/catalog.sh`, `lib/main.sh`
 - **O quê:** novo `doctor_btrfs_health`: em raiz btrfs, reporta `btrfs device
   stats` (erros de I/O acumulados) e a idade do último scrub; `RC_TODO` se scrub
   vencido (> `BTRFS_SCRUB_MAX_DAYS`) ou erros > 0.
 - **Aceite:** raiz não-btrfs → skip limpo; erros/scrub vencido → `RC_TODO` com
   remediação (`btrfs scrub start /`).
 
-### F4 — 🟡 ☐ Doctor: tempo de boot (systemd-analyze)
-- **Arquivos:** `lib/steps/doctor.sh`, `lib/catalog.sh`, `lib/main.sh`
+### F4 — 🟡 ☑ Doctor: tempo de boot (systemd-analyze)
+> **Concluído (PR #9).** `doctor_boot_time` + helper puro
+> `systemd_time_to_seconds`; `BOOT_TIME_WARN_S`. Testado real (boot ~24s, top-5
+> units, `RC_WARN` acima do limiar).
+- **Arquivos:** `lib/steps/doctor.sh`, `lib/core.sh`, `lib/catalog.sh`, `lib/main.sh`
 - **O quê:** novo `doctor_boot_time`: `systemd-analyze time` + top de
   `systemd-analyze blame`; `RC_WARN` se boot acima de limiar
   (`BOOT_TIME_WARN_S`) ou se houver serviço dominando o tempo.
@@ -182,7 +188,7 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
-3. **F3, F4** (cobertura doctor: btrfs + boot time).
+3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
 4. **M3, F2** (observabilidade: sumário por categoria + relatório).
 5. **C3, C4, C5, M2, M4, M5, F5** (refino e robustez).
 
@@ -191,6 +197,6 @@ verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8).
-- **Próximo:** F3/F4 (cobertura doctor: btrfs + boot time).
-- **Restante:** C3–C5, M2–M5, F2–F5.
+- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9).
+- **Próximo:** M3/F2 (observabilidade: sumário por categoria + relatório).
+- **Restante:** C3–C5, M2, M4, M5, F2, F5.

@@ -19,6 +19,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Doctor: saúde do btrfs** (`doctor_btrfs_health`, F3). Em raiz btrfs, soma os
+  erros de device acumulados (`btrfs device stats`) e checa a idade do último
+  scrub; `RC_TODO` se houver erros > 0 ou o scrub estiver vencido
+  (`BTRFS_SCRUB_MAX_DAYS`, default 30) — com remediação. Raiz não-btrfs → skip.
+- **Doctor: tempo de boot** (`doctor_boot_time`, F4). Reporta o tempo total de
+  boot (`systemd-analyze time`) e as 5 piores units (`blame`); `RC_WARN` acima
+  de `BOOT_TIME_WARN_S` (default 60). Sem dados de boot (container) → skip.
+- Helpers puros em `lib/core.sh`: `sum_btrfs_dev_errors`,
+  `systemd_time_to_seconds` (com testes; suíte 79 → 87).
 - **Backup de configs críticas antes das mutações** (`lib/steps/backup.sh`,
   step "Backup de configs críticas", categoria `core`). Arquiva uma lista
   configurável de paths de `/etc` (e dotfiles) em `tar.zst` (fallback `gzip`)

@@ -16,6 +16,9 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
 : "${MIN_BOOT_FREE_MIB:=200}"       # espaço livre mínimo em /boot (MiB; ESP é pequeno)
 : "${SNAPSHOT_MIN_FREE_GIB:=2}"     # mínimo de livre em / p/ criar snapshot (0 = desliga)
+# Doctor: limiares de saúde
+: "${BTRFS_SCRUB_MAX_DAYS:=30}"     # alerta se o último scrub btrfs em / for mais antigo que isso
+: "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
 : "${BACKUP_KEEP:=5}"               # quantos tarballs de backup manter (rotação)
@@ -49,6 +52,7 @@ load_config() {
 
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
+  export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
