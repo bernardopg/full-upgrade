@@ -19,14 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # criar release + anexar assets
+    outputs:
+      tag: ${{ steps.tag.outputs.name }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
 
-      - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install shellcheck + bats
+        run: sudo apt-get update && sudo apt-get install -y shellcheck bats
 
       - name: Validate before release
         run: |
@@ -36,6 +39,7 @@ jobs:
           done
           shellcheck -S warning -x \
             full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+          bats tests/
 
       - name: Build standalone
         run: |
@@ -47,10 +51,12 @@ jobs:
         id: tag
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            name="${{ inputs.tag }}"
           else
-            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            name="${GITHUB_REF_NAME}"
           fi
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "version=${name#v}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
@@ -61,3 +67,59 @@ jobs:
           files: |
             dist/full-upgrade-standalone.sh
             dist/full-upgrade-standalone.sh.sha256
+
+  publish-aur:
+    name: Publish to AUR
+    needs: release
+    runs-on: ubuntu-latest
+    # Só publica em tags reais (push de v*), não em workflow_dispatch manual sem
+    # tag confiável. Requer os secrets AUR_* configurados.
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Preparar PKGBUILD com a versão da release
+        id: pkg
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -n "${VERSION}"
+          workdir="$RUNNER_TEMP/aurpkg"
+          mkdir -p "$workdir"
+          cp packaging/aur/PKGBUILD "$workdir/PKGBUILD"
+          # Fixa pkgver na versão publicada e reseta pkgrel=1.
+          sed -i -E "s/^pkgver=.*/pkgver=${VERSION}/" "$workdir/PKGBUILD"
+          sed -i -E "s/^pkgrel=.*/pkgrel=1/" "$workdir/PKGBUILD"
+          echo "workdir=${workdir}" >> "$GITHUB_OUTPUT"
+
+      - name: Calcular checksum real do tarball da tag
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          workdir="${{ steps.pkg.outputs.workdir }}"
+          url="https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz"
+          # Aguarda o tarball da tag ficar disponível e baixa.
+          for i in 1 2 3 4 5; do
+            if curl -fsSL -o "$workdir/src.tar.gz" "$url"; then break; fi
+            echo "tarball ainda indisponível (tentativa $i); aguardando..."; sleep 10
+          done
+          sum="$(sha256sum "$workdir/src.tar.gz" | awk '{print $1}')"
+          echo "sha256=${sum}"
+          # Substitui o placeholder SKIP pelo checksum real.
+          sed -i -E "s/^sha256sums=.*/sha256sums=('${sum}')/" "$workdir/PKGBUILD"
+          echo "--- PKGBUILD final ---"; cat "$workdir/PKGBUILD"
+
+      - name: Validar PKGBUILD e gerar .SRCINFO
+        uses: KSXGitHub/github-actions-deploy-aur@da03e160361ce01bf087e790b6ffd196d7dccff7 # v4.1.3
+        with:
+          pkgname: full-upgrade
+          pkgbuild: ${{ steps.pkg.outputs.workdir }}/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Atualiza para v${{ needs.release.outputs.version }}"
+          ssh_keyscan_types: rsa,ecdsa,ed25519
+          updpkgsums: false
