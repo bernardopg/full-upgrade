@@ -6,6 +6,50 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **Update AUR não falha mais o run inteiro por pacote isolado quebrado.**
+  Quando a transação dos repositórios oficiais aplica com sucesso mas um pacote
+  AUR opcional falha o build/download (checksum upstream mudou, PKGBUILD
+  travado), `update_system_aur` agora rebaixa o resultado de `fail` (exit 2)
+  para `todo` (ação manual), listando os pacotes afetados e a remediação. Falha
+  real de transação pacman (conflito, espaço, hook) continua sendo `fail`.
+- **Retry do paru agora limpa downloads parciais corrompidos.** A causa do
+  `... FALHOU` (checksum) eram arquivos `.part`/fontes baixadas interrompidas
+  que a limpeza antiga (só `*.tar.*`) não removia. Novo `_purge_aur_partial_sources`
+  apaga `*.part` e formatos de fonte (`*.zip/*.deb/*.AppImage/*.tar.*/...`)
+  antes da 2ª tentativa, e o retry só ocorre para erros de rede/integridade
+  (não para erro de PKGBUILD/compilação, que não cura com retry).
+- **`checkservices` reportava contagem inflada** (ex.: 14 itens para 10
+  serviços). O parser confundia `Found: N`, delimitadores `---8<---` e o aviso
+  `pacnew file found` com serviços. Agora extrai apenas as units de
+  `systemctl restart '<unit>'` (helper puro `parse_checkservices_units`).
+- **`cargo audit` dava remediação errada para binários da toolchain.** CVEs em
+  `rustup`/`cargo`/`rustc` eram reportadas com "atualize via
+  `cargo install-update -a`", que não os toca. Agora classifica cada binário
+  (`classify_cargo_bin`) e sugere `rustup self update`/pacman para a toolchain
+  e `cargo install-update` só para o que foi instalado via cargo.
+- **`_strip_ansi` colapsa barras de progresso (`\r`)**, mantendo só o estado
+  final de cada linha — o log deixa de acumular quadros gigantes de
+  progresso do `curl`/`wget` gerados pelo paru.
+- Filtro de ruído do journal expandido com erros benignos não-acionáveis:
+  bugs de firmware/ACPI (`ACPI BIOS Error`, `AE_ALREADY_EXISTS`, `WMI6`),
+  drivers (`thinkpad_acpi`, `ftdi_sio` latency, `hci0`), `gkr-pam` (keyring de
+  sessão) e o race transitório `Original source was unlinked while parsing
+  service file` (flatpak reinstalando `.service` durante o boot scan do dbus).
+- `update_pipx` detecta e sinaliza symlinks auto-referentes em `~/.local/bin`
+  (ferramenta instalada por `pip --user` **e** `pipx`), com remediação, sem
+  falhar o step.
+- Removida a definição duplicada de `aur_ignore_args` (vivia em `core.sh` **e**
+  `steps/pacman.sh`); fica só em `core.sh`.
+
+### Adicionado
+
+- Helpers puros testáveis em `lib/core.sh`: `parse_checkservices_units`,
+  `parse_cargo_vuln_bins`, `classify_cargo_bin` — parsing separado do I/O.
+- `tests/core.bats`: +9 testes (parsers acima + colapso de `\r` no
+  `_strip_ansi`). Suíte passa de 48 → 57 testes.
+
+### Anterior
+
 - `run_network_cmd`/`_retry`/`log_raw` gravam no log via `log_raw` com guarda de
   `LOG_FILE` vazio, evitando o erro `core.sh: arquivo ou diretório inexistente`
   quando esses helpers são usados antes de `setup_logging` (ex.: durante

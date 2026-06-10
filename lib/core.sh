@@ -12,7 +12,12 @@ has() {
 # Usado para manter o arquivo de log legível mesmo quando comandos externos
 # (ex.: fwupdmgr) emitem escapes crus.
 _strip_ansi() {
-  sed -E 's/\x1b\[[0-9;]*[mGKHfABCD]//g'
+  # 1) remove sequências ANSI (cores/cursor);
+  # 2) colapsa atualizações in-place via carriage return (\r) — barras de
+  #    progresso do curl/wget reescrevem a mesma linha com \r e, sem isso,
+  #    cada quadro vira uma linha gigante ilegível no log. Mantém só o
+  #    último estado de cada linha (texto após o último \r).
+  sed -E 's/\x1b\[[0-9;]*[mGKHfABCD]//g; s/.*\r([^\r])/\1/g; s/\r$//'
 }
 
 # Grava conteúdo SOMENTE no arquivo de log (não no terminal), removendo ANSI.
@@ -131,6 +136,39 @@ aur_ignore_args() {
     [[ -n "$item" ]] || continue
     printf '%s\n' "--ignore=${item}"
   done
+}
+
+# ── Parsers puros (sem I/O; testáveis via bats) ────────────────────────────────
+
+# Lê a saída crua do `checkservices` em stdin e emite, uma por linha, apenas as
+# units systemd que ele recomenda reiniciar (extraídas de "systemctl restart
+# '<unit>'"), deduplicadas. Ignora contadores ("Found: N"), delimitadores
+# ("---8<---"), avisos de pacnew e prompts. Saída vazia = nada a reiniciar.
+parse_checkservices_units() {
+  grep -oE "systemctl restart '[^']+'" \
+    | sed -E "s/^systemctl restart '([^']+)'$/\1/" \
+    | sort -u
+}
+
+# Lê a saída crua do `cargo audit bin` em stdin e emite, um por linha, o
+# basename de cada binário com vulnerabilidade ("... found in /path/bin/<nome>"),
+# deduplicado.
+parse_cargo_vuln_bins() {
+  grep -oiE 'vulnerabilit(y|ies) found in [^[:space:]]+' \
+    | grep -oE '/[^[:space:]]+$' \
+    | xargs -r -n1 basename 2>/dev/null \
+    | sort -u
+}
+
+# Classifica um binário cargo: imprime "toolchain" (gerenciado por rustup/pacman,
+# NÃO por `cargo install-update`) ou "cargo" (instalado via `cargo install`).
+classify_cargo_bin() {
+  case "$1" in
+    rustup|cargo|rustc|rustfmt|cargo-clippy|clippy-driver|rust-*)
+      printf 'toolchain' ;;
+    *)
+      printf 'cargo' ;;
+  esac
 }
 
 elapsed() {

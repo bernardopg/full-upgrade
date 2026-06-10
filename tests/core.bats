@@ -41,6 +41,17 @@ setup() {
   [ "$result" = "sem cor aqui" ]
 }
 
+@test "_strip_ansi: colapsa progresso com carriage return (curl/wget)" {
+  # Barras de progresso reescrevem a mesma linha com \r; só o último estado fica.
+  result="$(printf '10%%\r55%%\r100%% done\n' | _strip_ansi)"
+  [ "$result" = "100% done" ]
+}
+
+@test "_strip_ansi: remove carriage return solto no fim da linha" {
+  result="$(printf 'linha\r\n' | _strip_ansi)"
+  [ "$result" = "linha" ]
+}
+
 # ── has ───────────────────────────────────────────────────────────────────────
 
 @test "has: comando existente retorna 0" {
@@ -115,4 +126,59 @@ setup() {
   run aur_ignore_args
   [ "${lines[0]}" = "--ignore=foo" ]
   [ "${lines[1]}" = "--ignore=bar" ]
+}
+
+# ── parse_checkservices_units ───────────────────────────────────────────────────
+
+@test "parse_checkservices_units: extrai só units, ignora Found/8</pacnew" {
+  out=$'==> pacnew file found for /etc/pacman.d/mirrorlist\nFound: 3\n-------8<-------------------------------8<---------\nsystemctl restart \'NetworkManager.service\'\nsystemctl restart \'postgresql.service\'\nsystemctl restart \'udisks2.service\'\n-------8<-------------------------------8<---------'
+  mapfile -t result < <(printf '%s\n' "$out" | parse_checkservices_units)
+  [ "${#result[@]}" -eq 3 ]
+  [ "${result[0]}" = "NetworkManager.service" ]
+  [ "${result[1]}" = "postgresql.service" ]
+  [ "${result[2]}" = "udisks2.service" ]
+}
+
+@test "parse_checkservices_units: deduplica units repetidas" {
+  out=$'systemctl restart \'foo.service\'\nsystemctl restart \'foo.service\''
+  mapfile -t result < <(printf '%s\n' "$out" | parse_checkservices_units)
+  [ "${#result[@]}" -eq 1 ]
+  [ "${result[0]}" = "foo.service" ]
+}
+
+@test "parse_checkservices_units: saída sem units não produz nada" {
+  out=$'Found: 0\n:: header'
+  result="$(printf '%s\n' "$out" | parse_checkservices_units)"
+  [ -z "$result" ]
+}
+
+# ── parse_cargo_vuln_bins ───────────────────────────────────────────────────────
+
+@test "parse_cargo_vuln_bins: extrai basename dos binários vulneráveis" {
+  out=$'error: 7 vulnerabilities found in /home/u/.cargo/bin/rustup\nerror: 1 vulnerability found in /home/u/.cargo/bin/cargo-audit'
+  mapfile -t result < <(printf '%s\n' "$out" | parse_cargo_vuln_bins)
+  [ "${#result[@]}" -eq 2 ]
+  [ "${result[0]}" = "cargo-audit" ]
+  [ "${result[1]}" = "rustup" ]
+}
+
+@test "parse_cargo_vuln_bins: sem vulnerabilidades não produz nada" {
+  out=$'Loaded 1123 security advisories\nwarning: not built with cargo auditable'
+  result="$(printf '%s\n' "$out" | parse_cargo_vuln_bins)"
+  [ -z "$result" ]
+}
+
+# ── classify_cargo_bin ──────────────────────────────────────────────────────────
+
+@test "classify_cargo_bin: rustup/cargo/rustc são toolchain" {
+  [ "$(classify_cargo_bin rustup)" = "toolchain" ]
+  [ "$(classify_cargo_bin cargo)" = "toolchain" ]
+  [ "$(classify_cargo_bin rustc)" = "toolchain" ]
+  [ "$(classify_cargo_bin rust-analyzer)" = "toolchain" ]
+}
+
+@test "classify_cargo_bin: ferramentas instaladas via cargo são cargo" {
+  [ "$(classify_cargo_bin cargo-audit)" = "cargo" ]
+  [ "$(classify_cargo_bin ripgrep)" = "cargo" ]
+  [ "$(classify_cargo_bin bat)" = "cargo" ]
 }

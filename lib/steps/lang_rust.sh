@@ -59,18 +59,48 @@ audit_cargo_bins() {
     | grep -v '^$' \
     | grep -A 8 '^Crate:' || true
 
-  local vuln_count
-  vuln_count="$(printf '%s\n' "$output" | grep -c '^error:' || true)"
-
-  if (( vuln_count > 0 )); then
-    log "  Aviso: ${vuln_count} binário(s) com CVEs conhecidas (ver log). Atualize com 'cargo install-update -a'."
-    STEP_REASON="${vuln_count} binário(s) cargo com CVE conhecida"
-    return "$RC_WARN"
-  else
-    log "  Sem CVEs críticas em binários cargo do usuário."
+  # Extrai os binários com vulnerabilidade: cargo-audit emite
+  #   error: N vulnerabilities found in /home/user/.cargo/bin/<nome>
+  local -a vuln_bins=()
+  mapfile -t vuln_bins < <(printf '%s\n' "$output" | parse_cargo_vuln_bins)
+  local vuln_count="${#vuln_bins[@]}"
+  # Fallback se o formato mudar: conta linhas 'error:'.
+  if (( vuln_count == 0 )); then
+    vuln_count="$(printf '%s\n' "$output" | grep -c '^error:' || true)"
   fi
 
-  return 0
+  if (( vuln_count == 0 )); then
+    log "  Sem CVEs críticas em binários cargo do usuário."
+    return 0
+  fi
+
+  # Remediação correta depende da ORIGEM do binário. rustup/cargo/rustc são
+  # parte da toolchain — 'cargo install-update' NÃO os toca; precisam de
+  # 'rustup self update' (binários do rustup) ou do gerenciador de pacotes
+  # (toolchain via pacman). Só os demais são cargo-installed e atualizáveis
+  # via 'cargo install-update -a'.
+  local -a toolchain_bins=() cargo_bins=()
+  local _b
+  for _b in "${vuln_bins[@]}"; do
+    if [[ "$(classify_cargo_bin "$_b")" == "toolchain" ]]; then
+      toolchain_bins+=("$_b")
+    else
+      cargo_bins+=("$_b")
+    fi
+  done
+
+  log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com CVEs conhecidas: ${vuln_bins[*]}${C_RESET}"
+  if (( ${#cargo_bins[@]} > 0 )); then
+    log "    • Instalados via cargo (${#cargo_bins[@]}): ${cargo_bins[*]}"
+    log "      Atualize: cargo install-update -a"
+  fi
+  if (( ${#toolchain_bins[@]} > 0 )); then
+    log "    • Toolchain/rustup (${#toolchain_bins[@]}): ${toolchain_bins[*]}"
+    log "      'cargo install-update' não corrige estes. Atualize: rustup self update && rustup update"
+    log "      (se gerenciados pelo pacman: sudo pacman -Syu rust rustup)"
+  fi
+  STEP_REASON="${vuln_count} binário(s) com CVE (${#toolchain_bins[@]} toolchain, ${#cargo_bins[@]} cargo)"
+  return "$RC_WARN"
 }
 
 

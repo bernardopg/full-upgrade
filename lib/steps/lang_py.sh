@@ -62,6 +62,22 @@ update_pipx() {
 
   # Suprimir "upgrading X..." — manter só sumário e linhas de pacotes atualizados
   printf '%s\n' "$output" | grep -v '^upgrading ' | grep -v '^$' || true
+
+  # Detecta symlink quebrado/auto-referente em ~/.local/bin (pipx avisa
+  # "File exists at ... and points to <ele mesmo>, not <venv>"). Costuma
+  # ocorrer quando a mesma ferramenta foi instalada via pip --user E pipx.
+  # Não é erro do update; sinalizamos remediação sem falhar o step.
+  local _selfln
+  while IFS= read -r _selfln; do
+    [[ -n "$_selfln" ]] || continue
+    log "  ${C_YELLOW}Aviso: '${_selfln}' é um symlink auto-referente (pip --user vs pipx).${C_RESET}"
+    log "  Remediação: pipx reinstall \$(basename '${_selfln}')   ou   rm '${_selfln}' && pipx ensurepath"
+  done < <(
+    printf '%s\n' "$output" \
+      | grep -oE 'File exists at [^[:space:]]+' \
+      | awk '{print $4}' \
+      | sort -u
+  )
   return "$rc"
 }
 
