@@ -103,8 +103,13 @@ avisa quando há uma versão nova (não baixa nada) — você decide quando roda
 | `FULL_UPGRADE_REPO` | `bernardopg/full-upgrade` | Repositório `owner/repo` no GitHub. |
 | `FULL_UPGRADE_UPDATE_CHANNEL` | `release` | `release` (última tag) ou `main` (bleeding edge). |
 
-O `--update` baixa o tarball da tag, extrai e roda o `install.sh` — requer
-apenas `curl` e `tar`, sem depender do `git` ou do `gh`.
+No canal `release`, o `--update` baixa o **standalone publicado** junto do seu
+`.sha256`, **verifica o SHA-256** e só então instala o binário em
+`~/.local/bin/full-upgrade` (guardando o anterior em `…/full-upgrade.bak`). Se o
+checksum não bater — download corrompido ou adulterado em trânsito — a
+atualização é **abortada antes de qualquer execução**. Requer `curl` e
+`sha256sum`/`shasum`. O canal `main` usa o tarball-fonte + `install.sh` e avisa
+que, nesse caso, a integridade não é verificada por checksum (apenas TLS).
 
 ## Uso Rápido
 

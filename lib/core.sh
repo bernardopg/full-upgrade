@@ -190,6 +190,44 @@ avail_kib_for_path() {
   df -Pk "$path" 2>/dev/null | awk 'NR==2 { print $4 }'
 }
 
+# Extrai o primeiro campo (hash hex) de uma linha no formato `sha256sum`
+# ("<hash>  <arquivo>"). Aceita também uma linha só com o hash. Normaliza para
+# minúsculas. Vazio se não parecer um hash SHA-256 (64 hex). Puro, testável.
+parse_sha256_field() {
+  local line="$1" hash
+  hash="${line%%[[:space:]]*}"   # primeiro token
+  hash="${hash,,}"               # minúsculas
+  [[ "$hash" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "$hash"
+}
+
+# Calcula o SHA-256 de um arquivo, abstraindo o utilitário disponível
+# (sha256sum no Linux, `shasum -a 256` como fallback). Emite o hash hex
+# minúsculo, ou nada (rc≠0) se nenhum utilitário existir / arquivo ausente.
+file_sha256() {
+  local f="$1"
+  [[ -f "$f" ]] || return 1
+  local out
+  if has sha256sum; then
+    out="$(sha256sum -- "$f" 2>/dev/null)"
+  elif has shasum; then
+    out="$(shasum -a 256 -- "$f" 2>/dev/null)"
+  else
+    return 1
+  fi
+  parse_sha256_field "$out"
+}
+
+# Verifica que o SHA-256 de <arquivo> bate com <hash_esperado>.
+# Retorna 0 se igual, 1 caso contrário (inclui erro de cálculo / hash inválido).
+# Comparação case-insensitive. Sem efeitos colaterais além de ler o arquivo.
+verify_sha256() {
+  local file="$1" expected="$2" actual
+  expected="$(parse_sha256_field "$expected" 2>/dev/null)" || return 1
+  actual="$(file_sha256 "$file" 2>/dev/null)" || return 1
+  [[ "$actual" == "$expected" ]]
+}
+
 elapsed() {
   local secs="$1"
   if (( secs >= 60 )); then
