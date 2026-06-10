@@ -198,8 +198,8 @@ Status possíveis no resumo:
 
 | Domínio | Cobertura principal |
 | --- | --- |
-| Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`. |
-| Snapshot e mirrors | `snapper`/`timeshift` em btrfs, `reflector`/`rate-mirrors` com backup da mirrorlist. |
+| Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
+| Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup da mirrorlist. |
 | Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais e `.pacnew/.pacsave`. |
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas e aviso de containers usando imagem antiga. |
@@ -288,9 +288,13 @@ Principais chaves:
 | `ENABLE_CUSTOM_TOOLS` | `0` | Habilita hooks extras em `steps.d/`. |
 | `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
 | `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
+| `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
 | `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
 | `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
 | `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |
+| `BACKUP_CONFIGS` | `1` | Arquiva configs críticas de `/etc` em `tar.zst` antes das mutações. `0` desliga. |
+| `BACKUP_KEEP` | `5` | Quantos tarballs de backup manter (rotação). |
+| `BACKUP_PATHS` | lista de `/etc` | Paths a arquivar, separados por espaço (default cobre `pacman`/boot/`systemd`). |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |

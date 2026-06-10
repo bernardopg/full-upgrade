@@ -20,7 +20,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 > Bugs reais ou comportamento incorreto identificado no código atual.
 
-### C1 — 🔴 ☐ Join key quebrado nos steps custom (espaço inicial no catálogo)
+### C1 — 🔴 ☑ Join key quebrado nos steps custom (espaço inicial no catálogo)
+> **Concluído (PR #6).** Espaço removido das 5 linhas; testes de integridade
+> rejeitam espaço em borda e validam a correspondência catálogo⇄`main.sh`.
 - **Arquivos:** `lib/catalog.sh`, `tests/catalog_integrity.bats`
 - **Problema:** linhas 47–51 do catálogo têm um espaço à frente do nome
   (` Atualizar Hermes`), mas `lib/main.sh` chama `"Atualizar Hermes"` (sem
@@ -79,8 +81,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 > Refino de algo que já funciona: robustez, clareza, performance, UX.
 
-### M1 — 🔴 ☐ Pré-flight de espaço para o snapshot
-- **Arquivos:** `lib/steps/coverage.sh`
+### M1 — 🔴 ☑ Pré-flight de espaço para o snapshot
+> **Concluído (PR #6).** `SNAPSHOT_MIN_FREE_GIB` (default 2; `0` desliga);
+> helpers puros `space_is_sufficient`/`avail_kib_for_path` com testes.
+- **Arquivos:** `lib/steps/coverage.sh`, `lib/core.sh`
 - **O quê:** antes de criar snapshot btrfs, checar espaço livre no subvolume; se
   abaixo de um limiar configurável (`SNAPSHOT_MIN_FREE_GIB`), avisar e
   prosseguir sem falhar (snapshot que enche o disco é pior que não ter).
@@ -123,7 +127,11 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 > Capacidade nova.
 
-### F1 — 🔴 ☐ Backup de configs críticas de `/etc` antes das mutações
+### F1 — 🔴 ☑ Backup de configs críticas de `/etc` antes das mutações
+> **Concluído (PR #6).** `lib/steps/backup.sh` com `tar.zst` (fallback gzip),
+> rotação (`BACKUP_KEEP`), dry-run sem escrita, helpers puros testados. Config:
+> `BACKUP_CONFIGS`/`BACKUP_KEEP`/`BACKUP_PATHS`. `build.sh` ganhou guarda
+> anti-regressão de `ORDER`.
 - **Arquivos:** novo `lib/steps/backup.sh`, `lib/catalog.sh`, `lib/main.sh`, config
 - **O quê:** step core opcional que arquiva (tar.zst) uma lista configurável de
   paths (`/etc/pacman.conf`, `/etc/pacman.d/`, `/etc/fstab`, `/etc/mkinitcpio.conf`,
@@ -167,11 +175,17 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 ## Ordem de execução sugerida
 
-1. **C1, C2** (correções de alto impacto: join key + segurança do self-update).
-2. **M1, F1** (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
+1. ~~**C1**~~ ✅ + **C2** (correções de alto impacto: join key + segurança do self-update).
+2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. **F3, F4** (cobertura doctor: btrfs + boot time).
 4. **M3, F2** (observabilidade: sumário por categoria + relatório).
 5. **C3, C4, C5, M2, M4, M5, F5** (refino e robustez).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
+
+## Progresso
+
+- **Concluído:** C1, M1, F1 (PR #6).
+- **Próximo:** C2 (verificação de integridade no self-update).
+- **Restante:** C2–C5, M2–M5, F2–F5.
