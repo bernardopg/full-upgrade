@@ -4,7 +4,33 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Backup de configs críticas antes das mutações** (`lib/steps/backup.sh`,
+  step "Backup de configs críticas", categoria `core`). Arquiva uma lista
+  configurável de paths de `/etc` (e dotfiles) em `tar.zst` (fallback `gzip`)
+  em `~/.cache/system-upgrade/backups/`, com rotação (`BACKUP_KEEP`). Roda
+  antes do snapshot/update. `--dry-run` lista o que arquivaria sem escrever.
+  Configurável via `BACKUP_CONFIGS`, `BACKUP_KEEP`, `BACKUP_PATHS`.
+- **Pré-flight de espaço para o snapshot** (`SNAPSHOT_MIN_FREE_GIB`, default 2):
+  se o livre em `/` estiver abaixo do limiar, o snapshot é pulado com `RC_WARN`
+  e remediação, evitando estourar o subvolume. `0` desliga a checagem.
+- Helpers puros testáveis em `lib/core.sh`: `space_is_sufficient`,
+  `avail_kib_for_path`; e em `lib/steps/backup.sh`: `backup_existing_paths`,
+  `backup_rotation_victims`.
+- `tests/backup.bats` (6 testes) + testes de `space_is_sufficient` e de
+  integridade de catálogo (espaço em borda do nome / join key com `main.sh`).
+  Suíte passa de 57 → 70 testes.
+- `build.sh` ganhou guarda anti-regressão: falha se algum `lib/steps/*.sh` não
+  estiver listado em `ORDER` (evita standalone quebrado em silêncio).
+
 ### Corrigido
+
+- **Join key dos steps custom estava quebrado.** As linhas de Hermes, AdGuard
+  VPN, OpenClaw, Claude Code CLI e Copilot CLI tinham um espaço inicial no nome
+  no catálogo, mas `lib/main.sh` os chama sem o espaço — o mismatch fazia a
+  busca de metadata (timeout/`cmd_deps`) cair para o default em silêncio.
+  Removido o espaço; teste de integridade agora rejeita espaço em borda.
 
 - **Update AUR não falha mais o run inteiro por pacote isolado quebrado.**
   Quando a transação dos repositórios oficiais aplica com sucesso mas um pacote

@@ -15,9 +15,25 @@ ORDER=(
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh
   lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh lib/steps/doctor.sh
-  lib/steps/self_update.sh
+  lib/steps/backup.sh lib/steps/self_update.sh
   lib/main.sh
 )
+
+# Guarda anti-regressão: garante que todo lib/steps/*.sh foi listado em ORDER.
+# steps/*.sh só definem funções (ordem entre eles é irrelevante), mas esquecer
+# um arquivo quebra o standalone silenciosamente. Falha o build se faltar algum.
+_missing=()
+for _f in lib/steps/*.sh; do
+  case " ${ORDER[*]} " in
+    *" $_f "*) ;;
+    *) _missing+=("$_f") ;;
+  esac
+done
+if (( ${#_missing[@]} > 0 )); then
+  printf 'build.sh: arquivos de step ausentes em ORDER: %s\n' "${_missing[*]}" >&2
+  exit 1
+fi
+unset _missing _f
 
 {
   printf '#!/usr/bin/env bash\n'

@@ -36,6 +36,7 @@ run_all_steps() {
                 run_step "Reparar ambiente GnuPG/AUR"                   repair_gnupg_runtime
             fi
             
+            run_step "Backup de configs críticas" backup_critical_configs
             run_step "Snapshot pré-upgrade" preupgrade_snapshot
             run_step "Atualizar mirrors" refresh_mirrors
             run_step "Atualizar pacotes do sistema e AUR" update_system_aur
@@ -57,6 +58,7 @@ run_all_steps() {
             for _s in \
             "Limpar lock stale do pacman" \
             "Reparar ambiente GnuPG/AUR" \
+            "Backup de configs críticas" \
             "Atualizar pacotes do sistema e AUR" \
             "Garantir Burp Suite e Wireshark" \
             "Reparar comandos locais conflitantes" \
@@ -67,6 +69,7 @@ run_all_steps() {
         fi
     else
         for _s in \
+        "Backup de configs críticas" \
         "Atualizar pacotes do sistema e AUR" \
         "Garantir Burp Suite e Wireshark" \
         "Reparar comandos locais conflitantes" \
