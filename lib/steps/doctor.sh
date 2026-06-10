@@ -125,7 +125,11 @@ doctor_journal_errors() {
 
   local output filtered rc line_count filtered_count grouped unique_count noise_count
 
-  # Padrões de ruído conhecido — grep-E aplicado linha a linha antes de agrupar
+  # Padrões de ruído conhecido — grep-E aplicado linha a linha antes de agrupar.
+  # São erros priority<=3 (err) que são benignos/não-acionáveis na prática:
+  # bugs de firmware (DSDT/ACPI), drivers pedindo report upstream, hardware
+  # ausente, ou races transitórios de boot. Mantidos específicos para nunca
+  # mascarar uma falha real (ex.: serviço que não subiu, I/O error de disco).
   local -a _journal_noise=(
     'bluetoothd.*HFP.*(gateway|profile|SDP|connect|disconnect)'
     'bluetoothd.*Unable to get.*(Headset|HFP|HandsFree|Hands-Free|Voice gateway)'
@@ -141,6 +145,20 @@ doctor_journal_errors() {
     'profiles/audio/avdtp\.c.*connect.*Host is down'
     ':[[:space:]]+#[0-9]+[[:space:]]+0x[0-9a-f]+'
     'ELF object binary architecture:'
+    # ── Firmware/ACPI: bugs do DSDT do fabricante, não corrigíveis por SW ──
+    'ACPI BIOS Error \(bug\):'
+    'ACPI Error: AE_ALREADY_EXISTS'
+    'ACPI Error:.*(psobject|dswload|namespace)'
+    'Failure creating named object \[\\_SB\.'
+    # ── Drivers que pedem report upstream / hardware opcional ausente ──
+    'thinkpad_acpi: Unknown/reserved .* mode value'
+    'ftdi_sio .*: Unable to read latency timer'
+    'Failed to set default system config for hci[0-9]'
+    # ── gnome-keyring em sessão gráfica (sem control file / unlock) ──
+    'gkr-pam: unable to locate daemon control file'
+    'gkr-pam: couldn.t unlock the login keyring'
+    # ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
+    'Original source was unlinked while parsing service file'
   )
 
   # Padrões adicionais de ~/.config/full-upgrade/journal-noise.txt (um regex-E por linha)
@@ -196,7 +214,7 @@ doctor_journal_errors() {
   noise_count=$(( line_count - filtered_count ))
 
   if [[ -z "${filtered//[[:space:]]/}" ]]; then
-    log "  Journal tem ${line_count} erro(s) crítico(s) — todos ruído conhecido filtrado (${noise_count} bluetoothd HFP)."
+    log "  Journal tem ${line_count} erro(s) crítico(s) — todos ruído conhecido filtrado (${noise_count} linha(s): firmware/ACPI, drivers, keyring, races de boot)."
     return 0
   fi
 
@@ -540,29 +558,50 @@ doctor_stale_services() {
       log "  checkservices retornou código ${rc}."
       return "$RC_WARN"
     fi
-    # Filtrar apenas categorias com problemas (linhas que não são "Found: 0" nem headers "::" nem prompt interativo)
-    problems="$(printf '%s\n' "$output" | grep -v '^::' | grep -v '^Found: 0' | grep -v '^[[:space:]]*$' | grep -v '^Execute?' || true)"
-    if [[ -z "${problems//[[:space:]]/}" ]]; then
-      log "  checkservices: nenhum problema encontrado."
-      return 0
-    fi
-    local svc_count
-    svc_count="$(printf '%s\n' "$problems" | wc -l)"
-    log "  checkservices: ${svc_count} item(ns) com problema:"
-    printf '%s\n' "$problems" | tee >(_strip_ansi >> "$LOG_FILE")
-    STEP_REASON="${svc_count} item(ns) reportado(s) por checkservices"
-
-    if (( RESTART_SERVICES )); then
-      # Extrai os comandos sugeridos: linhas "systemctl restart 'nome.service'"
-      local -a restart_cmds=()
-      mapfile -t restart_cmds < <(
+    # A saída do checkservices mistura sinal e ruído:
+    #   ==> pacnew file found for /etc/...   (não é serviço)
+    #   Found: 10                            (contador, não item)
+    #   -------8<--------                    (delimitadores do bloco de comandos)
+    #   systemctl restart 'foo.service'      (o sinal real)
+    # O parser antigo (grep -v '^Found: 0') deixava passar "Found: 10", os
+    # delimitadores "8<" e a linha "pacnew file found", inflando a contagem
+    # (ex.: 14 itens reportados para 10 serviços reais). Extraímos apenas as
+    # linhas de comando 'systemctl restart' — o conjunto canônico de serviços
+    # que o checkservices recomenda reiniciar.
+    local -a _affected_services=()
+    mapfile -t _affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
+    # Fallback: builds antigos do checkservices podem listar nomes de serviço
+    # sem o comando 'systemctl restart'. Se nada casou acima, recai para o
+    # filtro genérico (ainda excluindo contadores/delimitadores/pacnew).
+    if (( ${#_affected_services[@]} == 0 )); then
+      mapfile -t _affected_services < <(
         printf '%s\n' "$output" \
-          | grep -oE "systemctl restart '[^']+'" \
-          | sed -E "s/^systemctl restart '([^']+)'$/\1/" \
+          | grep -vE '^::|^Found:|^[[:space:]]*-+8<-+|pacnew file found|^[[:space:]]*$|^Execute' \
+          | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+          | grep -E '\.(service|socket|timer|mount|target|scope|path)$|\.service' \
           | sort -u
       )
+    fi
+    if (( ${#_affected_services[@]} == 0 )); then
+      log "  checkservices: nenhum serviço com bibliotecas antigas."
+      return 0
+    fi
+    problems="$(printf '%s\n' "${_affected_services[@]}")"
+    local svc_count="${#_affected_services[@]}"
+    log "  checkservices: ${svc_count} serviço(s) usando bibliotecas substituídas (reinício recomendado):"
+    printf '%s\n' "${_affected_services[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+    STEP_REASON="${svc_count} serviço(s) com libs antigas (reinício pendente)"
+
+    if (( RESTART_SERVICES )); then
+      # Reusa a lista já parseada; restringe a units systemd válidas para não
+      # tentar reiniciar nomes soltos vindos do fallback genérico.
+      local -a restart_cmds=()
+      local _svc
+      for _svc in "${_affected_services[@]}"; do
+        [[ "$_svc" =~ \.(service|socket|timer|mount|target|scope|path)$ ]] && restart_cmds+=("$_svc")
+      done
       if (( ${#restart_cmds[@]} == 0 )); then
-        log "  --restart-services: nenhum comando 'systemctl restart' detectado na saída."
+        log "  --restart-services: nenhuma unit systemd reiniciável detectada na saída."
         return "$RC_TODO"
       fi
       log "  --restart-services: ${#restart_cmds[@]} serviço(s) a reiniciar: ${restart_cmds[*]}"

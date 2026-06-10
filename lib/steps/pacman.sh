@@ -91,6 +91,33 @@ refresh_pacman_keys() {
 }
 
 
+# Regex (grep -E, case-insensitive) de erros de rede transitórios.
+# Centralizado para reuso entre helpers de AUR/rede.
+_AUR_NETWORK_RE='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure'
+
+# Regex de falhas de download/integridade de fontes AUR que geralmente são
+# transitórias (CDN cortou o stream, retomada de .part corrompida) e curam
+# com uma limpeza de cache + novo download. Distinto de erro de PKGBUILD.
+_AUR_TRANSIENT_SRC_RE='não passaram na verificação de validade|did not pass the validity check|FALHOU|one or more files did not pass|falha ao baixar fontes|failure while downloading|error downloading sources'
+
+# Remove downloads de fontes AUR potencialmente corrompidos antes de um retry.
+# Diferente da limpeza original (que só apagava os *.tar.* construídos), aqui
+# alvejamos os ARTEFATOS DE DOWNLOAD parciais/baixados que causam o checksum
+# "FALHOU": *.part (retomada interrompida) e os formatos de fonte upstream
+# comuns (.zip/.deb/.AppImage/.tar.*/.gz/.xz/.bz2). PKGBUILD/.SRCINFO/.sh e o
+# git clone do diretório são preservados, então paru só rebaixa o que faltou.
+_purge_aur_partial_sources() {
+  local clone_dir="${XDG_CACHE_HOME:-$HOME/.cache}/paru/clone"
+  [[ -d "$clone_dir" ]] || return 0
+  find "$clone_dir" -maxdepth 3 -type f \
+    \( -name '*.part' \
+       -o -name '*.tar.*' -o -name '*.tgz' \
+       -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+       -o -name '*.AppImage' -o -name '*.appimage' \
+       -o -name '*.gz' -o -name '*.xz' -o -name '*.bz2' -o -name '*.zst' \
+    \) -delete 2>/dev/null || true
+}
+
 update_system_aur() {
   local -a ignore_args=()
   mapfile -t ignore_args < <(aur_ignore_args)
@@ -108,22 +135,30 @@ update_system_aur() {
     local _paru_attempt
     for _paru_attempt in 1 2; do
       (( _paru_attempt > 1 )) && {
-        log "  paru: tentativa ${_paru_attempt}/2 — limpando tarballs AUR em cache antes de retry..."
-        find "${XDG_CACHE_HOME:-$HOME/.cache}/paru/clone" -maxdepth 2 -name "*.tar.*" -delete 2>/dev/null || true
+        log "  paru: tentativa ${_paru_attempt}/2 — limpando downloads AUR parciais/corrompidos antes de retry..."
+        _purge_aur_partial_sources
         sleep 5
       }
       _paru_out="$("${cmd[@]}" 2>&1)"
       _paru_rc=$?
       printf '%s\n' "$_paru_out" | tee >(_strip_ansi >> "$LOG_FILE")
       (( _paru_rc == 0 )) && break
+      # Só vale repetir se a falha for de rede OU de integridade de fonte
+      # (checksum/download), que a limpeza pode curar. Erro de PKGBUILD,
+      # conflito ou compilação não cura com retry — aborta o loop.
+      if (( _paru_attempt < 2 )) \
+         && ! printf '%s\n' "$_paru_out" | grep -qiE "${_AUR_NETWORK_RE}|${_AUR_TRANSIENT_SRC_RE}"; then
+        break
+      fi
     done
+
     if (( _paru_rc != 0 )); then
-      if printf '%s\n' "$_paru_out" | grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
+      if printf '%s\n' "$_paru_out" | grep -qiE "$_AUR_NETWORK_RE"; then
         log "  paru: falha de rede transitória após 2 tentativas — aviso, não erro."
-        _paru_rc="$RC_WARN"
+        return "$RC_WARN"
       fi
     fi
-    (( _paru_rc == RC_WARN )) && return "$RC_WARN"
+
     # Avisar pacotes AUR ainda desatualizados após update (PKGBUILD travado ou out-of-date)
     local -a still_outdated=()
     mapfile -t still_outdated < <(paru -Qu --aur 2>/dev/null | awk '{print $1}' || true)
@@ -131,7 +166,35 @@ update_system_aur() {
       log "  ${C_YELLOW}Aviso: ${#still_outdated[@]} pacote(s) AUR ainda desatualizados (PKGBUILD travado?): ${still_outdated[*]}${C_RESET}"
       log "  Verifique: paru -Si <pacote>  ou  https://aur.archlinux.org/packages/<pacote>"
     fi
-    return $_paru_rc
+
+    # Classificação fina do rc≠0:
+    # paru retorna ≠0 quando QUALQUER pacote AUR falha o build, mesmo que toda
+    # a transação pacman (repos oficiais) tenha aplicado com sucesso. Um pacote
+    # AUR opcional quebrado upstream (checksum mudou, PKGBUILD travado) não deve
+    # marcar todo o run como FAIL e forçar exit 2. Se a falha for restrita a
+    # build/download de pacote(s) AUR, rebaixa para RC_TODO (ação manual).
+    if (( _paru_rc != 0 )); then
+      if printf '%s\n' "$_paru_out" \
+           | grep -qiE 'falharam na compilação|failed to build|falha ao compilar|failed to compile|falha ao baixar fontes|error downloading sources|não passaram na verificação de validade'; then
+        local -a _failed_aur=()
+        mapfile -t _failed_aur < <(
+          printf '%s\n' "$_paru_out" \
+            | grep -oiE "os pacotes ([^ ]+) falharam na compilação|falha ao (compilar|baixar fontes) (de |para )?'?([^' ]+)'?" \
+            | grep -oE "[a-z0-9][a-z0-9@._+-]+-[0-9][^ ']*" \
+            | sed -E 's/-[0-9][^-]*-[0-9]+$//' \
+            | sort -u
+        )
+        if (( ${#_failed_aur[@]} > 0 )); then
+          log "  ${C_YELLOW}Falha isolada em ${#_failed_aur[@]} pacote(s) AUR: ${_failed_aur[*]}${C_RESET}"
+        fi
+        log "  Sistema (repos oficiais) atualizado; falha restrita ao AUR — marcando como ação manual, não erro fatal."
+        log "  Resolva manualmente: paru -S ${_failed_aur[*]:-<pacote>}  (ou aguarde o mantenedor corrigir o PKGBUILD)"
+        STEP_REASON="${#_failed_aur[@]:-1} pacote(s) AUR falharam build/download (sistema OK)"
+        return "$RC_TODO"
+      fi
+    fi
+
+    return "$_paru_rc"
   fi
 
   if has yay; then
@@ -151,16 +214,8 @@ update_system_aur() {
 }
 
 
-aur_ignore_args() {
-  local item
-  [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]] || return 0
-
-  for item in $FULL_UPGRADE_AUR_IGNORE; do
-    [[ -n "$item" ]] || continue
-    printf '%s\n' "--ignore=${item}"
-  done
-}
-
+# NOTA: aur_ignore_args() vive em lib/core.sh (sourced antes deste arquivo).
+# Mantida lá para reuso; não redefinir aqui para evitar divergência.
 
 cleanup_paccache() {
   run_logged sudo paccache -r -k 2
