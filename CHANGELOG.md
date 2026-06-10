@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-06-10
+
 ### Distribuição
 
 - **Pacote AUR `full-upgrade`** (`packaging/aur/PKGBUILD` + `.SRCINFO`). Pacote
