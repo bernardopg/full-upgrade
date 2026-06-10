@@ -283,3 +283,49 @@ setup() {
   rm -f "$tmp"
   [ "$status" -ne 0 ]
 }
+
+# ── sum_btrfs_dev_errors ────────────────────────────────────────────────────────
+
+@test "sum_btrfs_dev_errors: soma os contadores *_errs" {
+  out=$'[/dev/sda].write_io_errs    0\n[/dev/sda].read_io_errs     2\n[/dev/sda].flush_io_errs    0\n[/dev/sda].corruption_errs  1\n[/dev/sda].generation_errs  0'
+  run sum_btrfs_dev_errors <<< "$out"
+  [ "$output" = "3" ]
+}
+
+@test "sum_btrfs_dev_errors: tudo zero soma 0" {
+  out=$'[/dev/sda].write_io_errs 0\n[/dev/sda].read_io_errs 0'
+  run sum_btrfs_dev_errors <<< "$out"
+  [ "$output" = "0" ]
+}
+
+@test "sum_btrfs_dev_errors: entrada vazia é 0" {
+  run sum_btrfs_dev_errors <<< ""
+  [ "$output" = "0" ]
+}
+
+# ── systemd_time_to_seconds ─────────────────────────────────────────────────────
+
+@test "systemd_time_to_seconds: segundos simples" {
+  run systemd_time_to_seconds "45.6s"
+  [ "$output" = "45" ]
+}
+
+@test "systemd_time_to_seconds: minutos e segundos" {
+  run systemd_time_to_seconds "1min 23.456s"
+  [ "$output" = "83" ]
+}
+
+@test "systemd_time_to_seconds: horas, minutos e segundos" {
+  run systemd_time_to_seconds "1h 2min 3s"
+  [ "$output" = "3723" ]
+}
+
+@test "systemd_time_to_seconds: milissegundos contam como fração" {
+  run systemd_time_to_seconds "500ms"
+  [ "$output" = "0" ]
+}
+
+@test "systemd_time_to_seconds: string sem unidades é 0" {
+  run systemd_time_to_seconds "sem tempo aqui"
+  [ "$output" = "0" ]
+}

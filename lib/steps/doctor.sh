@@ -1095,3 +1095,116 @@ for tool in (data if isinstance(data, list) else []):
   return "$status"
 }
 
+
+# F3 — saúde do btrfs: erros de I/O acumulados por device + idade do último
+# scrub. Em raiz não-btrfs, pula limpo. RC_TODO se scrub vencido (>
+# BTRFS_SCRUB_MAX_DAYS) ou se houver erros de device > 0.
+doctor_btrfs_health() {
+  if ! has btrfs; then
+    log "  btrfs-progs não instalado; pulando."
+    return 0
+  fi
+
+  local rootfs
+  rootfs="$(findmnt -no FSTYPE / 2>/dev/null || true)"
+  if [[ "$rootfs" != "btrfs" ]]; then
+    log "  Raiz não é btrfs (${rootfs:-?}); nada a verificar."
+    return 0
+  fi
+
+  local status=0
+
+  # 1) Erros de device acumulados (write/read/flush/corruption/generation).
+  local stats errs
+  stats="$(sudo btrfs device stats / 2>/dev/null || true)"
+  if [[ -n "${stats//[[:space:]]/}" ]]; then
+    errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
+    if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
+      log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — possível defeito físico.${C_RESET}"
+      printf '%s\n' "$stats" | grep -E '_errs' | grep -vE '_errs[[:space:]]+0$' | tee >(_strip_ansi >> "$LOG_FILE")
+      log "  Remediação: investigue o disco (smartctl) e zere após resolver: sudo btrfs device stats -z /"
+      status="$RC_TODO"
+    else
+      log "  btrfs: sem erros de device em / (contadores zerados)."
+    fi
+  fi
+
+  # 2) Idade do último scrub.
+  local scrub max_days last_epoch now_epoch age_days
+  max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
+  scrub="$(sudo btrfs scrub status / 2>/dev/null || true)"
+  if printf '%s\n' "$scrub" | grep -qiE 'no stats available|never'; then
+    log "  ${C_YELLOW}btrfs: nenhum scrub registrado em / — recomendado rodar periodicamente.${C_RESET}"
+    log "  Remediação: sudo btrfs scrub start /"
+    (( status == 0 )) && status="$RC_TODO"
+  else
+    # Extrai a data do início do último scrub (linhas variam por versão).
+    local started
+    started="$(printf '%s\n' "$scrub" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
+    if [[ -n "$started" ]]; then
+      last_epoch="$(date -d "$started" +%s 2>/dev/null || true)"
+      now_epoch="$(date +%s 2>/dev/null || true)"
+      if [[ "$last_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ ]]; then
+        age_days=$(( (now_epoch - last_epoch) / 86400 ))
+        if (( age_days > max_days )); then
+          log "  ${C_YELLOW}btrfs: último scrub há ${age_days} dia(s) (> ${max_days}).${C_RESET}"
+          log "  Remediação: sudo btrfs scrub start /"
+          (( status == 0 )) && status="$RC_TODO"
+        else
+          log "  btrfs: último scrub há ${age_days} dia(s) (limite ${max_days}) — OK."
+        fi
+      fi
+    fi
+  fi
+
+  if (( status == RC_TODO )); then
+    STEP_REASON="btrfs: erros de device e/ou scrub vencido em /"
+  fi
+  return "$status"
+}
+
+
+# F4 — tempo de boot: total via systemd-analyze + piores units (blame).
+# RC_WARN se o tempo total exceder BOOT_TIME_WARN_S.
+doctor_boot_time() {
+  if ! has systemd-analyze; then
+    log "  systemd-analyze não disponível; pulando."
+    return 0
+  fi
+
+  # Em container/sistema sem boot completo, systemd-analyze falha — trata limpo.
+  local time_out
+  time_out="$(systemd-analyze time 2>/dev/null || true)"
+  if [[ -z "${time_out//[[:space:]]/}" ]]; then
+    log "  systemd-analyze sem dados de boot (container?); pulando."
+    return 0
+  fi
+  printf '%s\n' "$time_out" | tee >(_strip_ansi >> "$LOG_FILE")
+
+  # "Startup finished in ... = 12.345s" — pega o total após o último '='.
+  local total_str total_s warn_s
+  total_str="$(printf '%s\n' "$time_out" | sed -nE 's/.*=[[:space:]]*//p' | head -1)"
+  [[ -z "$total_str" ]] && total_str="$time_out"
+  total_s="$(systemd_time_to_seconds "$total_str")"
+  warn_s="${BOOT_TIME_WARN_S:-60}"
+
+  # Top 5 piores units (blame).
+  if has systemd-analyze; then
+    local blame
+    blame="$(systemd-analyze blame --no-pager 2>/dev/null | head -5 || true)"
+    if [[ -n "${blame//[[:space:]]/}" ]]; then
+      log "  Piores units no boot (top 5):"
+      printf '%s\n' "$blame" | tee >(_strip_ansi >> "$LOG_FILE")
+    fi
+  fi
+
+  if [[ "$total_s" =~ ^[0-9]+$ ]] && (( total_s > warn_s )); then
+    log "  ${C_YELLOW}Boot levou ~${total_s}s (limite ${warn_s}s) — investigue as units acima.${C_RESET}"
+    STEP_REASON="boot ~${total_s}s acima do limite (${warn_s}s)"
+    return "$RC_WARN"
+  fi
+
+  log "  Tempo de boot dentro do limite (~${total_s}s ≤ ${warn_s}s)."
+  return 0
+}
+

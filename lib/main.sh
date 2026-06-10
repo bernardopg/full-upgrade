@@ -375,6 +375,8 @@ run_all_steps() {
     run_step "Doctor: AI CLIs" doctor_ai_clis
     run_step "Doctor: ambiente Python" doctor_python_env
     run_step "Doctor: conflitos JavaScript global" doctor_js_conflicts
+    run_step "Doctor: saúde do btrfs" doctor_btrfs_health
+    run_step "Doctor: tempo de boot" doctor_boot_time
 }
 
 finalize() {
