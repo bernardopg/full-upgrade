@@ -4,6 +4,26 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Distribuição
+
+- **Pacote AUR `full-upgrade`** (`packaging/aur/PKGBUILD` + `.SRCINFO`). Pacote
+  source: baixa o tarball da tag, roda `build.sh` e instala o executável único
+  em `/usr/bin/full-upgrade`, com `config.example`, docs e licença nos caminhos
+  padrão. Instale com `yay -S full-upgrade` / `paru -S full-upgrade`.
+- **Publicação automática no AUR** a cada release (job `publish-aur` em
+  `release.yml`): fixa `pkgver`, calcula o `sha256sums` real do tarball e
+  publica via `KSXGitHub/github-actions-deploy-aur` (pinada por commit SHA).
+  Requer os secrets `AUR_USERNAME`/`AUR_EMAIL`/`AUR_SSH_PRIVATE_KEY` — veja
+  `packaging/aur/README.md`.
+
+### CI/CD
+
+- Workflows com todas as actions **pinadas por commit SHA** (supply-chain
+  hardening), com o número da versão em comentário. `ci.yml` consolida a
+  instalação de `shellcheck`+`bats` e passa a **verificar o standalone**
+  construído (`bash -n` + `--list-steps` + `--dry-run`). `release.yml` roda a
+  suíte `bats` antes de publicar e expõe a versão da tag para o job do AUR.
+
 ### Segurança
 
 - **`--update` agora verifica a integridade do download (C2).** No canal

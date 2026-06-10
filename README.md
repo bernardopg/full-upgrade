@@ -62,6 +62,27 @@ full-upgrade
 
 ## Instalação
 
+### Via AUR (Arch Linux)
+
+Com um helper de AUR (`yay`, `paru`):
+
+```bash
+yay -S full-upgrade
+# ou
+paru -S full-upgrade
+```
+
+O pacote AUR instala o executável único em `/usr/bin/full-upgrade`, o exemplo de
+configuração em `/usr/share/full-upgrade/config.example` e a licença/documentação
+em `/usr/share/{licenses,doc}/full-upgrade/`. Copie o exemplo para começar:
+
+```bash
+mkdir -p ~/.config/full-upgrade
+cp /usr/share/full-upgrade/config.example ~/.config/full-upgrade/config
+```
+
+### Via script de instalação (qualquer distro com Bash 4+)
+
 ```bash
 git clone https://github.com/bernardopg/full-upgrade
 cd full-upgrade
