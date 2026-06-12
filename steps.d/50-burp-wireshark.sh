@@ -17,16 +17,29 @@ if not match:
 release_url = "https://portswigger.net" + match.group(1)
 page = urllib.request.urlopen(release_url, timeout=30).read().decode()
 version_match = re.search(r'startdownload\?product=desktop&amp;version=([^&]+)&amp;type=jar', page)
-jar_match = re.search(
-    r'<option\s+md5Checksum=([0-9a-f]{32})\s+buildCategoryId=desktop\s+sha256Checksum=([0-9a-f]{64})\s+value=Jar>',
-    page,
-    re.S,
-)
-if not version_match or not jar_match:
-    raise SystemExit("desktop jar metadata not found")
+
+# Tolerante a mudanças cosméticas do HTML: não fixa ordem de atributos nem
+# exige aspas, e aceita hex em qualquer caixa (a regex antiga exigia
+# [0-9a-f] minúsculo e a ordem exata de 4 atributos — qualquer reordenação
+# quebrava em silêncio como "metadata not found").
+sha256 = None
+for option in re.finditer(r"<option\b[^>]*>", page):
+    attrs = option.group(0)
+    if not re.search(r"value=[\"']?Jar[\"']?", attrs, re.I):
+        continue
+    if not re.search(r"buildCategoryId=[\"']?desktop[\"']?", attrs, re.I):
+        continue
+    sha_match = re.search(r"sha256Checksum=[\"']?([0-9a-fA-F]{64})", attrs)
+    if sha_match:
+        sha256 = sha_match.group(1).lower()
+        break
+
+if not version_match:
+    raise SystemExit("metadata not found: link de versão do Jar ausente (formato da página mudou?)")
+if not sha256:
+    raise SystemExit("metadata not found: sha256 do Jar desktop ausente (formato da página mudou?)")
 
 version = version_match.group(1)
-sha256 = jar_match.group(2)
 url = f"https://portswigger.net/burp/releases/startdownload?product=desktop&version={version}&type=jar"
 print(f"{version}\t{sha256}\t{url}")
 PY
