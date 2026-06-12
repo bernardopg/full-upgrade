@@ -72,12 +72,24 @@ jobs:
     name: Publish to AUR
     needs: release
     runs-on: ubuntu-latest
-    # Só publica em tags reais (push de v*), não em workflow_dispatch manual sem
-    # tag confiável. Requer os secrets AUR_* configurados.
-    if: github.event_name == 'push'
+    # Publica tanto em push de tag v* quanto em workflow_dispatch manual, desde
+    # que a tag informada exista no repositório. Requer os secrets AUR_* configurados.
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Validar existência da tag informada
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -n "${TAG}"
+          git fetch --depth=1 origin "refs/tags/${TAG}:refs/tags/${TAG}" || {
+            echo "Tag ${TAG} não encontrada no repositório remoto; abortando publicação no AUR."
+            exit 1
+          }
+          echo "Tag ${TAG} validada no repositório."
 
       - name: Preparar PKGBUILD com a versão da release
         id: pkg
