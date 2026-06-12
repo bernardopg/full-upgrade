@@ -12,12 +12,18 @@ echo "full-upgrade — instalação"
 echo "  origem : ${SRC_DIR}"
 echo "  destino: ${DEST_DIR}"
 
-# Copia o projeto (lib/, steps.d/, entrypoint, config.example).
-mkdir -p "$DEST_DIR"
-cp -a "${SRC_DIR}/full-upgrade.sh" "${SRC_DIR}/lib" "$DEST_DIR/"
-[[ -d "${SRC_DIR}/steps.d" ]] && cp -a "${SRC_DIR}/steps.d" "$DEST_DIR/"
-cp -f "${SRC_DIR}/config.example" "$DEST_DIR/" 2>/dev/null || true
-chmod +x "${DEST_DIR}/full-upgrade.sh"
+# Copia via staging + troca atômica. Copiar por cima do destino deixaria
+# libs órfãs: um arquivo removido/renomeado no projeto continuaria no destino
+# e o entrypoint o carregaria via glob lib/*.sh (código morto conflitante).
+# A instalação anterior fica em ${DEST_DIR}.prev para rollback rápido.
+STAGE_DIR="${DEST_DIR}.new"
+PREV_DIR="${DEST_DIR}.prev"
+rm -rf "$STAGE_DIR"
+mkdir -p "$STAGE_DIR"
+cp -a "${SRC_DIR}/full-upgrade.sh" "${SRC_DIR}/lib" "$STAGE_DIR/"
+[[ -d "${SRC_DIR}/steps.d" ]] && cp -a "${SRC_DIR}/steps.d" "$STAGE_DIR/"
+cp -f "${SRC_DIR}/config.example" "$STAGE_DIR/" 2>/dev/null || true
+chmod +x "${STAGE_DIR}/full-upgrade.sh"
 
 # Grava a versão instalada: a instalação não leva o .git, então sem este arquivo
 # o entrypoint cairia no fallback embutido. Prioridade: git describe (só se o
@@ -32,9 +38,27 @@ if [[ -z "$_inst_ver" && -r "${SRC_DIR}/VERSION" ]]; then
   _inst_ver="$(tr -d '[:space:]' < "${SRC_DIR}/VERSION")"
 fi
 if [[ -n "$_inst_ver" ]]; then
-  printf '%s\n' "${_inst_ver#v}" > "${DEST_DIR}/VERSION"
+  printf '%s\n' "${_inst_ver#v}" > "${STAGE_DIR}/VERSION"
   echo "  versão : ${_inst_ver#v}"
 fi
+
+# Aviso de downgrade (comparação semântica via sort -V).
+_old_ver="$(cat "${DEST_DIR}/VERSION" 2>/dev/null || true)"
+_new_ver="${_inst_ver#v}"
+if [[ -n "$_old_ver" && -n "$_new_ver" && "$_old_ver" != "$_new_ver" ]]; then
+  _newest="$(printf '%s\n%s\n' "$_old_ver" "$_new_ver" | sort -V | tail -1)"
+  if [[ "$_newest" == "$_old_ver" ]]; then
+    echo "  AVISO  : instalando ${_new_ver} por cima de ${_old_ver} (downgrade)."
+  fi
+fi
+
+# Troca: janela sem DEST_DIR é mínima (dois mv no mesmo filesystem).
+rm -rf "$PREV_DIR"
+if [[ -d "$DEST_DIR" ]]; then
+  mv "$DEST_DIR" "$PREV_DIR"
+  echo "  backup : ${PREV_DIR} (instalação anterior; rollback: mv de volta)"
+fi
+mv "$STAGE_DIR" "$DEST_DIR"
 
 # Symlink no PATH.
 mkdir -p "$BIN_DIR"
