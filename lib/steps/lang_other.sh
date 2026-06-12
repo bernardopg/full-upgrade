@@ -67,7 +67,9 @@ update_dotnet_tools() {
   local -a failed=()
   local tool
 
-  mapfile -t tools < <(dotnet tool list -g 2>/dev/null | tail -n +3 | awk 'NF >= 1 {print $1}')
+  # DOTNET_CLI_UI_LANGUAGE=en + LC_ALL=C: o dotnet É localizado; o tail -n +3
+  # (header de 3 linhas) e os greps de status abaixo assumem saída em inglês.
+  mapfile -t tools < <(DOTNET_CLI_UI_LANGUAGE=en LC_ALL=C dotnet tool list -g 2>/dev/null | tail -n +3 | awk 'NF >= 1 {print $1}')
 
   if (( ${#tools[@]} == 0 )); then
     log "  Sem ferramentas .NET globais instaladas."
@@ -80,7 +82,7 @@ update_dotnet_tools() {
     [[ -n "$tool" ]] || continue
     log "  Atualizando .NET tool: ${tool}"
     local _out _rc
-    _out="$(dotnet tool update -g "$tool" 2>&1)"
+    _out="$(DOTNET_CLI_UI_LANGUAGE=en LC_ALL=C dotnet tool update -g "$tool" 2>&1)"
     _rc=$?
     log_raw "$_out"
     if (( _rc == 0 )); then
