@@ -9,12 +9,16 @@
 # release_run_lock). Evita corrida de pacman db entre dois `full-upgrade` simultâneos.
 FU_LOCK_FILE=""
 FU_LOCK_FD=""
+FU_LOCK_HELD=0
 
 acquire_run_lock() {
   local lock_dir="${XDG_RUNTIME_DIR:-/tmp}"
   FU_LOCK_FILE="${lock_dir}/full-upgrade.lock"
-  # Abre FD 9 no lockfile e tenta lock não-bloqueante.
-  exec 9>"$FU_LOCK_FILE" 2>/dev/null || {
+  # Abre FD 9 no lockfile (RW sem truncar: 9> apagaria o pid da instância
+  # dona antes mesmo de tentar o flock) e tenta lock não-bloqueante.
+  # ATENÇÃO: o FD precisa viver no shell PAI — este step deve ter timeout=0
+  # no catálogo, senão run_step roda em subshell e o lock morre com ele.
+  exec 9<>"$FU_LOCK_FILE" 2>/dev/null || {
     log "  Não foi possível abrir lockfile (${FU_LOCK_FILE}); seguindo sem lock."
     return 0
   }
@@ -22,10 +26,13 @@ acquire_run_lock() {
   if ! flock -n 9; then
     local holder
     holder="$(cat "$FU_LOCK_FILE" 2>/dev/null || true)"
+    holder="${holder//[^0-9]/}"
     log "  Outra instância de full-upgrade já está em execução${holder:+ (pid ${holder})}."
     return "$RC_TODO"
   fi
-  printf '%s\n' "$$" >&9
+  FU_LOCK_HELD=1
+  # Já com o lock: agora sim pode truncar e gravar o próprio pid.
+  printf '%s\n' "$$" >"$FU_LOCK_FILE"
   log "  Lock adquirido: ${FU_LOCK_FILE}"
   return 0
 }
@@ -34,8 +41,14 @@ release_run_lock() {
   [[ -n "$FU_LOCK_FD" ]] || return 0
   flock -u 9 2>/dev/null || true
   exec 9>&- 2>/dev/null || true
-  [[ -n "$FU_LOCK_FILE" ]] && rm -f "$FU_LOCK_FILE" 2>/dev/null || true
+  # Só remove o lockfile se ESTA instância segurava o lock; uma instância que
+  # falhou em adquirir não pode apagar o arquivo da dona (uma terceira
+  # instância recriaria o path com inode novo e conseguiria o flock).
+  if (( FU_LOCK_HELD )) && [[ -n "$FU_LOCK_FILE" ]]; then
+    rm -f "$FU_LOCK_FILE" 2>/dev/null || true
+  fi
   FU_LOCK_FD=""
+  FU_LOCK_HELD=0
 }
 
 # ── Pré-flight: espaço em disco + keyring ───────────────────────────────────────

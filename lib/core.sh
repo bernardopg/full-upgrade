@@ -29,6 +29,21 @@ log_raw() {
   printf '%b\n' "$*" | _strip_ansi >> "$_lf"
 }
 
+# Mata uma árvore de processos (filhos primeiro, depois o pai) com o sinal dado.
+# Usado pelo timeout de run_step: matar só o subshell deixaria os processos
+# netos (paru, npm, nvim...) órfãos, rodando em paralelo com os steps seguintes.
+_kill_tree() {
+  local pid="$1" sig="${2:-TERM}" child
+  local -a _children=()
+  if has pgrep; then
+    mapfile -t _children < <(pgrep -P "$pid" 2>/dev/null || true)
+    for child in "${_children[@]}"; do
+      [[ -n "$child" ]] && _kill_tree "$child" "$sig"
+    done
+  fi
+  kill -s "$sig" "$pid" 2>/dev/null || true
+}
+
 add_skip_step() {
   local name="$1"
   if [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
@@ -417,40 +432,49 @@ run_step() {
     "$@"
     rc=$?
   else
-    # timeout de função Bash: background da função + sleep sentinela + wait -n
-    # quem terminar primeiro (função ou sleep) determina o resultado.
-    # A função roda em subshell, então STEP_REASON definido dentro dela não
-    # propaga ao processo pai — capturamos via arquivo temporário.
+    # timeout de função Bash: roda a função em subshell + poll de liveness.
+    # Sem `wait -n` com PIDs (exige Bash 5.1) e sem race entre função e
+    # sentinela: o veredito de timeout vem de kill -0, não do rc reaped.
+    # IMPORTANTE: por rodar em subshell, estado global setado pela função
+    # (exceto STEP_REASON, capturado via arquivo) NÃO propaga ao pai. Steps
+    # que mutam estado do processo (flock, keepalive) usam timeout=0.
     local _reason_file
     _reason_file="$(mktemp 2>/dev/null || printf '')"
     ( "$@"; _rc=$?; [[ -n "$_reason_file" && -n "$STEP_REASON" ]] && printf '%s' "$STEP_REASON" > "$_reason_file"; exit "$_rc" ) &
     local _bg_pid=$!
-    ( sleep "$_to" ) &
-    local _sleep_pid=$!
-    wait -n "$_bg_pid" "$_sleep_pid" 2>/dev/null
-    local _first_rc=$?
+    local _deadline=$(( SECONDS + _to ))
+    local _timed_out=0
+    while kill -0 "$_bg_pid" 2>/dev/null; do
+      if (( SECONDS >= _deadline )); then
+        _timed_out=1
+        break
+      fi
+      sleep 0.25
+    done
 
-    if kill -0 "$_bg_pid" 2>/dev/null; then
-      # função ainda rodando → sleep terminou primeiro → timeout
-      kill "$_bg_pid" 2>/dev/null
+    if (( _timed_out )); then
+      # Matar a árvore inteira: matar só o subshell deixaria os netos
+      # (paru, npm, nvim...) órfãos rodando em paralelo com os próximos steps.
+      _kill_tree "$_bg_pid" TERM
+      local _grace_deadline=$(( SECONDS + 5 ))
+      while kill -0 "$_bg_pid" 2>/dev/null && (( SECONDS < _grace_deadline )); do
+        sleep 0.25
+      done
+      _kill_tree "$_bg_pid" KILL
       wait "$_bg_pid" 2>/dev/null
-      kill "$_sleep_pid" 2>/dev/null
-      wait "$_sleep_pid" 2>/dev/null
       rc=124
     else
-      # função terminou → matar sleep sentinela
-      kill "$_sleep_pid" 2>/dev/null
-      wait "$_sleep_pid" 2>/dev/null
-      rc=$_first_rc
+      wait "$_bg_pid" 2>/dev/null
+      rc=$?
     fi
 
     # Recupera o motivo definido dentro do subshell (se houver).
     if [[ -n "$_reason_file" && -s "$_reason_file" ]]; then
-      STEP_REASON="$(cat "$_reason_file")"
+      STEP_REASON="$(cat "$_reason_file" 2>/dev/null)"
     fi
     [[ -n "$_reason_file" ]] && rm -f "$_reason_file"
 
-    if (( rc == 124 )); then
+    if (( _timed_out )); then
       STEP_LAST_RC=$rc
       local dur=$((SECONDS - STEP_START))
       STEP_RESULTS+=("warn")

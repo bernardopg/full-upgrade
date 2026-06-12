@@ -7,9 +7,12 @@ step_catalog() {
   # formato: nome|categoria|tags|efeito|timeout|cmd_deps|func_name|descrição
   # timeout: segundos (0 = sem limite); cmd_deps: binários separados por vírgula (vazio = nenhum)
   # func_name: nome exato da função Bash que implementa o step (vazio = sem função direta)
+  # ATENÇÃO: timeout>0 roda o step em SUBSHELL (run_step). Steps que mutam estado
+  # do shell pai (acquire_run_lock segura o FD do flock; start_sudo_keepalive)
+  # DEVEM ter timeout 0 para rodar no shell atual — senão o estado se perde.
   cat <<'EOF'
-Adquirir lock de execução|core|lock,preflight|read|15||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
-Validar sudo|core|sudo,preflight|read|30||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
+Adquirir lock de execução|core|lock,preflight|read|0||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
+Validar sudo|core|sudo,preflight|read|0||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
 Pré-flight: disco e keyring|core|disk,keyring,sudo,preflight|mutating|120|pacman|preflight_disk_and_keyring|Verifica espaço livre mínimo e atualiza archlinux-keyring.
 Backup de configs críticas|core|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
 Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
@@ -22,6 +25,7 @@ Reparar comandos locais conflitantes|repair|shadowing,mutating|mutating|30||repa
 Reparar permissoes de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
 Reparar atalhos antigos do Burp|repair|desktop,mutating|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
 Atualizar Flatpak|flatpak|update,network,slow|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
+Atualizar pacotes Snap|snap|snap,update,network,slow|mutating|600|snap|update_snap|Atualiza pacotes Snap instalados.
 Atualizar imagens Docker|docker|update,network,slow|mutating|600|docker|update_docker_images|Puxa imagens remotas locais e alerta containers usando imagem antiga.
 Atualizar Arduino (cores/libs)|lang|arduino,update,network|mutating|300|arduino-cli|update_arduino|Atualiza índices, cores e bibliotecas do arduino-cli.
 Atualizar firmware (fwupd)|firmware|update,network,slow,sudo|mutating|300|fwupdmgr|update_fwupd|Atualiza metadados e firmware via fwupd.
@@ -132,6 +136,19 @@ add_skip_category() {
   done < <(step_catalog)
 
   (( matched == 1 ))
+}
+
+# Adiciona ao skip-list todo step com efeito 'mutating'. Usado pelo modo doctor
+# para honrar a promessa de execução não-mutável: sem isto, steps core/final
+# mutantes (keyring via pacman -Sy, backup de /etc) sobrevivem ao filtro por
+# categoria e executam. Steps core/final com efeito 'read' continuam rodando.
+add_skip_mutating_steps() {
+  local name category tags effect rest
+  while IFS='|' read -r name category tags effect rest; do
+    [[ -n "$name" ]] || continue
+    [[ "$effect" == "mutating" ]] && add_skip_step "$name"
+  done < <(step_catalog)
+  return 0
 }
 
 apply_only_category() {
