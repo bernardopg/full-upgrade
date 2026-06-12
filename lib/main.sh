@@ -304,7 +304,13 @@ run_all_steps() {
     # ── Hyprland plugins ─────────────────────────────────────────────────────────
     
     if has hyprpm; then
-        run_step "Atualizar plugins Hyprland (hyprpm)" update_hyprpm
+        # hyprpm pode pedir autenticação (polkit/sudo) para instalar headers;
+        # sem credencial validada, o prompt travaria até o timeout do step.
+        if (( SUDO_READY )); then
+            run_step "Atualizar plugins Hyprland (hyprpm)" update_hyprpm
+        else
+            step_skip "Atualizar plugins Hyprland (hyprpm)" "sudo indisponível"
+        fi
     else
         step_skip "Atualizar plugins Hyprland (hyprpm)" "hyprpm não instalado"
     fi

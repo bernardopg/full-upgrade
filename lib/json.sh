@@ -112,19 +112,15 @@ update_latest_links() {
 }
 
 rotate_logs() {
-  mapfile -t logs < <(ls -1t "$LOG_DIR"/full-upgrade-*.log 2>/dev/null || true)
-  if (( ${#logs[@]} > MAX_LOGS )); then
-    local old
-    for old in "${logs[@]:MAX_LOGS}"; do
-      rm -f -- "$old"
-    done
-  fi
-
-  mapfile -t logs < <(ls -1t "$LOG_DIR"/full-upgrade-*.jsonl 2>/dev/null || true)
-  if (( ${#logs[@]} > MAX_LOGS )); then
-    local old
-    for old in "${logs[@]:MAX_LOGS}"; do
-      rm -f -- "$old"
-    done
-  fi
+  # find + sort por mtime no lugar de ls -1t: parsing de ls é frágil e o glob
+  # sem match ecoava erro suprimido. Mantém os MAX_LOGS mais novos de cada tipo.
+  local ext old
+  for ext in log jsonl; do
+    while IFS= read -r old; do
+      [[ -n "$old" ]] && rm -f -- "$old"
+    done < <(
+      find "$LOG_DIR" -maxdepth 1 -name "full-upgrade-*.${ext}" -type f -printf '%T@ %p\n' 2>/dev/null \
+        | sort -rn | cut -d' ' -f2- | tail -n +"$(( MAX_LOGS + 1 ))"
+    )
+  done
 }
