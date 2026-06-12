@@ -75,8 +75,11 @@ parse_args "$@"                   # lib/cli.sh
 apply_mode_and_early_exits        # lib/cli.sh — resolve --list-steps/--explain-step/--mode
 
 # Plugins do usuário (steps.d/) só se habilitado no config.
+# Ordem importa: os empacotados (FU_ROOT) primeiro, os do usuário (FU_CONFIG_DIR)
+# por último — a última definição de função vence, então a customização do
+# usuário sobrescreve a versão empacotada, nunca o contrário.
 if (( ${ENABLE_CUSTOM_TOOLS:-0} )); then
-  for _p in "${FU_CONFIG_DIR}"/steps.d/*.sh "${FU_ROOT}"/steps.d/*.sh; do
+  for _p in "${FU_ROOT}"/steps.d/*.sh "${FU_CONFIG_DIR}"/steps.d/*.sh; do
     [[ -e "$_p" ]] || continue
     # shellcheck source=/dev/null
     source "$_p"

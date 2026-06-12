@@ -66,7 +66,7 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 ### Modes & filters
 
-`--mode full|update|doctor|repair` and `--only`/`--skip-category` are resolved in `apply_mode_and_early_exits` (`lib/cli.sh`) by populating `FULL_UPGRADE_SKIP` before the run. `--only`/`--skip-category` always keep `core` and `final` category steps. So filtering is implemented entirely as "add to the skip list," and `run_all_steps` itself is filter-agnostic.
+`--mode full|update|doctor|repair` and `--only`/`--skip-category` are resolved in `apply_mode_and_early_exits` (`lib/cli.sh`) by populating `FULL_UPGRADE_SKIP` before the run. `--only`/`--skip-category` always keep `core` and `final` category steps. `--mode doctor` additionally calls `add_skip_mutating_steps` so every step with `efeito=mutating` is skipped — doctor mode is guaranteed read-only even for core/final steps. So filtering is implemented entirely as "add to the skip list," and `run_all_steps` itself is filter-agnostic.
 
 ### Config & custom tools
 

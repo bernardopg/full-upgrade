@@ -6,7 +6,14 @@ run_all_steps() {
     # ── Lock de execução ────────────────────────────────────────────────────────────
     
     run_step "Adquirir lock de execução" acquire_run_lock
-    
+    if [[ "${STEP_RESULTS[-1]}" == "todo" ]]; then
+        # Outra instância segura o lock: prosseguir arriscaria dois pacman/paru
+        # concorrentes no mesmo DB. Aborta com resumo e exit 2.
+        log_always "${C_RED}Outra instância do full-upgrade está em execução — abortando.${C_RESET}"
+        HAS_FAIL=1
+        finalize
+    fi
+
     # ── Sudo ──────────────────────────────────────────────────────────────────────
     
     if has sudo; then

@@ -198,6 +198,10 @@ apply_mode_and_early_exits() {
             if ! apply_only_category doctor; then
                 echo "Categoria 'doctor' não encontrada no catálogo." >&2; exit 2
             fi
+            # "doctor — apenas auditorias (não mutável)": pula também os steps
+            # mutantes core/final que sobreviveriam ao filtro por categoria
+            # (keyring via pacman -Sy, backup de /etc).
+            add_skip_mutating_steps
         ;;
         repair)
             # apenas categoria repair (+ core implícito)

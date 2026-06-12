@@ -116,6 +116,44 @@ setup() {
   [ "$bad" -eq 0 ]
 }
 
+@test "main.sh: todo step despachado tem linha no catálogo" {
+  # Regressão do step "Atualizar pacotes Snap": despachado em main.sh sem linha
+  # no catálogo → sem timeout, fora de --list-steps/contagem e — pior — nunca
+  # entra no skip-list de --mode/--only (os filtros iteram só o catálogo),
+  # então um step mutante rodaria em --mode doctor.
+  local main="${FU_ROOT}/lib/main.sh"
+  [ -f "$main" ]
+  local bad=0 name
+  local catalog_names
+  catalog_names="$(step_catalog | cut -d'|' -f1)"
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    [[ "$name" == \$* ]] && continue   # despacho via variável (loops de skip)
+    if ! grep -qxF "$name" <<< "$catalog_names"; then
+      echo "step despachado em main.sh sem linha no catálogo: $name"
+      bad=1
+    fi
+  done < <(grep -oE '(run_step|step_skip|custom_step_or_skip) "[^"]+"' "$main" \
+             | sed -E 's/^[a-z_]+ "//; s/"$//' | sort -u)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: steps que mutam estado do shell pai têm timeout 0" {
+  # timeout>0 roda o step em subshell (run_step). acquire_run_lock segura o FD
+  # do flock — em subshell, o FD fecha na saída e o lock é liberado na hora
+  # (lock inoperante). start_sudo_keepalive valida sudo interativamente.
+  # Ambos DEVEM rodar no shell atual (timeout 0).
+  local bad=0 name _c _t _e timeout _cd func _d
+  while IFS='|' read -r name _c _t _e timeout _cd func _d; do
+    [[ "$func" == "acquire_run_lock" || "$func" == "start_sudo_keepalive" ]] || continue
+    if [[ "$timeout" != "0" ]]; then
+      echo "timeout deve ser 0 para ${func} (step: ${name}), encontrado: ${timeout}"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
 @test "catálogo: cada cmd_dep parece um nome de comando plausível" {
   local bad=0 name category tags effect timeout cmd_deps rest dep
   while IFS='|' read -r name category tags effect timeout cmd_deps rest; do

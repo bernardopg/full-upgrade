@@ -81,7 +81,7 @@ mkdir -p ~/.config/full-upgrade
 cp /usr/share/full-upgrade/config.example ~/.config/full-upgrade/config
 ```
 
-### Via script de instalação (qualquer distro com Bash 4+)
+### Via script de instalação (qualquer distro com Bash 4.3+)
 
 ```bash
 git clone https://github.com/bernardopg/full-upgrade
@@ -377,7 +377,7 @@ Obrigatórios:
 | Requisito | Observação |
 | --- | --- |
 | Arch Linux ou derivado | O fluxo assume `pacman` e convenções de Arch. |
-| Bash 4+ | Usa arrays e recursos modernos de Bash. |
+| Bash 4.3+ | Usa arrays, subscritos negativos e recursos modernos de Bash. |
 | `sudo` | Necessário para steps de sistema. Sem sudo, vários steps serão `skip`. |
 
 Opcionais detectados automaticamente:

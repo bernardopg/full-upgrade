@@ -96,3 +96,30 @@ setup() {
   run _step_skip_requested "Atualizar Flatpak"
   [ "$status" -eq 0 ]
 }
+
+# ── add_skip_mutating_steps (modo doctor não-mutável) ─────────────────────────
+
+@test "add_skip_mutating_steps: adiciona todos os steps mutantes ao skip-list" {
+  FULL_UPGRADE_SKIP=""
+  add_skip_mutating_steps
+  # steps core/final mutantes que motivaram o fix (rodavam em --mode doctor)
+  run _step_skip_requested "Pré-flight: disco e keyring"
+  [ "$status" -eq 0 ]
+  run _step_skip_requested "Backup de configs críticas"
+  [ "$status" -eq 0 ]
+  run _step_skip_requested "Atualizar pacotes Snap"
+  [ "$status" -eq 0 ]
+}
+
+@test "add_skip_mutating_steps: preserva steps read (doctor continua rodando)" {
+  FULL_UPGRADE_SKIP=""
+  add_skip_mutating_steps
+  run _step_skip_requested "Doctor: reboot pendente"
+  [ "$status" -ne 0 ]
+  run _step_skip_requested "Adquirir lock de execução"
+  [ "$status" -ne 0 ]
+  run _step_skip_requested "Validar sudo"
+  [ "$status" -ne 0 ]
+  run _step_skip_requested "Verificar arquivos .pacnew/.pacsave"
+  [ "$status" -ne 0 ]
+}
