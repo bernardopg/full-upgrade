@@ -24,7 +24,12 @@ start_sudo_keepalive() {
         done
     ) &
     SUDO_KEEPALIVE_PID=$!
-    printf '%s\n' "$SUDO_KEEPALIVE_PID" >"$SUDO_KEEPALIVE_PID_FILE"
+    # Guard: SUDO_KEEPALIVE_PID_FILE só é definido em setup_logging; se a ordem
+    # de boot mudar um dia, falhar a escrita não pode derrubar o step (o kill
+    # de fallback em stop_sudo_keepalive usa a variável em memória).
+    if [[ -n "${SUDO_KEEPALIVE_PID_FILE:-}" ]]; then
+      printf '%s\n' "$SUDO_KEEPALIVE_PID" >"$SUDO_KEEPALIVE_PID_FILE" 2>/dev/null || true
+    fi
     return 0
 }
 

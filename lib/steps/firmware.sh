@@ -4,13 +4,15 @@
 # shellcheck shell=bash
 
 update_fwupd() {
+  # LC_ALL=C em todo fwupdmgr cuja saída é parseada: as strings de UI mudam
+  # com o locale (pt_BR, es, ...) e quebrariam os filtros/contagens abaixo.
   local refresh_output rc_refresh
 
-  refresh_output="$(_retry 2 fwupdmgr refresh --force 2>&1)"
+  refresh_output="$(_retry 2 env LC_ALL=C fwupdmgr refresh --force 2>&1)"
   rc_refresh=$?
   # Filtrar linhas de progresso de download do terminal (gravadas no log integralmente)
   log_raw "$refresh_output"
-  printf '%s\n' "$refresh_output" | grep -v '^Baixando\|^Downloading' || true
+  printf '%s\n' "$refresh_output" | grep -v '^Downloading\|^Baixando' || true
 
   if (( rc_refresh != 0 && rc_refresh != RC_WARN )); then
     return "$rc_refresh"
@@ -21,16 +23,17 @@ update_fwupd() {
   fi
 
   local updates_output rc
-  updates_output="$(fwupdmgr get-updates 2>&1)"
+  updates_output="$(LC_ALL=C fwupdmgr get-updates 2>&1)"
   rc=$?
   log_raw "$updates_output"
 
   if (( rc == 2 )); then
-    # Extrair contagem de dispositivos sem update do refresh output
-    local no_update_count
-    no_update_count="$(printf '%s\n' "$refresh_output" | grep -oP '\d+(?= dispositivos são atualizáveis)' || true)"
-    if [[ -n "$no_update_count" ]]; then
-      log "  Nenhuma atualização de firmware disponível (${no_update_count} dispositivos verificados)."
+    # Contagem de dispositivos via saída estruturada (independente de locale),
+    # no lugar do antigo grep na string de UI "N dispositivos são atualizáveis".
+    local device_count
+    device_count="$(LC_ALL=C fwupdmgr get-devices --json 2>/dev/null | grep -c '"DeviceId"' || true)"
+    if [[ "$device_count" =~ ^[0-9]+$ ]] && (( device_count > 0 )); then
+      log "  Nenhuma atualização de firmware disponível (${device_count} dispositivos verificados)."
     else
       log "  Nenhuma atualização de firmware disponível."
     fi
@@ -42,14 +45,14 @@ update_fwupd() {
 
   # Tem atualizações — mostrar quais dispositivos serão atualizados
   printf '%s\n' "$updates_output" \
-    | grep -v '^\s*•.*sem atualizações\|^Dispositivos sem\|^Nenhuma atualização disponível' \
+    | grep -v '^\s*•.*no available firmware updates\|^Devices with no\|^No updates available' \
     || true
 
   local update_output rc_update
-  update_output="$(fwupdmgr update -y 2>&1)"
+  update_output="$(LC_ALL=C fwupdmgr update -y 2>&1)"
   rc_update=$?
   log_raw "$update_output"
-  printf '%s\n' "$update_output" | grep -v '^Baixando\|^Downloading' || true
+  printf '%s\n' "$update_output" | grep -v '^Downloading\|^Baixando' || true
   return "$rc_update"
 }
 

@@ -200,16 +200,18 @@ run_all_steps() {
     
     if has cargo-install-update; then
         run_step "Atualizar bins do cargo" update_cargo_bins
-        elif has cargo; then
+    elif has cargo; then
         step_skip "Atualizar bins do cargo" "instale cargo-update para habilitar"
     else
         step_skip "Atualizar bins do cargo" "cargo não instalado"
     fi
-    
+
     if has cargo-audit && has cargo; then
         run_step "Auditar binários cargo (CVEs)" audit_cargo_bins
-        elif has cargo; then
+    elif has cargo; then
         step_skip "Auditar binários cargo (CVEs)" "instale cargo-audit para habilitar"
+    else
+        step_skip "Auditar binários cargo (CVEs)" "cargo não instalado"
     fi
     
     # ── Go ────────────────────────────────────────────────────────────────────────
@@ -302,7 +304,13 @@ run_all_steps() {
     # ── Hyprland plugins ─────────────────────────────────────────────────────────
     
     if has hyprpm; then
-        run_step "Atualizar plugins Hyprland (hyprpm)" update_hyprpm
+        # hyprpm pode pedir autenticação (polkit/sudo) para instalar headers;
+        # sem credencial validada, o prompt travaria até o timeout do step.
+        if (( SUDO_READY )); then
+            run_step "Atualizar plugins Hyprland (hyprpm)" update_hyprpm
+        else
+            step_skip "Atualizar plugins Hyprland (hyprpm)" "sudo indisponível"
+        fi
     else
         step_skip "Atualizar plugins Hyprland (hyprpm)" "hyprpm não instalado"
     fi
@@ -311,7 +319,7 @@ run_all_steps() {
     
     if (( NO_CLEANUP )); then
         step_skip "Limpar cache do pacman" "--no-cleanup"
-        elif has paccache; then
+    elif has paccache; then
         if (( SUDO_READY )); then
             run_step "Limpar cache do pacman" cleanup_paccache
         else
@@ -323,7 +331,7 @@ run_all_steps() {
     
     if (( NO_CLEANUP )); then
         step_skip "Remover pacotes orfãos" "--no-cleanup"
-        elif has pacman; then
+    elif has pacman; then
         if (( SUDO_READY )); then
             run_step "Remover pacotes orfãos" cleanup_orphans
         else
@@ -351,7 +359,7 @@ run_all_steps() {
     
     if (( NO_CLEANUP )); then
         step_skip "Limpar journal do sistema" "--no-cleanup"
-        elif has journalctl; then
+    elif has journalctl; then
         if (( SUDO_READY )); then
             run_step "Limpar journal do sistema" cleanup_journal
         else

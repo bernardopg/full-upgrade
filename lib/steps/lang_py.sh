@@ -111,7 +111,7 @@ update_uv_python() {
   # Deduplica: pegar só a versão minor (3.13, 3.12, 3.11) para upgrade
   for ver in "${managed[@]}"; do
     # ver = cpython-3.13.12-linux-x86_64-gnu  →  3.13
-    minor="$(printf '%s' "$ver" | grep -oP '(?<=cpython-)\d+\.\d+')"
+    minor="$(printf '%s' "$ver" | sed -nE 's/.*cpython-([0-9]+\.[0-9]+).*/\1/p')"
     [[ -n "$minor" ]] || continue
     if ! printf '%s\n' "${seen_minors[@]}" | grep -qx "$minor"; then
       seen_minors+=("$minor")
