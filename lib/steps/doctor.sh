@@ -4,6 +4,14 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
+# Doctors são despachados sem gate de SUDO_READY em main.sh; os que precisam
+# de privilégio checam aqui se há credencial SEM prompt. Sem isto, um run
+# não-interativo sem sudo cacheado dispararia um prompt de senha que ninguém
+# responde e cada step travaria até o timeout (#16).
+_doctor_sudo_ok() {
+  has sudo && sudo -n true >/dev/null 2>&1
+}
+
 doctor_reboot_pending() {
   if ! has pacman || ! pacman -Q linux >/dev/null 2>&1; then
     log "  Pacote linux não encontrado; pulando checagem de reboot do kernel."
@@ -383,7 +391,12 @@ doctor_boot_health() {
     return 0
   fi
 
-  if ! sudo bootctl is-installed >/dev/null 2>&1; then
+  if ! _doctor_sudo_ok; then
+    log "  Checagem de boot requer sudo sem prompt; pulando (valide o sudo para auditar o ESP)."
+    return 0
+  fi
+
+  if ! sudo -n bootctl is-installed >/dev/null 2>&1; then
     log "  systemd-boot não instalado no ESP; pulando."
     return 0
   fi
@@ -391,7 +404,7 @@ doctor_boot_health() {
   local output rc status=0
 
   # bootctl status — extrair entrada padrão e estado
-  output="$(sudo bootctl status 2>&1)"
+  output="$(sudo -n bootctl status 2>&1)"
   rc=$?
   if (( rc != 0 )); then
     log "  bootctl status retornou código ${rc}."
@@ -409,14 +422,14 @@ doctor_boot_health() {
   # Verificar presença dos arquivos kernel e initrd no ESP
   local missing_files=()
   if [[ -n "$linux_path" ]]; then
-    if ! sudo test -f "$linux_path" 2>/dev/null; then
+    if ! sudo -n test -f "$linux_path" 2>/dev/null; then
       missing_files+=("kernel: ${linux_path}")
     else
       log "  kernel OK: ${linux_path}"
     fi
   fi
   if [[ -n "$initrd_path" ]]; then
-    if ! sudo test -f "$initrd_path" 2>/dev/null; then
+    if ! sudo -n test -f "$initrd_path" 2>/dev/null; then
       missing_files+=("initrd: ${initrd_path}")
     else
       log "  initrd OK: ${initrd_path}"
@@ -442,7 +455,7 @@ doctor_boot_health() {
     fi
   fi
   if [[ -n "$fallback_path" ]]; then
-    if sudo test -f "$fallback_path" 2>/dev/null; then
+    if sudo -n test -f "$fallback_path" 2>/dev/null; then
       log "  fallback initramfs OK: ${fallback_path}"
     else
       log "  AVISO: fallback initramfs ausente: ${fallback_path}"
@@ -522,10 +535,15 @@ doctor_stale_services() {
   # Detectar serviços usando bibliotecas antigas (após update sem reboot/restart)
   local status=0
 
+  if ! _doctor_sudo_ok; then
+    log "  needrestart/checkservices requerem sudo sem prompt; checagem pulada."
+    return 0
+  fi
+
   if has needrestart; then
     local output rc
     # -r l = listar apenas, sem reiniciar; -b = batch mode (não interativo)
-    output="$(sudo needrestart -r l -b 2>&1)"
+    output="$(sudo -n needrestart -r l -b 2>&1)"
     rc=$?
     if (( rc != 0 )) && [[ -z "${output//[[:space:]]/}" ]]; then
       log "  needrestart retornou código ${rc}."
@@ -552,7 +570,7 @@ doctor_stale_services() {
 
   if has checkservices; then
     local output rc problems
-    output="$(sudo checkservices 2>&1)"
+    output="$(sudo -n checkservices 2>&1)"
     rc=$?
     if (( rc != 0 )); then
       log "  checkservices retornou código ${rc}."
@@ -622,7 +640,7 @@ doctor_stale_services() {
       local svc all_ok=1
       for svc in "${restart_cmds[@]}"; do
         log "  Reiniciando ${svc}..."
-        if run_logged sudo systemctl restart "$svc"; then
+        if run_logged sudo -n systemctl restart "$svc"; then
           log "  ${svc}: reiniciado."
         else
           log "  Aviso: falha ao reiniciar ${svc}."
@@ -738,6 +756,11 @@ doctor_pacman_hooks() {
 doctor_smart_health() {
   local status=0 found=0
 
+  if ! _doctor_sudo_ok; then
+    log "  smartctl/nvme requerem sudo sem prompt; checagem SMART pulada."
+    return 0
+  fi
+
   if has smartctl; then
     found=1
     local drives
@@ -748,10 +771,10 @@ doctor_smart_health() {
       local drive health
       while IFS= read -r drive; do
         [[ -z "$drive" ]] && continue
-        health="$(sudo smartctl -H "$drive" 2>/dev/null | awk '/overall-health|SMART overall/{print $NF}' | head -1 || true)"
+        health="$(sudo -n smartctl -H "$drive" 2>/dev/null | awk '/overall-health|SMART overall/{print $NF}' | head -1 || true)"
         local reallocated uncorrectable
-        reallocated="$(sudo smartctl -A "$drive" 2>/dev/null | awk '/Reallocated_Sector_Ct/{print $10}' | head -1 || true)"
-        uncorrectable="$(sudo smartctl -A "$drive" 2>/dev/null | awk '/Offline_Uncorrectable/{print $10}' | head -1 || true)"
+        reallocated="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Reallocated_Sector_Ct/{print $10}' | head -1 || true)"
+        uncorrectable="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Offline_Uncorrectable/{print $10}' | head -1 || true)"
         if [[ "$health" == "PASSED" || "$health" == "OK" ]]; then
           log "  ${drive}: saúde SMART OK (${health})"
         elif [[ -n "$health" ]]; then
@@ -778,7 +801,7 @@ doctor_smart_health() {
       local dev nvme_out crit_warn
       while IFS= read -r dev; do
         [[ -z "$dev" ]] && continue
-        nvme_out="$(sudo nvme smart-log "$dev" 2>/dev/null || true)"
+        nvme_out="$(sudo -n nvme smart-log "$dev" 2>/dev/null || true)"
         crit_warn="$(printf '%s\n' "$nvme_out" | awk -F: '/critical_warning/{gsub(/[[:space:]]/,"",$2); print $2}' | head -1 || true)"
         local avail_spare
         avail_spare="$(printf '%s\n' "$nvme_out" | awk -F: '/avail_spare[^_]/{gsub(/[[:space:]%]/,"",$2); print $2}' | head -1 || true)"
@@ -1112,11 +1135,16 @@ doctor_btrfs_health() {
     return 0
   fi
 
+  if ! _doctor_sudo_ok; then
+    log "  btrfs device stats/scrub requerem sudo sem prompt; checagem pulada."
+    return 0
+  fi
+
   local status=0
 
   # 1) Erros de device acumulados (write/read/flush/corruption/generation).
   local stats errs
-  stats="$(sudo btrfs device stats / 2>/dev/null || true)"
+  stats="$(sudo -n btrfs device stats / 2>/dev/null || true)"
   if [[ -n "${stats//[[:space:]]/}" ]]; then
     errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
     if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
@@ -1132,7 +1160,7 @@ doctor_btrfs_health() {
   # 2) Idade do último scrub.
   local scrub max_days last_epoch now_epoch age_days
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
-  scrub="$(sudo btrfs scrub status / 2>/dev/null || true)"
+  scrub="$(sudo -n btrfs scrub status / 2>/dev/null || true)"
   if printf '%s\n' "$scrub" | grep -qiE 'no stats available|never'; then
     log "  ${C_YELLOW}btrfs: nenhum scrub registrado em / — recomendado rodar periodicamente.${C_RESET}"
     log "  Remediação: sudo btrfs scrub start /"
