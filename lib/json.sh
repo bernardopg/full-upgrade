@@ -23,6 +23,13 @@ json_escape() {
   s=${s//$'\n'/\\n}
   s=${s//$'\r'/\\r}
   s=${s//$'\t'/\\t}
+  # JSON (RFC 8259 §7) exige escape de TODOS os control chars < 0x20.
+  # Os demais (ex.: ESC 0x1b de cor ANSI vinda de ferramenta externa)
+  # invalidariam a linha do JSONL — removemos em vez de escapar, já que
+  # não carregam informação útil num log.
+  if [[ "$s" == *[$'\001'-$'\010\013\014\016'-$'\037']* ]]; then
+    s="$(printf '%s' "$s" | tr -d '\000-\010\013\014\016-\037')"
+  fi
   printf '"%s"' "$s"
 }
 
