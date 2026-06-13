@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Documentação
+
+- README, `config.example`, `CONTRIBUTING.md` e `TO-DO.md` alinhados às
+  correções C3–C9: órfãos recursivos, checagem parcial de `systemd --user`,
+  fallback seguro de mirrorlist, agrupamento do resumo, timeout Docker e ignore
+  efetivo de `poetry-core`.
+
 ### Corrigido
 
 - **Remoção de órfãos agora é recursiva e limitada.** `cleanup_orphans` repete

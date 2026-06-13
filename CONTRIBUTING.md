@@ -5,7 +5,7 @@ Bash puro (4+) para Arch Linux; não há artefatos compilados.
 
 ## Validação antes de qualquer commit
 
-Não há framework de testes unitários. A verificação espelha o CI:
+A verificação espelha o CI e inclui testes Bats para funções puras/regressões:
 
 ```bash
 # Sintaxe
@@ -20,6 +20,8 @@ bats tests/
 # Smoke (sem mutação — seguro em qualquer máquina, inclusive CI não-Arch)
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps
+./full-upgrade.sh --config
+./full-upgrade.sh --config-example
 XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 
 # Build single-file (teste após mudanças estruturais)

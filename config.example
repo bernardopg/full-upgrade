@@ -37,7 +37,7 @@ MIRROR_TOOL=auto
 MIN_FREE_GIB=2          # em / (GiB)
 MIN_BOOT_FREE_MIB=200   # em /boot (MiB — ESP costuma ser pequeno)
 
-# ── Doctor: limiares de saúde / Health thresholds ───────────────────────────────
+# ── Limiares, timeouts e limites / Thresholds, timeouts and limits ───────────────
 BTRFS_SCRUB_MAX_DAYS=30  # alerta se o último scrub btrfs em / for mais antigo
 BOOT_TIME_WARN_S=60      # alerta se o boot (systemd-analyze) exceder N segundos
 DOCKER_INFO_TIMEOUT_S=5  # timeout para detectar daemon Docker inacessível
@@ -47,7 +47,9 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 # Pacotes AUR a não atualizar automaticamente / AUR packages to skip
 # Ex: FULL_UPGRADE_AUR_IGNORE="burpsuite"
 FULL_UPGRADE_AUR_IGNORE=""
-# Pacotes pip --user a ignorar / pip --user packages to skip
+# Pacotes pip --user a ignorar / pip --user packages to skip.
+# Se Poetry fixa uma versão exata de poetry-core, poetry-core é adicionado
+# automaticamente ao ignore efetivo para evitar conflito/ping-pong de versão.
 FULL_UPGRADE_PIP_USER_IGNORE=""
 
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────

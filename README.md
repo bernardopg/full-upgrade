@@ -228,13 +228,13 @@ Status possíveis no resumo:
 | Domínio | Cobertura principal |
 | --- | --- |
 | Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
-| Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup da mirrorlist. |
-| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais e `.pacnew/.pacsave`. |
+| Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup validado da mirrorlist. |
+| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos e `.pacnew/.pacsave`. |
 | Apps | Flatpak e Snap quando presentes. |
-| Containers | Pull de imagens Docker remotas e aviso de containers usando imagem antiga. |
+| Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
 | Firmware e boot | `fwupdmgr` e `bootctl`. |
 | JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais. |
-| Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry. |
+| Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry, com proteção contra conflito `poetry-core` fixado pelo Poetry. |
 | Rust | `rustup`, `cargo-install-update` e auditoria com `cargo-audit`. |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason e Hyprland `hyprpm`. |
@@ -243,6 +243,27 @@ Status possíveis no resumo:
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
 `skip` com o motivo, e o restante do fluxo continua.
 
+### Salvaguardas recentes de manutenção
+
+- **Órfãos recursivos:** `Remover pacotes orfãos` repete a consulta
+  `pacman -Qdtq` após cada remoção para capturar dependências que só viram
+  órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
+  (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
+- **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
+  restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
+  comentado não sobrescreve a mirrorlist corrente.
+- **Docker:** a checagem inicial usa timeout curto configurável
+  (`DOCKER_INFO_TIMEOUT_S`, default `5`) antes de decidir que o daemon está
+  inacessível. Isso evita runs presos por dezenas de segundos em máquinas com
+  Docker instalado, mas parado ou sem permissão.
+- **Poetry / `poetry-core`:** quando o Poetry instalado declara requisito fixo
+  para `poetry-core`, o update genérico de `pip --user` adiciona `poetry-core`
+  ao ignore efetivo. Isso evita o ping-pong de versão entre o step de pip e o
+  step de Poetry.
+- **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
+  `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
+  compartilham um único bloco **Shell / Editor**.
+
 ## Doctor
 
 O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
@@ -250,7 +271,7 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | Check | Detecta |
 | --- | --- |
 | Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
-| systemd | Units falhadas no sistema e no usuário. |
+| systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; se `--user` não puder ser consultado, o doctor registra checagem parcial. |
 | Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
 | Firmware | Resultado de `fwupdmgr security`. |
 | Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |
@@ -348,7 +369,7 @@ Principais chaves:
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
-| `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. |
+| `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
 | `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |

@@ -114,7 +114,7 @@ MIRROR_TOOL=auto
 MIN_FREE_GIB=2
 MIN_BOOT_FREE_MIB=200
 
-# ── Doctor: limiares de saúde ──
+# ── Limiares, timeouts e limites ──
 BTRFS_SCRUB_MAX_DAYS=30
 BOOT_TIME_WARN_S=60
 DOCKER_INFO_TIMEOUT_S=5
@@ -122,6 +122,7 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5
 
 # ── Listas de ignore ──
 FULL_UPGRADE_AUR_IGNORE=""
+# Se Poetry fixa poetry-core, poetry-core entra no ignore efetivo automaticamente.
 FULL_UPGRADE_PIP_USER_IGNORE=""
 
 # ── Overrides de path (vazio = auto-detecta) ──

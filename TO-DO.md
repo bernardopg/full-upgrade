@@ -57,11 +57,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 > `pkg-a → pkg-b → vazio`.
 - **Arquivos:** `lib/steps/pacman.sh`
 - **Problema:** `pacman -Qdtq` lista órfãos de um nível; após remover, novos
-  órfãos podem surgir (deps que só o removido puxava). Hoje roda uma passada só.
-- **Fazer:** loop até a lista estabilizar (máx. N iterações), confirmando a
-  lista total ao usuário antes da 1ª remoção (mantém gate interativo/`--yes`).
-- **Aceite:** segunda passada não deixa órfãos triviais; dry-run não muta;
-  teste do parser puro de lista de órfãos.
+  órfãos podem surgir (deps que só o removido puxava).
+- **Solução:** loop limitado por `ORPHAN_CLEANUP_MAX_ROUNDS`; mantém o gate
+  interativo/`--yes`; se ainda sobrar órfão após o limite, retorna `todo`.
+- **Validação:** `tests/pacman_cleanup.bats` cobre duas passadas e estabilização.
 
 ### C4 — 🟡 ☑ `doctor_failed_systemd_units` ignora units `--user` em alguns casos
 > **Concluído.** `systemd_user_scope_status` distingue `available`, `no-runtime`
@@ -72,10 +71,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   `DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; sob sudo/cron o escopo de
   usuário fica vazio e mascara falhas reais. Sem aviso de que a checagem foi
   parcial.
-- **Fazer:** detectar ausência de bus de sessão e logar explicitamente que a
-  checagem `--user` foi pulada (não silenciar); tentar resolver `XDG_RUNTIME_DIR`.
-- **Aceite:** sem bus de sessão → mensagem clara "checagem --user pulada
-  (sem sessão)"; com sessão → lista units `--user` falhadas.
+- **Solução:** detectar `DBUS_SESSION_BUS_ADDRESS` ou bus em `XDG_RUNTIME_DIR`;
+  logar `no-runtime`/`no-bus` como checagem parcial, sem falso OK usuário.
+- **Validação:** `tests/doctor_systemd.bats` cobre escopo ausente e disponível.
 
 ### C5 — 🟢 ☑ Restauração de mirrorlist não verifica conteúdo do backup
 > **Concluído.** `mirrorlist_has_server` valida `^Server =` ativo antes da
@@ -84,10 +82,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Problema:** em falha do reflector, restaura `cp` do backup sem checar se o
   backup tem ao menos uma linha `Server =`. Backup vazio/corrompido deixaria o
   sistema sem mirrors.
-- **Fazer:** validar que o backup contém `^Server` antes de restaurar; se
-  inválido, manter o atual e avisar.
-- **Aceite:** backup vazio não sobrescreve mirrorlist válido; teste do
-  validador puro.
+- **Solução:** `mirrorlist_has_server` exige `^Server[[:space:]]*=` ativo antes
+  da restauração; backup inválido é ignorado com aviso/remediação.
+- **Validação:** `tests/coverage_mirrors.bats` cobre backup válido e comentado.
 
 ### C6 — 🔴 ☑ Resumo final classifica Flatpak/Docker em "Doctor (auditorias)"
 > **Concluído.** `summary_group_specs` agrupa `containers flatpak docker snap`
@@ -101,12 +98,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   **após** o último grupo (Doctor), parecendo parte dele. `_category_label` já
   mapeia `flatpak|docker|containers → "Contêineres"`, mas o agrupamento usa a
   string crua da categoria, não o rótulo.
-- **Fazer:** incluir `flatpak` e `docker` em `cat_order` (logo após `containers`),
-  ou normalizar a categoria via `_category_label` antes de agrupar. Garantir que
-  os três compartilhem o mesmo bloco "Contêineres" sem duplicar header.
-- **Aceite:** no resumo, Flatpak e Docker aparecem sob "Contêineres"; nenhum
-  step real cai no laço defensivo de "categoria desconhecida"; teste/QA visual
-  com `--dry-run` confirma agrupamento.
+- **Solução:** `summary_group_specs` renderiza por grupos e inclui
+  `containers flatpak docker snap` em **Contêineres**.
+- **Validação:** `tests/ui_summary.bats` garante cobertura de todas as categorias
+  do catálogo; smoke sintético confirmou Flatpak/Docker no bloco correto.
 
 ### C7 — 🟡 ☑ Header de categoria duplicado no resumo ("Shell / Editor" 2x)
 > **Concluído.** O resumo agora itera por grupos (`Shell / Editor|editor shell`),
@@ -116,11 +111,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   `_category_label` mapeia **ambas** para a mesma string "Shell / Editor".
   Cada categoria imprime seu próprio header → rótulo repetido em blocos
   distintos.
-- **Fazer:** ou (a) fundir a iteração por rótulo (agrupar categorias que
-  compartilham label sob um único header), ou (b) dar rótulos distintos
-  ("Editor" e "Shell"). Preferir (a) para manter a intenção de agrupamento.
-- **Aceite:** cada rótulo de categoria aparece no máximo uma vez no resumo;
-  steps `editor` e `shell` ficam sob um único bloco coerente.
+- **Solução:** `summary_group_specs` usa `Shell / Editor|editor shell` e imprime
+  um único header para os dois domínios.
+- **Validação:** `tests/ui_summary.bats` garante header único.
 
 ### C8 — 🔴 ☑ `docker info` trava ~75s quando o daemon está inacessível
 > **Concluído.** `update_docker_images` agora usa `docker_daemon_accessible`
@@ -131,13 +124,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   parado/sem permissão), então `docker info` bloqueia no timeout de conexão
   padrão (~75s) em vez de falhar rápido. O step só é salvo pelo timeout de
   catálogo (600s), desperdiçando ~25% do tempo total do run.
-- **Fazer:** envolver a checagem com timeout curto — `timeout 5 docker info`
-  ou `DOCKER_CLIENT_TIMEOUT`/`COMPOSE_HTTP_TIMEOUT`, ou checar o socket antes
-  (`[[ -S /var/run/docker.sock ]]` + `systemctl is-active docker`). Pular em
-  <5s quando o daemon não responde.
-- **Aceite:** com daemon parado, o step retorna em ≤5s com "daemon não
-  acessível; pulando"; com daemon ativo, comportamento atual; sem regressão no
-  caminho de pull.
+- **Solução:** `docker_daemon_accessible` usa `timeout` com
+  `DOCKER_INFO_TIMEOUT_S` validado; valor inválido volta para 5s.
+- **Validação:** `tests/containers.bats` cobre o parser do timeout; teste real
+  com daemon inacessível retornou em 5,011s.
 
 ### C9 — 🟡 ☑ Conflito recorrente poetry-core entre pip --user e Poetry
 > **Concluído.** O update genérico do pip --user agora calcula uma lista efetiva
@@ -147,12 +137,11 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Problema:** `poetry-core` não está na lista de ignore default de pip --user
   (`FULL_UPGRADE_PIP_USER_IGNORE` está vazio na config do usuário), então o
   update genérico o atualiza, e o step do Poetry tem que reverter. Ping-pong.
-- **Fazer:** detectar Poetry gerenciado por pip --user e tratar `poetry-core`
-  como pinned (adicionar ao ignore efetivo automaticamente quando Poetry está
-  presente), ou ordenar/condicionar para não atualizar `poetry-core` isolado.
-  Documentar a chave de ignore recomendada no `config.example`.
-- **Aceite:** em duas execuções seguidas, `poetry-core` não oscila de versão;
-  `pip check` não reporta o conflito poetry↔poetry-core introduzido pelo run.
+- **Solução:** `poetry_core_requirement` lê o requisito declarado pelo Poetry e
+  `pip_user_effective_ignore` adiciona `poetry-core` ao ignore efetivo quando o
+  requisito é fixo.
+- **Validação:** `tests/lang_py.bats` cobre preserve/adiciona/não duplica/não
+  adiciona sem requisito; config/README documentam o comportamento.
 
 ---
 
