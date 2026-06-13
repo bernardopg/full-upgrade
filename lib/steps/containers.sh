@@ -17,6 +17,24 @@ _docker_is_remote_image() {
   return 1
 }
 
+# Timeout curto para a sondagem inicial. Sem isso, `docker info` pode travar
+# ~75s quando o socket existe mas o daemon não responde.
+docker_info_timeout_seconds() {
+  local timeout_s="${DOCKER_INFO_TIMEOUT_S:-5}"
+  if [[ "$timeout_s" =~ ^[0-9]+$ ]] && (( timeout_s > 0 )); then
+    printf '%s\n' "$timeout_s"
+  else
+    printf '5\n'
+  fi
+}
+
+
+docker_daemon_accessible() {
+  local timeout_s
+  timeout_s="$(docker_info_timeout_seconds)"
+  timeout "$timeout_s" docker info >/dev/null 2>&1
+}
+
 
 update_docker_images() {
   if ! has docker; then
@@ -24,8 +42,8 @@ update_docker_images() {
     return 0
   fi
 
-  if ! docker info >/dev/null 2>&1; then
-    log "  Docker daemon não acessível; pulando."
+  if ! docker_daemon_accessible; then
+    log "  Docker daemon não acessível após $(docker_info_timeout_seconds)s; pulando."
     return 0
   fi
 

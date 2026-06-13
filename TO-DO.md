@@ -115,10 +115,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** cada rótulo de categoria aparece no máximo uma vez no resumo;
   steps `editor` e `shell` ficam sob um único bloco coerente.
 
-### C8 — 🔴 ☐ `docker info` trava ~75s quando o daemon está inacessível
-> **Achado no run real 3.2.2.** "Atualizar imagens Docker" levou **1m15s**
-> apesar de logar apenas "Docker daemon não acessível; pulando." — quase todo o
-> tempo do run gasto num step que não fez nada.
+### C8 — 🔴 ☑ `docker info` trava ~75s quando o daemon está inacessível
+> **Concluído.** `update_docker_images` agora usa `docker_daemon_accessible`
+> com `timeout ${DOCKER_INFO_TIMEOUT_S:-5}`; valor inválido cai para 5s. Teste
+> real com daemon inacessível retornou em **5,011s**.
 - **Arquivos:** `lib/steps/containers.sh` (`update_docker_images`)
 - **Problema:** o socket `/var/run/docker.sock` existe (Docker instalado mas
   parado/sem permissão), então `docker info` bloqueia no timeout de conexão
@@ -132,11 +132,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   acessível; pulando"; com daemon ativo, comportamento atual; sem regressão no
   caminho de pull.
 
-### C9 — 🟡 ☐ Conflito recorrente poetry-core entre pip --user e Poetry
-> **Achado no run real 3.2.2.** "Atualizar pacotes pip --user" sobe
-> `poetry-core` para 2.4.1 (quebrando `poetry 2.4.1 requires poetry-core==2.4.0`)
-> e, alguns steps depois, "Atualizar Poetry" faz **downgrade** de volta para
-> 2.4.0. Trabalho desfeito a cada run + janela de ambiente inconsistente.
+### C9 — 🟡 ☑ Conflito recorrente poetry-core entre pip --user e Poetry
+> **Concluído.** O update genérico do pip --user agora calcula uma lista efetiva
+> de ignore e adiciona `poetry-core` automaticamente quando o Poetry instalado
+> declara requisito fixo (`poetry-core (==2.4.0)`).
 - **Arquivos:** `lib/steps/lang_py.sh` (update pip --user e step Poetry), config
 - **Problema:** `poetry-core` não está na lista de ignore default de pip --user
   (`FULL_UPGRADE_PIP_USER_IGNORE` está vazio na config do usuário), então o
@@ -332,8 +331,8 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
-4. **C8, C6, C7** (achados do run real: Docker travando 75s + bugs de resumo — alto impacto, baixo esforço).
-5. **C9, M6, M8** (consistência do ambiente e clareza de pendências/reboot).
+4. **C6, C7** (bugs de resumo do run real — alto impacto, baixo esforço).
+5. **M6, M8** (clareza de pendências/reboot).
 6. **M3, F2** (observabilidade: sumário por categoria + relatório).
 7. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
 8. **C3, C4, C5, M2, M4, M5, M7, F5** (refino e robustez restantes).
@@ -343,9 +342,9 @@ verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9).
-- **Próximo:** C8/C6/C7 (achados do run real 3.2.2 — Docker 75s + resumo).
-- **Restante:** C3–C9, M2–M8, F2, F5–F8.
+- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9); C8, C9.
+- **Próximo:** C6/C7 (bugs de resumo do run real 3.2.2).
+- **Restante:** C3–C7, M2–M8, F2, F5–F8.
 
 ---
 

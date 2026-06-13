@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Docker inacessível não segura mais o run por ~75s.** A checagem inicial de
+  `docker info` agora roda com timeout curto configurável (`DOCKER_INFO_TIMEOUT_S`,
+  default 5s) e pula rapidamente quando o daemon não responde.
+- **`poetry-core` não entra mais no update genérico do pip --user quando Poetry
+  fixa uma versão exata.** O step calcula o ignore efetivo e evita o ping-pong
+  `poetry-core` 2.4.0→2.4.1→2.4.0 no mesmo run.
+
 ## [3.2.2] — 2026-06-13
 
 ### Adicionado

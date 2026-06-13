@@ -3,14 +3,63 @@
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
 
+poetry_core_requirement() {
+  python - <<'PY'
+import importlib.metadata as md
+
+try:
+    reqs = md.requires("poetry") or []
+except md.PackageNotFoundError:
+    raise SystemExit
+
+for req in reqs:
+    if req.lower().startswith("poetry-core"):
+        print(req)
+        break
+PY
+}
+
+_normalize_pkg_name() {
+  printf '%s' "$1" | tr '[:upper:]_' '[:lower:]-'
+}
+
+# Lista efetiva de pacotes que o update genérico do pip --user deve ignorar.
+# Se Poetry está instalado e fixa poetry-core, não atualizamos poetry-core no
+# step genérico: o step dedicado do Poetry garante a versão compatível depois.
+pip_user_effective_ignore() {
+  local base_ignore="${1:-}" poetry_core_req="${2:-}"
+  local -a ignored=()
+  local name normalized exists
+
+  for name in $base_ignore; do
+    normalized="$(_normalize_pkg_name "$name")"
+    [[ -n "$normalized" ]] || continue
+    ignored+=("$normalized")
+  done
+
+  if [[ "$poetry_core_req" == poetry-core* ]]; then
+    exists=0
+    for name in "${ignored[@]}"; do
+      [[ "$name" == "poetry-core" ]] && { exists=1; break; }
+    done
+    (( exists )) || ignored+=("poetry-core")
+  fi
+
+  printf '%s\n' "${ignored[*]}"
+}
+
+
 update_pip_user() {
-  local json
+  local json poetry_core_req effective_ignore
   local -a pkgs=()
+
+  poetry_core_req="$(poetry_core_requirement 2>/dev/null || true)"
+  effective_ignore="$(pip_user_effective_ignore "${FULL_UPGRADE_PIP_USER_IGNORE:-}" "$poetry_core_req")"
 
   json="$(python -m pip list --user --outdated --format=json 2>/dev/null || true)"
   if [[ -n "${json//[[:space:]]/}" ]]; then
     mapfile -t pkgs < <(
-      printf '%s' "$json" | python -c '
+      printf '%s' "$json" | FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" python -c '
 import json, sys
 import os
 
@@ -31,7 +80,7 @@ for pkg in data:
   fi
 
   if (( ${#pkgs[@]} == 0 )); then
-    if [[ -n "${FULL_UPGRADE_PIP_USER_IGNORE//[[:space:]]/}" ]]; then
+    if [[ -n "${effective_ignore//[[:space:]]/}" ]]; then
       log "  Sem pacotes pip --user desatualizados fora da lista de ignore."
     else
       log "  Sem pacotes pip --user desatualizados."
@@ -40,8 +89,8 @@ for pkg in data:
   fi
 
   log "  Atualizando pacotes pip --user: ${pkgs[*]}"
-  if [[ -n "${FULL_UPGRADE_PIP_USER_IGNORE//[[:space:]]/}" ]]; then
-    log "  Ignorando no update genérico do pip: ${FULL_UPGRADE_PIP_USER_IGNORE}"
+  if [[ -n "${effective_ignore//[[:space:]]/}" ]]; then
+    log "  Ignorando no update genérico do pip: ${effective_ignore}"
   fi
   log "  (--break-system-packages: necessário no Arch — pip user-install não conflita com pacman)"
   run_logged python -m pip install --user --break-system-packages --upgrade "${pkgs[@]}"
@@ -162,21 +211,7 @@ for pkg in data:
 '
   )"
 
-  core_req="$(
-    python - <<'PY'
-import importlib.metadata as md
-
-try:
-    reqs = md.requires("poetry") or []
-except md.PackageNotFoundError:
-    raise SystemExit
-
-for req in reqs:
-    if req.lower().startswith("poetry-core"):
-        print(req)
-        break
-PY
-  )"
+  core_req="$(poetry_core_requirement 2>/dev/null || true)"
 
   if [[ -z "${latest//[[:space:]]/}" ]]; then
     log "  Poetry ja está na versão mais recente (via pip --user)."
