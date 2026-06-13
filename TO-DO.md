@@ -1,8 +1,9 @@
 # TO-DO — Roadmap full-upgrade
 
-Planejamento dos próximos 15 passos: **5 melhorias + 5 correções + 5 features**.
-Decididos a partir de gaps reais do código (não genéricos), priorizados por
-impacto × esforço. Cada item lista: **arquivos**, **o quê**, **critério de aceite**.
+Roadmap vivo: **correções + melhorias + features**, decididos a partir de gaps
+reais do código e de **achados de runs reais** (ver seção "Achados do run real"
+ao final). Priorizados por impacto × esforço. Cada item lista: **arquivos**,
+**o quê**, **critério de aceite**.
 
 Convenções respeitadas em todos os itens:
 
@@ -80,6 +81,73 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** backup vazio não sobrescreve mirrorlist válido; teste do
   validador puro.
 
+### C6 — 🔴 ☐ Resumo final classifica Flatpak/Docker em "Doctor (auditorias)"
+> **Achado no run real 3.2.2.** No resumo agrupado, "Atualizar Flatpak" e
+> "Atualizar imagens Docker" aparecem sob o bloco **Doctor (auditorias)**, não
+> sob **Contêineres**.
+- **Arquivos:** `lib/ui.sh` (`print_summary` → `cat_order`/`_category_label`)
+- **Problema:** `cat_order` em `print_summary` lista `containers`, mas os steps
+  Flatpak/Docker têm `categoria=flatpak` e `categoria=docker` no catálogo
+  (`lib/catalog.sh` linhas 27/29). Como nenhum dos dois está em `cat_order`,
+  caem no laço "defensivo" de steps sem categoria conhecida e são impressos
+  **após** o último grupo (Doctor), parecendo parte dele. `_category_label` já
+  mapeia `flatpak|docker|containers → "Contêineres"`, mas o agrupamento usa a
+  string crua da categoria, não o rótulo.
+- **Fazer:** incluir `flatpak` e `docker` em `cat_order` (logo após `containers`),
+  ou normalizar a categoria via `_category_label` antes de agrupar. Garantir que
+  os três compartilhem o mesmo bloco "Contêineres" sem duplicar header.
+- **Aceite:** no resumo, Flatpak e Docker aparecem sob "Contêineres"; nenhum
+  step real cai no laço defensivo de "categoria desconhecida"; teste/QA visual
+  com `--dry-run` confirma agrupamento.
+
+### C7 — 🟡 ☐ Header de categoria duplicado no resumo ("Shell / Editor" 2x)
+> **Achado no run real 3.2.2.** O resumo imprime o cabeçalho **Shell / Editor**
+> duas vezes: uma para os steps de categoria `editor` (Neovim) e outra para
+> `shell` (Oh My Zsh/Zsh/DMS).
+- **Arquivos:** `lib/ui.sh` (`print_summary`, `_category_label`)
+- **Problema:** `cat_order` tem `editor` e `shell` como entradas separadas, mas
+  `_category_label` mapeia **ambas** para a mesma string "Shell / Editor".
+  Cada categoria imprime seu próprio header → rótulo repetido em blocos
+  distintos.
+- **Fazer:** ou (a) fundir a iteração por rótulo (agrupar categorias que
+  compartilham label sob um único header), ou (b) dar rótulos distintos
+  ("Editor" e "Shell"). Preferir (a) para manter a intenção de agrupamento.
+- **Aceite:** cada rótulo de categoria aparece no máximo uma vez no resumo;
+  steps `editor` e `shell` ficam sob um único bloco coerente.
+
+### C8 — 🔴 ☐ `docker info` trava ~75s quando o daemon está inacessível
+> **Achado no run real 3.2.2.** "Atualizar imagens Docker" levou **1m15s**
+> apesar de logar apenas "Docker daemon não acessível; pulando." — quase todo o
+> tempo do run gasto num step que não fez nada.
+- **Arquivos:** `lib/steps/containers.sh` (`update_docker_images`)
+- **Problema:** o socket `/var/run/docker.sock` existe (Docker instalado mas
+  parado/sem permissão), então `docker info` bloqueia no timeout de conexão
+  padrão (~75s) em vez de falhar rápido. O step só é salvo pelo timeout de
+  catálogo (600s), desperdiçando ~25% do tempo total do run.
+- **Fazer:** envolver a checagem com timeout curto — `timeout 5 docker info`
+  ou `DOCKER_CLIENT_TIMEOUT`/`COMPOSE_HTTP_TIMEOUT`, ou checar o socket antes
+  (`[[ -S /var/run/docker.sock ]]` + `systemctl is-active docker`). Pular em
+  <5s quando o daemon não responde.
+- **Aceite:** com daemon parado, o step retorna em ≤5s com "daemon não
+  acessível; pulando"; com daemon ativo, comportamento atual; sem regressão no
+  caminho de pull.
+
+### C9 — 🟡 ☐ Conflito recorrente poetry-core entre pip --user e Poetry
+> **Achado no run real 3.2.2.** "Atualizar pacotes pip --user" sobe
+> `poetry-core` para 2.4.1 (quebrando `poetry 2.4.1 requires poetry-core==2.4.0`)
+> e, alguns steps depois, "Atualizar Poetry" faz **downgrade** de volta para
+> 2.4.0. Trabalho desfeito a cada run + janela de ambiente inconsistente.
+- **Arquivos:** `lib/steps/lang_py.sh` (update pip --user e step Poetry), config
+- **Problema:** `poetry-core` não está na lista de ignore default de pip --user
+  (`FULL_UPGRADE_PIP_USER_IGNORE` está vazio na config do usuário), então o
+  update genérico o atualiza, e o step do Poetry tem que reverter. Ping-pong.
+- **Fazer:** detectar Poetry gerenciado por pip --user e tratar `poetry-core`
+  como pinned (adicionar ao ignore efetivo automaticamente quando Poetry está
+  presente), ou ordenar/condicionar para não atualizar `poetry-core` isolado.
+  Documentar a chave de ignore recomendada no `config.example`.
+- **Aceite:** em duas execuções seguidas, `poetry-core` não oscila de versão;
+  `pip check` não reporta o conflito poetry↔poetry-core introduzido pelo run.
+
 ---
 
 ## ⚡ Melhorias (5)
@@ -125,6 +193,45 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   de remediação (padrão "Remediação: <cmd>"), como já feito em cargo/pipx.
 - **Aceite:** todo `RC_TODO`/`RC_WARN` com ação manual imprime uma linha
   `Remediação:` reproduzível.
+
+### M6 — 🟡 ☐ Resumo destaca pendências oficiais não aplicadas
+> **Achado no run real 3.2.2.** "Verificação final de pendências" (`RC_TODO`)
+> listou 6 pacotes oficiais com update disponível (inkscape, libreoffice-fresh,
+> poppler*, python-tqdm) que **não foram aplicados** no mesmo run — a base de
+> dados foi sincronizada por outro step depois do `-Syu`.
+- **Arquivos:** `lib/steps/coverage.sh` (verificação final), `lib/main.sh`
+- **O quê:** quando a verificação final detectar pendências oficiais, deixar
+  claro no resumo/`todo` por que não foram aplicadas (db sincronizado após o
+  upgrade) e oferecer remediação direta (`sudo pacman -Syu`). Idealmente,
+  reordenar para que a verificação final rode antes de qualquer `-Sy` posterior,
+  ou re-rodar o upgrade se a checagem encontrar pendências triviais.
+- **Aceite:** pendências oficiais no fim de um run aparecem com motivo +
+  remediação; em ambiente estável a verificação final não acusa pendências logo
+  após o upgrade.
+
+### M7 — 🟢 ☐ Suprimir ruído de build no log (setuptools/rdoc warnings)
+> **Achado no run real 3.2.2.** Builds AUR (zapzap-git em run anterior; rdoc no
+> empacotamento do próprio full-upgrade) despejam dezenas de linhas de
+> `SetuptoolsDeprecationWarning` e `already initialized constant RDoc::...` no
+> log, afogando sinais úteis.
+- **Arquivos:** `lib/core.sh` (`run_logged`/helpers de captura), steps de build
+- **O quê:** filtrar/colapsar classes conhecidas de warning de build no output
+  ao terminal (mantendo o log bruto completo em arquivo), com um contador
+  ("N warnings de build suprimidos; ver log"). Não alterar o que vai para o
+  `.log`/`.jsonl`.
+- **Aceite:** terminal mostra resumo compacto; `latest.log` mantém o output
+  bruto; nenhuma supressão de erros reais (apenas warnings allow-listed).
+
+### M8 — 🟢 ☐ Sugerir reboot ao final quando kernel/microcode mudou
+> **Achado no run real 3.2.2.** "Doctor: reboot pendente" detectou kernel em
+> execução `7.0.11` vs instalado `7.0.12` (`RC_TODO`), mas isso só aparece no
+> meio do bloco Doctor; fácil de perder num run de 75 steps.
+- **Arquivos:** `lib/main.sh` (`finalize`/`print_summary`), `lib/steps/doctor.sh`
+- **O quê:** quando houver reboot pendente (kernel/microcode/systemd), elevar
+  isso a um aviso de destaque no rodapé do resumo (linha própria, cor), além do
+  item Doctor. Reaproveitar a detecção existente.
+- **Aceite:** com kernel novo instalado e não rebootado, o rodapé do resumo
+  mostra "Reboot recomendado: kernel X→Y"; sem pendência, nada é impresso.
 
 ---
 
@@ -182,6 +289,42 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** `--fail-fast` para no 1º fail e marca os restantes como skip com
   motivo "abortado por --fail-fast"; default inalterado; smoke em `--dry-run`.
 
+### F6 — 🟡 ☐ `--audit` / modo auditoria de segurança consolidada
+> **Motivado pelo run real 3.2.2:** o run já coleta sinais de segurança
+> dispersos — CVEs de binários cargo (rustls-webpki, tar, tracing-subscriber),
+> `fwupd security` (HSI:3, Secure Boot desabilitado), units falhadas, erros
+> críticos do journal (falha de auth sudo). Falta uma visão única.
+- **Arquivos:** novo `lib/steps/audit.sh` ou `lib/report.sh`, `lib/cli.sh`, catálogo
+- **O quê:** flag `--audit` que roda só os checks read-only de segurança e emite
+  um relatório consolidado: CVEs (cargo-audit + pacman/arch-audit se houver),
+  postura fwupd/HSI, Secure Boot, units falhadas, erros de auth no journal,
+  pip/npm quebrados. Severidade por item.
+- **Aceite:** `--audit` é não-mutável (como doctor), agrega achados de segurança
+  num bloco único com severidade e remediação; `--json` inclui a seção audit.
+
+### F7 — 🟡 ☐ Auto-remediação opcional de CVEs de toolchain (rustup/cargo)
+> **Achado no run real 3.2.2.** "Auditar binários cargo (CVEs)" reportou 7 CVEs
+> em `rustup` e instruiu manualmente `rustup self update && rustup update`, mas
+> não age.
+- **Arquivos:** `lib/steps/lang_rust.sh`, `lib/catalog.sh`, config
+- **O quê:** quando a auditoria encontrar CVEs corrigíveis por
+  `rustup self update`/`rustup update`/`cargo install-update`, oferecer aplicar
+  (gate interativo/`--yes`), atrás de uma chave de config
+  (`AUTO_FIX_RUST_CVES=0` default). Reportar antes/depois.
+- **Aceite:** com a chave ligada e `--yes`, CVEs de toolchain corrigíveis são
+  aplicadas e re-auditadas; default não muta nada; sem rede → `RC_WARN`.
+
+### F8 — 🟢 ☐ Histórico/tendência de runs (`--history`)
+> **Motivado pelo run real:** já existem ~20 `.jsonl` rotacionados em
+> `~/.cache/system-upgrade/` com `summary` por run (ok/warn/todo/fail/duração),
+> mas nada os consome de forma agregada.
+- **Arquivos:** novo `lib/report.sh`, `lib/cli.sh`, `lib/json.sh`
+- **O quê:** flag `--history [N]` que lê os eventos `summary` dos últimos N
+  JSONL e mostra uma tabela/tendência: data, versão, ok/warn/todo/fail, duração,
+  e deltas (ex.: tempo subindo, novos warns recorrentes). Puramente leitura.
+- **Aceite:** `--history 10` lista os 10 runs mais recentes com contagens e
+  duração; identifica warns/todos recorrentes; funciona sem rede e sem mutar.
+
 ---
 
 ## Ordem de execução sugerida
@@ -189,8 +332,11 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
-4. **M3, F2** (observabilidade: sumário por categoria + relatório).
-5. **C3, C4, C5, M2, M4, M5, F5** (refino e robustez).
+4. **C8, C6, C7** (achados do run real: Docker travando 75s + bugs de resumo — alto impacto, baixo esforço).
+5. **C9, M6, M8** (consistência do ambiente e clareza de pendências/reboot).
+6. **M3, F2** (observabilidade: sumário por categoria + relatório).
+7. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
+8. **C3, C4, C5, M2, M4, M5, M7, F5** (refino e robustez restantes).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
@@ -198,5 +344,54 @@ verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 ## Progresso
 
 - **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9).
-- **Próximo:** M3/F2 (observabilidade: sumário por categoria + relatório).
-- **Restante:** C3–C5, M2, M4, M5, F2, F5.
+- **Próximo:** C8/C6/C7 (achados do run real 3.2.2 — Docker 75s + resumo).
+- **Restante:** C3–C9, M2–M8, F2, F5–F8.
+
+---
+
+## Achados do run real (auditoria)
+
+Registro factual dos sinais de cada execução real, para rastrear regressões e
+priorizar. Não é roadmap — é evidência.
+
+### Run 2026-06-13 14:23 · v3.2.2 · `--mode full -y`
+
+- **Resultado:** 68 ok · 3 warn · 3 todo · 0 fail · 1 skip em **4m43s** (exit 0).
+- **Host:** PC-689c341c · kernel em execução 7.0.11-arch1-1.
+- **Log:** `~/.cache/system-upgrade/full-upgrade-20260613-142301-900745.log`.
+
+**Mutações reais aplicadas:**
+- Snapshot timeshift pré-upgrade criado (rsync, 12s).
+- Backup de 9 configs `/etc` → `configs-*.tar.zst` (1,3M), rotação mantendo 5.
+- Mirrorlist atualizada via reflector (top 20 por rate; 4 mirrors com 404 ao ratear).
+- AUR: `full-upgrade` atualizado para 3.2.2-1 (recém-publicado — pipeline de release validado end-to-end).
+- Órfãos removidos (5): `python-pyproject-hooks`, `cli11`, `ioruba-desktop-debug`, `python-build`, `python-installer`.
+
+**warn (3):**
+- `Auditar binários cargo (CVEs)`: 7 CVEs em `rustup` (rustls-webpki ×4:
+  RUSTSEC-2026-0049/0098/0099/0104; tar ×2: 0067/0068; tracing-subscriber:
+  2025-0055; rand unsound: 2026-0097). → **F7**, **F6**.
+- `Doctor: journal erros críticos`: 3 reais (2× falha de auth sudo `[bitter]`;
+  1× Bluetooth hci0 opcode 0x0401 -16). 872 linhas de ruído filtradas.
+- `Doctor: ambiente Python`: `pip check` quebrado — pygount↔chardet 7.4.3,
+  doctoralia-scrapper↔redis 8.0.0/uvicorn 0.49.0, auto-cpufreq↔urwid 4.0.2.
+
+**todo (3):**
+- `Verificação final de pendências`: 6 pacotes oficiais com update não aplicado
+  (inkscape, libreoffice-fresh, poppler/-glib/-qt6, python-tqdm). → **M6**.
+- `Doctor: reboot pendente`: kernel 7.0.11 (rodando) vs 7.0.12 (instalado). → **M8**.
+- `Doctor: saúde do btrfs`: nenhum scrub registrado em `/` (`btrfs scrub start /`).
+
+**Anomalias de performance/UX (viraram itens):**
+- `Atualizar imagens Docker` levou **1m15s** só para logar "daemon não acessível"
+  (≈25% do run). → **C8**.
+- Resumo agrupou Flatpak/Docker sob "Doctor (auditorias)". → **C6**.
+- Header "Shell / Editor" impresso 2×. → **C7**.
+- `poetry-core` 2.4.0→2.4.1 (pip --user) e revertido 2.4.1→2.4.0 (step Poetry) no
+  mesmo run. → **C9**.
+
+**Observações de ambiente (não acionáveis no script):**
+- fwupd `HSI:3 de 4`; Secure Boot UEFI desabilitado; RAM não criptografada.
+- `xdg-desktop-portal` não instalado (afeta screencast/file pickers/flatpaks).
+- Boot ~41,6s total (firmware 27,7s domina); userspace 5,2s — saudável.
+- SMART OK em nvme0/nvme1; disco 59% / e 26% /boot.
