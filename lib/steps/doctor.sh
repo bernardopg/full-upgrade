@@ -76,18 +76,48 @@ doctor_reboot_pending() {
 }
 
 
+systemd_user_scope_status() {
+  if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+    printf 'available\n'
+    return 0
+  fi
+  if [[ -z "${XDG_RUNTIME_DIR:-}" ]]; then
+    printf 'no-runtime\n'
+    return 0
+  fi
+  if [[ -S "${XDG_RUNTIME_DIR}/bus" || -e "${XDG_RUNTIME_DIR}/bus" ]]; then
+    printf 'available\n'
+    return 0
+  fi
+  printf 'no-bus\n'
+}
+
+
 doctor_failed_systemd_units() {
   if ! has systemctl; then
     log "  systemctl não encontrado."
     return 0
   fi
 
-  local failed_system failed_user
+  local failed_system failed_user user_scope
   failed_system="$(systemctl --failed --plain --no-legend 2>/dev/null || true)"
-  failed_user="$(systemctl --user --failed --plain --no-legend 2>/dev/null || true)"
+  user_scope="$(systemd_user_scope_status)"
+  if [[ "$user_scope" == "available" ]]; then
+    failed_user="$(systemctl --user --failed --plain --no-legend 2>/dev/null || true)"
+  else
+    failed_user=""
+  fi
 
   if [[ -z "${failed_system//[[:space:]]/}" && -z "${failed_user//[[:space:]]/}" ]]; then
-    log "  Nenhuma unit systemd falhada (sistema/usuário)."
+    if [[ "$user_scope" == "available" ]]; then
+      log "  Nenhuma unit systemd falhada (sistema/usuário)."
+    else
+      log "  Nenhuma unit systemd falhada (sistema)."
+      case "$user_scope" in
+        no-runtime) log "  Checagem systemd --user pulada (sem XDG_RUNTIME_DIR/sessão de usuário)." ;;
+        no-bus) log "  Checagem systemd --user pulada (sem bus de sessão em XDG_RUNTIME_DIR)." ;;
+      esac
+    fi
     return 0
   fi
 
@@ -98,6 +128,11 @@ doctor_failed_systemd_units() {
   if [[ -n "${failed_user//[[:space:]]/}" ]]; then
     log "  Units systemd --user falhadas:"
     printf '%s\n' "$failed_user" | tee >(_strip_ansi >> "$LOG_FILE")
+  elif [[ "$user_scope" != "available" ]]; then
+    case "$user_scope" in
+      no-runtime) log "  Checagem systemd --user pulada (sem XDG_RUNTIME_DIR/sessão de usuário)." ;;
+      no-bus) log "  Checagem systemd --user pulada (sem bus de sessão em XDG_RUNTIME_DIR)." ;;
+    esac
   fi
 
   return "$RC_TODO"

@@ -20,6 +20,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${BTRFS_SCRUB_MAX_DAYS:=30}"     # alerta se o último scrub btrfs em / for mais antigo que isso
 : "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
+: "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
 : "${BACKUP_KEEP:=5}"               # quantos tarballs de backup manter (rotação)
@@ -53,7 +54,7 @@ load_config() {
 
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
-  export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S
+  export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
@@ -117,6 +118,7 @@ MIN_BOOT_FREE_MIB=200
 BTRFS_SCRUB_MAX_DAYS=30
 BOOT_TIME_WARN_S=60
 DOCKER_INFO_TIMEOUT_S=5
+ORPHAN_CLEANUP_MAX_ROUNDS=5
 
 # ── Listas de ignore ──
 FULL_UPGRADE_AUR_IGNORE=""
@@ -169,6 +171,7 @@ show_config() {
   _cfg_kv "BTRFS_SCRUB_MAX_DAYS" "$BTRFS_SCRUB_MAX_DAYS"
   _cfg_kv "BOOT_TIME_WARN_S" "$BOOT_TIME_WARN_S"
   _cfg_kv "DOCKER_INFO_TIMEOUT_S" "$DOCKER_INFO_TIMEOUT_S"
+  _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
   _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"
   _cfg_kv "FULL_UPGRADE_UPDATE_CHANNEL" "$FULL_UPGRADE_UPDATE_CHANNEL"
   printf '\n'

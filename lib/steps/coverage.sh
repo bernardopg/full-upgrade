@@ -152,6 +152,23 @@ preupgrade_snapshot() {
   return 0
 }
 
+# Mirrorlist válido precisa ter ao menos uma linha Server ativa. Comentários não contam.
+mirrorlist_has_server() {
+  local file="$1"
+  [[ -r "$file" ]] || return 1
+  grep -Eq '^[[:space:]]*Server[[:space:]]*=' "$file"
+}
+
+_restore_mirror_backup() {
+  local backup="$1" mirrorlist="$2"
+  if mirrorlist_has_server "$backup"; then
+    run_logged sudo cp -f "$backup" "$mirrorlist" 2>/dev/null || true
+  else
+    log "  Aviso: backup do mirrorlist inválido/vazio; não restaurado: ${backup}"
+    log "  Remediação: revise ${mirrorlist} ou regenere mirrors manualmente."
+  fi
+}
+
 # ── Mirror refresh (reflector / rate-mirrors) ───────────────────────────────────
 refresh_mirrors() {
   local tool="${MIRROR_TOOL:-auto}"
@@ -175,8 +192,8 @@ refresh_mirrors() {
       if run_logged sudo reflector --latest 20 --protocol https --sort rate --save "$mirrorlist"; then
         log "  Mirrors atualizados via reflector (top 20 por rate)."
       else
-        log "  Aviso: reflector falhou; restaurando backup."
-        run_logged sudo cp -f "$backup" "$mirrorlist" 2>/dev/null || true
+        log "  Aviso: reflector falhou; restaurando backup válido se possível."
+        _restore_mirror_backup "$backup" "$mirrorlist"
         return "$RC_WARN"
       fi
       ;;
@@ -187,8 +204,8 @@ refresh_mirrors() {
       if rate-mirrors --save "$mirrorlist" arch 2>>"$LOG_FILE"; then
         log "  Mirrors atualizados via rate-mirrors."
       else
-        log "  Aviso: rate-mirrors falhou; restaurando backup."
-        run_logged sudo cp -f "$backup" "$mirrorlist" 2>/dev/null || true
+        log "  Aviso: rate-mirrors falhou; restaurando backup válido se possível."
+        _restore_mirror_backup "$backup" "$mirrorlist"
         return "$RC_WARN"
       fi
       ;;

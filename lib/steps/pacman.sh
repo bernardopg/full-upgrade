@@ -223,32 +223,54 @@ cleanup_paccache() {
 
 
 cleanup_orphans() {
+  local max_rounds="${ORPHAN_CLEANUP_MAX_ROUNDS:-5}"
+  [[ "$max_rounds" =~ ^[0-9]+$ ]] && (( max_rounds > 0 )) || max_rounds=5
+
+  local round=1 removed_any=0
   local -a orphans=()
-  mapfile -t orphans < <(pacman -Qdtq 2>/dev/null || true)
 
-  if (( ${#orphans[@]} == 0 )); then
-    log "  Nenhum pacote orfao encontrado."
-    return 0
-  fi
+  while (( round <= max_rounds )); do
+    mapfile -t orphans < <(pacman -Qdtq 2>/dev/null || true)
 
-  log "  Pacotes orfaos encontrados (${#orphans[@]}): ${orphans[*]}"
-
-  if (( ASSUME_YES == 0 )); then
-    if [[ -t 0 ]]; then
-      printf '%b' "${C_YELLOW}  Remover pacotes orfãos? [s/N] ${C_RESET}"
-      local answer
-      read -r answer
-      case "$answer" in
-        [sS][iI][mM]|[sS]) ;;
-        *) log "  Remoção de orfãos cancelada pelo usuário."; return 0 ;;
-      esac
-    else
-      log "  Execução não interativa sem --yes; pulando remoção de órfãos."
+    if (( ${#orphans[@]} == 0 )); then
+      if (( removed_any == 0 )); then
+        log "  Nenhum pacote orfao encontrado."
+      else
+        log "  Limpeza de órfãos concluída; nenhuma dependência órfã remanescente."
+      fi
       return 0
     fi
-  fi
 
-  run_logged sudo pacman -Rns --noconfirm -- "${orphans[@]}"
+    log "  Pacotes orfaos encontrados (rodada ${round}/${max_rounds}, ${#orphans[@]}): ${orphans[*]}"
+
+    if (( ASSUME_YES == 0 )); then
+      if [[ -t 0 ]]; then
+        printf '%b' "${C_YELLOW}  Remover pacotes orfãos? [s/N] ${C_RESET}"
+        local answer
+        read -r answer
+        case "$answer" in
+          [sS][iI][mM]|[sS]) ;;
+          *) log "  Remoção de orfãos cancelada pelo usuário."; return 0 ;;
+        esac
+      else
+        log "  Execução não interativa sem --yes; pulando remoção de órfãos."
+        return 0
+      fi
+    fi
+
+    run_logged sudo pacman -Rns --noconfirm -- "${orphans[@]}" || return $?
+    removed_any=1
+    (( round++ ))
+  done
+
+  mapfile -t orphans < <(pacman -Qdtq 2>/dev/null || true)
+  if (( ${#orphans[@]} > 0 )); then
+    log "  Aviso: ainda há órfãos após ${max_rounds} rodada(s): ${orphans[*]}"
+    log "  Remediação: rode novamente ou revise manualmente com pacman -Qdtq"
+    STEP_REASON="órfãos remanescentes após ${max_rounds} rodada(s)"
+    return "$RC_TODO"
+  fi
+  return 0
 }
 
 

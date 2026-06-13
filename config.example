@@ -41,6 +41,7 @@ MIN_BOOT_FREE_MIB=200   # em /boot (MiB — ESP costuma ser pequeno)
 BTRFS_SCRUB_MAX_DAYS=30  # alerta se o último scrub btrfs em / for mais antigo
 BOOT_TIME_WARN_S=60      # alerta se o boot (systemd-analyze) exceder N segundos
 DOCKER_INFO_TIMEOUT_S=5  # timeout para detectar daemon Docker inacessível
+ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 
 # ── Listas de ignore / Ignore lists ─────────────────────────────────────────────
 # Pacotes AUR a não atualizar automaticamente / AUR packages to skip

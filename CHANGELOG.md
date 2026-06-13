@@ -6,6 +6,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **Remoção de órfãos agora é recursiva e limitada.** `cleanup_orphans` repete
+  `pacman -Qdtq` após cada remoção até estabilizar, com limite configurável
+  (`ORPHAN_CLEANUP_MAX_ROUNDS`, default 5) e aviso se ainda sobrar lixo.
+- **Doctor de systemd não mascara mais escopo `--user` indisponível.** Quando
+  não há `XDG_RUNTIME_DIR`/bus de sessão, a checagem parcial é logada
+  explicitamente em vez de afirmar "sistema/usuário".
+- **Fallback de mirrorlist só restaura backup válido.** Em falha do
+  `reflector`/`rate-mirrors`, o backup precisa conter linha `Server =` ativa;
+  backup vazio/comentado não sobrescreve a mirrorlist atual.
+- **Resumo final não joga Flatpak/Docker/Snap no bloco Doctor.** O agrupamento
+  agora usa especificações de grupo e cobre todas as categorias do catálogo.
+- **Resumo final não duplica o header "Shell / Editor".** Categorias `editor` e
+  `shell` são renderizadas no mesmo bloco.
 - **Docker inacessível não segura mais o run por ~75s.** A checagem inicial de
   `docker info` agora roda com timeout curto configurável (`DOCKER_INFO_TIMEOUT_S`,
   default 5s) e pula rapidamente quando o daemon não responde.

@@ -135,7 +135,45 @@ _status_sym() {  # $1 = status → ecoa "SÍMBOLO|COR"
   esac
 }
 
-# Rótulo legível por categoria (p/ agrupar no resumo).
+# Especificação dos grupos do resumo: "rótulo|categoria categoria ...".
+# Centraliza a ordem e permite agrupar categorias distintas sob o mesmo header
+# (ex.: editor+shell), evitando headers duplicados e categorias órfãs no fim.
+summary_group_specs() {
+  cat <<'EOF'
+Preflight|core
+Reparos|repair
+Sistema / Pacman|pacman
+Contêineres|containers flatpak docker snap
+Linguagens|lang
+Firmware / Boot|firmware
+Shell / Editor|editor shell
+Hyprland|hyprland
+IA|ai
+Rede|network
+Limpeza|cleanup
+Verificação final|final
+Doctor (auditorias)|doctor
+EOF
+}
+
+summary_category_in_group_list() {
+  local category="$1" groups="$2" group
+  for group in $groups; do
+    [[ "$group" == "$category" ]] && return 0
+  done
+  return 1
+}
+
+summary_category_in_groups() {
+  local category="$1" line groups
+  while IFS='|' read -r _label groups; do
+    summary_category_in_group_list "$category" "$groups" && return 0
+  done < <(summary_group_specs)
+  return 1
+}
+
+# Rótulo legível por categoria (fallback para callers antigos; o resumo usa
+# summary_group_specs para evitar duplicação de headers).
 _category_label() {
   case "$1" in
     core)     printf 'Preflight' ;;
@@ -170,18 +208,16 @@ print_summary() {
   log_always "${C_BOLD}$(ui_hr "$HR_HEAVY")${C_RESET}"
   log_always "${C_BOLD}Resumo${C_RESET}"
 
-  # Ordem de categorias para exibição.
-  local -a cat_order=(core repair pacman containers lang firmware editor shell hyprland ai network cleanup final doctor)
-  local cat shown_any=0 last_label=""
-  for cat in "${cat_order[@]}"; do
-    local group_label; group_label="$(_category_label "$cat")"
+  # Ordem/grupos de categorias para exibição.
+  local group_label group_cats
+  while IFS='|' read -r group_label group_cats; do
     local printed_header=0
     for i in "${!STEP_NAMES[@]}"; do
-      [[ "${STEP_CATEGORIES[$i]:-}" == "$cat" ]] || continue
+      summary_category_in_group_list "${STEP_CATEGORIES[$i]:-}" "$group_cats" || continue
       [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
       if (( printed_header == 0 )); then
         log_always "  ${C_BOLD}${C_BLUE}${group_label}${C_RESET}"
-        printed_header=1; shown_any=1
+        printed_header=1
       fi
       local sym color dur time_color symcolor
       symcolor="$(_status_sym "${STEP_RESULTS[$i]}")"
@@ -191,15 +227,13 @@ print_summary() {
       (( "${STEP_TIMES[$i]}" >= 30 )) && time_color="${C_YELLOW}"
       log_always "    ${color}${sym}${C_RESET}  ${STEP_NAMES[$i]} ${time_color}(${dur})${C_RESET}"
     done
-  done
+  done < <(summary_group_specs)
 
   # Steps sem categoria conhecida (defensivo).
   for i in "${!STEP_NAMES[@]}"; do
     [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
     local c="${STEP_CATEGORIES[$i]:-}"
-    local known=0 k
-    for k in "${cat_order[@]}"; do [[ "$k" == "$c" ]] && { known=1; break; }; done
-    (( known )) && continue
+    summary_category_in_groups "$c" && continue
     local symcolor sym color dur
     symcolor="$(_status_sym "${STEP_RESULTS[$i]}")"; sym="${symcolor%%|*}"; color="${symcolor##*|}"
     dur="$(elapsed "${STEP_TIMES[$i]}")"

@@ -51,7 +51,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** update aborta (rc≠0, mensagem PT-BR) com checksum forjado;
   prossegue com checksum válido; teste bats da função pura de comparação de hash.
 
-### C3 — 🟡 ☐ `cleanup_orphans` não trata órfãos recursivos remanescentes
+### C3 — 🟡 ☑ `cleanup_orphans` não trata órfãos recursivos remanescentes
+> **Concluído.** `cleanup_orphans` agora roda em loop até `pacman -Qdtq` zerar
+> (limite `ORPHAN_CLEANUP_MAX_ROUNDS`, default 5), com teste Bats simulando
+> `pkg-a → pkg-b → vazio`.
 - **Arquivos:** `lib/steps/pacman.sh`
 - **Problema:** `pacman -Qdtq` lista órfãos de um nível; após remover, novos
   órfãos podem surgir (deps que só o removido puxava). Hoje roda uma passada só.
@@ -60,7 +63,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** segunda passada não deixa órfãos triviais; dry-run não muta;
   teste do parser puro de lista de órfãos.
 
-### C4 — 🟡 ☐ `doctor_failed_systemd_units` ignora units `--user` em alguns casos
+### C4 — 🟡 ☑ `doctor_failed_systemd_units` ignora units `--user` em alguns casos
+> **Concluído.** `systemd_user_scope_status` distingue `available`, `no-runtime`
+> e `no-bus`; o doctor agora registra explicitamente quando a checagem `--user`
+> foi pulada em vez de afirmar "sistema/usuário".
 - **Arquivos:** `lib/steps/doctor.sh`
 - **Problema:** a coleta de units falhadas de usuário depende de
   `DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; sob sudo/cron o escopo de
@@ -71,7 +77,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** sem bus de sessão → mensagem clara "checagem --user pulada
   (sem sessão)"; com sessão → lista units `--user` falhadas.
 
-### C5 — 🟢 ☐ Restauração de mirrorlist não verifica conteúdo do backup
+### C5 — 🟢 ☑ Restauração de mirrorlist não verifica conteúdo do backup
+> **Concluído.** `mirrorlist_has_server` valida `^Server =` ativo antes da
+> restauração; backups vazios/comentados não sobrescrevem a mirrorlist corrente.
 - **Arquivos:** `lib/steps/coverage.sh`
 - **Problema:** em falha do reflector, restaura `cp` do backup sem checar se o
   backup tem ao menos uma linha `Server =`. Backup vazio/corrompido deixaria o
@@ -81,10 +89,10 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** backup vazio não sobrescreve mirrorlist válido; teste do
   validador puro.
 
-### C6 — 🔴 ☐ Resumo final classifica Flatpak/Docker em "Doctor (auditorias)"
-> **Achado no run real 3.2.2.** No resumo agrupado, "Atualizar Flatpak" e
-> "Atualizar imagens Docker" aparecem sob o bloco **Doctor (auditorias)**, não
-> sob **Contêineres**.
+### C6 — 🔴 ☑ Resumo final classifica Flatpak/Docker em "Doctor (auditorias)"
+> **Concluído.** `summary_group_specs` agrupa `containers flatpak docker snap`
+> sob "Contêineres"; teste garante que toda categoria do catálogo pertence a
+> algum grupo.
 - **Arquivos:** `lib/ui.sh` (`print_summary` → `cat_order`/`_category_label`)
 - **Problema:** `cat_order` em `print_summary` lista `containers`, mas os steps
   Flatpak/Docker têm `categoria=flatpak` e `categoria=docker` no catálogo
@@ -100,10 +108,9 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
   step real cai no laço defensivo de "categoria desconhecida"; teste/QA visual
   com `--dry-run` confirma agrupamento.
 
-### C7 — 🟡 ☐ Header de categoria duplicado no resumo ("Shell / Editor" 2x)
-> **Achado no run real 3.2.2.** O resumo imprime o cabeçalho **Shell / Editor**
-> duas vezes: uma para os steps de categoria `editor` (Neovim) e outra para
-> `shell` (Oh My Zsh/Zsh/DMS).
+### C7 — 🟡 ☑ Header de categoria duplicado no resumo ("Shell / Editor" 2x)
+> **Concluído.** O resumo agora itera por grupos (`Shell / Editor|editor shell`),
+> não por categoria crua; teste garante um único header para editor+shell.
 - **Arquivos:** `lib/ui.sh` (`print_summary`, `_category_label`)
 - **Problema:** `cat_order` tem `editor` e `shell` como entradas separadas, mas
   `_category_label` mapeia **ambas** para a mesma string "Shell / Editor".
@@ -331,20 +338,19 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
-4. **C6, C7** (bugs de resumo do run real — alto impacto, baixo esforço).
-5. **M6, M8** (clareza de pendências/reboot).
-6. **M3, F2** (observabilidade: sumário por categoria + relatório).
-7. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
-8. **C3, C4, C5, M2, M4, M5, M7, F5** (refino e robustez restantes).
+4. **M6, M8** (clareza de pendências/reboot).
+5. **M3, F2** (observabilidade: sumário por categoria + relatório).
+6. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
+7. **M2, M4, M5, M7, F5** (refino e robustez restantes).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9); C8, C9.
-- **Próximo:** C6/C7 (bugs de resumo do run real 3.2.2).
-- **Restante:** C3–C7, M2–M8, F2, F5–F8.
+- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9); C3–C9.
+- **Próximo:** M6/M8 (clareza de pendências/reboot) ou M3/F2 (observabilidade).
+- **Restante:** M2–M8, F2, F5–F8.
 
 ---
 
