@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.2.2] — 2026-06-13
+
 ### Adicionado
 
 - **`--config` / `-c`**: inspeção read-only da configuração — caminhos (config,
