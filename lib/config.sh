@@ -57,6 +57,159 @@ load_config() {
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
 
+# ── Inspeção de configuração (--config / -c) ───────────────────────────────────
+# Imprime: caminho do config, status, valores efetivos em uso, listas de ignore,
+# locais de log/cache e um exemplo completo de config. Read-only; sai com 0.
+# Requer load_config() já ter rodado (valores resolvidos/auto-detectados).
+
+# Helper: imprime "  chave = valor" alinhado, valor vazio vira <auto>/<vazio>.
+_cfg_kv() {
+  local key="$1" val="$2" empty_label="${3:-<vazio>}"
+  [[ -z "$val" ]] && val="${C_DIM}${empty_label}${C_RESET}"
+  printf '  %s%-26s%s %s\n' "$C_CYAN" "$key" "$C_RESET" "$val"
+}
+
+# Imprime um exemplo completo de config. Prefere o arquivo config.example ao lado
+# do projeto (instalação modular); cai para um heredoc embutido (standalone).
+print_config_example() {
+  local example=""
+  if [[ -r "${FU_ROOT}/config.example" ]]; then
+    example="${FU_ROOT}/config.example"
+  elif [[ -r "${FU_CONFIG_DIR}/config.example" ]]; then
+    example="${FU_CONFIG_DIR}/config.example"
+  fi
+
+  if [[ -n "$example" ]]; then
+    cat "$example"
+    return 0
+  fi
+
+  # Fallback embutido (build standalone não tem o arquivo ao lado).
+  cat <<'EOF'
+# full-upgrade — configuração do usuário
+# Copie para ~/.config/full-upgrade/config e edite.
+# É um arquivo bash sourced: use sintaxe shell (VAR=valor, arrays, etc).
+
+# ── Idioma ── auto = detecta de $LANG | pt | en
+LANG_OVERRIDE=auto
+
+# ── Tools custom (steps.d/) ── 0 = só steps genéricos | 1 = habilita plugins
+ENABLE_CUSTOM_TOOLS=0
+
+# ── Snapshot pré-upgrade ── auto | snapper | timeshift | none
+SNAPSHOT_TOOL=auto
+SNAPSHOT_MIN_FREE_GIB=2
+
+# ── Backup de configs críticas de /etc ──
+BACKUP_CONFIGS=1
+BACKUP_KEEP=5
+# BACKUP_PATHS="/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/systemd/system"
+
+# ── Mirror refresh ── auto | reflector | rate-mirrors | none
+MIRROR_TOOL=auto
+
+# ── Espaço mínimo livre ──
+MIN_FREE_GIB=2
+MIN_BOOT_FREE_MIB=200
+
+# ── Doctor: limiares de saúde ──
+BTRFS_SCRUB_MAX_DAYS=30
+BOOT_TIME_WARN_S=60
+
+# ── Listas de ignore ──
+FULL_UPGRADE_AUR_IGNORE=""
+FULL_UPGRADE_PIP_USER_IGNORE=""
+
+# ── Overrides de path (vazio = auto-detecta) ──
+# GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
+# COPILOT_BIN="$HOME/.local/bin/copilot"
+# ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
+# DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
+# OPENCLAW_BIN="/usr/local/bin/openclaw"
+
+# ── Auto-atualização do próprio full-upgrade ──
+FULL_UPGRADE_REPO="bernardopg/full-upgrade"
+FULL_UPGRADE_UPDATE_CHANNEL="release"
+EOF
+}
+
+show_config() {
+  local cache_dir="${XDG_CACHE_HOME:-${HOME}/.cache}/system-upgrade"
+
+  printf '%s%sConfiguração do full-upgrade%s\n' "$C_BOLD" "$C_CYAN" "$C_RESET"
+  printf '%s%s%s\n' "$C_BOLD" "$(ui_hr "$HR_LIGHT")" "$C_RESET"
+
+  # ── Caminhos ──
+  printf '%sCaminhos%s\n' "$C_BOLD" "$C_RESET"
+  if [[ -f "$FU_CONFIG_FILE" ]]; then
+    _cfg_kv "config" "$FU_CONFIG_FILE ${C_GREEN}(${SYM_OK} carregado)${C_RESET}"
+  else
+    _cfg_kv "config" "$FU_CONFIG_FILE ${C_YELLOW}(${SYM_SKIP} não existe — usando defaults)${C_RESET}"
+  fi
+  _cfg_kv "steps.d (empacotado)" "${FU_ROOT}/steps.d"
+  _cfg_kv "steps.d (usuário)" "${FU_CONFIG_DIR}/steps.d"
+  _cfg_kv "logs/cache" "$cache_dir"
+  printf '\n'
+
+  # ── Valores efetivos em uso ──
+  printf '%sValores efetivos em uso%s %s(config + defaults + auto-detecção)%s\n' \
+    "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+  _cfg_kv "LANG_OVERRIDE" "$LANG_OVERRIDE"
+  _cfg_kv "ENABLE_CUSTOM_TOOLS" "$ENABLE_CUSTOM_TOOLS"
+  _cfg_kv "SNAPSHOT_TOOL" "$SNAPSHOT_TOOL"
+  _cfg_kv "SNAPSHOT_MIN_FREE_GIB" "$SNAPSHOT_MIN_FREE_GIB"
+  _cfg_kv "MIRROR_TOOL" "$MIRROR_TOOL"
+  _cfg_kv "MIN_FREE_GIB" "$MIN_FREE_GIB"
+  _cfg_kv "MIN_BOOT_FREE_MIB" "$MIN_BOOT_FREE_MIB"
+  _cfg_kv "BACKUP_CONFIGS" "$BACKUP_CONFIGS"
+  _cfg_kv "BACKUP_KEEP" "$BACKUP_KEEP"
+  _cfg_kv "BACKUP_PATHS" "$BACKUP_PATHS"
+  _cfg_kv "BTRFS_SCRUB_MAX_DAYS" "$BTRFS_SCRUB_MAX_DAYS"
+  _cfg_kv "BOOT_TIME_WARN_S" "$BOOT_TIME_WARN_S"
+  _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"
+  _cfg_kv "FULL_UPGRADE_UPDATE_CHANNEL" "$FULL_UPGRADE_UPDATE_CHANNEL"
+  printf '\n'
+
+  # ── Listas de ignore (env + config) ──
+  printf '%sListas de ignore%s\n' "$C_BOLD" "$C_RESET"
+  _cfg_kv "FULL_UPGRADE_AUR_IGNORE" "$FULL_UPGRADE_AUR_IGNORE" "<nenhum>"
+  _cfg_kv "FULL_UPGRADE_PIP_USER_IGNORE" "$FULL_UPGRADE_PIP_USER_IGNORE" "<nenhum>"
+  _cfg_kv "FULL_UPGRADE_SKIP" "$FULL_UPGRADE_SKIP" "<nenhum>"
+  printf '\n'
+
+  # ── Paths de tools (auto-detectados ou via override) ──
+  printf '%sPaths de tools%s %s(vazio = não encontrado/desabilitado)%s\n' \
+    "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+  _cfg_kv "GCLOUD_BIN" "$GCLOUD_BIN" "<não encontrado>"
+  _cfg_kv "COPILOT_BIN" "$COPILOT_BIN" "<não encontrado>"
+  _cfg_kv "ADGUARD_BIN" "$ADGUARD_BIN" "<não encontrado>"
+  _cfg_kv "OPENCLAW_BIN" "$OPENCLAW_BIN" "<não encontrado>"
+  _cfg_kv "DMS_PLUGINS_DIR" "$DMS_PLUGINS_DIR"
+  printf '\n'
+
+  # ── Config de exemplo ──
+  printf '%sConfig de exemplo%s %s(copie para %s)%s\n' \
+    "$C_BOLD" "$C_RESET" "$C_DIM" "$FU_CONFIG_FILE" "$C_RESET"
+  printf '%s%s%s\n' "$C_DIM" "$(ui_hr "$HR_LIGHT")" "$C_RESET"
+  print_config_example
+  printf '%s%s%s\n' "$C_DIM" "$(ui_hr "$HR_LIGHT")" "$C_RESET"
+
+  # ── Dica ──
+  printf '\n'
+  if [[ -f "$FU_CONFIG_FILE" ]]; then
+    printf '%sDica:%s edite %s para sobrescrever os valores acima.\n' \
+      "$C_BOLD" "$C_RESET" "$FU_CONFIG_FILE"
+  else
+    printf '%sDica:%s crie o config copiando o exemplo:\n' "$C_BOLD" "$C_RESET"
+    printf '  mkdir -p %s\n' "$FU_CONFIG_DIR"
+    if [[ -r "${FU_ROOT}/config.example" ]]; then
+      printf '  cp %s %s\n' "${FU_ROOT}/config.example" "$FU_CONFIG_FILE"
+    else
+      printf '  full-upgrade --config-example > %s\n' "$FU_CONFIG_FILE"
+    fi
+  fi
+}
+
 # Step custom só roda se: tools custom habilitados E a função foi carregada de steps.d/.
 # Uso: custom_step_or_skip "Nome do step" funcao_impl
 custom_step_or_skip() {

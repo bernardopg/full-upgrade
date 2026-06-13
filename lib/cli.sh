@@ -30,6 +30,8 @@ Opções:
   --list-steps     Listar catálogo de steps
   --explain-step STEP
                    Explicar um step pelo nome exato
+  -c, --config     Mostrar caminhos, valores efetivos e exemplo de configuração
+  --config-example Imprimir apenas um config de exemplo (pipe-friendly, sem cores)
   --json           Imprimir uma linha JSON de resumo ao final
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
@@ -132,6 +134,12 @@ parse_args() {
             --list-steps)
                 LIST_STEPS=1
             ;;
+            -c|--config)
+                SHOW_CONFIG=1
+            ;;
+            --config-example)
+                SHOW_CONFIG=2
+            ;;
             --json)
                 JSON_SUMMARY=1
             ;;
@@ -189,6 +197,15 @@ apply_mode_and_early_exits() {
 
     if (( LIST_STEPS )); then
         print_step_catalog
+        exit 0
+    fi
+
+    if (( SHOW_CONFIG == 2 )); then
+        print_config_example
+        exit 0
+    fi
+    if (( SHOW_CONFIG == 1 )); then
+        show_config
         exit 0
     fi
     
