@@ -21,6 +21,8 @@ bats tests/core.bats          # single file
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps
 ./full-upgrade.sh --explain-step "Doctor: saúde de rede"
+./full-upgrade.sh --config
+./full-upgrade.sh --config-example
 XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 
 # Build single-file distributable -> dist/full-upgrade-standalone.sh

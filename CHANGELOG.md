@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`--config` / `-c`**: inspeção read-only da configuração — caminhos (config,
+  `steps.d/` empacotado e do usuário, logs/cache), valores efetivos em uso
+  (config + defaults + auto-detecção), listas de ignore, paths de tools
+  detectados e um exemplo completo de configuração.
+- **`--config-example`**: imprime apenas o config de exemplo sem cores
+  (pipe-friendly), para criar o arquivo via `full-upgrade --config-example >
+  ~/.config/full-upgrade/config`. Usa `config.example` ao lado do projeto quando
+  disponível e cai para um exemplo embutido no build standalone.
+
 ## [3.1.1] — 2026-06-10
 
 ### Corrigido

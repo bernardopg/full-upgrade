@@ -142,6 +142,7 @@ full-upgrade --mode repair
 full-upgrade --dry-run
 full-upgrade --list-steps
 full-upgrade --explain-step "Doctor: saúde de rede"
+full-upgrade --config
 ```
 
 Comandos úteis no dia a dia:
@@ -158,6 +159,8 @@ Comandos úteis no dia a dia:
 | `full-upgrade --skip-category slow` | Pular steps marcados com uma tag específica. |
 | `full-upgrade --skip "Atualizar ghcup"` | Pular um step pelo nome exato. |
 | `full-upgrade --json` | Imprimir uma linha JSON de resumo ao final. |
+| `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. |
+| `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
 
@@ -306,6 +309,23 @@ Funciona sem configuração. Para personalizar:
 ```bash
 mkdir -p ~/.config/full-upgrade
 cp config.example ~/.config/full-upgrade/config
+$EDITOR ~/.config/full-upgrade/config
+```
+
+Para inspecionar o que está em uso (caminhos, valores efetivos após
+config + defaults + auto-detecção, listas de ignore e paths de tools), além de
+um exemplo completo de configuração:
+
+```bash
+full-upgrade --config
+```
+
+Sem o arquivo ao lado (ex.: instalação via standalone), dá para criar o config a
+partir do exemplo embutido, sem cores:
+
+```bash
+mkdir -p ~/.config/full-upgrade
+full-upgrade --config-example > ~/.config/full-upgrade/config
 $EDITOR ~/.config/full-upgrade/config
 ```
 
