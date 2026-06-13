@@ -29,12 +29,14 @@ doctor_reboot_pending() {
   fi
 
   local status=0
+  local -a reboot_reasons=()
 
   if [[ "$running" == "$expected" ]]; then
     log "  Kernel em execução corresponde ao pacote instalado: ${running}."
   else
     log "  Reboot pendente: kernel em execução=${running}; pacote linux instalado=${expected}."
-    log "  Reinicie para usar o kernel instalado atual."
+    remediation "systemctl reboot"
+    reboot_reasons+=("kernel ${running} → ${expected}")
     status="$RC_TODO"
   fi
 
@@ -48,6 +50,8 @@ doctor_reboot_pending() {
         log "  systemd em execução ok: ${sd_running}."
       else
         log "  systemd em execução=${sd_running}, instalado=${sd_installed} — reboot recomendado."
+        remediation "systemctl reboot"
+        reboot_reasons+=("systemd ${sd_running} → ${sd_installed}")
         (( status == 0 )) && status="$RC_TODO"
       fi
     fi
@@ -70,6 +74,10 @@ doctor_reboot_pending() {
     else
       log "  Microcode aplicado: ${ucode_sys} (pacote não detectado)."
     fi
+  fi
+
+  if (( ${#reboot_reasons[@]} > 0 )); then
+    STEP_REASON="${reboot_reasons[*]}"
   fi
 
   return "$status"

@@ -106,7 +106,7 @@ print_banner() {
     log_always "${C_YELLOW}  [NO-REPAIR] Reparos mutáveis serão pulados.${C_RESET}"
   fi
   if (( NO_CLEANUP )); then
-    log_always "${C_YELLOW}  [NO-CLEANUP] Limpeza de cache/órfãos/symlinks/journal será pulada.${C_RESET}"
+    log_always "${C_YELLOW}  [NO-CLEANUP] Limpeza de cache/snapshots/órfãos/symlinks/journal será pulada.${C_RESET}"
   fi
   if (( DEVEL_UPDATE )); then
     log_always "${C_CYAN}  [--devel] Pacotes AUR -git/-svn incluídos no update.${C_RESET}"
@@ -193,6 +193,68 @@ _category_label() {
   esac
 }
 
+summary_group_total_seconds() {
+  local groups="$1" i total=0
+  for i in "${!STEP_RESULTS[@]}"; do
+    [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
+    summary_category_in_group_list "${STEP_CATEGORIES[$i]:-}" "$groups" || continue
+    total=$(( total + ${STEP_TIMES[$i]:-0} ))
+  done
+  printf '%s' "$total"
+}
+
+summary_slowest_steps() {
+  local limit="${1:-3}" i
+  for i in "${!STEP_NAMES[@]}"; do
+    [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
+    printf '%s\t%s\t%s\n' "${STEP_TIMES[$i]:-0}" "${STEP_NAMES[$i]}" "${STEP_RESULTS[$i]}"
+  done | sort -rn | head -n "$limit"
+}
+
+summary_category_totals_json() {
+  local first=1 group_label group_cats i status total ok warn todo fail skip
+  printf '{'
+  while IFS='|' read -r group_label group_cats; do
+    total=0; ok=0; warn=0; todo=0; fail=0; skip=0
+    for i in "${!STEP_RESULTS[@]}"; do
+      summary_category_in_group_list "${STEP_CATEGORIES[$i]:-}" "$group_cats" || continue
+      status="${STEP_RESULTS[$i]}"
+      case "$status" in
+        ok) ((ok++)); total=$(( total + ${STEP_TIMES[$i]:-0} )) ;;
+        warn) ((warn++)); total=$(( total + ${STEP_TIMES[$i]:-0} )) ;;
+        todo) ((todo++)); total=$(( total + ${STEP_TIMES[$i]:-0} )) ;;
+        fail) ((fail++)); total=$(( total + ${STEP_TIMES[$i]:-0} )) ;;
+        skip) ((skip++)) ;;
+      esac
+    done
+    (( ok + warn + todo + fail + skip == 0 )) && continue
+    (( first == 0 )) && printf ','
+    first=0
+    printf '%s:{"duration_seconds":%s,"ok":%s,"warn":%s,"todo":%s,"fail":%s,"skip":%s}' \
+      "$(json_escape "$group_label")" "$total" "$ok" "$warn" "$todo" "$fail" "$skip"
+  done < <(summary_group_specs)
+  printf '}'
+}
+
+summary_slowest_steps_json() {
+  local first=1 line dur name status
+  printf '['
+  while IFS=$'\t' read -r dur name status; do
+    [[ -n "$name" ]] || continue
+    (( first == 0 )) && printf ','
+    first=0
+    printf '{"step":%s,"status":%s,"duration_seconds":%s}' \
+      "$(json_escape "$name")" "$(json_escape "$status")" "${dur:-0}"
+  done < <(summary_slowest_steps 3)
+  printf ']'
+}
+
+reboot_recommendation_from_reason() {
+  local reason="$1"
+  [[ -n "${reason//[[:space:]]/}" ]] || return 1
+  printf 'Reboot recomendado: %s\n' "$reason"
+}
+
 # ── Resumo agrupado por categoria ───────────────────────────────────────────────
 print_summary() {
   local total_dur=$((SECONDS - TOTAL_START))
@@ -212,11 +274,13 @@ print_summary() {
   local group_label group_cats
   while IFS='|' read -r group_label group_cats; do
     local printed_header=0
+    local group_total
+    group_total="$(summary_group_total_seconds "$group_cats")"
     for i in "${!STEP_NAMES[@]}"; do
       summary_category_in_group_list "${STEP_CATEGORIES[$i]:-}" "$group_cats" || continue
       [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
       if (( printed_header == 0 )); then
-        log_always "  ${C_BOLD}${C_BLUE}${group_label}${C_RESET}"
+        log_always "  ${C_BOLD}${C_BLUE}${group_label}${C_RESET} ${C_DIM}($(elapsed "$group_total"))${C_RESET}"
         printed_header=1
       fi
       local sym color dur time_color symcolor
@@ -251,6 +315,18 @@ print_summary() {
 
   log_always "${C_BOLD}$(ui_hr "$HR_HEAVY")${C_RESET}"
   log_always "  Total: ${C_GREEN}${ok} ok${C_RESET}, ${C_YELLOW}${warn} warn${C_RESET}, ${C_CYAN}${todo} todo${C_RESET}, ${C_RED}${fail} fail${C_RESET}, ${C_YELLOW}${skip} skip${C_RESET} em ${C_BOLD}$(elapsed "$total_dur")${C_RESET}"
+  if [[ -n "${REBOOT_RECOMMENDATION:-}" ]]; then
+    log_always "  ${C_YELLOW}${C_BOLD}$(reboot_recommendation_from_reason "$REBOOT_RECOMMENDATION")${C_RESET}"
+  fi
+  local slow_line slow_dur slow_name slow_status printed_slow=0
+  while IFS=$'\t' read -r slow_dur slow_name slow_status; do
+    [[ -n "$slow_name" ]] || continue
+    if (( printed_slow == 0 )); then
+      log_always "  ${C_BOLD}Top 3 mais lentos:${C_RESET}"
+      printed_slow=1
+    fi
+    log_always "    ${C_DIM}$(elapsed "$slow_dur")${C_RESET}  ${slow_name} (${slow_status})"
+  done < <(summary_slowest_steps 3)
   if (( todo > 0 )); then
     log_always "  ${C_CYAN}${C_BOLD}Ação necessária: ${todo} item(ns) precisam de decisão ou ação manual.${C_RESET}"
   fi

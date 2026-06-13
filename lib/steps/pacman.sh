@@ -188,7 +188,7 @@ update_system_aur() {
           log "  ${C_YELLOW}Falha isolada em ${#_failed_aur[@]} pacote(s) AUR: ${_failed_aur[*]}${C_RESET}"
         fi
         log "  Sistema (repos oficiais) atualizado; falha restrita ao AUR — marcando como ação manual, não erro fatal."
-        log "  Resolva manualmente: paru -S ${_failed_aur[*]:-<pacote>}  (ou aguarde o mantenedor corrigir o PKGBUILD)"
+        remediation "paru -S ${_failed_aur[*]:-<pacote>}  # ou aguarde o mantenedor corrigir o PKGBUILD"
         STEP_REASON="${#_failed_aur[@]:-1} pacote(s) AUR falharam build/download (sistema OK)"
         return "$RC_TODO"
       fi
@@ -293,7 +293,7 @@ check_pacnew_files() {
   for f in "${pacnew[@]}"; do
     log "    ${f}"
   done
-  log "  Execute: sudo pacdiff  (ou use DIFFPROG=meld pacdiff)"
+  remediation "sudo pacdiff  # ou DIFFPROG=meld sudo pacdiff"
   STEP_REASON="${#pacnew[@]} arquivo(s) .pacnew/.pacsave pendente(s) de merge"
   return "$RC_TODO"
 }

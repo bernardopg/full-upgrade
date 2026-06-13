@@ -91,10 +91,15 @@ run_logged() {
   if (( QUIET )); then
     "$@" > >(_strip_ansi >> "$LOG_FILE") 2>&1
   else
-    # Terminal mantém cores; arquivo recebe versão sem ANSI.
-    "$@" 2>&1 | tee >(_strip_ansi >> "$LOG_FILE")
+    # Terminal recebe saída com ruído de build allow-listed colapsado; arquivo
+    # mantém a saída bruta sem ANSI para auditoria completa.
+    "$@" 2>&1 | tee >(_strip_ansi >> "$LOG_FILE") | build_warning_filter
   fi
   return ${PIPESTATUS[0]}
+}
+
+remediation() {
+  printf '  Remediação: %s\n' "$*"
 }
 
 # Executa comando de rede; se falhar por DNS/conectividade retorna RC_WARN.
@@ -154,6 +159,60 @@ aur_ignore_args() {
 }
 
 # ── Parsers puros (sem I/O; testáveis via bats) ────────────────────────────────
+
+# Normaliza uma versão "vX.Y.Z" ou "X.Y.Z[-N-gHASH]" para "X.Y.Z".
+normalize_version() {
+  local v="$1"
+  v="${v#v}"
+  v="${v%%-*}"
+  printf '%s' "$v"
+}
+
+# Compara duas versões semver. Imprime: 0 (iguais), 1 (a > b), 2 (a < b).
+version_compare() {
+  local a b
+  a="$(normalize_version "$1")"
+  b="$(normalize_version "$2")"
+
+  [[ "$a" == "$b" ]] && { printf '0'; return 0; }
+
+  local -a pa pb
+  IFS='.' read -ra pa <<< "$a"
+  IFS='.' read -ra pb <<< "$b"
+
+  local i max=${#pa[@]}
+  (( ${#pb[@]} > max )) && max=${#pb[@]}
+
+  for (( i = 0; i < max; i++ )); do
+    local na="${pa[i]:-0}" nb="${pb[i]:-0}"
+    [[ "$na" =~ ^[0-9]+$ ]] || na=0
+    [[ "$nb" =~ ^[0-9]+$ ]] || nb=0
+    if (( na > nb )); then printf '1'; return 0; fi
+    if (( na < nb )); then printf '2'; return 0; fi
+  done
+  printf '0'
+}
+
+version_is_outdated() {
+  [[ "$(version_compare "$1" "$2")" == "2" ]]
+}
+
+build_warning_filter() {
+  local suppressed=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      *SetuptoolsDeprecationWarning*|*'setup.py install is deprecated'*|*'already initialized constant RDoc::'*)
+        ((suppressed++))
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done
+  if (( suppressed > 0 )); then
+    printf '  %s warning(s) de build suprimido(s); veja o log completo.\n' "$suppressed"
+  fi
+}
 
 # Lê a saída crua do `checkservices` em stdin e emite, uma por linha, apenas as
 # units systemd que ele recomenda reiniciar (extraídas de "systemctl restart
@@ -372,6 +431,9 @@ step_todo() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("todo")
   STEP_TIMES+=("$dur")
+  if [[ "${STEP_NAMES[-1]}" == "Doctor: reboot pendente" && -n "${STEP_REASON//[[:space:]]/}" ]]; then
+    REBOOT_RECOMMENDATION="$STEP_REASON"
+  fi
   write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   log "${C_CYAN}${SYM_TODO}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }

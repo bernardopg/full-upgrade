@@ -39,17 +39,139 @@ cleanup_journal() {
 }
 
 
+snapshot_keep_count() {
+  local keep="${SNAPSHOT_KEEP:-5}"
+  [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=5
+  printf '%s' "$keep"
+}
+
+
+snapper_full_upgrade_ids_to_delete() {
+  local keep="$1"
+  awk -F'|' -v keep="$keep" '
+    /full-upgrade pré-upgrade/ && $1 ~ /^[0-9]+$/ { ids[++n] = $1 }
+    END {
+      limit = n - keep
+      for (i = 1; i <= limit; i++) print ids[i]
+    }
+  '
+}
+
+
+timeshift_full_upgrade_names_to_delete() {
+  local keep="$1"
+  awk -v keep="$keep" '
+    /full-upgrade pré-upgrade/ { names[++n] = $1 }
+    END {
+      limit = n - keep
+      for (i = 1; i <= limit; i++) print names[i]
+    }
+  '
+}
+
+
+cleanup_old_snapshots() {
+  local tool="${SNAPSHOT_TOOL:-auto}" keep
+  keep="$(snapshot_keep_count)"
+  [[ "$tool" == "none" ]] && { log "  Limpeza de snapshots desabilitada (SNAPSHOT_TOOL=none)."; return 0; }
+
+  if [[ "$tool" == "auto" ]]; then
+    if has snapper; then tool="snapper"
+    elif has timeshift; then tool="timeshift"
+    else log "  Nenhuma ferramenta de snapshot (snapper/timeshift) instalada; pulando limpeza."; return 0; fi
+  fi
+
+  local -a victims=()
+  case "$tool" in
+    snapper)
+      has snapper || { log "  snapper não instalado; limpeza de snapshots pulada."; return 0; }
+      mapfile -t victims < <(
+        snapper -c root list --csvout 2>/dev/null \
+          | awk -F, 'NR > 1 { gsub(/"/, "", $1); gsub(/"/, "", $6); print $1 "|" $6 }' \
+          | snapper_full_upgrade_ids_to_delete "$keep"
+      )
+      if (( ${#victims[@]} == 0 )); then
+        log "  Nenhum snapshot snapper full-upgrade antigo para remover (mantendo ${keep})."
+        return 0
+      fi
+      log "  Snapshots snapper full-upgrade antigos a remover: ${victims[*]} (mantendo ${keep})."
+      if (( ASSUME_YES == 0 )); then
+        if [[ -t 0 ]]; then
+          printf '%b' "${C_YELLOW}  Remover estes snapshots snapper? [s/N] ${C_RESET}"
+          local answer
+          read -r answer
+          case "$answer" in [sS][iI][mM]|[sS]) ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
+        else
+          log "  Execução não interativa sem --yes; pulando limpeza de snapshots."
+          remediation "full-upgrade --yes --only cleanup"
+          return 0
+        fi
+      fi
+      local id
+      for id in "${victims[@]}"; do
+        run_logged sudo snapper -c root delete "$id" || return $?
+      done
+      ;;
+    timeshift)
+      has timeshift || { log "  timeshift não instalado; limpeza de snapshots pulada."; return 0; }
+      mapfile -t victims < <(timeshift --list 2>/dev/null | timeshift_full_upgrade_names_to_delete "$keep")
+      if (( ${#victims[@]} == 0 )); then
+        log "  Nenhum snapshot timeshift full-upgrade antigo para remover (mantendo ${keep})."
+        return 0
+      fi
+      log "  Snapshots timeshift full-upgrade antigos a remover: ${victims[*]} (mantendo ${keep})."
+      if (( ASSUME_YES == 0 )); then
+        if [[ -t 0 ]]; then
+          printf '%b' "${C_YELLOW}  Remover estes snapshots timeshift? [s/N] ${C_RESET}"
+          local answer
+          read -r answer
+          case "$answer" in [sS][iI][mM]|[sS]) ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
+        else
+          log "  Execução não interativa sem --yes; pulando limpeza de snapshots."
+          remediation "full-upgrade --yes --only cleanup"
+          return 0
+        fi
+      fi
+      local snap
+      for snap in "${victims[@]}"; do
+        run_logged sudo timeshift --delete --snapshot "$snap" || return $?
+      done
+      ;;
+    *)
+      log "  SNAPSHOT_TOOL inválido para limpeza: ${tool}"
+      remediation "ajuste SNAPSHOT_TOOL=auto|snapper|timeshift|none em ${FU_CONFIG_FILE}"
+      return "$RC_WARN"
+      ;;
+  esac
+}
+
+
+final_pending_reason() {
+  local official="$1" aur="$2"
+  if (( official > 0 )); then
+    printf '%s pacote(s) oficial(is) pendente(s) após sincronização da base; rode sudo pacman -Syu' "$official"
+  elif (( aur > 0 )); then
+    printf '%s pacote(s) AUR pendente(s); rode paru -Syu' "$aur"
+  else
+    printf 'nenhuma atualização pendente'
+  fi
+}
+
+
 final_check_pending() {
   local pending=0
   local out
   local filtered
+  local official_count=0 aur_count=0
 
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
     if [[ -n "${out//[[:space:]]/}" ]]; then
       pending=1
+      official_count="$(printf '%s\n' "$out" | grep -c '[^[:space:]]' || true)"
       log "  Pendencias em repositorios oficiais:"
       printf '%s\n' "$out" | tee >(_strip_ansi >> "$LOG_FILE")
+      remediation "sudo pacman -Syu"
     fi
   fi
 
@@ -75,8 +197,14 @@ final_check_pending() {
 
     if [[ -n "${filtered//[[:space:]]/}" ]]; then
       pending=1
+      aur_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
       log "  Pendencias no AUR:"
       printf '%s\n' "$filtered" | tee >(_strip_ansi >> "$LOG_FILE")
+      if has paru; then
+        remediation "paru -Syu"
+      elif has yay; then
+        remediation "yay -Syu"
+      fi
     elif [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
       log "  Pendencias restantes apenas em pacotes AUR ignorados: ${FULL_UPGRADE_AUR_IGNORE}"
     fi
@@ -87,7 +215,10 @@ final_check_pending() {
     return 0
   fi
 
-  STEP_REASON="atualizações pendentes em pacman/AUR"
+  if (( official_count > 0 )); then
+    log "  Motivo provável: a base de pacotes foi sincronizada depois do upgrade principal."
+  fi
+  STEP_REASON="$(final_pending_reason "$official_count" "$aur_count")"
   return "$RC_TODO"
 }
 

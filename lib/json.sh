@@ -94,10 +94,13 @@ summary_json_line() {
   local skip="$5"
   local duration="$6"
 
-  printf '{"event":"summary","run_id":%s,"timestamp":%s,"ok":%s,"warn":%s,"todo":%s,"fail":%s,"skip":%s,"duration_seconds":%s,"has_fail":%s,"log_file":%s,"jsonl_file":%s}' \
+  printf '{"event":"summary","run_id":%s,"timestamp":%s,"ok":%s,"warn":%s,"todo":%s,"fail":%s,"skip":%s,"duration_seconds":%s,"has_fail":%s,"category_totals":%s,"slowest_steps":%s,"reboot_recommendation":%s,"log_file":%s,"jsonl_file":%s}' \
     "$(json_escape "$RUN_ID")" \
     "$(json_escape "$(date -Is)")" \
     "$ok" "$warn" "$todo" "$fail" "$skip" "$duration" "$HAS_FAIL" \
+    "$(summary_category_totals_json)" \
+    "$(summary_slowest_steps_json)" \
+    "$(json_escape "${REBOOT_RECOMMENDATION:-}")" \
     "$(json_escape "$LOG_FILE")" \
     "$(json_escape "$JSONL_FILE")"
 }

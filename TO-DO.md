@@ -159,74 +159,63 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 - **Aceite:** espaço baixo → `RC_WARN` com motivo, não cria snapshot; espaço OK
   → comportamento atual.
 
-### M2 — 🟡 ☐ Cleanup de snapshots antigos (retenção)
+### M2 — 🟡 ☑ Cleanup de snapshots antigos (retenção)
+> **Concluído.** Novo step `Limpar snapshots full-upgrade antigos`, config
+> `SNAPSHOT_KEEP` (default 5), suporte conservador a snapper/timeshift e testes
+> para retenção sem tocar snapshots de outras origens.
 - **Arquivos:** `lib/steps/cleanup.sh`, `lib/catalog.sh`, `lib/main.sh`
-- **O quê:** novo step opcional que remove snapshots full-upgrade antigos
-  (snapper/timeshift) mantendo os N mais recentes (`SNAPSHOT_KEEP`, default 5),
-  análogo ao `paccache -k 2`. Gate interativo/`--yes`.
-- **Aceite:** mantém só os N mais novos criados pelo script; dry-run não muta;
-  não toca snapshots de outras origens.
+- **Validação:** `tests/m_improvements.bats` cobre `snapshot_keep_count` e
+  seleção de snapshots antigos pelo marcador `full-upgrade pré-upgrade`.
 
-### M3 — 🟡 ☐ Sumário agrupado por categoria com tempos
+### M3 — 🟡 ☑ Sumário agrupado por categoria com tempos
+> **Concluído.** Resumo mostra tempo total por grupo, top 3 mais lentos e JSON
+> inclui `category_totals`, `slowest_steps` e `reboot_recommendation`.
 - **Arquivos:** `lib/main.sh` (finalize), `lib/json.sh`
-- **O quê:** no resumo final, agrupar steps por categoria com total de tempo por
-  grupo (já existe `STEP_CATEGORIES`); destacar os 3 steps mais lentos.
-- **Aceite:** resumo mostra blocos por categoria + "top 3 mais lentos";
-  `--json` inclui agregação por categoria.
+- **Validação:** `tests/m_improvements.bats` cobre soma por grupo, top 3 e JSON.
 
-### M4 — 🟡 ☐ Padronizar normalização de versão (reuso do semver)
+### M4 — 🟡 ☑ Padronizar normalização de versão (reuso do semver)
+> **Concluído.** `normalize_version`, `version_compare` e `version_is_outdated`
+> foram promovidos para `lib/core.sh`; self-update/npm/corepack/pnpm usam o
+> helper comum.
 - **Arquivos:** `lib/core.sh`, `lib/steps/lang_*.sh`
-- **O quê:** vários steps fazem parsing ad-hoc de "update available". Centralizar
-  num helper puro reutilizável (já há `normalize`/`compare` em self_update);
-  promover para `core.sh` e reusar onde houver checagem de versão.
-- **Aceite:** ≥3 steps passam a usar o helper comum; testes bats cobrem o helper
-  promovido; sem regressão de comportamento.
+- **Validação:** `tests/m_improvements.bats` cobre normalização, comparação e
+  detecção de versão desatualizada; testes antigos de self-update continuam verdes.
 
-### M5 — 🟢 ☐ Mensagens de remediação acionáveis e consistentes
+### M5 — 🟢 ☑ Mensagens de remediação acionáveis e consistentes
+> **Concluído.** Novo helper `remediation` padroniza linhas `Remediação:` e foi
+> aplicado em pendências finais, reboot, cargo CVEs, pacnew, npm/pnpm e pipx.
 - **Arquivos:** `lib/steps/*.sh`
-- **O quê:** padronizar avisos `todo`/`warn` para sempre incluir o comando exato
-  de remediação (padrão "Remediação: <cmd>"), como já feito em cargo/pipx.
-- **Aceite:** todo `RC_TODO`/`RC_WARN` com ação manual imprime uma linha
-  `Remediação:` reproduzível.
+- **Validação:** `tests/m_improvements.bats` cobre o formato do helper.
 
-### M6 — 🟡 ☐ Resumo destaca pendências oficiais não aplicadas
+### M6 — 🟡 ☑ Resumo destaca pendências oficiais não aplicadas
 > **Achado no run real 3.2.2.** "Verificação final de pendências" (`RC_TODO`)
 > listou 6 pacotes oficiais com update disponível (inkscape, libreoffice-fresh,
 > poppler*, python-tqdm) que **não foram aplicados** no mesmo run — a base de
 > dados foi sincronizada por outro step depois do `-Syu`.
+> **Concluído.** `final_check_pending` conta oficiais/AUR separadamente, registra
+> motivo provável e imprime `Remediação: sudo pacman -Syu`/`paru -Syu`.
 - **Arquivos:** `lib/steps/coverage.sh` (verificação final), `lib/main.sh`
-- **O quê:** quando a verificação final detectar pendências oficiais, deixar
-  claro no resumo/`todo` por que não foram aplicadas (db sincronizado após o
-  upgrade) e oferecer remediação direta (`sudo pacman -Syu`). Idealmente,
-  reordenar para que a verificação final rode antes de qualquer `-Sy` posterior,
-  ou re-rodar o upgrade se a checagem encontrar pendências triviais.
-- **Aceite:** pendências oficiais no fim de um run aparecem com motivo +
-  remediação; em ambiente estável a verificação final não acusa pendências logo
-  após o upgrade.
+- **Validação:** `tests/m_improvements.bats` cobre `final_pending_reason`.
 
-### M7 — 🟢 ☐ Suprimir ruído de build no log (setuptools/rdoc warnings)
+### M7 — 🟢 ☑ Suprimir ruído de build no log (setuptools/rdoc warnings)
 > **Achado no run real 3.2.2.** Builds AUR (zapzap-git em run anterior; rdoc no
 > empacotamento do próprio full-upgrade) despejam dezenas de linhas de
 > `SetuptoolsDeprecationWarning` e `already initialized constant RDoc::...` no
 > log, afogando sinais úteis.
+> **Concluído.** `run_logged` mantém log bruto completo, mas filtra no terminal
+> apenas warnings allow-listed e imprime contador de supressão.
 - **Arquivos:** `lib/core.sh` (`run_logged`/helpers de captura), steps de build
-- **O quê:** filtrar/colapsar classes conhecidas de warning de build no output
-  ao terminal (mantendo o log bruto completo em arquivo), com um contador
-  ("N warnings de build suprimidos; ver log"). Não alterar o que vai para o
-  `.log`/`.jsonl`.
-- **Aceite:** terminal mostra resumo compacto; `latest.log` mantém o output
-  bruto; nenhuma supressão de erros reais (apenas warnings allow-listed).
+- **Validação:** `tests/m_improvements.bats` cobre supressão allow-listed e
+  preservação de erro/linha normal.
 
-### M8 — 🟢 ☐ Sugerir reboot ao final quando kernel/microcode mudou
+### M8 — 🟢 ☑ Sugerir reboot ao final quando kernel/microcode mudou
 > **Achado no run real 3.2.2.** "Doctor: reboot pendente" detectou kernel em
 > execução `7.0.11` vs instalado `7.0.12` (`RC_TODO`), mas isso só aparece no
 > meio do bloco Doctor; fácil de perder num run de 75 steps.
+> **Concluído.** `doctor_reboot_pending` define `STEP_REASON` com kernel/systemd
+> pendente e o rodapé do resumo destaca `Reboot recomendado: ...`.
 - **Arquivos:** `lib/main.sh` (`finalize`/`print_summary`), `lib/steps/doctor.sh`
-- **O quê:** quando houver reboot pendente (kernel/microcode/systemd), elevar
-  isso a um aviso de destaque no rodapé do resumo (linha própria, cor), além do
-  item Doctor. Reaproveitar a detecção existente.
-- **Aceite:** com kernel novo instalado e não rebootado, o rodapé do resumo
-  mostra "Reboot recomendado: kernel X→Y"; sem pendência, nada é impresso.
+- **Validação:** `tests/m_improvements.bats` cobre formatação do rodapé.
 
 ---
 
@@ -327,19 +316,19 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
 2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
 3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
-4. **M6, M8** (clareza de pendências/reboot).
-5. **M3, F2** (observabilidade: sumário por categoria + relatório).
+4. ~~**M2–M8**~~ ✅ (retenção, observabilidade, remediações, ruído de build e reboot destacado).
+5. **F2** (relatório Markdown do run).
 6. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
-7. **M2, M4, M5, M7, F5** (refino e robustez restantes).
+7. **F5** (política fail-fast/continue-on-fail).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1, M1, F1 (PR #6); C2 (PR #8); F3, F4 (PR #9); C3–C9.
-- **Próximo:** M6/M8 (clareza de pendências/reboot) ou M3/F2 (observabilidade).
-- **Restante:** M2–M8, F2, F5–F8.
+- **Concluído:** C1–C9; M1–M8; F1, F3, F4.
+- **Próximo:** F2 (relatório Markdown) ou F6/F8/F7 (auditoria/histórico/CVEs).
+- **Restante:** F2, F5–F8.
 
 ---
 

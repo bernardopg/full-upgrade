@@ -229,7 +229,7 @@ Status possíveis no resumo:
 | --- | --- |
 | Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
 | Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup validado da mirrorlist. |
-| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos e `.pacnew/.pacsave`. |
+| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos, snapshots antigos do próprio script e `.pacnew/.pacsave`. |
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
 | Firmware e boot | `fwupdmgr` e `bootctl`. |
@@ -249,6 +249,9 @@ Ferramentas ausentes não quebram a execução normal: o step é marcado como
   `pacman -Qdtq` após cada remoção para capturar dependências que só viram
   órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
   (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
+- **Retenção de snapshots:** `Limpar snapshots full-upgrade antigos` remove
+  apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
+  `SNAPSHOT_KEEP` mais recentes. Não toca snapshots manuais/de outras origens.
 - **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
   restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
   comentado não sobrescreve a mirrorlist corrente.
@@ -262,7 +265,9 @@ Ferramentas ausentes não quebram a execução normal: o step é marcado como
   step de Poetry.
 - **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
   `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
-  compartilham um único bloco **Shell / Editor**.
+  compartilham um único bloco **Shell / Editor**. Cada grupo mostra tempo total,
+  o rodapé destaca o top 3 mais lento e `--json` inclui `category_totals` e
+  `slowest_steps`.
 
 ## Doctor
 
@@ -313,6 +318,9 @@ JSONL registra eventos de run e step. Campos importantes:
 | `duration_seconds` | Duração do step ou do run. |
 | `exit_code` | Código retornado pela função do step. |
 | `category`, `tags`, `effect`, `timeout` | Metadados vindos do catálogo. |
+| `category_totals` | No evento `summary`, totais por grupo do resumo (`ok/warn/todo/fail/skip` + tempo). |
+| `slowest_steps` | No evento `summary`, top 3 steps mais lentos não pulados. |
+| `reboot_recommendation` | No evento `summary`, motivo de reboot destacado quando houver. |
 | `log_file`, `jsonl_file` | Caminhos dos artefatos da execução. |
 
 Exemplos:
@@ -358,6 +366,7 @@ Principais chaves:
 | `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
 | `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
 | `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
+| `SNAPSHOT_KEEP` | `5` | Quantos snapshots `full-upgrade pré-upgrade` manter na limpeza automática. |
 | `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
 | `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
 | `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |

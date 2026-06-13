@@ -32,7 +32,7 @@ npm_audit_prefix() {
       ;;
     /usr|/usr/local)
       log "  npm: prefixo global em ${prefix} — pode conflitar com pacotes do pacman."
-      log "  Configure: npm config set prefix ~/.local (ou use um gerenciador como volta/fnm)."
+      remediation "npm config set prefix ~/.local"
       return "$RC_WARN"
       ;;
     "$HOME"*|/home/*)
@@ -171,7 +171,7 @@ update_npm_self() {
     log "  npm: não foi possível verificar versão mais recente."
     return 0
   fi
-  if [[ "$installed" == "$latest" ]]; then
+  if ! version_is_outdated "$installed" "$latest"; then
     log "  npm ${installed} já na versão mais recente."
     return 0
   fi
@@ -262,7 +262,7 @@ for name in sorted(data.keys()):
 
   if (( ${#skipped[@]} > 0 )); then
     log "  Pacotes npm linkados (requerem atualização manual): ${skipped[*]}"
-    log "  Para cada um: npm install -g <pkg>@latest (ou gerencie via workspace)"
+    remediation "npm install -g <pkg>@latest  # ou gerencie via workspace"
     (( ${#failed[@]} == 0 )) && return "$RC_TODO"
   fi
 
@@ -284,7 +284,7 @@ update_corepack() {
     log "  corepack: não foi possível verificar versão mais recente."
     return 0
   fi
-  if [[ "$installed" == "$latest" ]]; then
+  if ! version_is_outdated "$installed" "$latest"; then
     log "  corepack ${installed} já na versão mais recente."
     return 0
   fi
@@ -314,6 +314,11 @@ update_pnpm_self() {
   # "newer than latest" = pnpm à frente do registry — não é falha
   if printf '%s\n' "$output" | grep -q 'newer than'; then
     log "  pnpm ${installed} (à frente do registry latest=${latest}) — ok."
+    return 0
+  fi
+
+  if ! version_is_outdated "$installed" "$latest"; then
+    log "  pnpm ${installed} já na versão mais recente."
     return 0
   fi
 
@@ -362,6 +367,7 @@ for name, info in deps.items():
     fi
     if grep -q 'ENOENT.*package\.json' <<<"$output"; then
       log "  pnpm global: package.json não encontrado em dep local. Diagnóstico: pnpm list -g"
+      remediation "pnpm list -g"
       return 1
     fi
     return "$rc"

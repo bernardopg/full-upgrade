@@ -92,12 +92,13 @@ audit_cargo_bins() {
   log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com CVEs conhecidas: ${vuln_bins[*]}${C_RESET}"
   if (( ${#cargo_bins[@]} > 0 )); then
     log "    • Instalados via cargo (${#cargo_bins[@]}): ${cargo_bins[*]}"
-    log "      Atualize: cargo install-update -a"
+    remediation "cargo install-update -a"
   fi
   if (( ${#toolchain_bins[@]} > 0 )); then
     log "    • Toolchain/rustup (${#toolchain_bins[@]}): ${toolchain_bins[*]}"
-    log "      'cargo install-update' não corrige estes. Atualize: rustup self update && rustup update"
-    log "      (se gerenciados pelo pacman: sudo pacman -Syu rust rustup)"
+    log "      'cargo install-update' não corrige estes."
+    remediation "rustup self update && rustup update"
+    remediation "sudo pacman -Syu rust rustup  # se gerenciados pelo pacman"
   fi
   STEP_REASON="${vuln_count} binário(s) com CVE (${#toolchain_bins[@]} toolchain, ${#cargo_bins[@]} cargo)"
   return "$RC_WARN"

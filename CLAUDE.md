@@ -32,7 +32,7 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 ./install.sh
 ```
 
-Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, and summary grouping) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
+Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, snapshot retention, summary category totals/top slow steps, shared version compare, final pending reasons, build-warning filtering, and reboot footer formatting) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
 
 ## Architecture
 

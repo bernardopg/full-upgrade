@@ -7,38 +7,14 @@
 # Normaliza uma versão "vX.Y.Z" ou "X.Y.Z[-N-gHASH]" para "X.Y.Z".
 # git describe pode anexar "-<commits>-g<hash>"; ficamos só com o core semver.
 _self_normalize_version() {
-  local v="$1"
-  v="${v#v}"                 # remove prefixo v
-  v="${v%%-*}"               # corta sufixo de git describe (-N-gHASH)
-  printf '%s' "$v"
+  normalize_version "$1"
 }
 
 # Compara duas versões semver. Imprime: 0 (iguais), 1 (a > b), 2 (a < b).
 # Pura e determinística — testável com bats.
 # Uso: self_version_compare "3.0.3" "3.0.4"  -> imprime 2
 self_version_compare() {
-  local a b
-  a="$(_self_normalize_version "$1")"
-  b="$(_self_normalize_version "$2")"
-
-  [[ "$a" == "$b" ]] && { printf '0'; return 0; }
-
-  local -a pa pb
-  IFS='.' read -ra pa <<< "$a"
-  IFS='.' read -ra pb <<< "$b"
-
-  local i max=${#pa[@]}
-  (( ${#pb[@]} > max )) && max=${#pb[@]}
-
-  for (( i = 0; i < max; i++ )); do
-    local na="${pa[i]:-0}" nb="${pb[i]:-0}"
-    # campos não-numéricos viram 0 (defensivo)
-    [[ "$na" =~ ^[0-9]+$ ]] || na=0
-    [[ "$nb" =~ ^[0-9]+$ ]] || nb=0
-    if (( na > nb )); then printf '1'; return 0; fi
-    if (( na < nb )); then printf '2'; return 0; fi
-  done
-  printf '0'
+  version_compare "$1" "$2"
 }
 
 # Descobre a última versão publicada no GitHub, sem depender de gh/jq.

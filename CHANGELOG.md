@@ -13,6 +13,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **Melhorias M2–M8 concluídas.** Adicionada retenção de snapshots antigos do
+  próprio `full-upgrade`, tempos por grupo e top 3 mais lentos no resumo,
+  agregação `category_totals`/`slowest_steps` no `--json`, helper comum de
+  comparação de versões, remediações padronizadas, motivo/remediação explícitos
+  para pendências oficiais finais, supressão allow-listed de warnings ruidosos
+  de build no terminal mantendo log bruto, e rodapé destacado de reboot
+  recomendado quando kernel/systemd requer reinício.
+
 - **Remoção de órfãos agora é recursiva e limitada.** `cleanup_orphans` repete
   `pacman -Qdtq` após cada remoção até estabilizar, com limite configurável
   (`ORPHAN_CLEANUP_MAX_ROUNDS`, default 5) e aviso se ainda sobrar lixo.

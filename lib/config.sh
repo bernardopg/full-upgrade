@@ -16,6 +16,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
 : "${MIN_BOOT_FREE_MIB:=200}"       # espaço livre mínimo em /boot (MiB; ESP é pequeno)
 : "${SNAPSHOT_MIN_FREE_GIB:=2}"     # mínimo de livre em / p/ criar snapshot (0 = desliga)
+: "${SNAPSHOT_KEEP:=5}"             # snapshots full-upgrade antigos a manter
 # Doctor: limiares de saúde
 : "${BTRFS_SCRUB_MAX_DAYS:=30}"     # alerta se o último scrub btrfs em / for mais antigo que isso
 : "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
@@ -53,7 +54,7 @@ load_config() {
   [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="${HOME}/.config/DankMaterialShell/plugins"
 
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
-  export SNAPSHOT_MIN_FREE_GIB BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
+  export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
@@ -101,6 +102,7 @@ ENABLE_CUSTOM_TOOLS=0
 # ── Snapshot pré-upgrade ── auto | snapper | timeshift | none
 SNAPSHOT_TOOL=auto
 SNAPSHOT_MIN_FREE_GIB=2
+SNAPSHOT_KEEP=5
 
 # ── Backup de configs críticas de /etc ──
 BACKUP_CONFIGS=1
@@ -163,6 +165,7 @@ show_config() {
   _cfg_kv "ENABLE_CUSTOM_TOOLS" "$ENABLE_CUSTOM_TOOLS"
   _cfg_kv "SNAPSHOT_TOOL" "$SNAPSHOT_TOOL"
   _cfg_kv "SNAPSHOT_MIN_FREE_GIB" "$SNAPSHOT_MIN_FREE_GIB"
+  _cfg_kv "SNAPSHOT_KEEP" "$SNAPSHOT_KEEP"
   _cfg_kv "MIRROR_TOOL" "$MIRROR_TOOL"
   _cfg_kv "MIN_FREE_GIB" "$MIN_FREE_GIB"
   _cfg_kv "MIN_BOOT_FREE_MIB" "$MIN_BOOT_FREE_MIB"

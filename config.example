@@ -17,10 +17,10 @@ LANG_OVERRIDE=auto
 ENABLE_CUSTOM_TOOLS=0
 
 # ── Snapshot pré-upgrade / Pre-upgrade snapshot ─────────────────────────────────
-# auto = detecta snapper/timeshift | snapper | timeshift | none
+# auto = usa snapper se existir, senão timeshift; none = desliga
 SNAPSHOT_TOOL=auto
-# Espaço mínimo livre em / para criar o snapshot (GiB). 0 desliga a checagem.
-SNAPSHOT_MIN_FREE_GIB=2
+SNAPSHOT_MIN_FREE_GIB=2  # mínimo livre em / para criar snapshot; 0 desliga checagem
+SNAPSHOT_KEEP=5          # snapshots full-upgrade antigos a manter na limpeza
 
 # ── Backup de configs críticas / Critical config backup ─────────────────────────
 # Arquiva configs essenciais de /etc em tar.zst antes das mutações, com rotação.

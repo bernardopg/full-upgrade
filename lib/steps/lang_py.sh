@@ -120,7 +120,7 @@ update_pipx() {
   while IFS= read -r _selfln; do
     [[ -n "$_selfln" ]] || continue
     log "  ${C_YELLOW}Aviso: '${_selfln}' é um symlink auto-referente (pip --user vs pipx).${C_RESET}"
-    log "  Remediação: pipx reinstall \$(basename '${_selfln}')   ou   rm '${_selfln}' && pipx ensurepath"
+    remediation "pipx reinstall \$(basename '${_selfln}')   ou   rm '${_selfln}' && pipx ensurepath"
   done < <(
     printf '%s\n' "$output" \
       | grep -oE 'File exists at [^[:space:]]+' \

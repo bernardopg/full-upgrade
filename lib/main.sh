@@ -319,14 +319,22 @@ run_all_steps() {
     
     if (( NO_CLEANUP )); then
         step_skip "Limpar cache do pacman" "--no-cleanup"
+        step_skip "Limpar snapshots full-upgrade antigos" "--no-cleanup"
     elif has paccache; then
         if (( SUDO_READY )); then
             run_step "Limpar cache do pacman" cleanup_paccache
+            run_step "Limpar snapshots full-upgrade antigos" cleanup_old_snapshots
         else
             step_skip "Limpar cache do pacman" "sudo indisponível"
+            step_skip "Limpar snapshots full-upgrade antigos" "sudo indisponível"
         fi
     else
         step_skip "Limpar cache do pacman" "paccache não instalado"
+        if (( SUDO_READY )); then
+            run_step "Limpar snapshots full-upgrade antigos" cleanup_old_snapshots
+        else
+            step_skip "Limpar snapshots full-upgrade antigos" "sudo indisponível"
+        fi
     fi
     
     if (( NO_CLEANUP )); then
