@@ -52,10 +52,10 @@ full-upgrade
 | Área | O que entrega |
 | --- | --- |
 | Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
-| Catálogo técnico | 78 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
+| Catálogo técnico | 80 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
 | Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. |
 | Arch completo | `pacman`, AUR via `paru`/`yay`, keyring, mirrors, snapshot btrfs, `.pacnew`, órfãos e cache. |
-| Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
+| Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot pendente, systemd, journal, fwupd security, pacman, boot, rede, SMART/NVMe, Python, JavaScript e CLIs de IA. |
 | Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON. |
@@ -233,7 +233,7 @@ Status possíveis no resumo:
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
 | Firmware e boot | `fwupdmgr` e `bootctl`. |
-| JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais. |
+| JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais; runtimes `Bun` e `Deno` (auto-gerenciados, pulam quando gerenciados pelo pacman). |
 | Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry, com proteção contra conflito `poetry-core` fixado pelo Poetry. |
 | Rust | `rustup`, `cargo-install-update` e auditoria com `cargo-audit`. |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
@@ -446,7 +446,7 @@ Opcionais detectados automaticamente:
 
 ```text
 paru, yay, pacman-contrib, reflector, rate-mirrors, snapper, timeshift,
-flatpak, snap, docker, fwupdmgr, bootctl, npm, corepack, pnpm, python, pipx,
+flatpak, snap, docker, fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx,
 uv, poetry, rustup, cargo, cargo-install-update, cargo-audit, go, dotnet,
 gem, ghcup, arduino-cli, gcloud, claude, hermes, copilot, nvim, hyprpm,
 needrestart, checkservices, smartctl, nvme, vulkaninfo, glxinfo

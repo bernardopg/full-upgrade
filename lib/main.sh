@@ -161,7 +161,19 @@ run_all_steps() {
         step_skip "Atualizar pnpm (self)" "pnpm não instalado"
         step_skip "Atualizar pnpm global" "pnpm não instalado"
     fi
-    
+
+    if has bun; then
+        run_step "Atualizar Bun" update_bun
+    else
+        step_skip "Atualizar Bun" "bun não instalado"
+    fi
+
+    if has deno; then
+        run_step "Atualizar Deno" update_deno
+    else
+        step_skip "Atualizar Deno" "deno não instalado"
+    fi
+
     # ── Python ────────────────────────────────────────────────────────────────────
     
     if has python && python -m pip --version >/dev/null 2>&1; then
@@ -366,7 +378,15 @@ run_all_steps() {
             step_skip "Limpar snapshots full-upgrade antigos" "sudo indisponível"
         fi
     fi
-    
+
+    if (( NO_CLEANUP )); then
+        step_skip "Limpar cache de build do AUR" "--no-cleanup"
+    elif has paru || has yay; then
+        run_step "Limpar cache de build do AUR" cleanup_aur_cache
+    else
+        step_skip "Limpar cache de build do AUR" "sem helper AUR (paru/yay)"
+    fi
+
     if (( NO_CLEANUP )); then
         step_skip "Remover pacotes orfãos" "--no-cleanup"
     elif has pacman; then
