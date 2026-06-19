@@ -50,32 +50,61 @@ pip_user_effective_ignore() {
 
 
 update_pip_user() {
-  local json poetry_core_req effective_ignore
+  local json leaves_json poetry_core_req effective_ignore
   local -a pkgs=()
 
   poetry_core_req="$(poetry_core_requirement 2>/dev/null || true)"
   effective_ignore="$(pip_user_effective_ignore "${FULL_UPGRADE_PIP_USER_IGNORE:-}" "$poetry_core_req")"
 
+  # Restringe o upgrade a pacotes TOP-LEVEL (--not-required: nenhum outro
+  # pacote depende deles). Subir uma dep transitiva isoladamente (ex.: chardet)
+  # via --upgrade fura a constraint do pacote pai (ex.: pygount exige
+  # chardet<6) e deixa o ambiente quebrado (pip check falha). Atualizando só as
+  # folhas, o resolver do pip sobe cada dep dentro da faixa permitida pelo pai.
   json="$(python -m pip list --user --outdated --format=json 2>/dev/null || true)"
+  leaves_json="$(python -m pip list --user --not-required --format=json 2>/dev/null || true)"
+  if [[ -n "${json//[[:space:]]/}" && -z "${leaves_json//[[:space:]]/}" ]]; then
+    log "  Aviso: 'pip list --not-required' não retornou folhas; subindo todos os desatualizados (sem filtro de top-level)."
+  fi
   if [[ -n "${json//[[:space:]]/}" ]]; then
     mapfile -t pkgs < <(
-      printf '%s' "$json" | FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" python -c '
+      FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" \
+      FULL_UPGRADE_PIP_USER_LEAVES="$leaves_json" \
+      python -c '
 import json, sys
 import os
 
+def norm(n):
+    return n.lower().replace("_", "-")
+
 ignored = {
-    name.lower().replace("_", "-")
+    norm(name)
     for name in os.environ.get("FULL_UPGRADE_PIP_USER_IGNORE", "").split()
 }
+try:
+    leaves_data = json.loads(os.environ.get("FULL_UPGRADE_PIP_USER_LEAVES", "") or "[]")
+except Exception:
+    leaves_data = []
+# Conjunto de folhas (top-level). Se a consulta de folhas falhar/voltar vazia,
+# o filtro de folhas é desativado (degrada para o comportamento antigo de subir
+# tudo) — preferível a parar todos os updates de pip silenciosamente. O caller
+# loga um aviso nesse caso.
+leaves = {norm(p.get("name")) for p in leaves_data if p.get("name")}
 try:
     data = json.load(sys.stdin)
 except Exception:
     data = []
 for pkg in data:
     name = pkg.get("name")
-    if name and name.lower().replace("_", "-") not in ignored:
-        print(name)
-'
+    if not name:
+        continue
+    key = norm(name)
+    if key in ignored:
+        continue
+    if leaves and key not in leaves:
+        continue
+    print(name)
+' <<<"$json"
     )
   fi
 

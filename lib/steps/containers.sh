@@ -5,7 +5,10 @@
 
 _docker_is_remote_image() {
   local img="$1"
-  local repo="${img%%:*}"
+  # Corta APENAS a tag (último ':'), preservando registries com porta como
+  # `localhost:5000/app`. Usar '%%' (guloso) cortaria no primeiro ':' e
+  # classificaria errado imagens de registry com porta como locais.
+  local repo="${img%:*}"
   # Remota = contém / (ghcr.io/..., n8nio/n8n) OU é imagem oficial sem prefixo de usuário
   [[ "$repo" == *"/"* ]] && return 0
   # Imagens oficiais Docker Hub conhecidas (single-name sem usuário)
