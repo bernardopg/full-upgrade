@@ -11,9 +11,13 @@
 # auto = detecta de $LANG | pt = Português | en = English
 LANG_OVERRIDE=auto
 
-# ── Tools custom (Hermes, AdGuard, Copilot, DMS, Burp) / Custom tools ───────────
-# 0 = só steps genéricos (default) | 1 = habilita plugins em steps.d/
-# 0 = generic steps only (default)  | 1 = enable steps.d/ plugins
+# ── Tools custom / Custom tools ─────────────────────────────────────────────────
+# As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK) rodam
+# POR PRESENÇA da ferramenta — não precisam desta flag. ENABLE_CUSTOM_TOOLS=1 só é
+# necessário para: (a) Burp/Wireshark, que INSTALA o pacote burpsuite; (b) carregar
+# seus próprios plugins de ~/.config/full-upgrade/steps.d/.
+# Packaged integrations run by tool presence; this flag only enables Burp/Wireshark
+# (which installs burpsuite) and loading your own ~/.config/full-upgrade/steps.d/.
 ENABLE_CUSTOM_TOOLS=0
 
 # ── Snapshot pré-upgrade / Pre-upgrade snapshot ─────────────────────────────────
@@ -58,6 +62,8 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
+# RTK_BIN="$HOME/.local/bin/rtk"
+# BURPSUITE_JAVA_BIN="/usr/lib/jvm/java-21-openjdk/bin/java"  # Java p/ o fallback do Burp
 
 # ── Auto-atualização do próprio full-upgrade / Self-update ──────────────────────
 # Repositório de origem (owner/repo no GitHub) e canal de atualização.

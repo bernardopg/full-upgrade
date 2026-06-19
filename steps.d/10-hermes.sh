@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/hermes — Hermes Agent (custom do autor)
+# steps.d/hermes — integração Hermes Agent. Roda por presença (só se `hermes`
+# estiver no PATH); inofensivo em máquinas sem a ferramenta.
 # shellcheck shell=bash
 
 update_hermes() {

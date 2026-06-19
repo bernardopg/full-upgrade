@@ -224,9 +224,11 @@ show_config() {
 # Uso: custom_step_or_skip "Nome do step" funcao_impl
 custom_step_or_skip() {
   local name="$1" fn="$2"
-  if (( ${ENABLE_CUSTOM_TOOLS:-0} )) && declare -F "$fn" >/dev/null 2>&1; then
-    run_step "$name" "$fn"
+  if (( ${ENABLE_CUSTOM_TOOLS:-0} == 0 )); then
+    step_skip "$name" "requer ENABLE_CUSTOM_TOOLS=1"
+  elif ! declare -F "$fn" >/dev/null 2>&1; then
+    step_skip "$name" "função ${fn} não carregada de steps.d/"
   else
-    step_skip "$name" "tool custom desabilitado (ENABLE_CUSTOM_TOOLS=0)"
+    run_step "$name" "$fn"
   fi
 }

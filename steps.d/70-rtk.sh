@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/rtk — RTK (Rust Token Killer), proxy de CLI do autor
+# steps.d/rtk — integração RTK (Rust Token Killer), proxy de CLI. Roda por
+# presença (só se `rtk` no PATH ou RTK_BIN definido).
 # shellcheck shell=bash
 
 # Atualiza o rtk para a última release publicada no GitHub.

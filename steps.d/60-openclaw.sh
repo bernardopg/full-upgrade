@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/openclaw — OpenClaw
+# steps.d/openclaw — integração OpenClaw. Roda por presença (só se `openclaw`
+# no PATH ou OPENCLAW_BIN definido).
 # shellcheck shell=bash
 
 update_openclaw() {

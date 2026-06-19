@@ -54,7 +54,9 @@ run_all_steps() {
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
                 step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
             else
-                # Burp/Wireshark são tools custom do autor (gated).
+                # Burp/Wireshark ficam atrás de ENABLE_CUSTOM_TOOLS: ensure_security_tools
+                # INSTALA o pacote burpsuite se ausente, então não deve rodar por padrão
+                # (instalaria Burp na máquina de quem nunca pediu). Opt-in explícito.
                 custom_step_or_skip "Garantir Burp Suite e Wireshark"   ensure_security_tools
                 # Shadowing é reparo genérico, útil p/ todos.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
@@ -254,12 +256,31 @@ run_all_steps() {
         step_skip "Atualizar ghcup" "ghcup não instalado"
     fi
     
-    # ── Hermes ───────────────────────────────────────────────────────────────────
-    
-    custom_step_or_skip "Atualizar Hermes" update_hermes
-    custom_step_or_skip "Atualizar RTK" update_rtk
-    custom_step_or_skip "Atualizar AdGuard VPN CLI" update_adguardvpn
-    custom_step_or_skip "Atualizar OpenClaw" update_openclaw
+    # ── Integrações de ferramentas (rodam por presença, como os steps core) ──────
+
+    if has hermes; then
+        run_step "Atualizar Hermes" update_hermes
+    else
+        step_skip "Atualizar Hermes" "hermes não instalado"
+    fi
+
+    if has rtk || [[ -x "${RTK_BIN:-}" ]]; then
+        run_step "Atualizar RTK" update_rtk
+    else
+        step_skip "Atualizar RTK" "rtk não instalado"
+    fi
+
+    if has adguardvpn-cli || [[ -x "${ADGUARD_BIN:-}" ]]; then
+        run_step "Atualizar AdGuard VPN CLI" update_adguardvpn
+    else
+        step_skip "Atualizar AdGuard VPN CLI" "adguardvpn-cli não instalado"
+    fi
+
+    if has openclaw || [[ -x "${OPENCLAW_BIN:-}" ]]; then
+        run_step "Atualizar OpenClaw" update_openclaw
+    else
+        step_skip "Atualizar OpenClaw" "openclaw não instalado"
+    fi
     
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
     
@@ -269,7 +290,11 @@ run_all_steps() {
         step_skip "Atualizar Claude Code CLI" "claude não instalado"
     fi
     
-    custom_step_or_skip "Atualizar GitHub Copilot CLI" update_copilot_cli
+    if has copilot || [[ -x "${COPILOT_BIN:-}" ]]; then
+        run_step "Atualizar GitHub Copilot CLI" update_copilot_cli
+    else
+        step_skip "Atualizar GitHub Copilot CLI" "copilot não instalado"
+    fi
     
     # ── Shell ─────────────────────────────────────────────────────────────────────
     
@@ -281,7 +306,11 @@ run_all_steps() {
         step_skip "Atualizar plugins customizados do Zsh" "oh-my-zsh não encontrado"
     fi
     
-    custom_step_or_skip "Atualizar plugins DankMaterialShell" update_dms_plugins
+    if [[ -d "${DMS_PLUGINS_DIR:-$HOME/.config/DankMaterialShell/plugins}" ]]; then
+        run_step "Atualizar plugins DankMaterialShell" update_dms_plugins
+    else
+        step_skip "Atualizar plugins DankMaterialShell" "DankMaterialShell não encontrado"
+    fi
     
     # ── Editor ────────────────────────────────────────────────────────────────────
     

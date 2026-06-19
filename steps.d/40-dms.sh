@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/dms — DankMaterialShell plugins (custom)
+# steps.d/dms — integração de plugins do DankMaterialShell. Roda por presença
+# (só se o diretório de plugins existir; veja DMS_PLUGINS_DIR).
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
