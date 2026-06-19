@@ -4,6 +4,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-06-19
+
+### Adicionado
+
+- **Novo step "Atualizar RTK".** Atualiza o RTK (Rust Token Killer) a partir da
+  release publicada no GitHub: descobre a última tag pelo redirect de
+  `/releases/latest`, só atualiza se a versão local estiver desatualizada, baixa
+  o tarball do alvo (`uname -m`: `x86_64-unknown-linux-musl` /
+  `aarch64-unknown-linux-gnu`) com `checksums.txt`, **verifica o sha256 (recusa
+  instalar binário não verificado)** e substitui o binário no diretório atual.
+  Step custom (`steps.d/70-rtk.sh`), duplo-gated por `ENABLE_CUSTOM_TOOLS`,
+  catalogado (dep `curl`, timeout 180s).
+
 ### Documentação
 
 - README, `config.example`, `CONTRIBUTING.md` e `TO-DO.md` alinhados às
@@ -40,6 +53,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **`poetry-core` não entra mais no update genérico do pip --user quando Poetry
   fixa uma versão exata.** O step calcula o ignore efetivo e evita o ping-pong
   `poetry-core` 2.4.0→2.4.1→2.4.0 no mesmo run.
+- **`pip --user` não quebra mais constraints de deps transitivas.**
+  `update_pip_user` atualiza apenas pacotes top-level (`pip list --not-required`)
+  e deixa o resolver subir as deps dentro da faixa permitida pelo pai. Antes,
+  subir uma dep isoladamente via `--upgrade` (ex.: `chardet`) furava a constraint
+  do pacote pai (ex.: `pygount` exige `chardet<6`) e deixava `pip check` quebrado.
+- **Imagens Docker de registry com porta classificadas corretamente.**
+  `_docker_is_remote_image` passa a cortar só a tag (`${img%:*}`); antes
+  `${img%%:*}` cortava no primeiro `:` e tratava `localhost:5000/app` como local,
+  pulando o `docker pull`.
+- **Doctor de saúde do pacman não reporta mais bytecode recompilado como
+  problema.** `__pycache__/*.py[co]` (regenerado pelo interpretador) é tratado
+  como ruído benigno; `.py`, `.orig` e `.pacnew` seguem reportados.
+- **Backup de configs sem ruído de sockets.** `--warning=no-file-ignored`
+  silencia os avisos de soquetes que o `tar` nunca arquiva (ex.:
+  `/etc/pacman.d/gnupg/S.*`), sem alterar o conteúdo arquivado.
 
 ## [3.2.2] — 2026-06-13
 
