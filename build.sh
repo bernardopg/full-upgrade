@@ -56,7 +56,7 @@ unset _missing _f
   if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
     _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
   fi
-  [[ -z "$_build_ver" ]] && _build_ver="3.3.0"
+  [[ -z "$_build_ver" ]] && _build_ver="3.4.0"
   printf 'SCRIPT_VERSION="%s"\n' "${_build_ver#v}"
   printf 'SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf %%s "${BASH_SOURCE[0]}")"\n'
   printf 'SCRIPT_SHA256="$(sha256sum "$SCRIPT_PATH" 2>/dev/null | awk '"'"'{print $1}'"'"' || printf unknown)"\n'
@@ -66,6 +66,17 @@ unset _missing _f
     printf '# ===== %s =====\n' "$f"
     # remove shebang e diretivas de shell duplicadas de cada módulo
     grep -vE '^#!/usr/bin/env bash$|^# shellcheck shell=bash$' "${ROOT}/${f}"
+    printf '\n'
+  done
+
+  # Integrações empacotadas (steps.d/*.sh): inlinadas SEMPRE, como as libs. Só
+  # definem funções; o dispatch em main.sh decide rodar por presença da ferramenta
+  # (nenhuma roda sem o binário correspondente). Plugins do USUÁRIO continuam
+  # carregados em runtime de ~/.config/full-upgrade/steps.d sob ENABLE_CUSTOM_TOOLS.
+  for f in "${ROOT}"/steps.d/*.sh; do
+    [[ -e "$f" ]] || continue
+    printf '# ===== steps.d/%s =====\n' "$(basename -- "$f")"
+    grep -vE '^#!/usr/bin/env bash$|^# shellcheck shell=bash$' "$f"
     printf '\n'
   done
 

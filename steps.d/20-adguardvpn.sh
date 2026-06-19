@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/adguardvpn — AdGuard VPN CLI (custom)
+# steps.d/adguardvpn — integração AdGuard VPN CLI. Roda por presença (só se
+# `adguardvpn-cli` no PATH ou ADGUARD_BIN definido).
 # shellcheck shell=bash
 
 update_adguardvpn() {

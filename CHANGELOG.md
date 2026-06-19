@@ -4,6 +4,35 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-06-19
+
+### Adicionado
+
+- **Integrações `steps.d/` agora são empacotadas e embutidas no standalone/AUR.**
+  O `build.sh` inlina os arquivos `steps.d/*.sh` no distribuível single-file, então
+  o pacote AUR passa a trazê-las de fábrica (antes só a instalação modular via
+  `install.sh` as tinha; o binário AUR pulava todas com mensagem enganosa).
+
+### Alterado
+
+- **Integrações rodam por presença da ferramenta, sem flag.** Hermes, AdGuard VPN,
+  GitHub Copilot, DankMaterialShell, OpenClaw e RTK agora são despachadas como os
+  steps core (rodam se a ferramenta existir, `skip` caso contrário) — não exigem
+  mais `ENABLE_CUSTOM_TOOLS=1`.
+- **`ENABLE_CUSTOM_TOOLS` tem escopo reduzido.** Passa a controlar apenas (a)
+  Burp/Wireshark, que **instala** o pacote `burpsuite` e por isso não deve rodar
+  por padrão, e (b) o carregamento de plugins do usuário em
+  `~/.config/full-upgrade/steps.d/`. As integrações empacotadas são sempre
+  carregadas (código vetado do repositório).
+- Headers dos `steps.d/` normalizados e documentação (README, `config.example`)
+  atualizada com o novo modelo de ativação e os overrides `RTK_BIN`/`BURPSUITE_JAVA_BIN`.
+
+### Corrigido
+
+- **Mensagem de `skip` enganosa em steps opt-in.** `custom_step_or_skip` agora
+  distingue "requer ENABLE_CUSTOM_TOOLS=1" de "função não carregada de steps.d/",
+  em vez de sempre culpar `ENABLE_CUSTOM_TOOLS=0`.
+
 ## [3.3.0] — 2026-06-19
 
 ### Adicionado

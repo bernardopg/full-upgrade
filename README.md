@@ -52,7 +52,7 @@ full-upgrade
 | Área | O que entrega |
 | --- | --- |
 | Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
-| Catálogo técnico | 71 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
+| Catálogo técnico | 78 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
 | Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. |
 | Arch completo | `pacman`, AUR via `paru`/`yay`, keyring, mirrors, snapshot btrfs, `.pacnew`, órfãos e cache. |
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
@@ -362,7 +362,7 @@ Principais chaves:
 
 | Chave | Default | Descrição |
 | --- | --- | --- |
-| `ENABLE_CUSTOM_TOOLS` | `0` | Habilita hooks extras em `steps.d/`. |
+| `ENABLE_CUSTOM_TOOLS` | `0` | Só necessário para Burp/Wireshark (que instala `burpsuite`) e para carregar seus plugins de `~/.config/full-upgrade/steps.d/`. As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK) rodam por presença da ferramenta, sem flag. |
 | `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
 | `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
 | `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
@@ -384,6 +384,8 @@ Principais chaves:
 | `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |
 | `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
 | `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
+| `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |
+| `BURPSUITE_JAVA_BIN` | auto | Java usado pelo fallback de instalação do Burp. |
 
 Como o arquivo é carregado com `source`, use sintaxe Bash válida.
 
@@ -400,27 +402,35 @@ codeisland\.service: (Failed at step CHDIR|Changing to the requested)
 ftdi_sio .*Unable to read latency timer
 ```
 
-## Plugins e Ferramentas Customizadas
+## Integrações empacotadas e plugins do usuário
 
-`steps.d/` é usado para carregar implementações opcionais de ferramentas que não
-devem rodar por padrão. O comportamento é propositalmente conservador:
+`steps.d/` reúne integrações com ferramentas opcionais. Elas são **empacotadas e
+versionadas no repositório** (e embutidas no binário standalone/AUR), e seguem o
+mesmo padrão dos steps core.
 
-1. `ENABLE_CUSTOM_TOOLS=1` precisa estar definido no config.
-2. Arquivos `.sh` em `~/.config/full-upgrade/steps.d/` e no `steps.d/` instalado são carregados.
-3. As funções carregadas só rodam quando existe um hook correspondente chamado pelo fluxo principal.
+**Integrações empacotadas — rodam por presença da ferramenta** (sem flag, igual
+aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
 
-Exemplos incluídos:
+| Arquivo | Hook | Roda quando |
+| --- | --- | --- |
+| `steps.d/10-hermes.sh` | `update_hermes` | `hermes` no PATH |
+| `steps.d/20-adguardvpn.sh` | `update_adguardvpn` | `adguardvpn-cli` no PATH ou `ADGUARD_BIN` |
+| `steps.d/30-copilot.sh` | `update_copilot_cli` | `copilot` no PATH ou `COPILOT_BIN` |
+| `steps.d/40-dms.sh` | `update_dms_plugins` | diretório `DMS_PLUGINS_DIR` existe |
+| `steps.d/60-openclaw.sh` | `update_openclaw` | `openclaw` no PATH ou `OPENCLAW_BIN` |
+| `steps.d/70-rtk.sh` | `update_rtk` | `rtk` no PATH ou `RTK_BIN` |
+
+**Opt-in via `ENABLE_CUSTOM_TOOLS=1`** (porque INSTALA pacote, não só atualiza):
 
 | Arquivo | Hook |
 | --- | --- |
-| `steps.d/10-hermes.sh` | `update_hermes` |
-| `steps.d/20-adguardvpn.sh` | `update_adguardvpn` |
-| `steps.d/30-copilot.sh` | `update_copilot_cli` |
-| `steps.d/40-dms.sh` | `update_dms_plugins` |
-| `steps.d/50-burp-wireshark.sh` | `ensure_security_tools`, reparos de Wireshark e atalhos do Burp |
+| `steps.d/50-burp-wireshark.sh` | `ensure_security_tools`, permissões do Wireshark, atalhos do Burp |
 
-Para adicionar steps totalmente novos, adicione a função, registre o step em
-`lib/catalog.sh` e chame-o no ponto correto de `lib/main.sh`.
+**Plugins do usuário:** com `ENABLE_CUSTOM_TOOLS=1`, arquivos `.sh` em
+`~/.config/full-upgrade/steps.d/` também são carregados — a última definição de
+função vence, então você pode sobrescrever uma integração empacotada. Para um
+step totalmente novo, defina a função, registre a linha em `lib/catalog.sh` e
+faça o dispatch no ponto correto de `lib/main.sh`.
 
 ## Requisitos
 

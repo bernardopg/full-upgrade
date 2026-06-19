@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps.d/copilot — GitHub Copilot CLI (custom)
+# steps.d/copilot — integração GitHub Copilot CLI. Roda por presença (só se
+# `copilot` no PATH ou COPILOT_BIN definido).
 # shellcheck shell=bash
 
 update_copilot_cli() {

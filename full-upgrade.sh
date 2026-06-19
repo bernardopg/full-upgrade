@@ -25,7 +25,7 @@ fi
 #   1. git describe (rodando a partir de um clone do repo, durante o dev);
 #   2. arquivo VERSION ao lado do entrypoint (gravado por install.sh/build.sh);
 #   3. fallback embutido (último recurso).
-SCRIPT_VERSION="3.3.0"
+SCRIPT_VERSION="3.4.0"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 if [[ -n "$_git_ver" ]]; then
   SCRIPT_VERSION="${_git_ver#v}"
@@ -74,18 +74,26 @@ load_config                       # lib/config.sh — carrega ~/.config/full-upg
 parse_args "$@"                   # lib/cli.sh
 apply_mode_and_early_exits        # lib/cli.sh — resolve --list-steps/--explain-step/--mode
 
-# Plugins do usuário (steps.d/) só se habilitado no config.
-# Ordem importa: os empacotados (FU_ROOT) primeiro, os do usuário (FU_CONFIG_DIR)
-# por último — a última definição de função vence, então a customização do
-# usuário sobrescreve a versão empacotada, nunca o contrário.
+# Integrações empacotadas (steps.d/ ao lado do projeto) são SEMPRE carregadas —
+# são código vetado do repositório e os steps decidem rodar por presença da
+# ferramenta (cmd_deps do catálogo + checagem interna), como qualquer step core.
+# Plugins do USUÁRIO (~/.config/full-upgrade/steps.d/) só são carregados com
+# ENABLE_CUSTOM_TOOLS=1, pois são código arbitrário fora do controle do projeto.
+# Ordem: empacotados primeiro, usuário por último — a última definição vence,
+# então a customização do usuário sobrescreve a versão empacotada.
+for _p in "${FU_ROOT}"/steps.d/*.sh; do
+  [[ -e "$_p" ]] || continue
+  # shellcheck source=/dev/null
+  source "$_p"
+done
 if (( ${ENABLE_CUSTOM_TOOLS:-0} )); then
-  for _p in "${FU_ROOT}"/steps.d/*.sh "${FU_CONFIG_DIR}"/steps.d/*.sh; do
+  for _p in "${FU_CONFIG_DIR}"/steps.d/*.sh; do
     [[ -e "$_p" ]] || continue
     # shellcheck source=/dev/null
     source "$_p"
   done
-  unset _p
 fi
+unset _p
 
 TOTAL_STEPS="$(count_effective_steps)"   # lib/catalog.sh — total p/ barra de progresso
 export TOTAL_STEPS

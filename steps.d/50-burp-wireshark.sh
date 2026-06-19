@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# steps.d/burp-wireshark — Burp Suite installer + Wireshark perms (custom do autor)
+# steps.d/burp-wireshark — Burp Suite (installer + fallback PortSwigger) e ajuste
+# de permissões de captura do Wireshark. OPT-IN (ENABLE_CUSTOM_TOOLS=1): instala
+# o pacote burpsuite se ausente, então não roda por padrão.
 # shellcheck shell=bash
-# shellcheck disable=SC2034,SC2120,SC2154  # tool custom legado do autor
+# shellcheck disable=SC2034,SC2120,SC2154  # STEP_REASON global; helpers com args opcionais
 
 burpsuite_desktop_release_info() {
   python - <<'PY'
