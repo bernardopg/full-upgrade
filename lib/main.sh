@@ -257,6 +257,7 @@ run_all_steps() {
     # ── Hermes ───────────────────────────────────────────────────────────────────
     
     custom_step_or_skip "Atualizar Hermes" update_hermes
+    custom_step_or_skip "Atualizar RTK" update_rtk
     custom_step_or_skip "Atualizar AdGuard VPN CLI" update_adguardvpn
     custom_step_or_skip "Atualizar OpenClaw" update_openclaw
     
