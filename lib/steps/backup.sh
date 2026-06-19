@@ -80,7 +80,10 @@ backup_critical_configs() {
   # sudo: muitos paths em /etc/systemd/system etc. são lidos por root sem
   # problema, mas arquivos com modo restrito exigem privilégio. Usa sudo se
   # pronto; senão tenta sem (paths de /etc costumam ser legíveis por todos).
-  local -a tar_cmd=(tar "$comp" -cpf "$archive" --ignore-failed-read --warning=no-file-changed)
+  # --warning=no-file-ignored silencia avisos de sockets/FIFOs que o tar não
+  # arquiva por natureza (ex.: /etc/pacman.d/gnupg/S.* do gpg-agent/dirmngr);
+  # não muda o que é arquivado, só remove ruído inofensivo do log.
+  local -a tar_cmd=(tar "$comp" -cpf "$archive" --ignore-failed-read --warning=no-file-changed --warning=no-file-ignored)
   local rc
   if (( SUDO_READY )) && has sudo; then
     run_logged sudo "${tar_cmd[@]}" -- "${paths[@]}"

@@ -724,6 +724,11 @@ doctor_pacman_health() {
   local -a _pacman_health_noise=(
     '^hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/'
     '^intel-ucode /boot/intel-ucode.img$'
+    # Bytecode em __pycache__ é regenerado pelo interpretador (recompila a cada
+    # bump de Python ou import); mtime/size divergem do empacotado mas o arquivo
+    # é reconstruído sob demanda — não indica pacote quebrado. Filtra só .pyc/.pyo
+    # dentro de __pycache__/. Arquivos .py, .orig e .pacnew seguem reportados.
+    '/__pycache__/[^ ]*\.py[co]$'
   )
 
   output="$("${check_cmd[@]}" 2>&1)"
