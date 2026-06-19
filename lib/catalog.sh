@@ -35,6 +35,8 @@ Atualizar npm global|lang|javascript,npm,update,network,slow|mutating|300|npm|up
 Atualizar corepack|lang|javascript,corepack,update,network|mutating|120|npm|update_corepack|Atualiza corepack via npm.
 Atualizar pnpm (self)|lang|javascript,pnpm,update,network|mutating|120|pnpm|update_pnpm_self|Atualiza o próprio pnpm.
 Atualizar pnpm global|lang|javascript,pnpm,update,network|mutating|300|pnpm|update_pnpm_globals|Atualiza pacotes pnpm globais e remove deps locais quebradas.
+Atualizar Bun|lang|javascript,bun,update,network|mutating|120|bun|update_bun|Atualiza o runtime Bun via bun upgrade (pula se gerenciado pelo sistema).
+Atualizar Deno|lang|javascript,deno,update,network|mutating|120|deno|update_deno|Atualiza o runtime Deno via deno upgrade (pula se gerenciado pelo sistema).
 Atualizar pacotes pip --user|lang|python,pip,update,network|mutating|300|pip|update_pip_user|Atualiza pacotes Python instalados no usuário.
 Atualizar pacotes pipx|lang|python,pipx,update,network|mutating|300|pipx|update_pipx|Atualiza aplicações gerenciadas pelo pipx.
 Atualizar uv (self)|lang|python,uv,update,network|mutating|120|uv|update_uv_self|Atualiza o binário uv.
@@ -62,6 +64,7 @@ Atualizar plugins Neovim (Lazy)|editor|nvim,lazy,update,network,slow|mutating|30
 Atualizar LSPs Neovim (Mason)|editor|nvim,mason,update,network|mutating|300|nvim|update_nvim_mason|Atualiza registros e ferramentas Mason.nvim.
 Atualizar plugins Hyprland (hyprpm)|hyprland|hyprpm,update,network|mutating|120|hyprpm|update_hyprpm|Atualiza plugins Hyprland via hyprpm.
 Limpar cache do pacman|cleanup|pacman,sudo,mutating|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
+Limpar cache de build do AUR|cleanup|aur,cache,mutating|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
 Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo,mutating|mutating|120||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
 Remover pacotes orfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
 Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check_pacnew_files|Lista arquivos .pacnew/.pacsave que precisam de merge manual.

@@ -874,12 +874,25 @@ doctor_smart_health() {
 doctor_desktop_health() {
   local status=0
 
-  # xdg-desktop-portal
-  if has xdg-desktop-portal || pgrep -x xdg-desktop-portal >/dev/null 2>&1; then
-    if pgrep -x xdg-desktop-portal >/dev/null 2>&1; then
+  # xdg-desktop-portal: o executável fica em /usr/lib (NÃO no PATH), então
+  # `has`/`command -v` davam falso-negativo. Além disso o nome do processo é
+  # truncado em 15 chars (comm="xdg-desktop-por"), então `pgrep -x` com o nome
+  # completo não casava. Detecta por arquivo/pacote e checa execução por -f.
+  local _xdp_installed=0 _xdp_running=0
+  if [[ -x /usr/lib/xdg-desktop-portal ]] \
+     || has xdg-desktop-portal \
+     || pacman -Qq xdg-desktop-portal >/dev/null 2>&1; then
+    _xdp_installed=1
+  fi
+  if pgrep -f '/usr/lib/xdg-desktop-portal( |$)' >/dev/null 2>&1 \
+     || pgrep -x 'xdg-desktop-por' >/dev/null 2>&1; then
+    _xdp_running=1
+  fi
+  if (( _xdp_installed )); then
+    if (( _xdp_running )); then
       log "  xdg-desktop-portal: em execução."
     else
-      log "  xdg-desktop-portal: não está em execução."
+      log "  xdg-desktop-portal: instalado, mas não está em execução."
       (( status == 0 )) && status="$RC_WARN"
     fi
   else

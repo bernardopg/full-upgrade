@@ -39,6 +39,48 @@ cleanup_journal() {
 }
 
 
+# Limpa o cache de BUILD do AUR (clones + artefatos de makepkg), que paru/yay
+# acumulam sem limite — facilmente dezenas de GB. Remove pacotes construídos,
+# fontes baixadas e os diretórios src/ e pkg/ do makepkg; preserva o git clone
+# (PKGBUILD/.SRCINFO/.git) para o helper reaproveitar em vez de re-clonar tudo.
+# Espelha a lista de artefatos de _purge_aur_partial_sources (pacman.sh). Opera
+# em ~/.cache do usuário — não precisa de sudo.
+cleanup_aur_cache() {
+  local -a dirs=(
+    "${PARU_CLONE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/paru/clone}"
+    "${XDG_CACHE_HOME:-$HOME/.cache}/yay"
+  )
+  local dir before after found=0
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    found=1
+    before="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+
+    # Diretórios src/ e pkg/ do makepkg (depth 2: <cache>/<pacote>/src).
+    find "$dir" -mindepth 2 -maxdepth 2 -type d \( -name src -o -name pkg \) \
+      -prune -exec rm -rf {} + 2>/dev/null || true
+
+    # Pacotes construídos e fontes baixadas (preserva PKGBUILD/.SRCINFO/.git/.sh).
+    find "$dir" -type f \( \
+         -name '*.pkg.tar.*' \
+      -o -name '*.tar.gz' -o -name '*.tar.xz' -o -name '*.tar.zst' -o -name '*.tar.bz2' \
+      -o -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' \
+      -o -name '*.AppImage' -o -name '*.appimage' -o -name '*.jar' -o -name '*.iso' \
+      -o -name '*.gz' -o -name '*.xz' -o -name '*.zst' -o -name '*.bz2' \
+      \) -delete 2>/dev/null || true
+
+    after="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+    if [[ -n "$before" && -n "$after" ]]; then
+      log "  Cache AUR ${dir}: ${before}MB → ${after}MB (liberado $(( before - after ))MB)."
+    else
+      log "  Cache AUR ${dir}: limpo."
+    fi
+  done
+  (( found )) || log "  Sem cache de build do AUR para limpar."
+  return 0
+}
+
+
 snapshot_keep_count() {
   local keep="${SNAPSHOT_KEEP:-5}"
   [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=5

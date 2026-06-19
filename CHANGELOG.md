@@ -4,6 +4,43 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.5.0] — 2026-06-19
+
+### Adicionado
+
+- **Novo step "Atualizar Bun".** Atualiza o runtime Bun via `bun upgrade`. Pula
+  com aviso quando o binário é gerenciado pelo sistema (ex.: `/usr/bin/bun` do
+  pacman, não-gravável) em vez de tentar e falhar com `EACCES` — nessas
+  instalações a atualização fica a cargo do `pacman -Syu`. Catalogado (dep `bun`,
+  timeout 120s).
+- **Novo step "Atualizar Deno".** Análogo ao de Bun: roda `deno upgrade` e pula
+  quando a instalação é root/pacman. Catalogado (dep `deno`, timeout 120s).
+- **Novo step "Limpar cache de build do AUR".** Remove artefatos de build
+  (`src/`, `pkg/`, `*.pkg.tar.*`, fontes baixadas) acumulados por `paru`/`yay`
+  em `~/.cache` — que crescem sem limite (dezenas de GB). Preserva o clone git
+  (`PKGBUILD`/`.SRCINFO`/`.git`) para o helper reaproveitar em vez de re-clonar.
+  Não exige sudo. Catalogado (timeout 120s, despachado quando `paru` ou `yay`
+  está presente; honra `--no-cleanup`).
+- **Testes unitários** (bats) para os novos helpers: `npm_global_writable`,
+  `npm_audit_prefix` e `cleanup_aur_cache` (preserva `PKGBUILD`/`.git`, remove
+  artefatos, lida com cache ausente).
+
+### Corrigido
+
+- **Steps npm não falham mais com `EACCES` quando o prefixo global é `/usr`
+  (pacman).** `update_npm_self`, `update_npm_globals` e `update_corepack` agora
+  pulam com aviso quando o diretório de instalação global do npm não é gravável
+  pelo usuário (caso do pacote `npm` do Arch em `/usr/lib/node_modules`). Antes,
+  nesses ambientes o step tentava `npm install -g` e falhava com erro de
+  permissão — o que ocorria, por exemplo, ao rodar o full-upgrade num shell
+  mínimo (cron, `hyprctl exec`, CI) sem `NPM_CONFIG_PREFIX`.
+- **Doctor: detecção do `xdg-desktop-portal` corrigida.** O binário vive em
+  `/usr/lib/` (fora do `PATH`), então `has`/`command -v` davam falso-negativo de
+  "não instalado"; e o nome do processo é truncado em 15 chars
+  (`xdg-desktop-por`), o que fazia `pgrep -x` com o nome completo não casar. Agora
+  detecta por arquivo/pacote (`/usr/lib/xdg-desktop-portal`, `pacman -Qq`) e
+  checa execução por `pgrep -f` + nome truncado.
+
 ## [3.4.0] — 2026-06-19
 
 ### Adicionado

@@ -46,6 +46,22 @@ npm_audit_prefix() {
 }
 
 
+# True (0) se o diretório de instalação global do npm é gravável pelo usuário.
+# Um prefixo root-owned (ex.: /usr, do pacote npm do pacman) NÃO é gravável sem
+# root: ali o npm é gerenciado pelo sistema e `npm install -g` falha com EACCES.
+# Nesses casos os steps de npm devem PULAR (atualiza-se via pacman), não falhar.
+# (Foi exatamente a causa de um fail quando o full-upgrade rodou num ambiente
+# sem NPM_CONFIG_PREFIX, caindo no npm do pacman em /usr.)
+npm_global_writable() {
+  local prefix nm
+  prefix="$(npm_global_prefix)"
+  [[ -n "$prefix" ]] || return 0   # desconhecido: não bloqueia, deixa o npm decidir
+  nm="${prefix}/lib/node_modules"
+  [[ -d "$nm" ]] || nm="$prefix"
+  [[ -w "$nm" ]]
+}
+
+
 cleanup_npm_global_tree() {
   local prefix root
   prefix="$(npm_global_prefix)"
@@ -175,6 +191,10 @@ update_npm_self() {
     log "  npm ${installed} já na versão mais recente."
     return 0
   fi
+  if ! npm_global_writable; then
+    log "  npm global em $(npm_global_prefix) é gerenciado pelo sistema (root/pacman); pulando self-update — atualize via 'sudo pacman -Syu'."
+    return 0
+  fi
   log "  npm: ${installed} → ${latest}"
   output="$(npm install -g "npm@${latest}" 2>&1)"
   rc=$?
@@ -195,6 +215,11 @@ update_npm_globals() {
   prefix_rc=$?
   if (( prefix_rc == 1 )); then
     return 1
+  fi
+
+  if ! npm_global_writable; then
+    log "  npm global em $(npm_global_prefix) é gerenciado pelo sistema (root/pacman); pulando updates globais — atualize via 'sudo pacman -Syu'."
+    return 0
   fi
 
   outdated="$(npm outdated -g --depth=0 --json 2>/dev/null || true)"
@@ -288,6 +313,10 @@ update_corepack() {
     log "  corepack ${installed} já na versão mais recente."
     return 0
   fi
+  if ! npm_global_writable; then
+    log "  corepack: npm global em $(npm_global_prefix) é gerenciado pelo sistema (root/pacman); pulando — atualize via 'sudo pacman -Syu'."
+    return 0
+  fi
   log "  corepack: ${installed} → ${latest}"
   output="$(npm install -g "corepack@${latest}" 2>&1)"
   rc=$?
@@ -379,6 +408,57 @@ for name, info in deps.items():
     | grep -v '^$' \
     || true
   return 0
+}
+
+
+# Atualiza o runtime Bun via `bun upgrade` (auto-gerenciado em ~/.bun). Só roda
+# se o binário for gravável — uma instalação via pacman (/usr/bin, read-only) é
+# atualizada pelo gerenciador de pacotes, então pula com aviso em vez de falhar.
+update_bun() {
+  local bun_bin output rc
+  bun_bin="$(command -v bun 2>/dev/null || true)"
+  [[ -n "$bun_bin" ]] || { log "  bun não encontrado."; return 0; }
+
+  if [[ ! -w "$bun_bin" ]]; then
+    log "  bun em ${bun_bin} não é gravável (gerenciado pelo sistema/pacman); pulando — atualize via 'sudo pacman -Syu'."
+    return 0
+  fi
+
+  log "  bun atual: $(bun --version 2>/dev/null || echo '?')"
+  output="$(bun upgrade 2>&1)"
+  rc=$?
+  log_raw "$output"
+  if printf '%s\n' "$output" | grep -qiE "already on the latest|congrats|you're on the latest"; then
+    log "  bun já na versão mais recente."
+    return 0
+  fi
+  printf '%s\n' "$output" | grep -v '^$' | tail -5 || true
+  return "$rc"
+}
+
+
+# Atualiza o runtime Deno via `deno upgrade` (auto-gerenciado). Instalação via
+# pacman (/usr/bin, read-only) é atualizada pelo gerenciador de pacotes → pula.
+update_deno() {
+  local deno_bin output rc
+  deno_bin="$(command -v deno 2>/dev/null || true)"
+  [[ -n "$deno_bin" ]] || { log "  deno não encontrado."; return 0; }
+
+  if [[ ! -w "$deno_bin" ]]; then
+    log "  deno em ${deno_bin} não é gravável (gerenciado pelo sistema/pacman); pulando — atualize via 'sudo pacman -Syu'."
+    return 0
+  fi
+
+  log "  deno atual: $(deno --version 2>/dev/null | awk 'NR==1{print $2}' || echo '?')"
+  output="$(deno upgrade 2>&1)"
+  rc=$?
+  log_raw "$output"
+  if printf '%s\n' "$output" | grep -qiE "already.*latest|is the most recent|up to date"; then
+    log "  deno já na versão mais recente."
+    return 0
+  fi
+  printf '%s\n' "$output" | grep -v '^$' | tail -5 || true
+  return "$rc"
 }
 
 
