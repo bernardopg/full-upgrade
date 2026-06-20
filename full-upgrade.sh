@@ -56,6 +56,8 @@ source "${FU_LIB}/config.sh"
 source "${FU_LIB}/catalog.sh"
 # shellcheck source=lib/cli.sh
 source "${FU_LIB}/cli.sh"
+# shellcheck source=lib/report.sh
+source "${FU_LIB}/report.sh"
 # shellcheck source=lib/history.sh
 source "${FU_LIB}/history.sh"
 
