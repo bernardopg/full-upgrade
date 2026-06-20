@@ -29,6 +29,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Efeito `mutating` no catálogo: nunca roda sob `--mode doctor`, `--dry-run` ou
   `--no-repair`. Sem rede → `warn`; recusa/não interativo sem `--yes` → `todo`;
   CVEs remanescentes → `warn`. Coberto por `tests/lang_rust_autofix.bats`.
+- **Flag `--history [N]` — tendência dos últimos N runs (F8).** Lê os JSONL
+  rotacionados em `~/.cache/system-upgrade/` (default N=10) e imprime uma tabela
+  por run (data, versão, ok/warn/todo/fail/skip, duração), a tendência de
+  duração do run mais recente vs. o anterior e os warns/todos recorrentes (steps
+  que aparecem em ≥2 runs). Read-only, sem rede, sai sem rodar o upgrade. Nova
+  lib `lib/history.sh` com parser de JSONL em awk e suíte `tests/history.bats`.
 
 ## [3.5.0] — 2026-06-19
 

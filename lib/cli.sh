@@ -37,6 +37,8 @@ Opções:
                    Sem ARQ, imprime no stdout; com ARQ, grava no arquivo.
   --from RUN_ID    Selecionar qual run usar no --report (default: o último).
                    Aceita o run_id completo ou um prefixo (ex.: 20260613-142301).
+  --history [N]    Mostrar tendência dos últimos N runs (default 10) e sair.
+                   Lê os JSONL rotacionados; read-only, sem rede.
   --fail-fast      Abortar no 1º step com fail; os restantes viram skip
   --continue-on-fail
                    Continuar mesmo após um fail (padrão; torna explícito)
@@ -173,6 +175,17 @@ parse_args() {
             --from=*)
                 REPORT_FROM="${1#--from=}"
             ;;
+            --history)
+                DO_HISTORY=1
+                if (( $# >= 2 )) && [[ "$2" =~ ^[0-9]+$ ]]; then
+                    HISTORY_N="$2"
+                    shift
+                fi
+            ;;
+            --history=*)
+                DO_HISTORY=1
+                HISTORY_N="${1#--history=}"
+            ;;
             --fail-fast)
                 FAIL_FAST=1
             ;;
@@ -238,6 +251,11 @@ apply_mode_and_early_exits() {
 
     if (( DO_REPORT )); then
         generate_report "$REPORT_FROM" "$REPORT_FILE"
+        exit $?
+    fi
+
+    if (( DO_HISTORY )); then
+        report_history "$HISTORY_N"
         exit $?
     fi
 

@@ -58,6 +58,8 @@ source "${FU_LIB}/catalog.sh"
 source "${FU_LIB}/cli.sh"
 # shellcheck source=lib/report.sh
 source "${FU_LIB}/report.sh"
+# shellcheck source=lib/history.sh
+source "${FU_LIB}/history.sh"
 
 # Implementações de steps (ordem não importa — só definições de função).
 for _m in "${FU_LIB}"/steps/*.sh; do
