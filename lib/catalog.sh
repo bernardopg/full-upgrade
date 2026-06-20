@@ -46,6 +46,7 @@ Atualizar Poetry|lang|python,poetry,update,network|mutating|120|pip|update_poetr
 Atualizar Rust (rustup)|lang|rust,rustup,update,network,slow|mutating|600|rustup|update_rustup|Atualiza toolchains Rust quando rustup reporta update disponível.
 Atualizar bins do cargo|lang|rust,cargo,update,network,slow|mutating|600|cargo-install-update|update_cargo_bins|Atualiza binários Cargo usando cargo-install-update.
 Auditar binários cargo (CVEs)|doctor|rust,cargo,security,read,network|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
+Auto-remediar CVEs de toolchain Rust|lang|rust,cargo,security,update,network,slow|mutating|600|cargo-audit|autofix_rust_cves|Sob AUTO_FIX_RUST_CVES=1 e confirmação/--yes, aplica rustup self update/update e cargo install-update para CVEs corrigíveis e re-audita.
 Atualizar ferramentas Go|lang|go,update,network|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas em GOPATH/bin.
 Atualizar ferramentas .NET|lang|dotnet,update,network|mutating|300|dotnet|update_dotnet_tools|Atualiza ferramentas .NET globais.
 Atualizar Google Cloud SDK|lang|gcloud,update,network,slow|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
