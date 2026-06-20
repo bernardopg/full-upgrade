@@ -33,6 +33,9 @@ Opções:
   -c, --config     Mostrar caminhos, valores efetivos e exemplo de configuração
   --config-example Imprimir apenas um config de exemplo (pipe-friendly, sem cores)
   --json           Imprimir uma linha JSON de resumo ao final
+  --fail-fast      Abortar no 1º step com fail; os restantes viram skip
+  --continue-on-fail
+                   Continuar mesmo após um fail (padrão; torna explícito)
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
   -V, --version    Mostrar a versão instalada e sair
@@ -142,6 +145,12 @@ parse_args() {
             ;;
             --json)
                 JSON_SUMMARY=1
+            ;;
+            --fail-fast)
+                FAIL_FAST=1
+            ;;
+            --continue-on-fail)
+                FAIL_FAST=0
             ;;
             --explain-step)
                 shift

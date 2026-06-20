@@ -453,6 +453,11 @@ step_skip() {
 run_step() {
   local name="$1"
   shift
+  # fail-fast: após o primeiro fail, os steps restantes viram skip sem rodar
+  if (( ${RUN_ABORTED:-0} )); then
+    step_skip "$name" "abortado por --fail-fast"
+    return 0
+  fi
   # pular se solicitado via FULL_UPGRADE_SKIP
   if _step_skip_requested "$name"; then
     step_skip "$name" "FULL_UPGRADE_SKIP"
@@ -552,6 +557,12 @@ run_step() {
     0) step_ok ;;
     "$RC_WARN") step_warn ;;
     "$RC_TODO") step_todo ;;
-    *) step_fail ;;
+    *)
+      step_fail
+      # Sob --fail-fast, marca o run como abortado: o gate no topo de run_step
+      # transforma todos os steps seguintes em skip "abortado por --fail-fast".
+      (( ${FAIL_FAST:-0} )) && RUN_ABORTED=1
+      ;;
   esac
+  return 0
 }
