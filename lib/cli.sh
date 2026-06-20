@@ -23,7 +23,7 @@ Opções:
   --audit          Auditoria de segurança consolidada (read-only) e sair:
                    CVEs (cargo/arch-audit), HSI/fwupd, Secure Boot, units
                    falhadas, erros de auth, pip quebrado. Use com --json p/ saída
-                   estruturada.
+                   estruturada, ou com --report [ARQ] p/ Markdown.
   --no-repair      Não executar reparos mutáveis da máquina
   --no-cleanup     Não executar limpeza de cache, órfãos, symlinks ou journal
   --restart-services  Reiniciar serviços com libs antigas (checkservices), com confirmação salvo --yes
@@ -254,6 +254,13 @@ apply_mode_and_early_exits() {
         exit 0
     fi
 
+    # --audit precede --report: "--audit --report" persiste a auditoria em
+    # Markdown (run_audit_mode lê DO_REPORT/REPORT_FILE), em vez do relatório de run.
+    if (( DO_AUDIT )); then
+        run_audit_mode
+        exit $?
+    fi
+
     if (( DO_REPORT )); then
         generate_report "$REPORT_FROM" "$REPORT_FILE"
         exit $?
@@ -261,11 +268,6 @@ apply_mode_and_early_exits() {
 
     if (( DO_HISTORY )); then
         report_history "$HISTORY_N"
-        exit $?
-    fi
-
-    if (( DO_AUDIT )); then
-        run_audit_mode
         exit $?
     fi
 
