@@ -20,6 +20,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   execução manual). `--continue-on-fail` torna explícito o comportamento padrão
   (segue após falhas). O `fail` continua sendo o único status que afeta o
   exit code (2). Coberto por `tests/fail_fast.bats`.
+- **Auto-remediação opcional de CVEs de toolchain Rust (F7).** Novo step
+  "Auto-remediar CVEs de toolchain Rust", atrás da chave de config
+  `AUTO_FIX_RUST_CVES` (default `0`). Quando ligado, audita os binários cargo,
+  classifica os vulneráveis em toolchain (rustup/rustc/…) vs cargo-installed e,
+  sob confirmação interativa ou `--yes`, aplica `rustup self update && rustup
+  update` e `cargo install-update -a`, re-auditando e reportando antes→depois.
+  Efeito `mutating` no catálogo: nunca roda sob `--mode doctor`, `--dry-run` ou
+  `--no-repair`. Sem rede → `warn`; recusa/não interativo sem `--yes` → `todo`;
+  CVEs remanescentes → `warn`. Coberto por `tests/lang_rust_autofix.bats`.
 
 ## [3.5.0] — 2026-06-19
 
