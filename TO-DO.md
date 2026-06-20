@@ -15,320 +15,70 @@ Convenções respeitadas em todos os itens:
 Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa.
 Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
----
-
-## 🔧 Correções (5)
-
-> Bugs reais ou comportamento incorreto identificado no código atual.
-
-### C1 — 🔴 ☑ Join key quebrado nos steps custom (espaço inicial no catálogo)
-> **Concluído (PR #6).** Espaço removido das 5 linhas; testes de integridade
-> rejeitam espaço em borda e validam a correspondência catálogo⇄`main.sh`.
-- **Arquivos:** `lib/catalog.sh`, `tests/catalog_integrity.bats`
-- **Problema:** linhas 47–51 do catálogo têm um espaço à frente do nome
-  (` Atualizar Hermes`), mas `lib/main.sh` chama `"Atualizar Hermes"` (sem
-  espaço). O nome é a chave de junção catálogo⇄dispatch — o mismatch faz a
-  busca de metadata falhar **silenciosamente**, e timeout/`cmd_deps` caem para
-  o default. Afeta: Hermes, AdGuard VPN, OpenClaw, Claude Code CLI, Copilot CLI.
-- **Fazer:** remover o espaço inicial das 5 linhas do catálogo.
-- **Aceite:** novo teste bats que falha se qualquer nome de step do catálogo
-  tiver espaço em borda (`^ ` ou ` $`); `--explain-step "Atualizar Hermes"`
-  retorna timeout/deps corretos (não o default).
-
-### C2 — 🔴 ☑ self_update sem verificação de integridade do tarball
-> **Concluído (PR #8).** Canal `release` baixa standalone + `.sha256`, verifica
-> SHA-256 e só instala se bater (backup do anterior); aborta sem checksum.
-> Canal `main` avisa que não há verificação por checksum. Helpers puros
-> `parse_sha256_field`/`file_sha256`/`verify_sha256` com testes (inclui
-> cenário de adulteração).
-- **Arquivos:** `lib/steps/self_update.sh`, `lib/core.sh`
-- **Problema:** `--update` baixa o tarball da release e roda `install.sh` sem
-  validar checksum/assinatura. Tarball adulterado em trânsito = execução
-  arbitrária com as permissões do usuário.
-- **Fazer:** baixar o `*.sha256` (ou digest da API do GitHub) junto e validar
-  antes de extrair; abortar com erro claro se não bater. Opcional: validar
-  assinatura GPG se a release publicar `.sig`.
-- **Aceite:** update aborta (rc≠0, mensagem PT-BR) com checksum forjado;
-  prossegue com checksum válido; teste bats da função pura de comparação de hash.
-
-### C3 — 🟡 ☑ `cleanup_orphans` não trata órfãos recursivos remanescentes
-> **Concluído.** `cleanup_orphans` agora roda em loop até `pacman -Qdtq` zerar
-> (limite `ORPHAN_CLEANUP_MAX_ROUNDS`, default 5), com teste Bats simulando
-> `pkg-a → pkg-b → vazio`.
-- **Arquivos:** `lib/steps/pacman.sh`
-- **Problema:** `pacman -Qdtq` lista órfãos de um nível; após remover, novos
-  órfãos podem surgir (deps que só o removido puxava).
-- **Solução:** loop limitado por `ORPHAN_CLEANUP_MAX_ROUNDS`; mantém o gate
-  interativo/`--yes`; se ainda sobrar órfão após o limite, retorna `todo`.
-- **Validação:** `tests/pacman_cleanup.bats` cobre duas passadas e estabilização.
-
-### C4 — 🟡 ☑ `doctor_failed_systemd_units` ignora units `--user` em alguns casos
-> **Concluído.** `systemd_user_scope_status` distingue `available`, `no-runtime`
-> e `no-bus`; o doctor agora registra explicitamente quando a checagem `--user`
-> foi pulada em vez de afirmar "sistema/usuário".
-- **Arquivos:** `lib/steps/doctor.sh`
-- **Problema:** a coleta de units falhadas de usuário depende de
-  `DBUS_SESSION_BUS_ADDRESS`/`XDG_RUNTIME_DIR`; sob sudo/cron o escopo de
-  usuário fica vazio e mascara falhas reais. Sem aviso de que a checagem foi
-  parcial.
-- **Solução:** detectar `DBUS_SESSION_BUS_ADDRESS` ou bus em `XDG_RUNTIME_DIR`;
-  logar `no-runtime`/`no-bus` como checagem parcial, sem falso OK usuário.
-- **Validação:** `tests/doctor_systemd.bats` cobre escopo ausente e disponível.
-
-### C5 — 🟢 ☑ Restauração de mirrorlist não verifica conteúdo do backup
-> **Concluído.** `mirrorlist_has_server` valida `^Server =` ativo antes da
-> restauração; backups vazios/comentados não sobrescrevem a mirrorlist corrente.
-- **Arquivos:** `lib/steps/coverage.sh`
-- **Problema:** em falha do reflector, restaura `cp` do backup sem checar se o
-  backup tem ao menos uma linha `Server =`. Backup vazio/corrompido deixaria o
-  sistema sem mirrors.
-- **Solução:** `mirrorlist_has_server` exige `^Server[[:space:]]*=` ativo antes
-  da restauração; backup inválido é ignorado com aviso/remediação.
-- **Validação:** `tests/coverage_mirrors.bats` cobre backup válido e comentado.
-
-### C6 — 🔴 ☑ Resumo final classifica Flatpak/Docker em "Doctor (auditorias)"
-> **Concluído.** `summary_group_specs` agrupa `containers flatpak docker snap`
-> sob "Contêineres"; teste garante que toda categoria do catálogo pertence a
-> algum grupo.
-- **Arquivos:** `lib/ui.sh` (`print_summary` → `cat_order`/`_category_label`)
-- **Problema:** `cat_order` em `print_summary` lista `containers`, mas os steps
-  Flatpak/Docker têm `categoria=flatpak` e `categoria=docker` no catálogo
-  (`lib/catalog.sh` linhas 27/29). Como nenhum dos dois está em `cat_order`,
-  caem no laço "defensivo" de steps sem categoria conhecida e são impressos
-  **após** o último grupo (Doctor), parecendo parte dele. `_category_label` já
-  mapeia `flatpak|docker|containers → "Contêineres"`, mas o agrupamento usa a
-  string crua da categoria, não o rótulo.
-- **Solução:** `summary_group_specs` renderiza por grupos e inclui
-  `containers flatpak docker snap` em **Contêineres**.
-- **Validação:** `tests/ui_summary.bats` garante cobertura de todas as categorias
-  do catálogo; smoke sintético confirmou Flatpak/Docker no bloco correto.
-
-### C7 — 🟡 ☑ Header de categoria duplicado no resumo ("Shell / Editor" 2x)
-> **Concluído.** O resumo agora itera por grupos (`Shell / Editor|editor shell`),
-> não por categoria crua; teste garante um único header para editor+shell.
-- **Arquivos:** `lib/ui.sh` (`print_summary`, `_category_label`)
-- **Problema:** `cat_order` tem `editor` e `shell` como entradas separadas, mas
-  `_category_label` mapeia **ambas** para a mesma string "Shell / Editor".
-  Cada categoria imprime seu próprio header → rótulo repetido em blocos
-  distintos.
-- **Solução:** `summary_group_specs` usa `Shell / Editor|editor shell` e imprime
-  um único header para os dois domínios.
-- **Validação:** `tests/ui_summary.bats` garante header único.
-
-### C8 — 🔴 ☑ `docker info` trava ~75s quando o daemon está inacessível
-> **Concluído.** `update_docker_images` agora usa `docker_daemon_accessible`
-> com `timeout ${DOCKER_INFO_TIMEOUT_S:-5}`; valor inválido cai para 5s. Teste
-> real com daemon inacessível retornou em **5,011s**.
-- **Arquivos:** `lib/steps/containers.sh` (`update_docker_images`)
-- **Problema:** o socket `/var/run/docker.sock` existe (Docker instalado mas
-  parado/sem permissão), então `docker info` bloqueia no timeout de conexão
-  padrão (~75s) em vez de falhar rápido. O step só é salvo pelo timeout de
-  catálogo (600s), desperdiçando ~25% do tempo total do run.
-- **Solução:** `docker_daemon_accessible` usa `timeout` com
-  `DOCKER_INFO_TIMEOUT_S` validado; valor inválido volta para 5s.
-- **Validação:** `tests/containers.bats` cobre o parser do timeout; teste real
-  com daemon inacessível retornou em 5,011s.
-
-### C9 — 🟡 ☑ Conflito recorrente poetry-core entre pip --user e Poetry
-> **Concluído.** O update genérico do pip --user agora calcula uma lista efetiva
-> de ignore e adiciona `poetry-core` automaticamente quando o Poetry instalado
-> declara requisito fixo (`poetry-core (==2.4.0)`).
-- **Arquivos:** `lib/steps/lang_py.sh` (update pip --user e step Poetry), config
-- **Problema:** `poetry-core` não está na lista de ignore default de pip --user
-  (`FULL_UPGRADE_PIP_USER_IGNORE` está vazio na config do usuário), então o
-  update genérico o atualiza, e o step do Poetry tem que reverter. Ping-pong.
-- **Solução:** `poetry_core_requirement` lê o requisito declarado pelo Poetry e
-  `pip_user_effective_ignore` adiciona `poetry-core` ao ignore efetivo quando o
-  requisito é fixo.
-- **Validação:** `tests/lang_py.bats` cobre preserve/adiciona/não duplica/não
-  adiciona sem requisito; config/README documentam o comportamento.
+> **Concluídos** (removidos deste arquivo): C1–C9, M1–M8, F1–F8.
+> Histórico no `CHANGELOG.md` e nos PRs. F2/F5/F6/F7/F8 entregues na v3.6.0
+> (PRs #29/#30/#31/#32/#33).
 
 ---
 
-## ⚡ Melhorias (5)
+## 🚀 Features (pendentes)
 
-> Refino de algo que já funciona: robustez, clareza, performance, UX.
+> Capacidade nova. Roadmap G-series, ancorado nos achados de run real ainda em
+> aberto e na composição das libs já entregues (`report.sh`, `history.sh`,
+> `audit.sh`).
 
-### M1 — 🔴 ☑ Pré-flight de espaço para o snapshot
-> **Concluído (PR #6).** `SNAPSHOT_MIN_FREE_GIB` (default 2; `0` desliga);
-> helpers puros `space_is_sufficient`/`avail_kib_for_path` com testes.
-- **Arquivos:** `lib/steps/coverage.sh`, `lib/core.sh`
-- **O quê:** antes de criar snapshot btrfs, checar espaço livre no subvolume; se
-  abaixo de um limiar configurável (`SNAPSHOT_MIN_FREE_GIB`), avisar e
-  prosseguir sem falhar (snapshot que enche o disco é pior que não ter).
-- **Aceite:** espaço baixo → `RC_WARN` com motivo, não cria snapshot; espaço OK
-  → comportamento atual.
+### G1 — 🟡 ☐ Auto-remediação opcional de scrub btrfs
+> **Achado no run real 3.2.2:** `Doctor: saúde do btrfs` reporta "nenhum scrub
+> registrado em `/`" como `todo`, mas o script não age.
+- **Arquivos:** `lib/steps/doctor.sh` ou novo `lib/steps/btrfs.sh`, `lib/catalog.sh`, config
+- **O quê:** atrás de chave de config (`AUTO_BTRFS_SCRUB=0` default), oferecer
+  `btrfs scrub start` nos pontos de montagem btrfs sem scrub recente (janela
+  configurável, ex.: 30 dias), sob gate interativo/`--yes`. Efeito `mutating`;
+  nunca sob `--mode doctor`/`--dry-run`/`--no-repair`. Mesmo padrão do F7.
+- **Aceite:** com a chave ligada e `--yes`, dispara o scrub e reporta;
+  default só reporta (`todo`); sem btrfs → `skip`; cobertura bats da decisão.
 
-### M2 — 🟡 ☑ Cleanup de snapshots antigos (retenção)
-> **Concluído.** Novo step `Limpar snapshots full-upgrade antigos`, config
-> `SNAPSHOT_KEEP` (default 5), suporte conservador a snapper/timeshift e testes
-> para retenção sem tocar snapshots de outras origens.
-- **Arquivos:** `lib/steps/cleanup.sh`, `lib/catalog.sh`, `lib/main.sh`
-- **Validação:** `tests/m_improvements.bats` cobre `snapshot_keep_count` e
-  seleção de snapshots antigos pelo marcador `full-upgrade pré-upgrade`.
+### G2 — 🟡 ☐ Elevar arch-audit ao fluxo normal (CVEs de pacotes oficiais)
+> `--audit` (F6) já consulta `arch-audit` se presente; falta no run padrão.
+- **Arquivos:** `lib/steps/pacman.sh` ou `lib/steps/doctor.sh`, `lib/catalog.sh`
+- **O quê:** novo step read-only "Doctor: CVEs de pacotes oficiais (arch-audit)"
+  que lista pacotes com advisories; `warn` se houver corrigíveis por `-Syu`,
+  `todo` se exigir ação manual. Gateado por `has arch-audit` (vira `skip`).
+- **Aceite:** sem `arch-audit` → `skip`; com CVEs corrigíveis → `warn` citando
+  `pacman -Syu`; parser puro coberto por bats.
 
-### M3 — 🟡 ☑ Sumário agrupado por categoria com tempos
-> **Concluído.** Resumo mostra tempo total por grupo, top 3 mais lentos e JSON
-> inclui `category_totals`, `slowest_steps` e `reboot_recommendation`.
-- **Arquivos:** `lib/main.sh` (finalize), `lib/json.sh`
-- **Validação:** `tests/m_improvements.bats` cobre soma por grupo, top 3 e JSON.
+### G3 — 🟢 ☐ Relatório Markdown automático ao fim do run
+> Reaproveita `generate_report` (F2) sem flag manual.
+- **Arquivos:** `lib/main.sh` (`finalize`), `lib/config.sh`
+- **O quê:** chave `REPORT_ON_FINISH=0` default; quando `1`, grava o relatório
+  do run recém-concluído em `~/.cache/system-upgrade/full-upgrade-<run_id>.md`.
+- **Aceite:** com a chave ligada, o arquivo `.md` existe e reflete o run; default
+  inalterado; não falha o run se a geração falhar (`RC_WARN`/log).
 
-### M4 — 🟡 ☑ Padronizar normalização de versão (reuso do semver)
-> **Concluído.** `normalize_version`, `version_compare` e `version_is_outdated`
-> foram promovidos para `lib/core.sh`; self-update/npm/corepack/pnpm usam o
-> helper comum.
-- **Arquivos:** `lib/core.sh`, `lib/steps/lang_*.sh`
-- **Validação:** `tests/m_improvements.bats` cobre normalização, comparação e
-  detecção de versão desatualizada; testes antigos de self-update continuam verdes.
-
-### M5 — 🟢 ☑ Mensagens de remediação acionáveis e consistentes
-> **Concluído.** Novo helper `remediation` padroniza linhas `Remediação:` e foi
-> aplicado em pendências finais, reboot, cargo CVEs, pacnew, npm/pnpm e pipx.
-- **Arquivos:** `lib/steps/*.sh`
-- **Validação:** `tests/m_improvements.bats` cobre o formato do helper.
-
-### M6 — 🟡 ☑ Resumo destaca pendências oficiais não aplicadas
-> **Achado no run real 3.2.2.** "Verificação final de pendências" (`RC_TODO`)
-> listou 6 pacotes oficiais com update disponível (inkscape, libreoffice-fresh,
-> poppler*, python-tqdm) que **não foram aplicados** no mesmo run — a base de
-> dados foi sincronizada por outro step depois do `-Syu`.
-> **Concluído.** `final_check_pending` conta oficiais/AUR separadamente, registra
-> motivo provável e imprime `Remediação: sudo pacman -Syu`/`paru -Syu`.
-- **Arquivos:** `lib/steps/coverage.sh` (verificação final), `lib/main.sh`
-- **Validação:** `tests/m_improvements.bats` cobre `final_pending_reason`.
-
-### M7 — 🟢 ☑ Suprimir ruído de build no log (setuptools/rdoc warnings)
-> **Achado no run real 3.2.2.** Builds AUR (zapzap-git em run anterior; rdoc no
-> empacotamento do próprio full-upgrade) despejam dezenas de linhas de
-> `SetuptoolsDeprecationWarning` e `already initialized constant RDoc::...` no
-> log, afogando sinais úteis.
-> **Concluído.** `run_logged` mantém log bruto completo, mas filtra no terminal
-> apenas warnings allow-listed e imprime contador de supressão.
-- **Arquivos:** `lib/core.sh` (`run_logged`/helpers de captura), steps de build
-- **Validação:** `tests/m_improvements.bats` cobre supressão allow-listed e
-  preservação de erro/linha normal.
-
-### M8 — 🟢 ☑ Sugerir reboot ao final quando kernel/microcode mudou
-> **Achado no run real 3.2.2.** "Doctor: reboot pendente" detectou kernel em
-> execução `7.0.11` vs instalado `7.0.12` (`RC_TODO`), mas isso só aparece no
-> meio do bloco Doctor; fácil de perder num run de 75 steps.
-> **Concluído.** `doctor_reboot_pending` define `STEP_REASON` com kernel/systemd
-> pendente e o rodapé do resumo destaca `Reboot recomendado: ...`.
-- **Arquivos:** `lib/main.sh` (`finalize`/`print_summary`), `lib/steps/doctor.sh`
-- **Validação:** `tests/m_improvements.bats` cobre formatação do rodapé.
-
----
-
-## 🚀 Features (5)
-
-> Capacidade nova.
-
-### F1 — 🔴 ☑ Backup de configs críticas de `/etc` antes das mutações
-> **Concluído (PR #6).** `lib/steps/backup.sh` com `tar.zst` (fallback gzip),
-> rotação (`BACKUP_KEEP`), dry-run sem escrita, helpers puros testados. Config:
-> `BACKUP_CONFIGS`/`BACKUP_KEEP`/`BACKUP_PATHS`. `build.sh` ganhou guarda
-> anti-regressão de `ORDER`.
-- **Arquivos:** novo `lib/steps/backup.sh`, `lib/catalog.sh`, `lib/main.sh`, config
-- **O quê:** step core opcional que arquiva (tar.zst) uma lista configurável de
-  paths (`/etc/pacman.conf`, `/etc/pacman.d/`, `/etc/fstab`, `/etc/mkinitcpio.conf`,
-  `/etc/systemd/`, dotfiles do usuário) em `~/.cache/system-upgrade/backups/`,
-  com rotação. Roda antes do update.
-- **Aceite:** gera tarball verificável; rotação mantém N backups; `--dry-run`
-  lista o que arquivaria sem escrever; lista de paths via `FULL_UPGRADE_BACKUP_PATHS`.
-
-### F2 — 🟡 ☐ Export de relatório do run (Markdown)
-- **Arquivos:** `lib/json.sh` ou novo `lib/report.sh`, `lib/cli.sh`
-- **O quê:** flag `--report [arquivo.md]` que gera, a partir do JSONL, um
-  relatório legível: resumo, tabela de steps (status/tempo/motivo), pendências
-  `todo`, links do log. Reaproveita os eventos já gravados.
-- **Aceite:** `--report /tmp/r.md` produz Markdown válido refletindo o run;
-  funciona a partir de um JSONL existente (`--report --from <run_id>`).
-
-### F3 — 🟡 ☑ Doctor: status de scrub/erros btrfs
-> **Concluído (PR #9).** `doctor_btrfs_health` + helper puro
-> `sum_btrfs_dev_errors`; `BTRFS_SCRUB_MAX_DAYS`. Testado real (sem erros,
-> scrub ausente → `RC_TODO`).
-- **Arquivos:** `lib/steps/doctor.sh`, `lib/core.sh`, `lib/catalog.sh`, `lib/main.sh`
-- **O quê:** novo `doctor_btrfs_health`: em raiz btrfs, reporta `btrfs device
-  stats` (erros de I/O acumulados) e a idade do último scrub; `RC_TODO` se scrub
-  vencido (> `BTRFS_SCRUB_MAX_DAYS`) ou erros > 0.
-- **Aceite:** raiz não-btrfs → skip limpo; erros/scrub vencido → `RC_TODO` com
-  remediação (`btrfs scrub start /`).
-
-### F4 — 🟡 ☑ Doctor: tempo de boot (systemd-analyze)
-> **Concluído (PR #9).** `doctor_boot_time` + helper puro
-> `systemd_time_to_seconds`; `BOOT_TIME_WARN_S`. Testado real (boot ~24s, top-5
-> units, `RC_WARN` acima do limiar).
-- **Arquivos:** `lib/steps/doctor.sh`, `lib/core.sh`, `lib/catalog.sh`, `lib/main.sh`
-- **O quê:** novo `doctor_boot_time`: `systemd-analyze time` + top de
-  `systemd-analyze blame`; `RC_WARN` se boot acima de limiar
-  (`BOOT_TIME_WARN_S`) ou se houver serviço dominando o tempo.
-- **Aceite:** mostra tempo total + 5 piores units; acima do limiar → `RC_WARN`.
-
-### F5 — 🟢 ☐ Flag `--fail-fast` / `--continue-on-fail`
-- **Arquivos:** `lib/globals.sh`, `lib/cli.sh`, `lib/core.sh` (run_step), `lib/main.sh`
-- **O quê:** controlar política ao primeiro `fail`: `--fail-fast` aborta o run
-  imediatamente (útil em CI/manual); default continua (comportamento atual,
-  explicitável via `--continue-on-fail`).
-- **Aceite:** `--fail-fast` para no 1º fail e marca os restantes como skip com
-  motivo "abortado por --fail-fast"; default inalterado; smoke em `--dry-run`.
-
-### F6 — 🟡 ☐ `--audit` / modo auditoria de segurança consolidada
-> **Motivado pelo run real 3.2.2:** o run já coleta sinais de segurança
-> dispersos — CVEs de binários cargo (rustls-webpki, tar, tracing-subscriber),
-> `fwupd security` (HSI:3, Secure Boot desabilitado), units falhadas, erros
-> críticos do journal (falha de auth sudo). Falta uma visão única.
-- **Arquivos:** novo `lib/steps/audit.sh` ou `lib/report.sh`, `lib/cli.sh`, catálogo
-- **O quê:** flag `--audit` que roda só os checks read-only de segurança e emite
-  um relatório consolidado: CVEs (cargo-audit + pacman/arch-audit se houver),
-  postura fwupd/HSI, Secure Boot, units falhadas, erros de auth no journal,
-  pip/npm quebrados. Severidade por item.
-- **Aceite:** `--audit` é não-mutável (como doctor), agrega achados de segurança
-  num bloco único com severidade e remediação; `--json` inclui a seção audit.
-
-### F7 — 🟡 ☐ Auto-remediação opcional de CVEs de toolchain (rustup/cargo)
-> **Achado no run real 3.2.2.** "Auditar binários cargo (CVEs)" reportou 7 CVEs
-> em `rustup` e instruiu manualmente `rustup self update && rustup update`, mas
-> não age.
-- **Arquivos:** `lib/steps/lang_rust.sh`, `lib/catalog.sh`, config
-- **O quê:** quando a auditoria encontrar CVEs corrigíveis por
-  `rustup self update`/`rustup update`/`cargo install-update`, oferecer aplicar
-  (gate interativo/`--yes`), atrás de uma chave de config
-  (`AUTO_FIX_RUST_CVES=0` default). Reportar antes/depois.
-- **Aceite:** com a chave ligada e `--yes`, CVEs de toolchain corrigíveis são
-  aplicadas e re-auditadas; default não muta nada; sem rede → `RC_WARN`.
-
-### F8 — 🟢 ☐ Histórico/tendência de runs (`--history`)
-> **Motivado pelo run real:** já existem ~20 `.jsonl` rotacionados em
-> `~/.cache/system-upgrade/` com `summary` por run (ok/warn/todo/fail/duração),
-> mas nada os consome de forma agregada.
-- **Arquivos:** novo `lib/report.sh`, `lib/cli.sh`, `lib/json.sh`
-- **O quê:** flag `--history [N]` que lê os eventos `summary` dos últimos N
-  JSONL e mostra uma tabela/tendência: data, versão, ok/warn/todo/fail, duração,
-  e deltas (ex.: tempo subindo, novos warns recorrentes). Puramente leitura.
-- **Aceite:** `--history 10` lista os 10 runs mais recentes com contagens e
-  duração; identifica warns/todos recorrentes; funciona sem rede e sem mutar.
+### G4 — 🟢 ☐ `--audit --report [ARQ]` (persistir auditoria em Markdown)
+> Compõe F6 + F2: hoje `--audit` só imprime texto/JSON.
+- **Arquivos:** `lib/steps/audit.sh`, `lib/cli.sh`
+- **O quê:** quando `--report [ARQ]` acompanha `--audit`, emitir o relatório de
+  segurança em Markdown (por severidade, com remediação) no arquivo/stdout.
+- **Aceite:** `--audit --report /tmp/a.md` grava Markdown válido com os achados;
+  `--audit` sozinho mantém a saída atual; cobertura bats do formatador.
 
 ---
 
 ## Ordem de execução sugerida
 
-1. ~~**C1, C2**~~ ✅ (correções de alto impacto: join key + segurança do self-update).
-2. ~~**M1, F1**~~ ✅ (segurança de dados antes de mutar: espaço de snapshot + backup /etc).
-3. ~~**F3, F4**~~ ✅ (cobertura doctor: btrfs + boot time).
-4. ~~**M2–M8**~~ ✅ (retenção, observabilidade, remediações, ruído de build e reboot destacado).
-5. **F2** (relatório Markdown do run).
-6. **F6, F8, F7** (segurança consolidada + histórico + auto-remediação CVEs).
-7. **F5** (política fail-fast/continue-on-fail).
+1. **G1** (scrub btrfs — fecha o último `todo` recorrente do run real).
+2. **G2** (CVEs de pacotes oficiais no fluxo padrão).
+3. **G3, G4** (composição de relatórios — baixo risco, reuso das libs novas).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1–C9; M1–M8; F1, F3, F4.
-- **Próximo:** F2 (relatório Markdown) ou F6/F8/F7 (auditoria/histórico/CVEs).
-- **Restante:** F2, F5–F8.
+- **Concluído:** C1–C9; M1–M8; F1–F8. Release **v3.6.0** fecha F2/F5/F6/F7/F8.
+- **Próximo:** G1 (scrub btrfs).
+- **Restante:** G1–G4.
 
 ---
 
@@ -361,17 +111,15 @@ priorizar. Não é roadmap — é evidência.
 
 **todo (3):**
 - `Verificação final de pendências`: 6 pacotes oficiais com update não aplicado
-  (inkscape, libreoffice-fresh, poppler/-glib/-qt6, python-tqdm). → **M6**.
-- `Doctor: reboot pendente`: kernel 7.0.11 (rodando) vs 7.0.12 (instalado). → **M8**.
+  (inkscape, libreoffice-fresh, poppler/-glib/-qt6, python-tqdm).
+- `Doctor: reboot pendente`: kernel 7.0.11 (rodando) vs 7.0.12 (instalado).
 - `Doctor: saúde do btrfs`: nenhum scrub registrado em `/` (`btrfs scrub start /`).
 
-**Anomalias de performance/UX (viraram itens):**
-- `Atualizar imagens Docker` levou **1m15s** só para logar "daemon não acessível"
-  (≈25% do run). → **C8**.
-- Resumo agrupou Flatpak/Docker sob "Doctor (auditorias)". → **C6**.
-- Header "Shell / Editor" impresso 2×. → **C7**.
-- `poetry-core` 2.4.0→2.4.1 (pip --user) e revertido 2.4.1→2.4.0 (step Poetry) no
-  mesmo run. → **C9**.
+**Anomalias de performance/UX (já corrigidas — C6–C9):**
+- `Atualizar imagens Docker` levou 1m15s só para logar "daemon não acessível". → C8.
+- Resumo agrupou Flatpak/Docker sob "Doctor (auditorias)". → C6.
+- Header "Shell / Editor" impresso 2×. → C7.
+- `poetry-core` 2.4.0→2.4.1 (pip --user) e revertido no mesmo run. → C9.
 
 **Observações de ambiente (não acionáveis no script):**
 - fwupd `HSI:3 de 4`; Secure Boot UEFI desabilitado; RAM não criptografada.

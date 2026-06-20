@@ -56,7 +56,7 @@ unset _missing _f
   if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
     _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
   fi
-  [[ -z "$_build_ver" ]] && _build_ver="3.5.0"
+  [[ -z "$_build_ver" ]] && _build_ver="3.6.0"
   printf 'SCRIPT_VERSION="%s"\n' "${_build_ver#v}"
   printf 'SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf %%s "${BASH_SOURCE[0]}")"\n'
   printf 'SCRIPT_SHA256="$(sha256sum "$SCRIPT_PATH" 2>/dev/null | awk '"'"'{print $1}'"'"' || printf unknown)"\n'
