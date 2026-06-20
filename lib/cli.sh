@@ -33,6 +33,10 @@ Opções:
   -c, --config     Mostrar caminhos, valores efetivos e exemplo de configuração
   --config-example Imprimir apenas um config de exemplo (pipe-friendly, sem cores)
   --json           Imprimir uma linha JSON de resumo ao final
+  --report [ARQ]   Gerar relatório Markdown de um run a partir do JSONL e sair.
+                   Sem ARQ, imprime no stdout; com ARQ, grava no arquivo.
+  --from RUN_ID    Selecionar qual run usar no --report (default: o último).
+                   Aceita o run_id completo ou um prefixo (ex.: 20260613-142301).
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
   -V, --version    Mostrar a versão instalada e sair
@@ -143,6 +147,29 @@ parse_args() {
             --json)
                 JSON_SUMMARY=1
             ;;
+            --report)
+                DO_REPORT=1
+                if (( $# >= 2 )) && [[ "$2" != -* ]]; then
+                    REPORT_FILE="$2"
+                    shift
+                fi
+            ;;
+            --report=*)
+                DO_REPORT=1
+                REPORT_FILE="${1#--report=}"
+            ;;
+            --from)
+                shift
+                if (( $# == 0 )) || [[ "$1" == -* ]]; then
+                    echo "Opção --from requer um run_id." >&2
+                    usage >&2
+                    exit 2
+                fi
+                REPORT_FROM="$1"
+            ;;
+            --from=*)
+                REPORT_FROM="${1#--from=}"
+            ;;
             --explain-step)
                 shift
                 if (( $# == 0 )) || [[ "$1" == -* ]]; then
@@ -198,6 +225,11 @@ apply_mode_and_early_exits() {
     if (( LIST_STEPS )); then
         print_step_catalog
         exit 0
+    fi
+
+    if (( DO_REPORT )); then
+        generate_report "$REPORT_FROM" "$REPORT_FILE"
+        exit $?
     fi
 
     if (( SHOW_CONFIG == 2 )); then
