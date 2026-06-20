@@ -6,6 +6,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Relatório Markdown automático ao fim do run (G3).** Nova chave de config
+  `REPORT_ON_FINISH` (default `0`). Quando `1`, `finalize()` grava o relatório do
+  run recém-concluído em `~/.cache/system-upgrade/full-upgrade-<run_id>.md`
+  (mesmo conteúdo de `--report`), reaproveitando o JSONL do run. Nunca derruba o
+  run: falhas apenas logam. Coberto por `tests/report_on_finish.bats`.
 - **CVEs de pacotes oficiais no fluxo padrão via arch-audit (G2).** Novo step
   read-only "Doctor: CVEs de pacotes oficiais (arch-audit)" que roda no fluxo
   normal/`--mode doctor` (não só em `--audit`). Classifica os achados: pacotes

@@ -187,3 +187,24 @@ generate_report() {
 
   report_markdown_from_jsonl "$jsonl"
 }
+
+# G3 — grava automaticamente o relatório Markdown do run recém-concluído quando
+# REPORT_ON_FINISH=1. Usa o JSONL do run corrente ($JSONL_FILE) diretamente, sem
+# resolução. Chamada de finalize(), depois do evento run_end. Nunca derruba o run:
+# falhas só logam. Emite (stdout) o caminho do .md em sucesso.
+generate_report_on_finish() {
+  (( ${REPORT_ON_FINISH:-0} == 1 )) || return 0
+  local jsonl="${JSONL_FILE:-}" outfile
+  if [[ -z "$jsonl" || ! -r "$jsonl" ]]; then
+    log "  REPORT_ON_FINISH: JSONL do run indisponível; relatório não gerado."
+    return 0
+  fi
+  outfile="${LOG_DIR}/full-upgrade-${RUN_ID}.md"
+  if report_markdown_from_jsonl "$jsonl" > "$outfile" 2>/dev/null; then
+    log "  Relatório do run gravado: ${outfile}"
+  else
+    log "  REPORT_ON_FINISH: falha ao gerar o relatório do run."
+    rm -f "$outfile" 2>/dev/null || true
+  fi
+  return 0
+}
