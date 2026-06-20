@@ -105,3 +105,133 @@ audit_cargo_bins() {
 }
 
 
+# Roda `cargo audit bin` nos binários de $CARGO_HOME/bin e emite (stdout) os
+# basenames vulneráveis, um por linha. rc: RC_WARN se falha de rede transitória,
+# 0 caso contrário (mesmo sem CVEs). Isola a coleta para o step de remediação
+# medir o estado antes/depois sem duplicar a lógica de parsing.
+_rust_collect_vuln_bins() {
+  local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
+  [[ -d "$cargo_bin" ]] || return 0
+  local -a bins=()
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable 2>/dev/null)
+  (( ${#bins[@]} == 0 )) && return 0
+
+  local output rc netre
+  netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
+  output="$(cargo audit bin "${bins[@]}" 2>&1)"
+  rc=$?
+  log_raw "$output"
+  if (( rc != 0 )) && printf '%s\n' "$output" | grep -qiE "$netre"; then
+    return "$RC_WARN"
+  fi
+  printf '%s\n' "$output" | parse_cargo_vuln_bins
+  return 0
+}
+
+# F7 — auto-remediação opcional de CVEs de toolchain/cargo.
+# O gate de config (AUTO_FIX_RUST_CVES) é aplicado em main.sh; aqui também é
+# defensivo. Mede CVEs antes, aplica `rustup self update && rustup update`
+# (toolchain) e `cargo install-update -a` (cargo-installed) sob confirmação/
+# --yes, re-audita e reporta antes→depois. Sem rede → RC_WARN; recusa/não
+# interativo sem --yes → RC_TODO; CVEs remanescentes → RC_WARN.
+autofix_rust_cves() {
+  if (( ${AUTO_FIX_RUST_CVES:-0} == 0 )); then
+    log "  AUTO_FIX_RUST_CVES desligado; nada a remediar."
+    return 0
+  fi
+
+  log "  Auditando binários cargo para identificar CVEs corrigíveis..."
+  local before_list before_rc
+  before_list="$(_rust_collect_vuln_bins)"
+  before_rc=$?
+  if (( before_rc == RC_WARN )); then
+    log "  cargo audit: falha de rede transitória; adiando auto-remediação."
+    STEP_REASON="rede indisponível para auditoria"
+    return "$RC_WARN"
+  fi
+
+  local -a vuln=()
+  mapfile -t vuln < <(printf '%s\n' "$before_list" | grep -v '^[[:space:]]*$')
+  if (( ${#vuln[@]} == 0 )); then
+    log "  Sem CVEs corrigíveis em binários cargo."
+    return 0
+  fi
+
+  local -a toolchain=() cargobins=()
+  local b
+  for b in "${vuln[@]}"; do
+    if [[ "$(classify_cargo_bin "$b")" == "toolchain" ]]; then
+      toolchain+=("$b")
+    else
+      cargobins+=("$b")
+    fi
+  done
+
+  log "  CVEs detectadas em ${#vuln[@]} binário(s): ${vuln[*]}"
+  (( ${#toolchain[@]} > 0 )) && log "    • toolchain/rustup: ${toolchain[*]}"
+  (( ${#cargobins[@]} > 0 )) && log "    • cargo-installed: ${cargobins[*]}"
+
+  # Gate: aplicar mutações exige confirmação ou --yes.
+  if (( ASSUME_YES == 0 )); then
+    if [[ -t 0 ]]; then
+      printf '%b' "${C_YELLOW}  Aplicar remediação (rustup self update/update + cargo install-update)? [s/N] ${C_RESET}"
+      local ans
+      read -r ans
+      case "$ans" in
+        [sS][iI][mM]|[sS]) ;;
+        *) log "  Auto-remediação cancelada pelo usuário."; STEP_REASON="cancelado pelo usuário"; return "$RC_TODO" ;;
+      esac
+    else
+      log "  Execução não interativa sem --yes; pulando auto-remediação."
+      STEP_REASON="requer --yes ou confirmação interativa"
+      return "$RC_TODO"
+    fi
+  fi
+
+  local applied=0
+  if (( ${#toolchain[@]} > 0 )) && has rustup; then
+    log "  Atualizando toolchain/rustup..."
+    run_logged rustup self update || true
+    run_logged rustup update || true
+    applied=1
+  fi
+  if (( ${#cargobins[@]} > 0 )); then
+    if has cargo-install-update; then
+      log "  Atualizando binários cargo-installed..."
+      run_logged cargo install-update -a || true
+      applied=1
+    else
+      log "  cargo-update ausente; binários cargo-installed não puderam ser atualizados."
+    fi
+  fi
+
+  if (( applied == 0 )); then
+    log "  Nenhuma ferramenta de remediação disponível (rustup/cargo-update)."
+    STEP_REASON="sem ferramenta de remediação aplicável"
+    return "$RC_WARN"
+  fi
+
+  log "  Re-auditando após remediação..."
+  local after_list after_rc
+  after_list="$(_rust_collect_vuln_bins)"
+  after_rc=$?
+  if (( after_rc == RC_WARN )); then
+    log "  Re-auditoria falhou por rede; resultado inconclusivo."
+    STEP_REASON="re-auditoria sem rede"
+    return "$RC_WARN"
+  fi
+
+  local -a after=()
+  mapfile -t after < <(printf '%s\n' "$after_list" | grep -v '^[[:space:]]*$')
+  log "  CVEs antes: ${#vuln[@]} → depois: ${#after[@]}."
+  if (( ${#after[@]} == 0 )); then
+    log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"
+    return 0
+  fi
+  log "  ${C_YELLOW}CVEs remanescentes (${#after[@]}): ${after[*]}${C_RESET}"
+  log "    Podem exigir o gerenciador de pacotes (sudo pacman -Syu rust rustup) ou não ter fix upstream."
+  STEP_REASON="${#after[@]} CVE(s) remanescente(s) após remediação"
+  return "$RC_WARN"
+}
+
+

@@ -227,6 +227,18 @@ run_all_steps() {
     else
         step_skip "Auditar binários cargo (CVEs)" "cargo não instalado"
     fi
+
+    # Auto-remediação opcional (F7): só sob AUTO_FIX_RUST_CVES=1, e nunca sob
+    # --no-repair (efeito mutating; --mode doctor/--dry-run já a pulam).
+    if (( ${AUTO_FIX_RUST_CVES:-0} == 0 )); then
+        step_skip "Auto-remediar CVEs de toolchain Rust" "AUTO_FIX_RUST_CVES=0"
+    elif (( NO_REPAIR )); then
+        step_skip "Auto-remediar CVEs de toolchain Rust" "--no-repair"
+    elif has cargo-audit && has cargo; then
+        run_step "Auto-remediar CVEs de toolchain Rust" autofix_rust_cves
+    else
+        step_skip "Auto-remediar CVEs de toolchain Rust" "cargo-audit não instalado"
+    fi
     
     # ── Go ────────────────────────────────────────────────────────────────────────
     
