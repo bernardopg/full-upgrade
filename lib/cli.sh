@@ -20,6 +20,10 @@ Opções:
                      repair  — apenas reparos conhecidos
                      full    — update + doctor + repair (padrão)
   --doctor         Alias de --mode doctor
+  --audit          Auditoria de segurança consolidada (read-only) e sair:
+                   CVEs (cargo/arch-audit), HSI/fwupd, Secure Boot, units
+                   falhadas, erros de auth, pip quebrado. Use com --json p/ saída
+                   estruturada.
   --no-repair      Não executar reparos mutáveis da máquina
   --no-cleanup     Não executar limpeza de cache, órfãos, symlinks ou journal
   --restart-services  Reiniciar serviços com libs antigas (checkservices), com confirmação salvo --yes
@@ -65,6 +69,7 @@ parse_args() {
             -q|--quiet)     QUIET=1 ;;
             -v|--verbose)   VERBOSE=1 ;;
             --doctor)       MODE=doctor ;;
+            --audit)        DO_AUDIT=1 ;;
             --mode)
                 shift
                 case "${1:-}" in
@@ -198,6 +203,11 @@ apply_mode_and_early_exits() {
     if (( LIST_STEPS )); then
         print_step_catalog
         exit 0
+    fi
+
+    if (( DO_AUDIT )); then
+        run_audit_mode
+        exit $?
     fi
 
     if (( SHOW_CONFIG == 2 )); then

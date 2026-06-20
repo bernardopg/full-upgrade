@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Flag `--audit` — auditoria de segurança consolidada (F6).** Roda só checks
+  read-only de segurança e emite um relatório único agrupado por severidade
+  (alta/média/baixa/info) com remediação por item: CVEs de binários cargo
+  (cargo-audit) e de pacotes oficiais (arch-audit, se houver), postura de
+  firmware HSI (fwupd), Secure Boot, units systemd falhadas, erros de
+  autenticação no journal e dependências pip quebradas. Não-mutável (como
+  doctor), sai sem rodar o upgrade. `--audit --json` adiciona uma seção
+  `{"event":"audit",...}` com findings e contagens. Nova lib
+  `lib/steps/audit.sh` e suíte `tests/audit.bats`.
+
 ## [3.5.0] — 2026-06-19
 
 ### Adicionado

@@ -30,6 +30,7 @@ MODE=""
 SHOW_VERSION=0
 SHOW_CONFIG=0
 DO_SELF_UPDATE=0
+DO_AUDIT=0           # --audit: auditoria de segurança consolidada (read-only)
 SUDO_KEEPALIVE_PID=""
 SUDO_KEEPALIVE_PID_FILE=""
 SUDO_READY=0
