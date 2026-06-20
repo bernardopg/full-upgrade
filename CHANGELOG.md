@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.6.0] — 2026-06-20
+
 ### Adicionado
 
 - **Flag `--report [ARQ]` — relatório Markdown de um run (F2).** Gera, a partir
