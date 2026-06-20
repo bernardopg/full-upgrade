@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.7.0] — 2026-06-20
+
 ### Adicionado
 
 - **`--audit --report [ARQ]` — auditoria de segurança em Markdown (G4).** Quando
