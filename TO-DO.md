@@ -15,66 +15,42 @@ Convenções respeitadas em todos os itens:
 Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa.
 Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
-> **Concluídos** (removidos deste arquivo): C1–C9, M1–M8, F1–F8, G1.
-> Histórico no `CHANGELOG.md` e nos PRs. F2/F5/F6/F7/F8 entregues na v3.6.0
-> (PRs #29/#30/#31/#32/#33). G1 (scrub btrfs) entregue na PR #35.
+> **Concluídos** (removidos deste arquivo): C1–C9, M1–M8, F1–F8, **G1–G4**.
+> Histórico no `CHANGELOG.md` e nos PRs. F2/F5/F6/F7/F8 → v3.6.0
+> (PRs #29/#30/#31/#32/#33). G1–G4 → v3.7.0 (PRs #35/#37/#38/#39).
 
 ---
 
 ## 🚀 Features (pendentes)
 
-> Capacidade nova. Roadmap G-series, ancorado nos achados de run real ainda em
-> aberto e na composição das libs já entregues (`report.sh`, `history.sh`,
-> `audit.sh`).
-
-### G1 — 🟡 ☑ Auto-remediação opcional de scrub btrfs
-> **Concluído (PR #35).** Step "Auto-remediar scrub btrfs" (`repair`/`mutating`)
-> gateado por `AUTO_BTRFS_SCRUB` (default 0); inicia `btrfs scrub start /`
-> (não-bloqueante) quando ausente/vencido, sob `--yes`/confirmação. Helper puro
-> `btrfs_scrub_state` + `tests/btrfs_scrub.bats`. Bônus: fix de locale no parse
-> de data do scrub (`LC_ALL=C`) também no `doctor_btrfs_health`.
-
-### G2 — 🟡 ☐ Elevar arch-audit ao fluxo normal (CVEs de pacotes oficiais)
-> `--audit` (F6) já consulta `arch-audit` se presente; falta no run padrão.
-- **Arquivos:** `lib/steps/pacman.sh` ou `lib/steps/doctor.sh`, `lib/catalog.sh`
-- **O quê:** novo step read-only "Doctor: CVEs de pacotes oficiais (arch-audit)"
-  que lista pacotes com advisories; `warn` se houver corrigíveis por `-Syu`,
-  `todo` se exigir ação manual. Gateado por `has arch-audit` (vira `skip`).
-- **Aceite:** sem `arch-audit` → `skip`; com CVEs corrigíveis → `warn` citando
-  `pacman -Syu`; parser puro coberto por bats.
-
-### G3 — 🟢 ☐ Relatório Markdown automático ao fim do run
-> Reaproveita `generate_report` (F2) sem flag manual.
-- **Arquivos:** `lib/main.sh` (`finalize`), `lib/config.sh`
-- **O quê:** chave `REPORT_ON_FINISH=0` default; quando `1`, grava o relatório
-  do run recém-concluído em `~/.cache/system-upgrade/full-upgrade-<run_id>.md`.
-- **Aceite:** com a chave ligada, o arquivo `.md` existe e reflete o run; default
-  inalterado; não falha o run se a geração falhar (`RC_WARN`/log).
-
-### G4 — 🟢 ☐ `--audit --report [ARQ]` (persistir auditoria em Markdown)
-> Compõe F6 + F2: hoje `--audit` só imprime texto/JSON.
-- **Arquivos:** `lib/steps/audit.sh`, `lib/cli.sh`
-- **O quê:** quando `--report [ARQ]` acompanha `--audit`, emitir o relatório de
-  segurança em Markdown (por severidade, com remediação) no arquivo/stdout.
-- **Aceite:** `--audit --report /tmp/a.md` grava Markdown válido com os achados;
-  `--audit` sozinho mantém a saída atual; cobertura bats do formatador.
+> **Backlog vazio.** O roadmap G-series foi concluído na v3.7.0. Próximos itens
+> devem ser ancorados em **novos achados de run real** (ver seção ao final) ou
+> em pedido explícito. Candidatos observados, ainda sem especificação fechada:
+>
+> - **H1 — remediação de `pip check` quebrado** (achado real: pygount↔chardet,
+>   doctoralia↔redis/uvicorn, auto-cpufreq↔urwid). Risco alto de quebrar
+>   constraints; provavelmente só reportar/diagnosticar melhor, não auto-aplicar.
+> - **H2 — `--report`/`--history` em formato JSON** além de Markdown/tabela, para
+>   consumo por outras ferramentas.
+> - **H3 — notificação desktop** (`notify-send`) ao fim do run com o resumo,
+>   atrás de chave de config.
+>
+> Não iniciar sem decisão de prioridade. Cada item vira um PR isolado.
 
 ---
 
 ## Ordem de execução sugerida
 
-1. ~~**G1** (scrub btrfs)~~ — ✅ concluído (PR #35).
-2. **G2** (CVEs de pacotes oficiais no fluxo padrão). ← próximo
-3. **G3, G4** (composição de relatórios — baixo risco, reuso das libs novas).
-
-Cada item vira um PR isolado (branch protection na `main` exige PR + checks
-verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
+G-series concluído. Próxima rodada (H-series) pendente de priorização — ver
+candidatos acima. Cada item vira um PR isolado (branch protection na `main`
+exige PR + checks verdes). Atualizar `CHANGELOG.md` (Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); **G1** (scrub btrfs, PR #35).
-- **Próximo:** G2 (CVEs de pacotes oficiais via arch-audit no fluxo padrão).
-- **Restante:** G2–G4.
+- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); **G1–G4 (v3.7.0)**.
+- **Próximo:** indefinido — backlog vazio; aguarda novos achados de run real
+  ou priorização do H-series.
+- **Restante:** —
 
 ---
 
