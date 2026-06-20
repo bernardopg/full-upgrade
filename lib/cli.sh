@@ -33,6 +33,8 @@ Opções:
   -c, --config     Mostrar caminhos, valores efetivos e exemplo de configuração
   --config-example Imprimir apenas um config de exemplo (pipe-friendly, sem cores)
   --json           Imprimir uma linha JSON de resumo ao final
+  --history [N]    Mostrar tendência dos últimos N runs (default 10) e sair.
+                   Lê os JSONL rotacionados; read-only, sem rede.
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
   -V, --version    Mostrar a versão instalada e sair
@@ -143,6 +145,17 @@ parse_args() {
             --json)
                 JSON_SUMMARY=1
             ;;
+            --history)
+                DO_HISTORY=1
+                if (( $# >= 2 )) && [[ "$2" =~ ^[0-9]+$ ]]; then
+                    HISTORY_N="$2"
+                    shift
+                fi
+            ;;
+            --history=*)
+                DO_HISTORY=1
+                HISTORY_N="${1#--history=}"
+            ;;
             --explain-step)
                 shift
                 if (( $# == 0 )) || [[ "$1" == -* ]]; then
@@ -198,6 +211,11 @@ apply_mode_and_early_exits() {
     if (( LIST_STEPS )); then
         print_step_catalog
         exit 0
+    fi
+
+    if (( DO_HISTORY )); then
+        report_history "$HISTORY_N"
+        exit $?
     fi
 
     if (( SHOW_CONFIG == 2 )); then
