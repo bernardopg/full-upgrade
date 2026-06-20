@@ -482,7 +482,8 @@ finalize() {
     
     print_summary
     write_run_event_json "run_end"
-    
+    generate_report_on_finish
+
     if (( HAS_FAIL )); then
         exit 2
     fi
