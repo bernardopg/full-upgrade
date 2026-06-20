@@ -454,6 +454,7 @@ run_all_steps() {
     run_step "Doctor: saúde de rede" doctor_network_health
     run_step "Doctor: serviços com libs antigas" doctor_stale_services
     run_step "Doctor: saúde do pacman" doctor_pacman_health
+    run_step "Doctor: CVEs de pacotes oficiais (arch-audit)" doctor_arch_audit_cves
     run_step "Doctor: hooks ALPM com falha" doctor_pacman_hooks
     run_step "Doctor: SMART e NVMe" doctor_smart_health
     run_step "Doctor: saúde da sessão desktop" doctor_desktop_health

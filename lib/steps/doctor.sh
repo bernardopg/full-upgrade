@@ -774,6 +774,64 @@ doctor_pacman_health() {
 }
 
 
+# G2 — helper puro: classifica a saída de `arch-audit` em corrigíveis vs sem
+# correção. Lê a saída por stdin e emite (stdout) "<corrigíveis> <sem_correção>".
+# Linha afetada típica: "Package X is affected by CVE-.... <risco>! Update to V!".
+# A presença de "Update to" marca o pacote como corrigível por `pacman -Syu`.
+parse_arch_audit() {
+  awk '
+    /[Pp]ackage .* is affected by/ {
+      total++
+      if ($0 ~ /Update to/) fix++
+    }
+    END { printf "%d %d\n", fix + 0, (total - fix) + 0 }
+  '
+}
+
+# G2 — CVEs de pacotes oficiais via arch-audit, no fluxo padrão (read-only).
+# Sem arch-audit, o run_step pula via cmd_deps do catálogo. Corrigíveis por
+# `pacman -Syu` → RC_WARN (acionável); apenas sem correção disponível → RC_TODO;
+# nenhuma → 0. Falha de rede ao consultar o tracker → RC_WARN.
+doctor_arch_audit_cves() {
+  if ! has arch-audit; then
+    log "  arch-audit não instalado; pulando."
+    return 0
+  fi
+
+  local out rc netre fix manual
+  netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
+  out="$(arch-audit 2>&1)"
+  rc=$?
+  if (( rc != 0 )) && printf '%s\n' "$out" | grep -qiE "$netre"; then
+    log "  arch-audit: falha de rede ao consultar o tracker de segurança."
+    STEP_REASON="rede indisponível para arch-audit"
+    return "$RC_WARN"
+  fi
+  log_raw "$out"
+
+  read -r fix manual < <(printf '%s\n' "$out" | parse_arch_audit)
+  fix="${fix:-0}"; manual="${manual:-0}"
+
+  if (( fix == 0 && manual == 0 )); then
+    log "  Sem CVEs conhecidas em pacotes oficiais (arch-audit)."
+    return 0
+  fi
+
+  local status=0
+  if (( fix > 0 )); then
+    log "  ${C_YELLOW}arch-audit: ${fix} pacote(s) com CVE corrigível.${C_RESET}"
+    log "  Remediação: sudo pacman -Syu"
+    status="$RC_WARN"
+  fi
+  if (( manual > 0 )); then
+    log "  ${C_YELLOW}arch-audit: ${manual} pacote(s) com CVE sem correção disponível ainda.${C_RESET}"
+    (( status == 0 )) && status="$RC_TODO"
+  fi
+  STEP_REASON="arch-audit: ${fix} corrigível(is), ${manual} sem correção"
+  return "$status"
+}
+
+
 doctor_pacman_hooks() {
   if ! has journalctl; then
     log "  journalctl não encontrado; não é possível auditar hooks ALPM."

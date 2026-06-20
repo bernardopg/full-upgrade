@@ -84,6 +84,7 @@ Doctor: saúde de boot|doctor|boot,systemd,read,sudo|read|30|bootctl|doctor_boot
 Doctor: saúde de rede|doctor|network,read|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.
 Doctor: serviços com libs antigas|doctor|systemd,read,sudo|read|60||doctor_stale_services|Detecta serviços usando bibliotecas atualizadas sem restart (needrestart/checkservices).
 Doctor: saúde do pacman|doctor|pacman,read|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
+Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,read,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
 Doctor: hooks ALPM com falha|doctor|pacman,journal,read|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
 Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
