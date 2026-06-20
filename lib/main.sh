@@ -461,6 +461,19 @@ run_all_steps() {
     run_step "Doctor: ambiente Python" doctor_python_env
     run_step "Doctor: conflitos JavaScript global" doctor_js_conflicts
     run_step "Doctor: saúde do btrfs" doctor_btrfs_health
+
+    # Auto-remediação opcional (G1): só sob AUTO_BTRFS_SCRUB=1, e nunca sob
+    # --no-repair (efeito mutating; --mode doctor/--dry-run já a pulam).
+    if (( ${AUTO_BTRFS_SCRUB:-0} == 0 )); then
+        step_skip "Auto-remediar scrub btrfs" "AUTO_BTRFS_SCRUB=0"
+    elif (( NO_REPAIR )); then
+        step_skip "Auto-remediar scrub btrfs" "--no-repair"
+    elif has btrfs; then
+        run_step "Auto-remediar scrub btrfs" autofix_btrfs_scrub
+    else
+        step_skip "Auto-remediar scrub btrfs" "btrfs não instalado"
+    fi
+
     run_step "Doctor: tempo de boot" doctor_boot_time
 }
 

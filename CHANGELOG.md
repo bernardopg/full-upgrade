@@ -4,6 +4,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Auto-remediação opcional de scrub btrfs (G1).** Novo step "Auto-remediar
+  scrub btrfs" (categoria `repair`, efeito `mutating`), atrás da chave de config
+  `AUTO_BTRFS_SCRUB` (default `0`). Quando ligado e o scrub em `/` está ausente
+  ou mais antigo que `BTRFS_SCRUB_MAX_DAYS`, oferece iniciar `btrfs scrub start /`
+  (não-bloqueante) sob confirmação interativa ou `--yes`. Nunca roda sob
+  `--mode doctor`, `--dry-run` ou `--no-repair`. Sem sudo sem prompt ou recusa/
+  não interativo → `todo`; falha ao iniciar → `warn`. Helper puro
+  `btrfs_scrub_state` e suíte `tests/btrfs_scrub.bats`.
+
+### Corrigido
+
+- **Parsing de data do scrub btrfs sob locale não-inglês.** `doctor_btrfs_health`
+  (e o novo G1) agora invocam `btrfs scrub status` e `date -d` sob `LC_ALL=C`;
+  antes, em ambientes pt_BR, a data localizada ("qui jun ...") não era reparseada
+  e a idade do scrub caía silenciosamente em "indeterminada".
+
 ## [3.6.0] — 2026-06-20
 
 ### Adicionado
