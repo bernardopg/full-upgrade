@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Flag `--report [ARQ]` — relatório Markdown de um run (F2).** Gera, a partir
+  do JSONL já gravado em `~/.cache/system-upgrade/`, um relatório legível:
+  cabeçalho (versão, início/fim, duração, resultado, log), tabela de steps
+  (status/tempo/motivo) e seções de Falhas/Pendências/Avisos. Sem argumento
+  imprime no stdout; com argumento grava no arquivo. `--from RUN_ID` escolhe o
+  run (default: o último; aceita prefixo do run_id). Read-only, sai sem rodar o
+  upgrade. Nova lib `lib/report.sh` com parser de JSONL em awk (sem dependência
+  de `jq`) e suíte `tests/report.bats`.
+
 ## [3.5.0] — 2026-06-19
 
 ### Adicionado
