@@ -14,6 +14,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   run (default: o último; aceita prefixo do run_id). Read-only, sai sem rodar o
   upgrade. Nova lib `lib/report.sh` com parser de JSONL em awk (sem dependência
   de `jq`) e suíte `tests/report.bats`.
+- **Flags `--fail-fast` / `--continue-on-fail` — política ao primeiro fail (F5).**
+  Com `--fail-fast`, o run aborta no primeiro step com status `fail`: os steps
+  restantes viram `skip` com motivo `abortado por --fail-fast` (útil em CI ou
+  execução manual). `--continue-on-fail` torna explícito o comportamento padrão
+  (segue após falhas). O `fail` continua sendo o único status que afeta o
+  exit code (2). Coberto por `tests/fail_fast.bats`.
 
 ## [3.5.0] — 2026-06-19
 

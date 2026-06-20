@@ -37,6 +37,9 @@ Opções:
                    Sem ARQ, imprime no stdout; com ARQ, grava no arquivo.
   --from RUN_ID    Selecionar qual run usar no --report (default: o último).
                    Aceita o run_id completo ou um prefixo (ex.: 20260613-142301).
+  --fail-fast      Abortar no 1º step com fail; os restantes viram skip
+  --continue-on-fail
+                   Continuar mesmo após um fail (padrão; torna explícito)
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
   -V, --version    Mostrar a versão instalada e sair
@@ -169,6 +172,12 @@ parse_args() {
             ;;
             --from=*)
                 REPORT_FROM="${1#--from=}"
+            ;;
+            --fail-fast)
+                FAIL_FAST=1
+            ;;
+            --continue-on-fail)
+                FAIL_FAST=0
             ;;
             --explain-step)
                 shift

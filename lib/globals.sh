@@ -33,6 +33,8 @@ DO_SELF_UPDATE=0
 DO_REPORT=0
 REPORT_FILE=""
 REPORT_FROM=""
+FAIL_FAST=0          # 1 = aborta o run no primeiro fail (os restantes viram skip)
+RUN_ABORTED=0        # setado quando o fail-fast dispara; gate em run_step
 SUDO_KEEPALIVE_PID=""
 SUDO_KEEPALIVE_PID_FILE=""
 SUDO_READY=0
