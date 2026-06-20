@@ -175,6 +175,47 @@ audit_report_text() {
   return 0
 }
 
+# G4 — relatório de auditoria em Markdown (sem ANSI), agrupado por severidade.
+# Emite no stdout; reaproveitado por --audit --report.
+audit_report_markdown() {
+  printf '# Auditoria de segurança consolidada\n\n'
+
+  if (( ${#AUDIT_FINDINGS[@]} == 0 )); then
+    printf '_Nenhum achado de segurança acionável._\n'
+    return 0
+  fi
+
+  local sev label item s c title detail remed printed
+  for sev in high medium low info; do
+    case "$sev" in
+      high)   label="Alta"  ;;
+      medium) label="Média" ;;
+      low)    label="Baixa" ;;
+      *)      label="Info"  ;;
+    esac
+    printed=0
+    for item in "${AUDIT_FINDINGS[@]}"; do
+      IFS='|' read -r s c title detail remed <<< "$item"
+      [[ "$s" == "$sev" ]] || continue
+      if (( printed == 0 )); then
+        printf '## %s\n\n' "$label"
+        printed=1
+      fi
+      printf -- '- **%s** (%s)\n' "$title" "$c"
+      [[ -n "$detail" ]] && printf '  - %s\n' "$detail"
+      [[ -n "$remed" ]]  && printf '  - remediação: `%s`\n' "$remed"
+    done
+    (( printed == 1 )) && printf '\n'
+  done
+
+  local h=0 m=0 l=0 ii=0
+  for item in "${AUDIT_FINDINGS[@]}"; do
+    case "${item%%|*}" in high) ((h++)) ;; medium) ((m++)) ;; low) ((l++)) ;; info) ((ii++)) ;; esac
+  done
+  printf '**Total:** %d alta, %d média, %d baixa, %d info\n' "$h" "$m" "$l" "$ii"
+  return 0
+}
+
 # Emite a seção JSON da auditoria (uma linha). Usa json_escape de json.sh.
 audit_json_section() {
   local first=1 item s c title detail remed h=0 m=0 l=0 ii=0
@@ -201,7 +242,24 @@ run_audit_mode() {
   _audit_probe_failed_units
   _audit_probe_journal_auth
   _audit_probe_pip
-  audit_report_text
+
+  # G4: com --report, emite Markdown (no arquivo REPORT_FILE ou stdout) em vez do
+  # relatório colorido; senão, o relatório de texto padrão.
+  if (( ${DO_REPORT:-0} )); then
+    if [[ -n "${REPORT_FILE:-}" ]]; then
+      if audit_report_markdown > "$REPORT_FILE"; then
+        printf 'Relatório de auditoria gravado: %s\n' "$REPORT_FILE"
+      else
+        printf 'full-upgrade: falha ao gravar relatório de auditoria em %s\n' "$REPORT_FILE" >&2
+        return 1
+      fi
+    else
+      audit_report_markdown
+    fi
+  else
+    audit_report_text
+  fi
+
   if (( ${JSON_SUMMARY:-0} )); then
     printf '%s\n' "$(audit_json_section)"
   fi

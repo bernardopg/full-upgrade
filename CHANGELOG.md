@@ -6,6 +6,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **`--audit --report [ARQ]` — auditoria de segurança em Markdown (G4).** Quando
+  `--report` acompanha `--audit`, o relatório de segurança (por severidade, com
+  remediação) é emitido em Markdown — gravado em `ARQ` ou no stdout — em vez do
+  relatório de run. `--audit` sozinho mantém a saída de texto colorida; `--json`
+  segue disponível. Novo formatador puro `audit_report_markdown` (sem ANSI),
+  coberto por `tests/audit.bats`.
 - **Relatório Markdown automático ao fim do run (G3).** Nova chave de config
   `REPORT_ON_FINISH` (default `0`). Quando `1`, `finalize()` grava o relatório do
   run recém-concluído em `~/.cache/system-upgrade/full-upgrade-<run_id>.md`
