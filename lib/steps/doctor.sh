@@ -1221,7 +1221,7 @@ doctor_btrfs_health() {
   # 2) Idade do último scrub.
   local scrub max_days last_epoch now_epoch age_days
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
-  scrub="$(sudo -n btrfs scrub status / 2>/dev/null || true)"
+  scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null || true)"
   if printf '%s\n' "$scrub" | grep -qiE 'no stats available|never'; then
     log "  ${C_YELLOW}btrfs: nenhum scrub registrado em / — recomendado rodar periodicamente.${C_RESET}"
     log "  Remediação: sudo btrfs scrub start /"
@@ -1231,7 +1231,7 @@ doctor_btrfs_health() {
     local started
     started="$(printf '%s\n' "$scrub" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
     if [[ -n "$started" ]]; then
-      last_epoch="$(date -d "$started" +%s 2>/dev/null || true)"
+      last_epoch="$(LC_ALL=C date -d "$started" +%s 2>/dev/null || true)"
       now_epoch="$(date +%s 2>/dev/null || true)"
       if [[ "$last_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ ]]; then
         age_days=$(( (now_epoch - last_epoch) / 86400 ))
@@ -1250,6 +1250,113 @@ doctor_btrfs_health() {
     STEP_REASON="btrfs: erros de device e/ou scrub vencido em /"
   fi
   return "$status"
+}
+
+
+# G1 — helper puro: classifica o estado do scrub a partir do texto de
+# `btrfs scrub status <mp>` e do limite em dias. Emite (stdout) um de:
+#   never        — nunca houve scrub registrado
+#   due:<dias>   — último scrub há <dias> > max_days (vencido)
+#   ok:<dias>    — último scrub há <dias> <= max_days
+#   unknown      — não foi possível extrair a data (formato inesperado)
+# Sem efeitos colaterais; testável com fixtures.
+btrfs_scrub_state() {
+  local txt="$1" max_days="${2:-30}"
+  if printf '%s\n' "$txt" | grep -qiE 'no stats available|never'; then
+    printf 'never'; return 0
+  fi
+  local started last_epoch now_epoch age_days
+  started="$(printf '%s\n' "$txt" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
+  [[ -n "$started" ]] || { printf 'unknown'; return 0; }
+  # LC_ALL=C: a data vem de `btrfs scrub status` sob LC_ALL=C (inglês); parsear
+  # no mesmo locale evita falha quando o ambiente está em pt_BR ("qui jun ...").
+  last_epoch="$(LC_ALL=C date -d "$started" +%s 2>/dev/null || true)"
+  now_epoch="$(date +%s 2>/dev/null || true)"
+  [[ "$last_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ ]] || { printf 'unknown'; return 0; }
+  age_days=$(( (now_epoch - last_epoch) / 86400 ))
+  if (( age_days > max_days )); then
+    printf 'due:%s' "$age_days"
+  else
+    printf 'ok:%s' "$age_days"
+  fi
+  return 0
+}
+
+# G1 — auto-remediação opcional de scrub btrfs vencido/ausente em /.
+# O gate de config (AUTO_BTRFS_SCRUB) é aplicado em main.sh; aqui também é
+# defensivo. Inicia `btrfs scrub start /` de forma NÃO-bloqueante (o scrub roda
+# em background; bloquear estouraria o timeout do step). Sob confirmação/--yes.
+# RC: 0 nada a fazer / scrub iniciado; RC_TODO sem sudo ou recusa/não interativo;
+# RC_WARN se o comando de start falhar.
+autofix_btrfs_scrub() {
+  if (( ${AUTO_BTRFS_SCRUB:-0} == 0 )); then
+    log "  AUTO_BTRFS_SCRUB desligado; nada a remediar."
+    return 0
+  fi
+  if ! has btrfs; then
+    log "  btrfs-progs não instalado; pulando."
+    return 0
+  fi
+
+  local rootfs
+  rootfs="$(findmnt -no FSTYPE / 2>/dev/null || true)"
+  if [[ "$rootfs" != "btrfs" ]]; then
+    log "  Raiz não é btrfs (${rootfs:-?}); nada a remediar."
+    return 0
+  fi
+
+  if ! _doctor_sudo_ok; then
+    log "  btrfs scrub requer sudo sem prompt; remediação pulada."
+    STEP_REASON="requer sudo sem prompt"
+    return "$RC_TODO"
+  fi
+
+  local scrub state max_days
+  max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
+  scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null || true)"
+  state="$(btrfs_scrub_state "$scrub" "$max_days")"
+  case "$state" in
+    ok:*)
+      log "  btrfs: scrub recente em / (${state#ok:} dia(s), limite ${max_days}) — nada a fazer."
+      return 0
+      ;;
+    unknown)
+      log "  btrfs: não foi possível determinar a idade do scrub; nada a fazer."
+      return 0
+      ;;
+    never)
+      log "  btrfs: nenhum scrub registrado em /."
+      ;;
+    due:*)
+      log "  btrfs: último scrub há ${state#due:} dia(s) (> ${max_days})."
+      ;;
+  esac
+
+  # Gate: aplicar mutação exige confirmação ou --yes.
+  if (( ASSUME_YES == 0 )); then
+    if [[ -t 0 ]]; then
+      printf '%b' "${C_YELLOW}  Iniciar 'btrfs scrub start /' agora? [s/N] ${C_RESET}"
+      local ans
+      read -r ans
+      case "$ans" in
+        [sS][iI][mM]|[sS]) ;;
+        *) log "  Scrub cancelado pelo usuário."; STEP_REASON="cancelado pelo usuário"; return "$RC_TODO" ;;
+      esac
+    else
+      log "  Execução não interativa sem --yes; pulando scrub."
+      STEP_REASON="requer --yes ou confirmação interativa"
+      return "$RC_TODO"
+    fi
+  fi
+
+  log "  Iniciando scrub em / (background)..."
+  if run_logged sudo -n btrfs scrub start /; then
+    log "  ${C_GREEN}Scrub iniciado; acompanhe com 'sudo btrfs scrub status /'.${C_RESET}"
+    return 0
+  fi
+  log "  ${C_YELLOW}Falha ao iniciar o scrub btrfs.${C_RESET}"
+  STEP_REASON="falha ao iniciar scrub"
+  return "$RC_WARN"
 }
 
 
