@@ -13,7 +13,7 @@ ORDER=(
   lib/config.sh lib/catalog.sh lib/cli.sh lib/report.sh lib/history.sh
   lib/steps/pacman.sh lib/steps/repair.sh lib/steps/containers.sh
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
-  lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh
+  lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh lib/steps/ide.sh
   lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh lib/steps/doctor.sh
   lib/steps/backup.sh lib/steps/self_update.sh lib/steps/audit.sh
   lib/main.sh

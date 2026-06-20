@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Atualizar extensões de IDE da família VSCode (H3).** Novo step "Atualizar
+  extensões de IDE (VSCode/Cursor)" (`editor`/`mutating`) que roda
+  `<cli> --update-extensions` para cada IDE presente (`code`, `cursor`, `codium`,
+  `code-insiders`, `vscodium`). Os binários já vêm do pacman/AUR, mas as
+  extensões ficavam defasadas em silêncio. Lista de CLIs configurável via
+  `IDE_EXT_CLIS` (default autodetect). Falha de rede num CLI → `warn`; nenhum IDE
+  presente → `skip`. Helper puro `count_ext_updates` e suíte `tests/ide_ext.bats`.
+
 ## [3.7.0] — 2026-06-20
 
 ### Adicionado

@@ -354,7 +354,15 @@ run_all_steps() {
         step_skip "Atualizar plugins Neovim (Lazy)" "nvim não instalado"
         step_skip "Atualizar LSPs Neovim (Mason)" "nvim não instalado"
     fi
-    
+
+    # ── Extensões de IDE (família VSCode) ─────────────────────────────────────────
+
+    if has code || has cursor || has codium || has code-insiders || has vscodium; then
+        run_step "Atualizar extensões de IDE (VSCode/Cursor)" update_ide_extensions
+    else
+        step_skip "Atualizar extensões de IDE (VSCode/Cursor)" "nenhum IDE VSCode encontrado"
+    fi
+
     # ── Hyprland plugins ─────────────────────────────────────────────────────────
     
     if has hyprpm; then
