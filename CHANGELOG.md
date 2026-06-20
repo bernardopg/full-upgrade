@@ -6,6 +6,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **CVEs de pacotes oficiais no fluxo padrão via arch-audit (G2).** Novo step
+  read-only "Doctor: CVEs de pacotes oficiais (arch-audit)" que roda no fluxo
+  normal/`--mode doctor` (não só em `--audit`). Classifica os achados: pacotes
+  com correção disponível → `warn` citando `sudo pacman -Syu`; apenas sem
+  correção ainda → `todo`; nenhum → `ok`. Falha de rede ao consultar o tracker
+  → `warn`. Sem `arch-audit` instalado o step é pulado (`cmd-ausente`). Helper
+  puro `parse_arch_audit` e suíte `tests/arch_audit.bats`.
 - **Auto-remediação opcional de scrub btrfs (G1).** Novo step "Auto-remediar
   scrub btrfs" (categoria `repair`, efeito `mutating`), atrás da chave de config
   `AUTO_BTRFS_SCRUB` (default `0`). Quando ligado e o scrub em `/` está ausente
