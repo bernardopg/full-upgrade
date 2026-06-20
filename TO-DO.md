@@ -15,9 +15,9 @@ Convenções respeitadas em todos os itens:
 Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa.
 Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
-> **Concluídos** (removidos deste arquivo): C1–C9, M1–M8, F1–F8.
+> **Concluídos** (removidos deste arquivo): C1–C9, M1–M8, F1–F8, G1.
 > Histórico no `CHANGELOG.md` e nos PRs. F2/F5/F6/F7/F8 entregues na v3.6.0
-> (PRs #29/#30/#31/#32/#33).
+> (PRs #29/#30/#31/#32/#33). G1 (scrub btrfs) entregue na PR #35.
 
 ---
 
@@ -27,16 +27,12 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 > aberto e na composição das libs já entregues (`report.sh`, `history.sh`,
 > `audit.sh`).
 
-### G1 — 🟡 ☐ Auto-remediação opcional de scrub btrfs
-> **Achado no run real 3.2.2:** `Doctor: saúde do btrfs` reporta "nenhum scrub
-> registrado em `/`" como `todo`, mas o script não age.
-- **Arquivos:** `lib/steps/doctor.sh` ou novo `lib/steps/btrfs.sh`, `lib/catalog.sh`, config
-- **O quê:** atrás de chave de config (`AUTO_BTRFS_SCRUB=0` default), oferecer
-  `btrfs scrub start` nos pontos de montagem btrfs sem scrub recente (janela
-  configurável, ex.: 30 dias), sob gate interativo/`--yes`. Efeito `mutating`;
-  nunca sob `--mode doctor`/`--dry-run`/`--no-repair`. Mesmo padrão do F7.
-- **Aceite:** com a chave ligada e `--yes`, dispara o scrub e reporta;
-  default só reporta (`todo`); sem btrfs → `skip`; cobertura bats da decisão.
+### G1 — 🟡 ☑ Auto-remediação opcional de scrub btrfs
+> **Concluído (PR #35).** Step "Auto-remediar scrub btrfs" (`repair`/`mutating`)
+> gateado por `AUTO_BTRFS_SCRUB` (default 0); inicia `btrfs scrub start /`
+> (não-bloqueante) quando ausente/vencido, sob `--yes`/confirmação. Helper puro
+> `btrfs_scrub_state` + `tests/btrfs_scrub.bats`. Bônus: fix de locale no parse
+> de data do scrub (`LC_ALL=C`) também no `doctor_btrfs_health`.
 
 ### G2 — 🟡 ☐ Elevar arch-audit ao fluxo normal (CVEs de pacotes oficiais)
 > `--audit` (F6) já consulta `arch-audit` se presente; falta no run padrão.
@@ -67,8 +63,8 @@ Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 
 ## Ordem de execução sugerida
 
-1. **G1** (scrub btrfs — fecha o último `todo` recorrente do run real).
-2. **G2** (CVEs de pacotes oficiais no fluxo padrão).
+1. ~~**G1** (scrub btrfs)~~ — ✅ concluído (PR #35).
+2. **G2** (CVEs de pacotes oficiais no fluxo padrão). ← próximo
 3. **G3, G4** (composição de relatórios — baixo risco, reuso das libs novas).
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
@@ -76,9 +72,9 @@ verdes). Atualizar `CHANGELOG.md` (seção Unreleased) a cada PR.
 
 ## Progresso
 
-- **Concluído:** C1–C9; M1–M8; F1–F8. Release **v3.6.0** fecha F2/F5/F6/F7/F8.
-- **Próximo:** G1 (scrub btrfs).
-- **Restante:** G1–G4.
+- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); **G1** (scrub btrfs, PR #35).
+- **Próximo:** G2 (CVEs de pacotes oficiais via arch-audit no fluxo padrão).
+- **Restante:** G2–G4.
 
 ---
 
