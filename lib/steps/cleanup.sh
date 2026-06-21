@@ -188,6 +188,17 @@ cleanup_old_snapshots() {
 }
 
 
+# K2 — clusters de rebuild upstream que o pacman SEGURA (evita partial upgrade)
+# até o cluster inteiro ser publicado nos mirrors. Reaparecem como pendência
+# "oficial" em todo run sem serem acionáveis: rodar `pacman -Syu` de novo não os
+# sobe enquanto o rebuild não fecha. Hoje: toolchain Haskell/GHC (rebuild
+# periódico em massa, o caso recorrente nos runs reais).
+pending_is_held_cluster() {
+  local name="$1"
+  [[ "$name" =~ ^(haskell-|ghc(-|$)|cabal-install$|stack$|hlint$|stylish-haskell$|happy$|alex$) ]]
+}
+
+
 final_pending_reason() {
   local official="$1" aur="$2"
   if (( official > 0 )); then
@@ -206,14 +217,33 @@ final_check_pending() {
   local filtered
   local official_count=0 aur_count=0
 
+  local -a held_official=() actionable_official=()
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
     if [[ -n "${out//[[:space:]]/}" ]]; then
-      pending=1
-      official_count="$(printf '%s\n' "$out" | grep -c '[^[:space:]]' || true)"
-      log "  Pendencias em repositorios oficiais:"
-      printf '%s\n' "$out" | tee >(_strip_ansi >> "$LOG_FILE")
-      remediation "sudo pacman -Syu"
+      local _ln _nm
+      while IFS= read -r _ln; do
+        [[ -n "${_ln//[[:space:]]/}" ]] || continue
+        _nm="${_ln%%[[:space:]]*}"
+        if pending_is_held_cluster "$_nm"; then
+          held_official+=("$_ln")
+        else
+          actionable_official+=("$_ln")
+        fi
+      done <<< "$out"
+
+      if (( ${#held_official[@]} > 0 )); then
+        log "  ${#held_official[@]} pacote(s) oficiais segurados por rebuild upstream (cluster Haskell/GHC); o pacman evita o partial upgrade até o cluster publicar — não acionável agora:"
+        printf '%s\n' "${held_official[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+      fi
+
+      if (( ${#actionable_official[@]} > 0 )); then
+        pending=1
+        official_count="${#actionable_official[@]}"
+        log "  Pendencias acionáveis em repositorios oficiais:"
+        printf '%s\n' "${actionable_official[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+        remediation "sudo pacman -Syu"
+      fi
     fi
   fi
 
@@ -253,7 +283,11 @@ final_check_pending() {
   fi
 
   if (( pending == 0 )); then
-    log "  Nenhuma atualização pendente em pacman/AUR."
+    if (( ${#held_official[@]} > 0 )); then
+      log "  Sem pendências acionáveis: só restam pacotes segurados por rebuild upstream (aguarde o cluster publicar)."
+    else
+      log "  Nenhuma atualização pendente em pacman/AUR."
+    fi
     return 0
   fi
 
