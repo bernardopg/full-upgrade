@@ -58,3 +58,14 @@ setup() {
   run npm_audit_prefix
   [ "$status" -eq 0 ]
 }
+
+@test "npm_allow_scripts_packages: extrai pacotes bloqueados pelo npm" {
+  out="$(printf '%s\n' \
+    'npm warn allow-scripts 2 packages have install scripts not yet covered by allowScripts:' \
+    'npm warn allow-scripts   better-sqlite3@12.11.1 (install: prebuild-install || node-gyp rebuild --release)' \
+    'npm warn allow-scripts   @scope/native-addon@1.2.3 (install: node-gyp rebuild)' \
+    'npm warn allow-scripts' \
+    'changed 2 packages in 1s' \
+    | npm_allow_scripts_packages | sort | paste -sd,)"
+  [ "$out" == "better-sqlite3,@scope/native-addon" ]
+}

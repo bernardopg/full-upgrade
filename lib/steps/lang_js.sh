@@ -62,6 +62,20 @@ npm_global_writable() {
 }
 
 
+# Extrai pacotes citados por `npm warn allow-scripts`, quando o npm bloqueia
+# scripts de install (ex.: native addons como better-sqlite3). Lê stdin e emite
+# um nome por linha, sem versão. Puro/testável.
+npm_allow_scripts_packages() {
+  awk '
+    $1 == "npm" && $2 == "warn" && $3 == "allow-scripts" && $4 ~ /^(@[^[:space:]@]+\/)?[^[:space:]@]+@[0-9]/ {
+      pkg = $4
+      sub(/@[0-9].*$/, "", pkg)
+      if (pkg != "") print pkg
+    }
+  ' | sort -u
+}
+
+
 cleanup_npm_global_tree() {
   local prefix root
   prefix="$(npm_global_prefix)"
@@ -210,6 +224,8 @@ update_npm_globals() {
   local -a failed=()
   local -a skipped=()
   local -a linked_pkgs=()
+  local -a script_blocked=()
+  local todo_rc=0
 
   npm_audit_prefix
   prefix_rc=$?
@@ -274,7 +290,15 @@ for name in sorted(data.keys()):
     fi
 
     log "  Atualizando npm global: ${spec}"
-    if run_logged npm install -g "$spec"; then
+    local _npm_out _npm_rc
+    _npm_out="$(npm install -g "$spec" 2>&1)"
+    _npm_rc=$?
+    log_raw "$_npm_out"
+    printf '%s\n' "$_npm_out" | grep -v '^$' || true
+    local -a _blocked=()
+    mapfile -t _blocked < <(printf '%s\n' "$_npm_out" | npm_allow_scripts_packages)
+    (( ${#_blocked[@]} == 0 )) || script_blocked+=("${_blocked[@]}")
+    if (( _npm_rc == 0 )); then
       continue
     fi
 
@@ -288,7 +312,13 @@ for name in sorted(data.keys()):
   if (( ${#skipped[@]} > 0 )); then
     log "  Pacotes npm linkados (requerem atualização manual): ${skipped[*]}"
     remediation "npm install -g <pkg>@latest  # ou gerencie via workspace"
-    (( ${#failed[@]} == 0 )) && return "$RC_TODO"
+    todo_rc="$RC_TODO"
+  fi
+
+  if (( ${#script_blocked[@]} > 0 )); then
+    log "  npm bloqueou script(s) de install em: ${script_blocked[*]}"
+    remediation "npm install -g --allow-scripts=<pkg> <pkg>@latest  # revise antes; executa scripts do pacote"
+    todo_rc="$RC_TODO"
   fi
 
   if (( ${#failed[@]} > 0 )); then
@@ -296,6 +326,7 @@ for name in sorted(data.keys()):
     return 1
   fi
 
+  (( todo_rc == RC_TODO )) && return "$RC_TODO"
   (( prefix_rc == RC_WARN )) && return "$RC_WARN"
   return 0
 }
@@ -460,5 +491,3 @@ update_deno() {
   printf '%s\n' "$output" | grep -v '^$' | tail -5 || true
   return "$rc"
 }
-
-
