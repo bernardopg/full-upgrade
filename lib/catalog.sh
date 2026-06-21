@@ -89,6 +89,7 @@ Doctor: serviços com libs antigas|doctor|systemd,read,sudo|read|60||doctor_stal
 Verificar Arch News|pacman|news,arch,read,network|read|60|curl|check_arch_news|Alerta sobre Arch News novas (RSS) desde a última verificação, antes do -Syu.
 Doctor: saúde do pacman|doctor|pacman,read|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
 Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,read,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
+Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config,read|read|60||doctor_pacfiles|Lista arquivos .pacnew/.pacsave pendentes de mesclagem (sugere pacdiff); todo se houver.
 Doctor: hooks ALPM com falha|doctor|pacman,journal,read|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
 Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.

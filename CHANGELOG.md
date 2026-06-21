@@ -15,6 +15,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Doctor: arquivos .pacnew/.pacsave (I2).** Novo step read-only "Doctor:
+  arquivos .pacnew/.pacsave" que localiza configs pendentes de mesclagem
+  (geradas pelo pacman) em `PACFILES_DIRS` (default `/etc /boot`); `todo` se
+  houver, sugerindo `sudo pacdiff` (ou instalar `pacman-contrib`). Helper isolado
+  `pacfiles_find` e suíte `tests/pacfiles.bats`. Inspirado no
+  [arch-update](https://github.com/Antiz96/arch-update).
 - **Atualizar Ollama (H2).** Novo step "Atualizar Ollama" (`ai`/`mutating`). O
   ollama vive em `/usr/local/bin` (instalador próprio), fora do pacman/npm. Por
   padrão só reporta a versão; sob `OLLAMA_SELF_UPDATE=1` reexecuta o instalador

@@ -832,6 +832,46 @@ doctor_arch_audit_cves() {
 }
 
 
+# I2 — localiza arquivos .pacnew/.pacsave nos diretórios dados (um por linha).
+# Isolado p/ testes (stub). Silencioso em erros de permissão.
+pacfiles_find() {
+  find "$@" -type f \( -name '*.pacnew' -o -name '*.pacsave' \) 2>/dev/null
+}
+
+# I2 — reporta arquivos .pacnew/.pacsave pendentes (configs novas/antigas geradas
+# pelo pacman que precisam ser mescladas manualmente). Read-only: lista e sugere
+# `pacdiff`. RC_TODO se houver pendências; 0 caso contrário. Inspirado no
+# arch-update. Diretórios via PACFILES_DIRS (default "/etc /boot").
+doctor_pacfiles() {
+  local dirs="${PACFILES_DIRS:-/etc /boot}"
+  local -a pacf=()
+  # shellcheck disable=SC2086  # split intencional de PACFILES_DIRS
+  mapfile -t pacf < <(pacfiles_find $dirs | grep -v '^[[:space:]]*$')
+
+  if (( ${#pacf[@]} == 0 )); then
+    log "  Sem arquivos .pacnew/.pacsave pendentes."
+    return 0
+  fi
+
+  log "  ${C_YELLOW}${#pacf[@]} arquivo(s) .pacnew/.pacsave pendente(s):${C_RESET}"
+  local f shown=0
+  for f in "${pacf[@]}"; do
+    if (( shown < 20 )); then
+      log "    • ${f}"
+      shown=$((shown + 1))
+    fi
+  done
+  (( ${#pacf[@]} > 20 )) && log "    … e mais $(( ${#pacf[@]} - 20 ))."
+  if has pacdiff; then
+    log "  Remediação: revise/mescle com 'sudo pacdiff' (ou 'pacdiff -o' para listar)."
+  else
+    log "  Remediação: instale 'pacman-contrib' e rode 'sudo pacdiff'."
+  fi
+  STEP_REASON="${#pacf[@]} .pacnew/.pacsave pendente(s) — rode pacdiff"
+  return "$RC_TODO"
+}
+
+
 doctor_pacman_hooks() {
   if ! has journalctl; then
     log "  journalctl não encontrado; não é possível auditar hooks ALPM."
