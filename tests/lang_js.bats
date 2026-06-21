@@ -66,6 +66,8 @@ setup() {
     'npm warn allow-scripts   @scope/native-addon@1.2.3 (install: node-gyp rebuild)' \
     'npm warn allow-scripts' \
     'changed 2 packages in 1s' \
-    | npm_allow_scripts_packages | sort | paste -sd,)"
-  [ "$out" == "better-sqlite3,@scope/native-addon" ]
+    | npm_allow_scripts_packages)"
+  [ "$(printf '%s\n' "$out" | wc -l)" -eq 2 ]
+  [[ "$out" == *"better-sqlite3"* ]]
+  [[ "$out" == *"@scope/native-addon"* ]]
 }
