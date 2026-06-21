@@ -6,6 +6,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Checagem de Arch News antes das mutações (I1).** Novo step read-only
+  "Verificar Arch News" que roda antes do `-Syu`: busca o feed RSS oficial
+  (`https://archlinux.org/feeds/news/`) e alerta (`todo`) sobre itens novos desde
+  a última verificação, listando título e data — Arch publica intervenções
+  manuais necessárias antes de atualizar. Modelo "reconhece ao rodar" (persiste o
+  epoch do item mais novo em `~/.cache/system-upgrade/arch-news-last`). Config
+  `ARCH_NEWS_CHECK` (default `1`); sem `curl` → `skip`; sem rede → `warn`. Helper
+  puro `parse_arch_news_rss` e suíte `tests/arch_news.bats`. Inspirado no
+  [arch-update](https://github.com/Antiz96/arch-update).
 - **Atualizar extensões de IDE da família VSCode (H3).** Novo step "Atualizar
   extensões de IDE (VSCode/Cursor)" (`editor`/`mutating`) que roda
   `<cli> --update-extensions` para cada IDE presente (`code`, `cursor`, `codium`,
