@@ -6,6 +6,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Alterado
 
+- **CVEs de toolchain Rust não-acionáveis viram nota, não `warn` (K3).** Achado
+  recorrente: `Auditar binários cargo` dava `warn` em todo run por CVEs no
+  binário `rustup` upstream (crates vendorizadas), que persistem até o upstream
+  reconstruir — irreparável localmente. Quando as CVEs estão restritas a binários
+  da toolchain (rustup/cargo/rustc), sem nenhum binário cargo-installed
+  acionável, e `rustup check` confirma que já está na última versão, o step agora
+  rebaixa para nota informativa (`ok`) em vez de `warn`. CVEs em binários
+  cargo-installed (atualizáveis via `cargo install-update`) ou com update de
+  rustup pendente continuam `warn`. Helper puro `rustup_check_has_update`;
+  `tests/lang_rust.bats`.
 - **`Verificação final de pendências` distingue cluster segurado por rebuild (K2).**
   Achado recorrente: pacotes do cluster Haskell/GHC reaparecem como pendência
   "oficial" em todo run mesmo após `-Syu` limpo, porque o pacman evita o partial

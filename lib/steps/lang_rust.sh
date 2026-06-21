@@ -23,6 +23,15 @@ update_cargo_bins() {
 }
 
 
+# K3 — true (rc 0) se `rustup check` indica atualização disponível para rustup
+# ou para a toolchain. Usado para decidir se CVEs restritas a binários da
+# toolchain são acionáveis (há update pendente) ou não (já na última → a CVE vive
+# numa crate vendorizada no binário upstream e só some quando upstream reconstrói).
+rustup_check_has_update() {
+  printf '%s\n' "$1" | grep -qiE 'Update available'
+}
+
+
 audit_cargo_bins() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   if [[ ! -d "$cargo_bin" ]]; then
@@ -88,6 +97,22 @@ audit_cargo_bins() {
       cargo_bins+=("$_b")
     fi
   done
+
+  # K3: CVEs só em binários da toolchain (rustup/cargo/rustc), sem nenhum binário
+  # cargo-installed acionável. Se o rustup já está na última versão, não há
+  # remediação local: a CVE vive numa crate vendorizada no binário upstream e só
+  # é corrigida quando o upstream reconstrói. Rebaixa de warn para nota
+  # informativa (return 0) em vez de poluir todo run com um aviso irreparável.
+  if (( ${#cargo_bins[@]} == 0 && ${#toolchain_bins[@]} > 0 )) && has rustup; then
+    local _rc_out _rc_rc
+    _rc_out="$(run_network_cmd rustup check 2>/dev/null)"
+    _rc_rc=$?
+    if (( _rc_rc != RC_WARN )) && ! rustup_check_has_update "$_rc_out"; then
+      log "  ${vuln_count} binário(s) da toolchain com CVE conhecida: ${vuln_bins[*]}"
+      log "  rustup já na última versão — estas CVEs vivem em crates vendorizadas no binário upstream e só somem quando o upstream reconstrói. Não acionável localmente (informativo)."
+      return 0
+    fi
+  fi
 
   log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com CVEs conhecidas: ${vuln_bins[*]}${C_RESET}"
   if (( ${#cargo_bins[@]} > 0 )); then
