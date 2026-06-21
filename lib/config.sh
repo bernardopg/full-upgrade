@@ -25,6 +25,8 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
+: "${ARCH_NEWS_CHECK:=1}"           # 1 = checa Arch News (RSS) antes das mutações e alerta sobre itens novos; 0 = desliga
+: "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
 : "${BACKUP_KEEP:=5}"               # quantos tarballs de backup manter (rotação)
@@ -59,7 +61,7 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH
+  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
@@ -143,6 +145,16 @@ AUTO_BTRFS_SCRUB=0
 # ~/.cache/system-upgrade/full-upgrade-<run_id>.md (mesmo conteúdo de --report).
 REPORT_ON_FINISH=0
 
+# ── Arch News pré-upgrade (I1) ──
+# 1 = checa o feed RSS de Arch News antes das mutações e alerta (todo) sobre
+# itens novos desde a última verificação. 0 = desliga.
+ARCH_NEWS_CHECK=1
+
+# ── Extensões de IDE (H3) ──
+# Lista (separada por espaço) de CLIs VSCode-family cujas extensões atualizar.
+# Vazio = autodetect (code cursor codium code-insiders vscodium).
+IDE_EXT_CLIS=""
+
 # ── Listas de ignore ──
 FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa poetry-core, poetry-core entra no ignore efetivo automaticamente.
@@ -200,6 +212,8 @@ show_config() {
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
+  _cfg_kv "ARCH_NEWS_CHECK" "$ARCH_NEWS_CHECK"
+  _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"
   _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"
   _cfg_kv "FULL_UPGRADE_UPDATE_CHANNEL" "$FULL_UPGRADE_UPDATE_CHANNEL"
   printf '\n'
