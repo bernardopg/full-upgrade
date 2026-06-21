@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Auto-update MCP (K1) não trava no lock do cache uv.** Achado de run real: com
+  servers uvx em uso (sessão Claude/Codex ativa, ex.: `serena`), `uv cache clean`
+  fica esperando o lock global de `~/.cache/uv` por `UV_LOCK_TIMEOUT` (default
+  300s) e estourava o timeout do step (rc 124 → `warn` enganoso). Agora o step
+  roda `uv cache clean` com `UV_LOCK_TIMEOUT=15` (falha rápido) e degrada para
+  `todo` com a contenção de lock detectada — sugerindo rodar `uv cache clean
+  <pkgs>` quando os servers estiverem ociosos. Nunca usa `--force` (corromperia o
+  cache de um processo vivo). Timeout do catálogo do step subiu 120→180s. +2
+  testes (lock→todo, erro genérico→warn).
+
 ## [3.9.0] — 2026-06-21
 
 ### Adicionado
