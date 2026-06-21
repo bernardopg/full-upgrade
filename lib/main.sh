@@ -342,6 +342,12 @@ run_all_steps() {
         step_skip "Atualizar Ollama" "ollama não instalado"
     fi
 
+    if has kimi; then
+        run_step "Atualizar Kimi CLI" update_kimi
+    else
+        step_skip "Atualizar Kimi CLI" "kimi não instalado"
+    fi
+
     # ── Shell ─────────────────────────────────────────────────────────────────────
     
     if [[ -f "${ZSH:-$HOME/.oh-my-zsh}/tools/upgrade.sh" ]]; then

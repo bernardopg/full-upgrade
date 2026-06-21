@@ -6,6 +6,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Atualizar Kimi CLI — ciente da origem npm (H5).** Novo step "Atualizar Kimi
+  CLI" (`ai`/`mutating`, gateado por `has kimi`). O Kimi (Moonshot) é publicado
+  como `@moonshot-ai/kimi-code` no npm (bin `kimi`), então quando instalado via
+  npm global **já é coberto por "Atualizar npm global"** — este step detecta a
+  origem e apenas confirma a cobertura (evita duplicar o `npm install`);
+  instalações standalone futuras → `RC_TODO`. Helper `kimi_npm_package` e suíte
+  `tests/kimi.bats`.
 - **Scrub btrfs em múltiplos mountpoints (J3).** O step "Auto-remediar scrub
   btrfs" agora avalia TODOS os filesystems btrfs montados (não só `/`),
   enumerando-os via `findmnt -t btrfs` e aplicando a mesma lógica de G1 a cada
