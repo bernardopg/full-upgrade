@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Dicas acionáveis no `Doctor: journal erros críticos` (K4).** Para assinaturas
+  de erro ambientais recorrentes, o doctor agora imprime uma dica curta abaixo do
+  agrupamento: menu XDG ausente (`applications.menu` → instalar `archlinux-xdg-menu`
+  + `kbuildsycoca`), Bluetooth/áudio transitório (hci0/a2dp-sink) e falha de
+  autenticação sudo/PAM. Read-only, sem mudar o RC do step; assinaturas
+  desconhecidas seguem sem dica. Helper puro `journal_hint_for`; +4 testes.
+
 ### Alterado
 
 - **CVEs de toolchain Rust não-acionáveis viram nota, não `warn` (K3).** Achado
