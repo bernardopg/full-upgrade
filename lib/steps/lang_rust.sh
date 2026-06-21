@@ -253,9 +253,28 @@ autofix_rust_cves() {
     log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"
     return 0
   fi
-  log "  ${C_YELLOW}CVEs remanescentes (${#after[@]}): ${after[*]}${C_RESET}"
+  # K3: classificar o que sobrou. rustup já foi atualizado acima, então CVEs
+  # remanescentes restritas a binários da toolchain vivem em crates vendorizadas
+  # no binário upstream — irreparáveis localmente, só somem quando o upstream
+  # reconstrói. Nesse caso vira nota informativa (ok) em vez de warn recorrente.
+  local -a after_toolchain=() after_cargo=()
+  for b in "${after[@]}"; do
+    if [[ "$(classify_cargo_bin "$b")" == "toolchain" ]]; then
+      after_toolchain+=("$b")
+    else
+      after_cargo+=("$b")
+    fi
+  done
+
+  if (( ${#after_cargo[@]} == 0 )); then
+    log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — não acionável localmente (informativo)."
+    return 0
+  fi
+
+  log "  ${C_YELLOW}CVEs remanescentes acionáveis (${#after_cargo[@]}): ${after_cargo[*]}${C_RESET}"
   log "    Podem exigir o gerenciador de pacotes (sudo pacman -Syu rust rustup) ou não ter fix upstream."
-  STEP_REASON="${#after[@]} CVE(s) remanescente(s) após remediação"
+  (( ${#after_toolchain[@]} > 0 )) && log "    (${#after_toolchain[@]} CVE(s) de toolchain upstream ignoradas: não acionáveis localmente.)"
+  STEP_REASON="${#after_cargo[@]} CVE(s) acionável(is) remanescente(s) após remediação"
   return "$RC_WARN"
 }
 

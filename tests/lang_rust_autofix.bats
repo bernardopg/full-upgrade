@@ -54,11 +54,18 @@ teardown() {
   [[ "$output" == *"remediadas"* ]]
 }
 
-@test "autofix: CVE remanescente após remediação vira RC_WARN" {
-  _rust_collect_vuln_bins() { printf 'rustup\n'; return 0; }   # nunca some
+@test "autofix: CVE remanescente só de toolchain (rustup) => RC 0 informativo (K3)" {
+  _rust_collect_vuln_bins() { printf 'rustup\n'; return 0; }   # nunca some; é toolchain
+  run autofix_rust_cves
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"não acionável"* ]]
+}
+
+@test "autofix: CVE remanescente em binário cargo-installed => RC_WARN" {
+  _rust_collect_vuln_bins() { printf 'tokei\n'; return 0; }    # nunca some; não-toolchain
   run autofix_rust_cves
   [ "$status" -eq "$RC_WARN" ]
-  [[ "$output" == *"remanescente"* ]]
+  [[ "$output" == *"remanescentes acionáveis"* ]]
 }
 
 @test "autofix: falha de rede na coleta vira RC_WARN" {
