@@ -100,6 +100,26 @@ EOF'
   [ "$output" = "  Remediação: sudo pacman -Syu" ]
 }
 
+@test "pending_is_held_cluster: reconhece toolchain Haskell/GHC" {
+  run pending_is_held_cluster "haskell-aeson"
+  [ "$status" -eq 0 ]
+  run pending_is_held_cluster "ghc"
+  [ "$status" -eq 0 ]
+  run pending_is_held_cluster "ghc-libs"
+  [ "$status" -eq 0 ]
+  run pending_is_held_cluster "cabal-install"
+  [ "$status" -eq 0 ]
+}
+
+@test "pending_is_held_cluster: pacote normal não é cluster segurado" {
+  run pending_is_held_cluster "inkscape"
+  [ "$status" -ne 0 ]
+  run pending_is_held_cluster "python-tqdm"
+  [ "$status" -ne 0 ]
+  run pending_is_held_cluster "my-ghc-helper"
+  [ "$status" -ne 0 ]
+}
+
 @test "final_pending_reason: separa pendências oficiais de AUR" {
   run final_pending_reason 2 0
   [ "$status" -eq 0 ]

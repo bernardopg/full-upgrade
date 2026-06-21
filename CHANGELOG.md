@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Alterado
+
+- **`Verificação final de pendências` distingue cluster segurado por rebuild (K2).**
+  Achado recorrente: pacotes do cluster Haskell/GHC reaparecem como pendência
+  "oficial" em todo run mesmo após `-Syu` limpo, porque o pacman evita o partial
+  upgrade até o cluster inteiro publicar — não são acionáveis (rodar `-Syu` de
+  novo não os sobe). O step agora separa esses pacotes (helper puro
+  `pending_is_held_cluster`): lista-os como segurados por rebuild upstream (não
+  acionável) e só vira `todo` quando há pendência **acionável** de fato. Se só
+  restam pacotes segurados, o step fecha em `ok`. +2 testes em
+  `tests/m_improvements.bats`.
+
 ## [3.9.1] — 2026-06-21
 
 ### Corrigido
