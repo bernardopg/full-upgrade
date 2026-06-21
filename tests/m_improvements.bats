@@ -100,6 +100,26 @@ EOF'
   [ "$output" = "  Remediação: sudo pacman -Syu" ]
 }
 
+@test "journal_hint_for: applications.menu ausente dá dica de XDG menu" {
+  out="$(journal_hint_for 'Error: "applications.menu" not found in QList(...)')"
+  [[ "$out" == *"archlinux-xdg-menu"* ]]
+}
+
+@test "journal_hint_for: Bluetooth hci0 dá dica de transitório" {
+  out="$(journal_hint_for 'Bluetooth: hci0: Opcode 0x0401 failed: -110')"
+  [[ "$out" == *"Bluetooth"* ]]
+}
+
+@test "journal_hint_for: falha de auth sudo dá dica de PAM" {
+  out="$(journal_hint_for 'pam_unix(sudo:auth): authentication failure; logname=bitter')"
+  [[ "$out" == *"sudo/PAM"* ]]
+}
+
+@test "journal_hint_for: assinatura desconhecida não dá dica" {
+  out="$(journal_hint_for 'kernel: some unrelated error xyz')"
+  [ -z "$out" ]
+}
+
 @test "pending_is_held_cluster: reconhece toolchain Haskell/GHC" {
   run pending_is_held_cluster "haskell-aeson"
   [ "$status" -eq 0 ]

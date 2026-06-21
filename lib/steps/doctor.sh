@@ -169,6 +169,24 @@ doctor_paru_devel_mode() {
 }
 
 
+# K4 — dica acionável para assinaturas de erro de journal conhecidas. Recebe uma
+# linha de erro (já filtrada/agrupada) e emite uma sugestão curta, ou nada quando
+# não há dica conhecida. Read-only; só agrega contexto ao diagnóstico.
+journal_hint_for() {
+  local l="$1"
+  case "$l" in
+    *applications.menu*not\ found*|*'"applications.menu"'*)
+      printf 'menu XDG ausente: instale "archlinux-xdg-menu" e rode "XDG_MENU_PREFIX=arch- kbuildsycoca6" (KDE) para regenerar o cache de menus' ;;
+    *Bluetooth:\ hci0*|*a2dp-sink*|*btd_service_connect*|*bluetoothd*)
+      printf 'Bluetooth/áudio transitório (normalmente benigno): verifique firmware do adaptador e reconexão do dispositivo; se recorrente, "systemctl restart bluetooth"' ;;
+    *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*)
+      printf 'falha de autenticação sudo/PAM registrada: confirme se não há script/serviço tentando sudo com senha incorreta' ;;
+    *)
+      : ;;
+  esac
+}
+
+
 doctor_journal_errors() {
   if ! has journalctl; then
     log "  journalctl não encontrado."
@@ -283,6 +301,20 @@ doctor_journal_errors() {
   (( noise_count > 0 )) && noise_note=", ${noise_count} de ruído filtrado"
   log "  Journal: ${filtered_count} erro(s) crítico(s) reais neste boot (${unique_count} assinatura(s)${noise_note}):"
   printf '%s\n' "$grouped" | tee >(_strip_ansi >> "$LOG_FILE")
+
+  # K4 — dicas acionáveis para assinaturas conhecidas (dedup por dica).
+  local -A _hints=()
+  local _g _h
+  while IFS= read -r _g; do
+    [[ -n "${_g//[[:space:]]/}" ]] || continue
+    _h="$(journal_hint_for "$_g")"
+    [[ -n "$_h" ]] && _hints["$_h"]=1
+  done <<< "$grouped"
+  if (( ${#_hints[@]} > 0 )); then
+    log "  Dicas:"
+    for _h in "${!_hints[@]}"; do log "    • ${_h}"; done
+  fi
+
   log "  Últimas 80 linhas brutas (pós-filtro) gravadas no log para auditoria."
   {
     printf '\n--- journalctl -p 3 -b últimas 80 linhas filtradas ---\n'
