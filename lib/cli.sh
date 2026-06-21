@@ -36,13 +36,17 @@ Opções:
                    Explicar um step pelo nome exato
   -c, --config     Mostrar caminhos, valores efetivos e exemplo de configuração
   --config-example Imprimir apenas um config de exemplo (pipe-friendly, sem cores)
-  --json           Imprimir uma linha JSON de resumo ao final
-  --report [ARQ]   Gerar relatório Markdown de um run a partir do JSONL e sair.
-                   Sem ARQ, imprime no stdout; com ARQ, grava no arquivo.
+  --json           Imprimir uma linha JSON de resumo ao final; com --report ou
+                    --history, emite a saída estruturada em JSON (em vez de
+                    Markdown/tabela).
+  --report [ARQ]   Gerar relatório de um run a partir do JSONL e sair. Sem ARQ,
+                    imprime no stdout; com ARQ, grava no arquivo. Markdown por
+                    padrão; JSON com --json.
   --from RUN_ID    Selecionar qual run usar no --report (default: o último).
-                   Aceita o run_id completo ou um prefixo (ex.: 20260613-142301).
+                    Aceita o run_id completo ou um prefixo (ex.: 20260613-142301).
   --history [N]    Mostrar tendência dos últimos N runs (default 10) e sair.
-                   Lê os JSONL rotacionados; read-only, sem rede.
+                    Lê os JSONL rotacionados; read-only, sem rede. Tabela por
+                    padrão; JSON com --json.
   --fail-fast      Abortar no 1º step com fail; os restantes viram skip
   --continue-on-fail
                    Continuar mesmo após um fail (padrão; torna explícito)

@@ -73,3 +73,36 @@ teardown() {
   rm -f "${FIXTURE}.nosum"
   [[ "$output" == *"1 ok · 1 warn · 1 todo · 0 fail · 0 skip"* ]]
 }
+
+# ── J2: saída JSON (--report --json) ─────────────────────────────────────────
+
+@test "report-json: emite JSON válido com run_id, versão e summary" {
+  run report_json_from_jsonl "$FIXTURE"
+  [ "$status" -eq 0 ]
+  assert_json "$output" 'd["run_id"]=="20260613-142301-900745" and d["script_version"]=="3.2.2" and [d["summary"][k] for k in ("ok","warn","todo","fail","skip")]==[1,1,1,0,0]'
+}
+
+@test "report-json: steps array preserva status, duração e reason" {
+  run report_json_from_jsonl "$FIXTURE"
+  assert_json "$output" 'len(d["steps"])==3 and any(s["status"]=="warn" and s["reason"]=="7 CVEs em rustup" and s["duration_seconds"]==12 for s in d["steps"])'
+}
+
+@test "report-json: escape de aspas/contrabarra no reason" {
+  local esc; esc="$(mktemp)"
+  cat > "$esc" <<'JSONL'
+{"event":"run_start","run_id":"x","timestamp":"2026-06-21T10:00:00Z","script_version":"1.0"}
+{"event":"step","step":"T \"x\"","status":"fail","duration_seconds":2,"reason":"C:\\temp falhou"}
+{"event":"summary","ok":0,"warn":0,"todo":0,"fail":1,"skip":0,"duration_seconds":2}
+JSONL
+  run report_json_from_jsonl "$esc"
+  [ "$status" -eq 0 ]
+  assert_json "$output" 'd["steps"][0]["step"]=="T \"x\"" and d["steps"][0]["reason"]=="C:\\temp falhou"'
+  rm -f "$esc"
+}
+
+@test "report-json: fallback de contagens sem summary" {
+  grep -v '"event":"summary"' "$FIXTURE" > "${FIXTURE}.nosum"
+  run report_json_from_jsonl "${FIXTURE}.nosum"
+  rm -f "${FIXTURE}.nosum"
+  assert_json "$output" '[d["summary"][k] for k in ("ok","warn","todo","fail","skip")]==[1,1,1,0,0]'
+}

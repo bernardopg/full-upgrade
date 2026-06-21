@@ -165,7 +165,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** saída lista cada conflito com remediação sugerida; nenhum
   auto-`pip install`; parser coberto por bats.
 
-#### J2 — 🟢 M ☐ Saída JSON para `--report` e `--history`
+#### J2 — 🟢 M ☑ Saída JSON para `--report` e `--history`
 > Hoje `--report` é Markdown e `--history` é tabela. JSON habilita consumo por
 > outras ferramentas/dashboards.
 - **Arquivos:** `lib/report.sh`, `lib/history.sh`, `lib/cli.sh`

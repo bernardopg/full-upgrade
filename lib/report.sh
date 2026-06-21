@@ -175,8 +175,15 @@ generate_report() {
     return 1
   }
 
+  local formatter
+  if (( ${JSON_SUMMARY:-0} == 1 )); then
+    formatter="report_json_from_jsonl"
+  else
+    formatter="report_markdown_from_jsonl"
+  fi
+
   if [[ -n "$outfile" ]]; then
-    if report_markdown_from_jsonl "$jsonl" > "$outfile"; then
+    if "$formatter" "$jsonl" > "$outfile"; then
       printf 'Relatório gravado: %s\n' "$outfile"
       printf '  Fonte: %s\n' "$jsonl"
       return 0
@@ -185,7 +192,116 @@ generate_report() {
     return 1
   fi
 
-  report_markdown_from_jsonl "$jsonl"
+  "$formatter" "$jsonl"
+}
+
+# J2 — Converte um JSONL de run em um objeto JSON estruturado (metadata +
+# summary + steps[]). Reaproveita os mesmos extratores do Markdown, mas emite
+# JSON válido (com re-escape de strings via json_escape_out). Pura: só lê $1.
+report_json_from_jsonl() {
+  local jsonl="$1"
+  [[ -r "$jsonl" ]] || return 1
+  awk '
+    function json_str(line, key,   p, c, out, esc, kk) {
+      kk = "\"" key "\":\""
+      p = index(line, kk)
+      if (p == 0) return ""
+      p += length(kk)
+      out = ""; esc = 0
+      while (p <= length(line)) {
+        c = substr(line, p, 1)
+        if (esc) {
+          if (c == "n" || c == "t" || c == "r") out = out " "
+          else out = out c
+          esc = 0
+        } else if (c == "\\") { esc = 1 }
+        else if (c == "\"") { break }
+        else { out = out c }
+        p++
+      }
+      return out
+    }
+    function json_num(line, key,   p, c, out, kk) {
+      kk = "\"" key "\":"
+      p = index(line, kk)
+      if (p == 0) return ""
+      p += length(kk)
+      out = ""
+      while (p <= length(line)) {
+        c = substr(line, p, 1)
+        if (c ~ /[0-9]/ || c == "." || c == "-") out = out c
+        else break
+        p++
+      }
+      return out
+    }
+    # Re-escape para saída JSON: aspas, barra invertida e controles whitespace.
+    function je(s,   r, i, c) {
+      r = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "\"") r = r "\\\""
+        else if (c == "\\") r = r "\\\\"
+        else if (c == "\n") r = r "\\n"
+        else if (c == "\r") r = r "\\r"
+        else if (c == "\t") r = r "\\t"
+        else r = r c
+      }
+      return r
+    }
+
+    /"event":"run_start"/ {
+      version  = json_str($0, "script_version")
+      run_id   = json_str($0, "run_id")
+      start_ts = json_str($0, "timestamp")
+      next
+    }
+    /"event":"run_end"/   { end_ts = json_str($0, "timestamp"); next }
+    /"event":"step"/ {
+      n++
+      st_name[n]   = json_str($0, "step")
+      st_status[n] = json_str($0, "status")
+      st_dur[n]    = json_num($0, "duration_seconds")
+      st_reason[n] = json_str($0, "reason")
+      next
+    }
+    /"event":"summary"/ {
+      s_ok = json_num($0, "ok"); s_warn = json_num($0, "warn")
+      s_todo = json_num($0, "todo"); s_fail = json_num($0, "fail")
+      s_skip = json_num($0, "skip"); s_dur = json_num($0, "duration_seconds")
+      has_summary = 1
+      next
+    }
+    END {
+      c_ok = c_warn = c_todo = c_fail = c_skip = 0
+      for (i = 1; i <= n; i++) {
+        s = st_status[i]
+        if (s == "ok") c_ok++
+        else if (s == "warn") c_warn++
+        else if (s == "todo") c_todo++
+        else if (s == "fail") c_fail++
+        else if (s == "skip") c_skip++
+      }
+      if (!has_summary) {
+        s_ok = c_ok; s_warn = c_warn; s_todo = c_todo; s_fail = c_fail; s_skip = c_skip
+      }
+
+      printf "{\"run_id\":\"%s\"", je(run_id)
+      printf ",\"script_version\":\"%s\"", je(version)
+      if (start_ts != "") printf ",\"start\":\"%s\"", je(start_ts)
+      if (end_ts != "")   printf ",\"end\":\"%s\"", je(end_ts)
+      if (has_summary)    printf ",\"duration_seconds\":%d", s_dur + 0
+      printf ",\"summary\":{\"ok\":%d,\"warn\":%d,\"todo\":%d,\"fail\":%d,\"skip\":%d}", \
+        s_ok + 0, s_warn + 0, s_todo + 0, s_fail + 0, s_skip + 0
+      printf ",\"steps\":["
+      for (i = 1; i <= n; i++) {
+        if (i > 1) printf ","
+        printf "{\"step\":\"%s\",\"status\":\"%s\",\"duration_seconds\":%d,\"reason\":\"%s\"}", \
+          je(st_name[i]), je(st_status[i]), st_dur[i] + 0, je(st_reason[i])
+      }
+      printf "]}\n"
+    }
+  ' "$jsonl"
 }
 
 # G3 — grava automaticamente o relatório Markdown do run recém-concluído quando

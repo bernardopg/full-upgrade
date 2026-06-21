@@ -97,6 +97,19 @@ report_history() {
     return 1
   fi
 
+  # J2 — saída JSON estruturada quando --json acompanha --history.
+  if (( ${JSON_SUMMARY:-0} == 1 )); then
+    printf '{"runs":['
+    for i in "${!vers[@]}"; do
+      (( i > 0 )) && printf ','
+      printf '{"version":"%s","timestamp":"%s","ok":%d,"warn":%d,"todo":%d,"fail":%d,"skip":%d,"duration_seconds":%d}' \
+        "${vers[$i]}" "${dates[$i]}" \
+        "${oks[$i]}" "${warns[$i]}" "${todos[$i]}" "${fails[$i]}" "${skips[$i]}" "${durs[$i]}"
+    done
+    printf ']}\n'
+    return 0
+  fi
+
   printf 'Histórico dos últimos %d run(s) — %s\n\n' "${#vers[@]}" "$LOG_DIR"
   printf '%-16s  %-12s  %3s %4s %4s %4s %4s  %9s\n' "DATA" "VERSÃO" "ok" "warn" "todo" "fail" "skip" "DURAÇÃO"
   printf '%-16s  %-12s  %3s %4s %4s %4s %4s  %9s\n' "----" "------" "---" "----" "----" "----" "----" "-------"
