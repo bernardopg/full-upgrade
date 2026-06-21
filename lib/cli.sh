@@ -49,6 +49,8 @@ Opções:
   --history [N]    Mostrar tendência dos últimos N runs (default 10) e sair.
                     Lê os JSONL rotacionados; read-only, sem rede. Tabela por
                     padrão; JSON com --json.
+  --resume         Re-rodar só os steps que não fecharam ok (warn/todo/fail) no
+                    último run (lê o jsonl mais recente). core/final sempre rodam.
   --fail-fast      Abortar no 1º step com fail; os restantes viram skip
   --continue-on-fail
                    Continuar mesmo após um fail (padrão; torna explícito)
@@ -197,6 +199,9 @@ parse_args() {
                 DO_HISTORY=1
                 HISTORY_N="${1#--history=}"
             ;;
+            --resume)
+                DO_RESUME=1
+            ;;
             --fail-fast)
                 FAIL_FAST=1
             ;;
@@ -286,6 +291,29 @@ apply_mode_and_early_exits() {
         exit 0
     fi
     
+    # --resume: re-roda só os steps que não fecharam ok (warn/todo/fail) no
+    # último run (lê o jsonl mais recente, antes de setup_logging repontar o
+    # latest). Mantém core/final. Sem pendências => sai 0 sem rodar.
+    if (( DO_RESUME )); then
+        local -a _pend=() _keep=()
+        mapfile -t _pend < <(resume_pending_steps)
+        if (( ${#_pend[@]} == 0 )); then
+            echo "Nada a retomar: o último run não deixou steps em warn/todo/fail (ou não há jsonl)." >&2
+            exit 0
+        fi
+        local _n
+        for _n in "${_pend[@]}"; do
+            catalog_has_step_name "$_n" && _keep+=("$_n")
+        done
+        if (( ${#_keep[@]} == 0 )); then
+            echo "Nada a retomar: os steps pendentes do último run não existem mais no catálogo." >&2
+            exit 0
+        fi
+        apply_only_names "${_keep[@]}"
+        RESUME_STEPS="${_keep[*]}"
+        return 0
+    fi
+
     # traduzir --mode para flags canônicas
     case "$MODE" in
         doctor)

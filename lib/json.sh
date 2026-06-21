@@ -40,7 +40,7 @@ write_jsonl() {
 write_run_event_json() {
   local event="$1"
   write_jsonl "$(
-    printf '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"pid":%s}\n' \
+    printf '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"dry_run":%s,"pid":%s}\n' \
       "$(json_escape "$event")" \
       "$(json_escape "$RUN_ID")" \
       "$(json_escape "$(date -Is)")" \
@@ -49,6 +49,7 @@ write_run_event_json() {
       "$(json_escape "$SCRIPT_SHA256")" \
       "$(json_escape "$LOG_FILE")" \
       "$(json_escape "$JSONL_FILE")" \
+      "$( (( DRY_RUN )) && printf 'true' || printf 'false' )" \
       "$$"
   )"
 }
@@ -126,4 +127,58 @@ rotate_logs() {
         | sort -rn | cut -d' ' -f2- | tail -n +"$(( MAX_LOGS + 1 ))"
     )
   done
+}
+
+# L2 — jsonl mais recente de um run REAL (dry_run:false). Ignora dry-runs (que
+# não devem ser alvo do --resume) e runs sem o campo (formato antigo). rc 1 se
+# nenhum for achado.
+resume_latest_real_jsonl() {
+  local f
+  while IFS= read -r f; do
+    [[ -r "$f" ]] || continue
+    if grep -m1 '"event":"run_start"' "$f" 2>/dev/null | grep -q '"dry_run":false'; then
+      printf '%s\n' "$f"
+      return 0
+    fi
+  done < <(
+    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
+      | sort -rn | cut -d' ' -f2-
+  )
+  return 1
+}
+
+# L2 — nomes de steps do último run REAL (ou do jsonl em $1) que NÃO fecharam ok:
+# status ∈ {warn, todo, fail}. Um por linha, na ordem do run, sem duplicar.
+# Read-only; usado por --resume. Sem jsonl legível => rc 1.
+resume_pending_steps() {
+  local jsonl="${1:-}"
+  if [[ -z "$jsonl" ]]; then
+    jsonl="$(resume_latest_real_jsonl)" || return 1
+  fi
+  [[ -r "$jsonl" ]] || return 1
+  python3 - "$jsonl" <<'PY'
+import json, sys
+seen = set()
+out = []
+try:
+    fh = open(sys.argv[1])
+except OSError:
+    sys.exit(1)
+for line in fh:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        o = json.loads(line)
+    except Exception:
+        continue
+    if o.get("event") != "step":
+        continue
+    name, status = o.get("step"), o.get("status")
+    if name and status in ("warn", "todo", "fail") and name not in seen:
+        seen.add(name)
+        out.append(name)
+for n in out:
+    print(n)
+PY
 }

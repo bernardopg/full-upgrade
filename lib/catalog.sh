@@ -226,6 +226,20 @@ apply_only_filter() {
   return 0
 }
 
+# L2 — mantém apenas os steps cujos nomes estão em "$@" (+ core/final), pulando
+# o resto. Tolerante a nomes que não existem mais no catálogo (são ignorados).
+apply_only_names() {
+  local -A keep=()
+  local n
+  for n in "$@"; do keep["$n"]=1; done
+  local name category tags rest
+  while IFS='|' read -r name category tags rest; do
+    [[ -n "$name" ]] || continue
+    [[ "$category" == "core" || "$category" == "final" ]] && continue
+    [[ -n "${keep[$name]:-}" ]] || add_skip_step "$name"
+  done < <(step_catalog)
+}
+
 print_step_catalog() {
   local name category tags effect timeout cmd_deps func_name desc
   printf '%-48s  %-10s  %-32s  %-8s  %-7s  %-20s  %-30s  %s\n' "STEP" "CATEGORIA" "TAGS" "EFEITO" "TIMEOUT" "CMD_DEPS" "FUNÇÃO" "DESCRIÇÃO"

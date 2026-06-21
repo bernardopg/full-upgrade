@@ -6,6 +6,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **`--resume`: re-roda só os steps que não fecharam ok no último run (L2).** Lê o
+  jsonl do run **real** mais recente (ignora dry-runs, agora marcados com
+  `"dry_run"` no evento de run), coleta os steps com status `warn`/`todo`/`fail` e
+  re-executa apenas esses (+ core/final). Sem pendências → sai sem rodar. Enorme
+  para iteração: depois de um run com 1 todo, `full-upgrade --resume` toca só
+  aquele. Helpers `resume_pending_steps`/`resume_latest_real_jsonl`/
+  `apply_only_names`; banner mostra `[RESUME]`; +4 testes.
+
 - **`--only` aceita nome exato de step e listas (L1).** Antes `--only` só casava
   categoria/tag; agora cada token também casa o **nome exato** de um step, e
   aceita lista por vírgula. Ex.: `--only "Atualizar Ollama"`,
