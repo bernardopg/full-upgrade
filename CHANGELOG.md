@@ -6,6 +6,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Atualizar opencode (H1).** Novo step "Atualizar opencode" (`ai`/`mutating`)
+  que atualiza o opencode via seu instalador próprio (`opencode upgrade`) — ele
+  vive em `~/.opencode/bin`, fora do npm, então não era coberto pelo update de
+  globais. Loga versão antes/depois. Falha de rede ou do upgrade → `warn`
+  (não-fatal); sem `opencode` → `skip`. Coberto por `tests/opencode.bats`.
 - **Checagem de Arch News antes das mutações (I1).** Novo step read-only
   "Verificar Arch News" que roda antes do `-Syu`: busca o feed RSS oficial
   (`https://archlinux.org/feeds/news/`) e alerta (`todo`) sobre itens novos desde
