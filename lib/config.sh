@@ -29,7 +29,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
 : "${ARCH_NEWS_CHECK:=1}"           # 1 = checa Arch News (RSS) antes das mutações e alerta sobre itens novos; 0 = desliga
 : "${NOTIFY_ON_FINISH:=0}"          # 1 = envia notificação desktop (notify-send) com o resumo ao fim do run; 0 = desliga
-: "${MCP_AUTO_UPDATE:=0}"           # reservado: 1 = (futuro) atualiza servidores MCP npm/uvx; 0 = só doctor read-only
+: "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
 # Backup de configs críticas antes das mutações (F1)

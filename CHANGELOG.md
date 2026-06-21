@@ -4,6 +4,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Auto-update de servidores MCP (K1).** Novo step mutável "Atualizar servidores
+  MCP" (`ai`/`mutating`), gateado por `MCP_AUTO_UPDATE=1` e pela presença de uma
+  fonte MCP (`~/.claude.json` / `~/.codex/config.toml`). Fecha o gancho deixado
+  pelo H6 (até então `MCP_AUTO_UPDATE` era reservado/no-op). Um planner puro
+  (`mcp_update_plan`) classifica cada servidor pela ação de atualização real:
+  `fresh` (npx/bunx/pnpm dlx sem versão fixa — já resolve a última a cada run),
+  `refresh` (runtime uvx com ambiente em cache ou origem git, que defasa em
+  silêncio), `pinned` (versão explícita `pkg@1.2.3`/`==`), `external` (binário
+  global/node/script — atualiza pela própria toolchain) e `remote` (HTTP/SSE).
+  Só os `refresh` são tocados, via `uv cache clean <dist>` (operação local, sem
+  rede, nunca muta pacote do sistema), forçando o rebuild da última versão no
+  próximo launch do servidor. Sem alvos uvx → `ok`; com alvos uvx mas sem `uv`
+  → `todo` ("instalar uv"). Cobre Claude e Codex, com dedup global>projeto.
+  Suíte `tests/mcp.bats` ampliada (+11 casos: classificação por runtime e o
+  fluxo do step com `uv` presente/ausente).
+
 ## [3.8.2] — 2026-06-21
 
 ### Corrigido

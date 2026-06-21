@@ -342,6 +342,13 @@ run_all_steps() {
         step_skip "Atualizar Ollama" "ollama não instalado"
     fi
 
+    if (( ${MCP_AUTO_UPDATE:-0} == 1 )) \
+       && { [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]]; }; then
+        run_step "Atualizar servidores MCP" mcp_update_servers
+    else
+        step_skip "Atualizar servidores MCP" "MCP_AUTO_UPDATE!=1 ou sem fonte MCP"
+    fi
+
     if has kimi; then
         run_step "Atualizar Kimi CLI" update_kimi
     else
