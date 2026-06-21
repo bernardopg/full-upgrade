@@ -6,6 +6,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Saída JSON para `--report` e `--history` (J2).** `--report --json` agora emite
+  um objeto JSON estruturado (run_id, versão, início/fim, duração, summary e
+  array de steps com status/duração/reason) em vez de Markdown; `--history --json`
+  emite `{"runs":[...]}` em vez da tabela. Reaproveita os mesmos extratores awk do
+  Markdown com re-escape correto de strings (aspas, contrabarra, controle). Sem
+  `--json`, Markdown/tabela permanecem inalterados. Helpers puros
+  `report_json_from_jsonl` + helper de teste `assert_json`; +6 testes.
 - **Atualizar Kimi CLI — ciente da origem npm (H5).** Novo step "Atualizar Kimi
   CLI" (`ai`/`mutating`, gateado por `has kimi`). O Kimi (Moonshot) é publicado
   como `@moonshot-ai/kimi-code` no npm (bin `kimi`), então quando instalado via

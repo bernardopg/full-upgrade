@@ -73,3 +73,19 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Histórico dos últimos 2 run(s)"* ]]
 }
+
+# ── J2: saída JSON (--history --json) ────────────────────────────────────────
+
+@test "history-json: emite JSON válido com runs e contagens" {
+  JSON_SUMMARY=1
+  run report_history 10
+  [ "$status" -eq 0 ]
+  assert_json "$output" 'len(d["runs"])==2 and d["runs"][0]["version"]=="3.5.0" and d["runs"][0]["ok"]==51 and d["runs"][1]["version"]=="3.4.0"'
+}
+
+@test "history-json: sem --json mantém a tabela" {
+  JSON_SUMMARY=0
+  run report_history 10
+  [[ "$output" == *"Histórico dos últimos"* ]]
+  [[ "$output" != *'"runs"'* ]]
+}

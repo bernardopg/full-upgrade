@@ -33,3 +33,15 @@ load_libs() {
   LOG_FILE="/dev/null"
   QUIET=1
 }
+
+# J2 — valida que $1 é JSON e que a expressão Python $2 (com o objeto em `d`)
+# é verdadeira. Falha o teste se o JSON for inválido ou a asserção for falsa.
+assert_json() {
+  local json="$1" expr="$2"
+  python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])
+if not (eval(sys.argv[2], {"d": d})):
+    sys.exit(1)
+' "$json" "$expr"
+}
