@@ -184,6 +184,39 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 
 ---
 
+### Série K — Diagnóstico de ruído recorrente (achados de run real)
+
+> Mira reduzir os `todo`/`warn` que reaparecem em todo run e não são acionáveis
+> hoje. Read-only/diagnóstico; sem mutação arriscada.
+
+#### K1 — 🔴 M ☑ Auto-update de servidores MCP — PR #61/#63 (v3.9.0/v3.9.1)
+> Fecha o gancho do H6. Step mutável gateado por `MCP_AUTO_UPDATE=1`; refresca o
+> cache uv dos servers uvx via `uv cache clean` (com `UV_LOCK_TIMEOUT=15` p/ não
+> travar em lock contention). Ver `lib/steps/mcp.sh` + `tests/mcp.bats`.
+
+#### K2 — 🟡 M ☐ Diagnóstico de pendências oficiais seguradas
+> **Achado recorrente:** `Verificação final de pendências` vira `todo` cru quando
+> um cluster (ex.: Haskell/cabal) fica segurado por rebuild upstream, mesmo com
+> `-Syu` "limpo". Distinguir *partial upgrade / held por rebuild* de pendência
+> real acionável e sugerir a causa.
+- **Arquivos:** `lib/steps/pacman.sh` (verificação final), catálogo.
+- **Aceite:** held-por-rebuild reportado como tal (não como pendência acionável);
+  pendência real continua `todo`; helper coberto por bats.
+
+#### K3 — 🟢 P ☐ Classificar CVE de toolchain Rust não-acionável
+> `Auto-remediar`/`Auditar CVEs Rust` dá `warn` em todo run por CVE do binário
+> rustup upstream (crates vendorizadas), que persiste até upstream reconstruir.
+- **Arquivos:** `lib/steps/lang_rust.sh` (autofix/audit).
+- **O quê:** detectar "CVE em crate vendorizada do rustup/cargo upstream" e
+  rebaixar de `warn` p/ nota informativa, parando de tentar remediar o irreparável.
+- **Aceite:** CVE upstream vira info, não `warn`; CVE acionável continua `warn`.
+
+#### K4 — 🟢 P ☐ Hints acionáveis no doctor de journal
+> Erros ambientais recorrentes (ex.: `applications.menu` ausente, Bluetooth hci0)
+> aparecem crus. Quando barato, sugerir correção/pacote.
+- **Arquivos:** `lib/steps/doctor.sh` (journal).
+- **Aceite:** padrões conhecidos ganham dica; demais inalterados.
+
 ## Ordem de execução sugerida (impacto × esforço)
 
 **Rodada 1 (alto impacto):** ✅ concluída (PRs #42/#43/#44).
@@ -199,18 +232,24 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 6. ~~**H6** (MCP)~~, ~~**I3** (helpers/elevação alt.)~~,
    ~~**J2** (JSON)~~, ~~**J3** (btrfs multi-mount)~~, ~~**H5** (kimi)~~.
 
+**Rodada 4 — Série K (pós-v3.8.x):**
+7. ~~**K1** (auto-update MCP)~~ — ✅ PR #61 (feat) + #63 (fix lock uv); v3.9.0/v3.9.1.
+8. ~~**K5** (sync doc)~~ — ✅ este commit.
+9. **K2** (diagnóstico de pendências seguradas), **K3** (CVE rustup não-acionável),
+   **K4** (hints de journal) — pendentes.
+
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (Unreleased) a cada PR. Agrupar uma série
-fechada numa release (ex.: H-series → v3.8.0).
+fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
 
 ## Progresso
 
-- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); **H1, H3, I1**
-  (Rodada 1, PRs #42/#43/#44); **H2, H4, I2, I4, J1** (Rodada 2);
-  **H5, H6, I3, J2, J3** (Rodada 3) — tudo em `[Unreleased]`, candidato a
-  v3.8.0.
-- **Próximo:** release v3.8.0.
-- **Restante:** nenhum item H/I/J pendente.
+- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); H1, H3, I1
+  (PRs #42/#43/#44); H2, H4, I2, I4, J1; **H5, H6, I3, J2, J3** → todos liberados
+  em **v3.8.0**. Patches v3.8.1/v3.8.2. **Série K:** K1 (auto-update MCP) → v3.9.0,
+  fix de lock uv → v3.9.1; K5 (sync doc) neste commit.
+- **Próximo:** K2/K3/K4 (cortam ruído recorrente de `todo`/`warn` dos runs reais).
+- **Restante:** K2, K3, K4 (ver série K em Features).
 
 ---
 
@@ -218,6 +257,39 @@ fechada numa release (ex.: H-series → v3.8.0).
 
 Registro factual dos sinais de cada execução real, para rastrear regressões e
 priorizar. Não é roadmap — é evidência.
+
+### Run 2026-06-21 (K1 live) · v3.9.0→v3.9.1 · step `Atualizar servidores MCP`
+
+- **Achado que virou patch v3.9.1:** primeiro run live do K1 classificou certo
+  (14 servers: serena uvx-git = único `refresh`), mas `uv cache clean serena`
+  estourou o timeout de 120s → `warn` enganoso. **Causa raiz:** lock contention,
+  não lentidão — server uvx em uso (sessão Claude/Codex segura `serena`) deixa o
+  lock global de `~/.cache/uv` ocupado e o uv espera `UV_LOCK_TIMEOUT` (default
+  300s). **Fix:** `UV_LOCK_TIMEOUT=15` + degrada p/ `todo` em contenção; nunca
+  `--force`; timeout do step 120→180s. **Verificado:** rc=11 (`todo`) em 16s.
+- **Gotcha de ambiente:** cache uv do user = **22G** (uvx acumula envs).
+
+### Run 2026-06-21 15:28 · v3.8.2 · `--mode full -y`
+
+- **Resultado:** 81 ok · 3 warn · 1 todo · 0 fail · 5 skip em **5m22s** (exit 0).
+- **Contexto:** primeiro run real após ligar as chaves opt-in das séries H/I/J no
+  config do usuário (`AUTO_BTRFS_SCRUB`, `AUTO_FIX_RUST_CVES`, `NOTIFY_ON_FINISH`,
+  `REPORT_ON_FINISH`, `OLLAMA_SELF_UPDATE`). Todos os steps novos dispararam OK:
+  "Auto-remediar scrub btrfs", "Verificar Arch News" (3s), "Atualizar Ollama"
+  (18s, self-update), "Atualizar extensões de IDE", "Atualizar RTK", relatório
+  `.md` gravado em `~/.cache/system-upgrade/`.
+- **todo (1)** — `Verificação final de pendências`: cluster Haskell/cabal segurado
+  em repositórios oficiais (cabal-install, haskell-aeson, -attoparsec-aeson,
+  -bitvec, -casa-*, -cborg, …). `-Syu` rodou em 4s (sistema já corrente); held por
+  rebuild upstream → não acionável localmente.
+- **warn (3)** — `Auto-remediar CVEs de toolchain Rust` + `Auditar binários cargo`:
+  CVE do binário rustup upstream (crates vendorizadas), rustup já atual → persiste
+  até upstream reconstruir. `Doctor: journal erros críticos`: 6 erros reais (3×
+  Bluetooth hci0 0x0401 -110; 2× `applications.menu` ausente; 1× a2dp-sink busy),
+  2413 linhas de ruído filtradas — ambientais, fora do escopo do script.
+- **Conclusão:** fluxo verde end-to-end. Sem gaps de implementação pendentes
+  (roadmap H/I/J 100% liberado). Os 3 warn + 1 todo são recorrentes e não
+  acionáveis por software.
 
 ### Audit 2026-06-20 · v3.7.0 · `--audit`
 

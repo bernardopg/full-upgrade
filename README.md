@@ -52,13 +52,15 @@ full-upgrade
 | Área | O que entrega |
 | --- | --- |
 | Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
-| Catálogo técnico | 80 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
-| Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. |
-| Arch completo | `pacman`, AUR via `paru`/`yay`, keyring, mirrors, snapshot btrfs, `.pacnew`, órfãos e cache. |
+| Catálogo técnico | 91 steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
+| Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. Elevação configurável (`sudo`/`doas`/`run0`/`sudo-rs`). |
+| Arch completo | `pacman`, AUR via `paru`/`yay`/`pikaur`, keyring, mirrors, snapshot btrfs, `.pacnew/.pacsave`, órfãos, cache e checagem de **Arch News** antes das mutações. |
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
+| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi), servidores **MCP** e extensões de IDE da família VSCode (Code/Cursor/Codium). |
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
-| Doctor | Auditorias de reboot pendente, systemd, journal, fwupd security, pacman, boot, rede, SMART/NVMe, Python, JavaScript e CLIs de IA. |
-| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON. |
+| Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
+| Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
+| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON e notificação desktop ao fim. |
 
 ## Instalação
 
@@ -143,6 +145,10 @@ full-upgrade --dry-run
 full-upgrade --list-steps
 full-upgrade --explain-step "Doctor: saúde de rede"
 full-upgrade --config
+full-upgrade --audit                       # auditoria de segurança consolidada (read-only)
+full-upgrade --report relatorio.md         # grava relatório do último run em Markdown
+full-upgrade --report --json               # ou em JSON estruturado
+full-upgrade --history                     # tendência dos últimos runs (tabela)
 ```
 
 Comandos úteis no dia a dia:
@@ -159,6 +165,9 @@ Comandos úteis no dia a dia:
 | `full-upgrade --skip-category slow` | Pular steps marcados com uma tag específica. |
 | `full-upgrade --skip "Atualizar ghcup"` | Pular um step pelo nome exato. |
 | `full-upgrade --json` | Imprimir uma linha JSON de resumo ao final. |
+| `full-upgrade --audit` | Auditoria de segurança consolidada (CVEs oficiais/AUR/Rust, firmware, btrfs), sem mutar. |
+| `full-upgrade --report [ARQ]` | Gerar relatório do último run em Markdown (ou `--report --json`). |
+| `full-upgrade --history` | Ver histórico/tendência dos runs gravados (ou `--history --json`). |
 | `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. |
 | `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
@@ -229,16 +238,18 @@ Status possíveis no resumo:
 | --- | --- |
 | Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
 | Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup validado da mirrorlist. |
-| Sistema | `pacman`, AUR, reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos, snapshots antigos do próprio script e `.pacnew/.pacsave`. |
+| Arch News | Lê o feed de notícias do Arch antes das mutações e marca `todo` quando há intervenção manual nova (via `informant` ou parse RSS). |
+| Sistema | `pacman`, AUR (`paru`/`yay`/`pikaur`), reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos, snapshots antigos do próprio script e `.pacnew/.pacsave`. |
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
 | Firmware e boot | `fwupdmgr` e `bootctl`. |
 | JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais; runtimes `Bun` e `Deno` (auto-gerenciados, pulam quando gerenciados pelo pacman). |
 | Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry, com proteção contra conflito `poetry-core` fixado pelo Poetry. |
-| Rust | `rustup`, `cargo-install-update` e auditoria com `cargo-audit`. |
+| Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
-| Shell/editor | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason e Hyprland `hyprpm`. |
-| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, Burp Suite e Wireshark quando habilitados. |
+| Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark quando habilitados. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
 `skip` com o motivo, e o restante do fluxo continua.
@@ -285,13 +296,16 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | Rede | DNS e HTTPS contra endpoints de mirrors Arch. |
 | Serviços antigos | Serviços usando bibliotecas atualizadas via `needrestart` ou `checkservices`. |
 | Pacman | Arquivos ausentes via `pacman -Qkq`. |
+| pacnew/pacsave | Arquivos `.pacnew`/`.pacsave` pendentes de merge (`pacdiff -o`/`find /etc`). |
+| CVEs oficiais | Vulnerabilidades de pacotes do repo oficial via `arch-audit` (corrigível → `warn`, sem correção → `todo`). |
 | ALPM | Hooks com falha no journal do boot atual. |
 | SMART/NVMe | Saúde de discos via `smartctl` e `nvme`. |
-| btrfs | Erros de device acumulados e idade do último scrub em raiz btrfs. |
+| btrfs | Erros de device acumulados e idade do último scrub em mounts btrfs (auto-remediação opcional via `AUTO_BTRFS_SCRUB`). |
 | Tempo de boot | Total via `systemd-analyze time` e as 5 piores units (`blame`). |
 | Desktop | Portais, PipeWire, WirePlumber e informações gráficas quando disponíveis. |
-| IA | Versões de `claude`, `copilot` e `hermes`. |
-| Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos e conflitos npm/pnpm. |
+| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes), marcando as com método de update conhecido. |
+| MCP | Servidores MCP configurados em Claude (`~/.claude.json`) e Codex (`~/.codex/config.toml`), com escopo e runtime (`stdio:npx`, `stdio:uvx`, `remote`). |
+| Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos, conflitos npm/pnpm e diagnóstico acionável de `pip check`. |
 
 ## Logs e Automação
 
@@ -377,6 +391,17 @@ Principais chaves:
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
+| `ARCH_NEWS_CHECK` | `1` | Checa Arch News (RSS/`informant`) antes das mutações e alerta sobre itens novos. `0` desliga. |
+| `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
+| `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
+| `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
+| `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
+| `OLLAMA_SELF_UPDATE` | `0` | `1` = reexecuta o instalador oficial do Ollama (`curl \| sh`) no step; `0` = só reporta a versão. |
+| `MCP_AUTO_UPDATE` | `0` | `1` = refresca o cache uv dos servidores MCP uvx (rebuild da última no próximo launch); `0` = só doctor read-only. |
+| `IDE_EXT_CLIS` | auto | Lista (espaço) de CLIs VSCode-family para atualizar extensões; vazio = autodetect (`code cursor codium …`). |
+| `AUR_HELPER` | auto | Helper AUR a usar (`paru`/`yay`/`pikaur`); vazio = autodetecta na ordem `paru > yay > pikaur`. |
+| `PRIV_CMD` | auto | Comando de elevação (`sudo`/`doas`/`run0`/`sudo-rs`); vazio = autodetecta (`sudo` por padrão). |
+| `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
@@ -445,11 +470,13 @@ Obrigatórios:
 Opcionais detectados automaticamente:
 
 ```text
-paru, yay, pacman-contrib, reflector, rate-mirrors, snapper, timeshift,
-flatpak, snap, docker, fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx,
-uv, poetry, rustup, cargo, cargo-install-update, cargo-audit, go, dotnet,
-gem, ghcup, arduino-cli, gcloud, claude, hermes, copilot, nvim, hyprpm,
-needrestart, checkservices, smartctl, nvme, vulkaninfo, glxinfo
+paru, yay, pikaur, doas, run0, sudo-rs, pacman-contrib, pacdiff, reflector,
+rate-mirrors, snapper, timeshift, informant, arch-audit, flatpak, snap, docker,
+fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx, uv, uvx, poetry,
+rustup, cargo, cargo-install-update, cargo-audit, go, dotnet, gem, ghcup,
+arduino-cli, gcloud, claude, codex, copilot, gemini, qwen, cline, opencode,
+ollama, kimi, hermes, nvim, code, cursor, codium, hyprpm, needrestart,
+checkservices, smartctl, nvme, notify-send, vulkaninfo, glxinfo
 ```
 
 ## Arquitetura
@@ -469,8 +496,10 @@ needrestart, checkservices, smartctl, nvme, vulkaninfo, glxinfo
 │   ├── config.sh            # XDG config e auto-detecção
 │   ├── catalog.sh           # metadados dos steps e filtros
 │   ├── cli.sh               # flags, modos e saídas precoces
+│   ├── report.sh            # relatório Markdown/JSON do run (--report)
+│   ├── history.sh           # histórico/tendência de runs (--history)
 │   ├── main.sh              # ordem de execução
-│   └── steps/               # implementação por domínio
+│   └── steps/               # implementação por domínio (ai, mcp, news, ide, audit, doctor…)
 └── steps.d/                 # hooks opcionais de ferramentas customizadas
 ```
 
