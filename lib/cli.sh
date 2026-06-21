@@ -30,7 +30,9 @@ Opções:
   --skip STEP      Pular um step pelo nome exato (pode repetir)
   --skip-category CAT
                    Pular categoria/tag de steps (ex: repair, slow, network)
-  --only CAT       Rodar só uma categoria/tag (ex: pacman, docker, lang, doctor)
+  --only SPEC      Rodar só os steps que casam SPEC: categoria/tag ou nome exato
+                   de step, lista por vírgula (ex: doctor | "Atualizar Ollama"
+                   | "lang,Doctor: saúde de rede"). core/final sempre rodam.
   --list-steps     Listar catálogo de steps
   --explain-step STEP
                    Explicar um step pelo nome exato
@@ -313,8 +315,8 @@ apply_mode_and_early_exits() {
     esac
     
     if [[ -n "$ONLY_CATEGORY" ]]; then
-        if ! apply_only_category "$ONLY_CATEGORY"; then
-            echo "Categoria/tag desconhecida para --only: $ONLY_CATEGORY" >&2
+        if ! apply_only_filter "$ONLY_CATEGORY"; then
+            echo "Token desconhecido para --only (não é categoria/tag nem nome de step): $ONLY_CATEGORY" >&2
             usage >&2
             exit 2
         fi

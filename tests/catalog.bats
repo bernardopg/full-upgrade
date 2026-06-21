@@ -97,6 +97,53 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+# ── catalog_has_step_name + apply_only_filter (L1) ───────────────────────────
+
+@test "catalog_has_step_name: nome exato existente" {
+  run catalog_has_step_name "Atualizar Ollama"
+  [ "$status" -eq 0 ]
+}
+
+@test "catalog_has_step_name: nome inexistente / parcial não casa" {
+  run catalog_has_step_name "Atualizar"
+  [ "$status" -ne 0 ]
+  run catalog_has_step_name "Nao Existe"
+  [ "$status" -ne 0 ]
+}
+
+@test "apply_only_filter: por nome exato mantém o step e core/final, pula o resto" {
+  FULL_UPGRADE_SKIP=""
+  run apply_only_filter "Atualizar Ollama"
+  [ "$status" -eq 0 ]
+  FULL_UPGRADE_SKIP=""
+  apply_only_filter "Atualizar Ollama"
+  run _step_skip_requested "Atualizar Ollama"
+  [ "$status" -ne 0 ]              # alvo mantido
+  run _step_skip_requested "Validar sudo"
+  [ "$status" -ne 0 ]              # core mantido
+  run _step_skip_requested "Verificação final de pendências"
+  [ "$status" -ne 0 ]              # final mantido
+  run _step_skip_requested "Atualizar Flatpak"
+  [ "$status" -eq 0 ]              # fora do filtro -> skip
+}
+
+@test "apply_only_filter: mistura categoria + nome exato (vírgula)" {
+  FULL_UPGRADE_SKIP=""
+  apply_only_filter "doctor,Atualizar Ollama"
+  run _step_skip_requested "Atualizar Ollama"
+  [ "$status" -ne 0 ]              # mantido por nome
+  run _step_skip_requested "Doctor: saúde de rede"
+  [ "$status" -ne 0 ]              # mantido por categoria
+  run _step_skip_requested "Atualizar Flatpak"
+  [ "$status" -eq 0 ]              # fora de ambos -> skip
+}
+
+@test "apply_only_filter: token totalmente desconhecido retorna 1" {
+  FULL_UPGRADE_SKIP=""
+  run apply_only_filter "nao-existe-xyz"
+  [ "$status" -ne 0 ]
+}
+
 # ── add_skip_mutating_steps (modo doctor não-mutável) ─────────────────────────
 
 @test "add_skip_mutating_steps: adiciona todos os steps mutantes ao skip-list" {
