@@ -9,7 +9,8 @@
 # não-interativo sem sudo cacheado dispararia um prompt de senha que ninguém
 # responde e cada step travaria até o timeout (#16).
 _doctor_sudo_ok() {
-  has sudo && sudo -n true >/dev/null 2>&1
+  local priv="${PRIV_CMD:-sudo}"
+  has "$priv" && "$priv" -n true >/dev/null 2>&1
 }
 
 doctor_reboot_pending() {

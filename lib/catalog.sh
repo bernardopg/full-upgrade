@@ -19,7 +19,7 @@ Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapsh
 Atualizar mirrors|pacman|mirror,network,sudo|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
 Limpar lock stale do pacman|repair|pacman,mutating|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
 Reparar ambiente GnuPG/AUR|repair|aur,gnupg,mutating|mutating|60||repair_gnupg_runtime|Corrige permissões de GnuPG e reinicia dirmngr para evitar falhas no AUR.
-Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutating|600|paru|update_system_aur|Atualiza pacotes oficiais e AUR com paru/yay/pacman.
+Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutating|600||update_system_aur|Atualiza pacotes oficiais e AUR com AUR_HELPER (paru/yay/pikaur detectados) ou pacman.
 Garantir Burp Suite e Wireshark|repair|security,aur,network,mutating|mutating|300|paru|ensure_security_tools|Garante ferramentas de segurança e usa fallback oficial para Burp quando necessário.
 Reparar comandos locais conflitantes|repair|shadowing,mutating|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
 Reparar permissoes de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.

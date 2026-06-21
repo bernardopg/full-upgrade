@@ -132,7 +132,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** sem pendências → `ok`; com → `todo` listando arquivos; merge só sob
   confirmação; parser coberto por bats.
 
-#### I3 — 🟢 M ☐ Suporte a helpers AUR e elevação alternativos
+#### I3 — 🟢 M ☑ Suporte a helpers AUR e elevação alternativos
 > `arch-update` suporta paru/yay/pikaur e sudo/doas/run0/sudo-rs. Hoje o projeto
 > assume `paru` + `sudo`.
 - **Arquivos:** `lib/config.sh`, `lib/sudo.sh`, `lib/steps/pacman.sh`
