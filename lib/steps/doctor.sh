@@ -1008,53 +1008,42 @@ doctor_desktop_health() {
 }
 
 
+# H4 — extrai a primeira linha não-vazia de `<cmd> --version`, normalizada.
+# Helper puro (lê stdin), testável.
+_ai_cli_first_version() {
+  grep -m1 -E '[0-9]' || true
+}
+
+# H4 — inventário read-only das CLIs de IA instaladas e suas versões. Cobre o
+# conjunto moderno (claude, copilot, codex, gemini, qwen, cline, opencode,
+# 9router, ollama, kimi, hermes). Apenas reporta — nunca muta nem falha o run;
+# CLIs ausentes são omitidas para reduzir ruído. Conta quantas foram detectadas.
 doctor_ai_clis() {
-  local status=0
-
-  # claude
-  if has claude; then
-    local cv
-    cv="$(claude --version 2>/dev/null | head -1 || true)"
-    if [[ -n "$cv" ]]; then
-      log "  claude: ${cv}"
+  # Lista "rótulo:comando". A maioria aceita `--version`.
+  local -a clis=(
+    "claude:claude" "copilot:copilot" "codex:codex" "gemini:gemini"
+    "qwen:qwen" "cline:cline" "opencode:opencode" "9router:9router"
+    "ollama:ollama" "kimi:kimi" "hermes:hermes"
+  )
+  local entry label cmd ver found=0
+  for entry in "${clis[@]}"; do
+    label="${entry%%:*}"; cmd="${entry#*:}"
+    has "$cmd" || continue
+    found=$((found + 1))
+    ver="$("$cmd" --version 2>/dev/null | _ai_cli_first_version)"
+    if [[ -n "$ver" ]]; then
+      log "  ${label}: ${ver}"
     else
-      log "  claude: encontrado mas --version falhou."
-      (( status == 0 )) && status="$RC_WARN"
+      log "  ${label}: instalado (versão indisponível)."
     fi
-  else
-    log "  claude: não instalado."
-  fi
+  done
 
-  # GitHub Copilot CLI
-  local copilot_bin="${HOME}/.local/bin/copilot"
-  if [[ -x "$copilot_bin" ]]; then
-    local cpv
-    cpv="$("$copilot_bin" --version 2>/dev/null | head -1 || true)"
-    if [[ -n "$cpv" ]]; then
-      log "  copilot: ${cpv}"
-    else
-      log "  copilot: encontrado mas --version falhou."
-      (( status == 0 )) && status="$RC_WARN"
-    fi
+  if (( found == 0 )); then
+    log "  Nenhuma CLI de IA conhecida instalada."
   else
-    log "  copilot: não instalado."
+    log "  ${found} CLI(s) de IA detectada(s)."
   fi
-
-  # Hermes
-  if has hermes; then
-    local hv
-    hv="$(hermes --version 2>/dev/null | head -1 || true)"
-    if [[ -n "$hv" ]]; then
-      log "  hermes: ${hv}"
-    else
-      log "  hermes: encontrado mas --version falhou."
-      (( status == 0 )) && status="$RC_WARN"
-    fi
-  else
-    log "  hermes: não instalado."
-  fi
-
-  return "$status"
+  return 0
 }
 
 

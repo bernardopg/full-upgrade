@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Alterado
+
+- **Doctor: AI CLIs agora cobre o conjunto moderno (H4).** O step "Doctor: AI
+  CLIs" passou de claude/copilot/hermes para um inventário data-driven read-only
+  de claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi
+  e hermes, reportando a versão de cada um instalado e a contagem total. CLIs
+  ausentes são omitidas (menos ruído); nunca falha o run. Helper puro
+  `_ai_cli_first_version` e suíte `tests/doctor_ai_clis.bats`.
+
 ### Adicionado
 
 - **Atualizar Ollama (H2).** Novo step "Atualizar Ollama" (`ai`/`mutating`). O
