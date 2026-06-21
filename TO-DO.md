@@ -91,7 +91,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
   update apropriado ao instalador detectado.
 - **Aceite:** sem `kimi` → `skip`; com → atualiza; documentado no config-example.
 
-#### H6 — 🟡 G ☐ Doctor/Atualizar servidores MCP
+#### H6 — 🟡 G ☑ Doctor/Atualizar servidores MCP
 > Hoje nada gerencia MCP. Vários CLIs (claude, codex, opencode…) consomem MCP
 > servers definidos em config; muitos são pacotes npm/uvx que ficam defasados.
 - **Arquivos:** novo `lib/steps/mcp.sh`, `lib/catalog.sh`, `lib/main.sh`, config
@@ -195,8 +195,9 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 4. ~~**H2** (Ollama)~~, ~~**H4** (doctor de versões IA)~~, ~~**I4** (notify)~~,
    ~~**I2** (pacnew/pacsave)~~, ~~**J1** (diagnóstico pip)~~.
 
-**Rodada 3 (maior esforço / menor urgência):**
-6. **H6** (MCP), **I3** (helpers/elevação alt.), **J2** (JSON), **J3** (btrfs multi-mount), **H5** (kimi).
+**Rodada 3 (maior esforço / menor urgência):** ✅ concluída.
+6. ~~**H6** (MCP)~~, ~~**I3** (helpers/elevação alt.)~~,
+   ~~**J2** (JSON)~~, ~~**J3** (btrfs multi-mount)~~, ~~**H5** (kimi)~~.
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (Unreleased) a cada PR. Agrupar uma série
@@ -205,11 +206,11 @@ fechada numa release (ex.: H-series → v3.8.0).
 ## Progresso
 
 - **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); **H1, H3, I1**
-  (Rodada 1, PRs #42/#43/#44 — em `[Unreleased]`, candidatos a v3.8.0);
-  **H2, H4, I2, I4, J1** (Rodada 2, em `[Unreleased]`).
-- **Próximo:** Rodada 3 — **H6** (MCP), **I3** (helpers/elevação alt.), **J2**
-  (JSON em report/history), **J3** (btrfs multi-mount), **H5** (kimi).
-- **Restante:** H5, H6, I3, J2, J3.
+  (Rodada 1, PRs #42/#43/#44); **H2, H4, I2, I4, J1** (Rodada 2);
+  **H5, H6, I3, J2, J3** (Rodada 3) — tudo em `[Unreleased]`, candidato a
+  v3.8.0.
+- **Próximo:** release v3.8.0.
+- **Restante:** nenhum item H/I/J pendente.
 
 ---
 

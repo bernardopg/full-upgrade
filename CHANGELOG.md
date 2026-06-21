@@ -6,6 +6,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Doctor: servidores MCP (H6).** Novo step read-only "Doctor: servidores MCP"
+  que enumera servidores MCP configurados em Claude Code (`~/.claude.json`) e
+  Codex (`~/.codex/config.toml`), agregando nomes repetidos entre fontes e
+  mostrando escopo/runtime (`stdio:npx`, `stdio:uvx`, `remote`, etc.). Útil para
+  identificar MCP servers npm/uvx que ficam defasados fora do update padrão.
+  `MCP_AUTO_UPDATE` foi reservado (default `0`) para futura remediação mutável;
+  hoje o step só diagnostica. Parsers puros `parse_mcp_claude_json` e
+  `parse_mcp_codex_names`; suíte `tests/mcp.bats`.
 - **Helpers AUR e elevação de privilégio alternativos (I3).** O full-upgrade
   agora autodetecta (ou aceita via config) o `AUR_HELPER` (paru > yay > pikaur)
   e o `PRIV_CMD` (sudo > doas > sudo-rs > run0). Com só `yay` (ou `pikaur`)
@@ -37,27 +45,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   evitar trabalho redundante; confirmação única para todos os pendentes. Helpers
   `unique_btrfs_mountpoints` (puro, testável) e `list_btrfs_mountpoints`; +6
   testes em `tests/btrfs_scrub.bats`.
-
-### Alterado
-
-- **Doctor: diagnóstico acionável de `pip check` quebrado (J1).** O step
-  "Doctor: ambiente Python" agora resume os conflitos agrupados por pacote raiz
-  (em vez do dump bruto), preserva versões com ponto e specs PEP 440 multi-bound
-  (`>=1.0,<2.0`), classifica cada conflito por origem (`[pacman/AUR]` vs
-  `[pip --user]`) via `importlib.metadata` e sugere remediação direcionada —
-  inclusive o alerta **"NÃO use 'pip install' sobre pacote do sistema"** (quebra
-  o pacman). Continua `warn`, sem auto-instalação. Fallback ao dump bruto se o
-  parser não casar. Helpers `summarize_pip_check` (puro) e `_classify_pip_origins`
-  + suíte `tests/pip_check.bats`.
-- **Doctor: AI CLIs agora cobre o conjunto moderno (H4).** O step "Doctor: AI
-  CLIs" passou de claude/copilot/hermes para um inventário data-driven read-only
-  de claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi
-  e hermes, reportando a versão de cada um instalado e a contagem total. CLIs
-  ausentes são omitidas (menos ruído); nunca falha o run. Helper puro
-  `_ai_cli_first_version` e suíte `tests/doctor_ai_clis.bats`.
-
-### Adicionado
-
 - **Doctor: arquivos .pacnew/.pacsave (I2).** Novo step read-only "Doctor:
   arquivos .pacnew/.pacsave" que localiza configs pendentes de mesclagem
   (geradas pelo pacman) em `PACFILES_DIRS` (default `/etc /boot`); `todo` se
@@ -97,6 +84,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   extensões ficavam defasadas em silêncio. Lista de CLIs configurável via
   `IDE_EXT_CLIS` (default autodetect). Falha de rede num CLI → `warn`; nenhum IDE
   presente → `skip`. Helper puro `count_ext_updates` e suíte `tests/ide_ext.bats`.
+
+### Alterado
+
+- **Doctor: diagnóstico acionável de `pip check` quebrado (J1).** O step
+  "Doctor: ambiente Python" agora resume os conflitos agrupados por pacote raiz
+  (em vez do dump bruto), preserva versões com ponto e specs PEP 440 multi-bound
+  (`>=1.0,<2.0`), classifica cada conflito por origem (`[pacman/AUR]` vs
+  `[pip --user]`) via `importlib.metadata` e sugere remediação direcionada —
+  inclusive o alerta **"NÃO use 'pip install' sobre pacote do sistema"** (quebra
+  o pacman). Continua `warn`, sem auto-instalação. Fallback ao dump bruto se o
+  parser não casar. Helpers `summarize_pip_check` (puro) e `_classify_pip_origins`
+  + suíte `tests/pip_check.bats`.
+- **Doctor: AI CLIs agora cobre o conjunto moderno (H4).** O step "Doctor: AI
+  CLIs" passou de claude/copilot/hermes para um inventário data-driven read-only
+  de claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi
+  e hermes, reportando a versão de cada um instalado e a contagem total. CLIs
+  ausentes são omitidas (menos ruído); nunca falha o run. Helper puro
+  `_ai_cli_first_version` e suíte `tests/doctor_ai_clis.bats`.
 
 ## [3.7.0] — 2026-06-20
 

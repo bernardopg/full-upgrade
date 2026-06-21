@@ -496,6 +496,12 @@ run_all_steps() {
     run_step "Doctor: SMART e NVMe" doctor_smart_health
     run_step "Doctor: saúde da sessão desktop" doctor_desktop_health
     run_step "Doctor: AI CLIs" doctor_ai_clis
+    if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
+       || has claude || has codex || has opencode; then
+        run_step "Doctor: servidores MCP" doctor_mcp_servers
+    else
+        step_skip "Doctor: servidores MCP" "nenhuma fonte MCP (claude.json/codex)"
+    fi
     run_step "Doctor: ambiente Python" doctor_python_env
     run_step "Doctor: conflitos JavaScript global" doctor_js_conflicts
     run_step "Doctor: saúde do btrfs" doctor_btrfs_health
