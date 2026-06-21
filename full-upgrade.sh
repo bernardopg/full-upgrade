@@ -25,7 +25,7 @@ fi
 #   1. git describe (rodando a partir de um clone do repo, durante o dev);
 #   2. arquivo VERSION ao lado do entrypoint (gravado por install.sh/build.sh);
 #   3. fallback embutido (último recurso).
-SCRIPT_VERSION="3.9.1"
+SCRIPT_VERSION="3.10.0"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 if [[ -n "$_git_ver" ]]; then
   SCRIPT_VERSION="${_git_ver#v}"

@@ -194,7 +194,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > cache uv dos servers uvx via `uv cache clean` (com `UV_LOCK_TIMEOUT=15` p/ não
 > travar em lock contention). Ver `lib/steps/mcp.sh` + `tests/mcp.bats`.
 
-#### K2 — 🟡 M ☐ Diagnóstico de pendências oficiais seguradas
+#### K2 — 🟡 M ☑ Diagnóstico de pendências oficiais seguradas — PR #66
 > **Achado recorrente:** `Verificação final de pendências` vira `todo` cru quando
 > um cluster (ex.: Haskell/cabal) fica segurado por rebuild upstream, mesmo com
 > `-Syu` "limpo". Distinguir *partial upgrade / held por rebuild* de pendência
@@ -203,7 +203,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** held-por-rebuild reportado como tal (não como pendência acionável);
   pendência real continua `todo`; helper coberto por bats.
 
-#### K3 — 🟢 P ☐ Classificar CVE de toolchain Rust não-acionável
+#### K3 — 🟢 P ☑ Classificar CVE de toolchain Rust não-acionável — PR #67
 > `Auto-remediar`/`Auditar CVEs Rust` dá `warn` em todo run por CVE do binário
 > rustup upstream (crates vendorizadas), que persiste até upstream reconstruir.
 - **Arquivos:** `lib/steps/lang_rust.sh` (autofix/audit).
@@ -211,7 +211,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
   rebaixar de `warn` p/ nota informativa, parando de tentar remediar o irreparável.
 - **Aceite:** CVE upstream vira info, não `warn`; CVE acionável continua `warn`.
 
-#### K4 — 🟢 P ☐ Hints acionáveis no doctor de journal
+#### K4 — 🟢 P ☑ Hints acionáveis no doctor de journal — PR #68
 > Erros ambientais recorrentes (ex.: `applications.menu` ausente, Bluetooth hci0)
 > aparecem crus. Quando barato, sugerir correção/pacote.
 - **Arquivos:** `lib/steps/doctor.sh` (journal).
@@ -234,9 +234,9 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 
 **Rodada 4 — Série K (pós-v3.8.x):**
 7. ~~**K1** (auto-update MCP)~~ — ✅ PR #61 (feat) + #63 (fix lock uv); v3.9.0/v3.9.1.
-8. ~~**K5** (sync doc)~~ — ✅ este commit.
-9. **K2** (diagnóstico de pendências seguradas), **K3** (CVE rustup não-acionável),
-   **K4** (hints de journal) — pendentes.
+8. ~~**K5** (sync doc)~~ — ✅.
+9. ~~**K2** (pendências seguradas)~~ #66, ~~**K3** (CVE rustup não-acionável)~~ #67,
+   ~~**K4** (hints de journal)~~ #68 — ✅ todos em **v3.10.0**.
 
 Cada item vira um PR isolado (branch protection na `main` exige PR + checks
 verdes). Atualizar `CHANGELOG.md` (Unreleased) a cada PR. Agrupar uma série
@@ -248,8 +248,8 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
   (PRs #42/#43/#44); H2, H4, I2, I4, J1; **H5, H6, I3, J2, J3** → todos liberados
   em **v3.8.0**. Patches v3.8.1/v3.8.2. **Série K:** K1 (auto-update MCP) → v3.9.0,
   fix de lock uv → v3.9.1; K5 (sync doc) neste commit.
-- **Próximo:** K2/K3/K4 (cortam ruído recorrente de `todo`/`warn` dos runs reais).
-- **Restante:** K2, K3, K4 (ver série K em Features).
+- **Próximo:** série K concluída; novos itens virão de achados de run real.
+- **Restante:** nenhum item K pendente.
 
 ---
 
