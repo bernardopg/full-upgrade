@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.9.0] — 2026-06-21
+
 ### Adicionado
 
 - **Auto-update de servidores MCP (K1).** Novo step mutável "Atualizar servidores
