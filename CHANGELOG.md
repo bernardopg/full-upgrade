@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **`Auto-remediar CVEs de toolchain Rust` também classifica CVE não-acionável
+  (K3).** Run real do v3.10.0 mostrou que o K3 cobriu o step de auditoria
+  (`Auditar binários cargo` → `ok`), mas o step de auto-remediação ainda dava
+  `warn` na mesma CVE irreparável do `rustup` upstream. Agora, após a remediação
+  (que já roda `rustup update`), CVEs remanescentes restritas a binários da
+  toolchain viram nota informativa (`ok`); só restam `warn` quando há CVE
+  remanescente em binário cargo-installed (de fato acionável). +1 teste, e o caso
+  toolchain-remanescente passou a esperar `ok`.
+
 ## [3.10.0] — 2026-06-21
 
 ### Adicionado
