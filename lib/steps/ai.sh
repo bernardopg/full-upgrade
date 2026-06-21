@@ -101,4 +101,32 @@ update_claude_code() {
   return "$rc"
 }
 
+# H5 — detecta se o kimi (bin) é um pacote npm global. Retorna o spec npm
+# ("@moonshot-ai/kimi-code") ou vazio. Impuro (consulta `npm ls -g`).
+kimi_npm_package() {
+  npm ls -g --depth=0 2>/dev/null | grep -oE '@moonshot-ai/kimi-code' | head -1
+}
+
+# H5 — atualiza o kimi (Moonshot Kimi Code CLI). O kimi é publicado no npm como
+# @moonshot-ai/kimi-code (bin "kimi"), então quando instalado via npm global JÁ
+# É coberto pelo step "Atualizar npm global" — este step evita duplicar o
+# 'npm install' e apenas confirma a cobertura. Para instalações standalone
+# futuras (sem método conhecido), retorna RC_TODO.
+update_kimi() {
+  if ! has kimi; then
+    log "  kimi não encontrado no PATH."
+    return 0
+  fi
+  local before
+  before="$(kimi --version 2>/dev/null | head -1)"
+  log "  kimi atual: ${before:-?}"
+  if [[ -n "$(kimi_npm_package)" ]]; then
+    log "  kimi é pacote npm global (@moonshot-ai/kimi-code); já coberto por 'Atualizar npm global'."
+    return 0
+  fi
+  log "  kimi instalado fora do npm; sem método de update automático conhecido."
+  STEP_REASON="método de update do kimi não detectado (não-npm)"
+  return "$RC_TODO"
+}
+
 

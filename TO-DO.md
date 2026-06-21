@@ -83,7 +83,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** lista versões dos instalados; ausentes não aparecem; read-only;
   parser de versão coberto por bats.
 
-#### H5 — 🟢 P ☐ Atualizar Kimi CLI (opcional/gated)
+#### H5 — 🟢 P ☑ Atualizar Kimi CLI (opcional/gated)
 > `kimi` (Moonshot) não está instalado na máquina-alvo hoje; manter como step
 > opcional para quando existir. Se for npm, já cai no `update_npm_globals`.
 - **Arquivos:** `steps.d/` (custom) ou `lib/steps/ai.sh`, `lib/catalog.sh`

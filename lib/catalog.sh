@@ -60,6 +60,7 @@ Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_cl
 Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.
 Atualizar Ollama|ai|ollama,update,network|mutating|600|ollama|update_ollama|Sob OLLAMA_SELF_UPDATE=1 reexecuta o instalador oficial do Ollama; senão só reporta a versão.
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
+Atualizar Kimi CLI|ai|kimi,update,network|mutating|30|kimi|update_kimi|Kimi (Moonshot) via npm global (@moonshot-ai/kimi-code) já é coberto por 'Atualizar npm global'; standalone => RC_TODO.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.
