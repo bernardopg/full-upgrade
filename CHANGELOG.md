@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Scrub btrfs em múltiplos mountpoints (J3).** O step "Auto-remediar scrub
+  btrfs" agora avalia TODOS os filesystems btrfs montados (não só `/`),
+  enumerando-os via `findmnt -t btrfs` e aplicando a mesma lógica de G1 a cada
+  um. Subvolumes do mesmo dispositivo são dedupados (scrub é por-device) para
+  evitar trabalho redundante; confirmação única para todos os pendentes. Helpers
+  `unique_btrfs_mountpoints` (puro, testável) e `list_btrfs_mountpoints`; +6
+  testes em `tests/btrfs_scrub.bats`.
+
 ### Alterado
 
 - **Doctor: diagnóstico acionável de `pip check` quebrado (J1).** O step

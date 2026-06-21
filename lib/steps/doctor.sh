@@ -1451,6 +1451,26 @@ btrfs_scrub_state() {
 # em background; bloquear estouraria o timeout do step). Sob confirmação/--yes.
 # RC: 0 nada a fazer / scrub iniciado; RC_TODO sem sudo ou recusa/não interativo;
 # RC_WARN se o comando de start falhar.
+# J3 — avalia TODOS os filesystems btrfs montados (não só /), evitando scrubs
+# redundantes quando vários subvolumes do mesmo dispositivo estão montados.
+unique_btrfs_mountpoints() {
+  awk '
+    NF < 2 { next }
+    {
+      target=$1; src=$2
+      sub(/\[.*$/, "", src)
+      if (src=="" || seen[src]++) next
+      print target
+    }
+  '
+}
+
+# J3 — enumera mountpoints btrfs distintos (um por dispositivo). Wrapper impuro
+# sobre `findmnt -t btrfs` + unique_btrfs_mountpoints (puro, testável).
+list_btrfs_mountpoints() {
+  findmnt -rn -t btrfs -o TARGET,SOURCE 2>/dev/null | unique_btrfs_mountpoints
+}
+
 autofix_btrfs_scrub() {
   if (( ${AUTO_BTRFS_SCRUB:-0} == 0 )); then
     log "  AUTO_BTRFS_SCRUB desligado; nada a remediar."
@@ -1461,10 +1481,10 @@ autofix_btrfs_scrub() {
     return 0
   fi
 
-  local rootfs
-  rootfs="$(findmnt -no FSTYPE / 2>/dev/null || true)"
-  if [[ "$rootfs" != "btrfs" ]]; then
-    log "  Raiz não é btrfs (${rootfs:-?}); nada a remediar."
+  local mounts
+  mounts="$(list_btrfs_mountpoints)"
+  if [[ -z "${mounts//[[:space:]]/}" ]]; then
+    log "  Nenhum filesystem btrfs montado; nada a remediar."
     return 0
   fi
 
@@ -1474,31 +1494,43 @@ autofix_btrfs_scrub() {
     return "$RC_TODO"
   fi
 
-  local scrub state max_days
+  local max_days scrub state
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
-  scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null || true)"
-  state="$(btrfs_scrub_state "$scrub" "$max_days")"
-  case "$state" in
-    ok:*)
-      log "  btrfs: scrub recente em / (${state#ok:} dia(s), limite ${max_days}) — nada a fazer."
-      return 0
-      ;;
-    unknown)
-      log "  btrfs: não foi possível determinar a idade do scrub; nada a fazer."
-      return 0
-      ;;
-    never)
-      log "  btrfs: nenhum scrub registrado em /."
-      ;;
-    due:*)
-      log "  btrfs: último scrub há ${state#due:} dia(s) (> ${max_days})."
-      ;;
-  esac
 
-  # Gate: aplicar mutação exige confirmação ou --yes.
+  # 1) Avalia cada mountpoint e coleta os que precisam de scrub.
+  local -a todo=()
+  local mp
+  while IFS= read -r mp; do
+    [[ -z "$mp" ]] && continue
+    scrub="$(LC_ALL=C sudo -n btrfs scrub status "$mp" 2>/dev/null || true)"
+    state="$(btrfs_scrub_state "$scrub" "$max_days")"
+    case "$state" in
+      ok:*)
+        log "  btrfs: scrub recente em ${mp} (${state#ok:} dia(s), limite ${max_days})."
+        ;;
+      unknown)
+        log "  btrfs: não foi possível determinar a idade do scrub em ${mp}; pulando."
+        ;;
+      never)
+        log "  btrfs: nenhum scrub registrado em ${mp}."
+        todo+=("$mp")
+        ;;
+      due:*)
+        log "  btrfs: último scrub há ${state#due:} dia(s) em ${mp} (> ${max_days})."
+        todo+=("$mp")
+        ;;
+    esac
+  done <<< "$mounts"
+
+  if (( ${#todo[@]} == 0 )); then
+    log "  btrfs: todos os scrub estão em dia; nada a fazer."
+    return 0
+  fi
+
+  # 2) Gate: aplicar mutação exige confirmação (única para todos) ou --yes.
   if (( ASSUME_YES == 0 )); then
     if [[ -t 0 ]]; then
-      printf '%b' "${C_YELLOW}  Iniciar 'btrfs scrub start /' agora? [s/N] ${C_RESET}"
+      printf '%b' "${C_YELLOW}  Iniciar 'btrfs scrub start' em ${#todo[@]} mountpoint(s)? [s/N] ${C_RESET}"
       local ans
       read -r ans
       case "$ans" in
@@ -1512,14 +1544,25 @@ autofix_btrfs_scrub() {
     fi
   fi
 
-  log "  Iniciando scrub em / (background)..."
-  if run_logged sudo -n btrfs scrub start /; then
-    log "  ${C_GREEN}Scrub iniciado; acompanhe com 'sudo btrfs scrub status /'.${C_RESET}"
+  # 3) Inicia o scrub (background, não-bloqueante) em cada mountpoint pendente.
+  local rc=0 started=0 failed=0
+  for mp in "${todo[@]}"; do
+    log "  Iniciando scrub em ${mp} (background)..."
+    if run_logged sudo -n btrfs scrub start "$mp"; then
+      started=$((started + 1))
+    else
+      failed=$((failed + 1))
+      rc="$RC_WARN"
+    fi
+  done
+
+  if (( failed == 0 )); then
+    log "  ${C_GREEN}Scrub iniciado em ${started} mountpoint(s); acompanhe com 'sudo btrfs scrub status <mp>'.${C_RESET}"
     return 0
   fi
-  log "  ${C_YELLOW}Falha ao iniciar o scrub btrfs.${C_RESET}"
-  STEP_REASON="falha ao iniciar scrub"
-  return "$RC_WARN"
+  log "  ${C_YELLOW}Scrub iniciado em ${started}, falhou em ${failed} mountpoint(s).${C_RESET}"
+  STEP_REASON="falha ao iniciar scrub em ${failed} mountpoint(s)"
+  return "$rc"
 }
 
 
