@@ -57,6 +57,7 @@ Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK 
 Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
 Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_claude_code|Atualiza Claude Code CLI.
+Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.

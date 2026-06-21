@@ -329,7 +329,13 @@ run_all_steps() {
     else
         step_skip "Atualizar GitHub Copilot CLI" "copilot não instalado"
     fi
-    
+
+    if has opencode; then
+        run_step "Atualizar opencode" update_opencode
+    else
+        step_skip "Atualizar opencode" "opencode não instalado"
+    fi
+
     # ── Shell ─────────────────────────────────────────────────────────────────────
     
     if [[ -f "${ZSH:-$HOME/.oh-my-zsh}/tools/upgrade.sh" ]]; then
