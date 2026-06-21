@@ -174,7 +174,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** JSON válido refletindo o run/histórico; Markdown/tabela inalterados
   sem `--json`; cobertura bats.
 
-#### J3 — 🟢 P ☐ Remediação opcional de scrub btrfs em múltiplos mountpoints
+#### J3 — 🟢 P ☑ Remediação opcional de scrub btrfs em múltiplos mountpoints
 > G1 cobre `/`. Sistemas com `/home`, `/.snapshots` btrfs separados ficam de fora.
 - **Arquivos:** `lib/steps/doctor.sh` (`autofix_btrfs_scrub`)
 - **O quê:** enumerar mountpoints btrfs via `findmnt -t btrfs` e aplicar a mesma
