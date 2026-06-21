@@ -324,11 +324,27 @@ mcp_update_servers() {
   local -a names=()
   for dist in "${!targets[@]}"; do names+=("$dist"); done
   log "  Limpando cache uv de: ${names[*]} (rebuild da última no próximo launch)."
-  if uv cache clean "${names[@]}" >/dev/null 2>&1; then
+
+  # `uv cache clean` exige o lock global de ~/.cache/uv. Se algum server uvx
+  # estiver rodando (sessão Claude/Codex ativa), o lock fica ocupado e o uv
+  # espera UV_LOCK_TIMEOUT (default 300s) antes de falhar — estouraria o timeout
+  # do step. Fixamos um timeout curto p/ falhar rápido e degradar p/ `todo` em
+  # vez de travar; nunca usamos `--force` (ignoraria server em uso e poderia
+  # corromper o cache de um processo vivo).
+  local uv_out uv_rc
+  uv_out="$(UV_LOCK_TIMEOUT=15 uv cache clean "${names[@]}" 2>&1)"
+  uv_rc=$?
+  if (( uv_rc == 0 )); then
     log "  Cache uv refrescado para ${#names[@]} pacote(s) de servers MCP."
     return 0
   fi
-  log "  uv cache clean retornou erro (não-fatal)."
+  if printf '%s' "$uv_out" | grep -qiE 'lock|in[ -]?use|another uv process|timeout'; then
+    log "  Cache uv em uso (server uvx rodando); refresh adiado para evitar travar/corromper."
+    log "  Rode quando os servers MCP estiverem ociosos: uv cache clean ${names[*]}"
+    STEP_REASON="cache uv em uso; refrescar depois: uv cache clean ${names[*]}"
+    return "$RC_TODO"
+  fi
+  log "  uv cache clean retornou erro (não-fatal): $(printf '%s' "$uv_out" | tail -n1)"
   STEP_REASON="uv cache clean falhou para servers MCP"
   return "$RC_WARN"
 }

@@ -235,3 +235,26 @@ JSON
   grep -q "markitdown-mcp" "$HOME/uv.calls"
   grep -q "serena" "$HOME/uv.calls"
 }
+
+@test "update: lock do cache uv ocupado => RC_TODO (não trava)" {
+  cat > "$HOME/.claude.json" <<'JSON'
+{"mcpServers":{"serena":{"command":"uvx","args":["--from","git+https://x/serena","serena"]}}}
+JSON
+  has() { return 0; }
+  uv() { echo "error: Timeout (15s) when waiting for lock on .cache/uv/.lock, is another uv process running?" >&2; return 2; }
+  run mcp_update_servers
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"Cache uv em uso"* ]]
+  [[ "$output" == *"uv cache clean serena"* ]]
+}
+
+@test "update: erro genérico do uv => RC_WARN" {
+  cat > "$HOME/.claude.json" <<'JSON'
+{"mcpServers":{"md":{"command":"uvx","args":["markitdown-mcp"]}}}
+JSON
+  has() { return 0; }
+  uv() { echo "error: disco cheio" >&2; return 1; }
+  run mcp_update_servers
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"uv cache clean retornou erro"* ]]
+}
