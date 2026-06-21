@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.9.1] — 2026-06-21
+
 ### Corrigido
 
 - **Auto-update MCP (K1) não trava no lock do cache uv.** Achado de run real: com
