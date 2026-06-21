@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.10.1] — 2026-06-21
+
 ### Corrigido
 
 - **`Auto-remediar CVEs de toolchain Rust` também classifica CVE não-acionável
