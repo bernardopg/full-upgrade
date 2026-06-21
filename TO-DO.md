@@ -39,7 +39,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > `mutating`, categoria `ai`/`editor`, gateados por `has <cmd>` (→ `skip`), rede
 > via `run_network_cmd`/`RC_WARN`. Custom/autorais ficam em `steps.d/` se preciso.
 
-#### H1 — 🟡 M ☐ Atualizar opencode (instalador próprio)
+#### H1 — 🟡 M ☑ Atualizar opencode (instalador próprio) — PR #44
 > opencode vive em `~/.opencode/bin/opencode`, **fora do npm** → não é coberto
 > pelo `update_npm_globals`. Tem subcomando próprio `opencode upgrade`.
 - **Arquivos:** `lib/steps/ai.sh`, `lib/catalog.sh`, `lib/main.sh`
@@ -60,7 +60,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** chave off → só reporta versão; chave on + gravável → atualiza;
   sem rede → `RC_WARN`; cobertura bats da decisão (gate/gravabilidade).
 
-#### H3 — 🔴 M ☐ Atualizar extensões de IDE (VSCode/Cursor/Codium)
+#### H3 — 🔴 M ☑ Atualizar extensões de IDE (VSCode/Cursor/Codium) — PR #42
 > **Gap real e pedido explícito.** Os binários (`code`/`cursor`/`codium`) são
 > AUR e já atualizam no pacman, mas **as extensões instaladas não** — ficam
 > defasadas em silêncio.
@@ -109,7 +109,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > Boas práticas de manutenção Arch ainda não cobertas. Ref:
 > <https://github.com/Antiz96/arch-update>.
 
-#### I1 — 🔴 M ☐ Checagem de Arch News pré-upgrade
+#### I1 — 🔴 M ☑ Checagem de Arch News pré-upgrade — PR #43
 > **Maior ganho de segurança.** Arch publica intervenções manuais necessárias
 > ANTES do `-Syu` (ex.: troca de chaves, particionamento). `arch-update` checa
 > e exibe news antes de atualizar; hoje o full-upgrade não.
@@ -186,12 +186,12 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 
 ## Ordem de execução sugerida (impacto × esforço)
 
-**Rodada 1 (alto impacto):**
-1. **H3** (extensões de IDE) — gap real + pedido explícito; valor diário.
-2. **I1** (Arch News pré-upgrade) — maior ganho de segurança do backlog.
-3. **H1** (opencode) — quick win, instalador próprio descoberto.
+**Rodada 1 (alto impacto):** ✅ concluída (PRs #42/#43/#44).
+1. ~~**H3** (extensões de IDE)~~ — ✅ PR #42.
+2. ~~**I1** (Arch News pré-upgrade)~~ — ✅ PR #43.
+3. ~~**H1** (opencode)~~ — ✅ PR #44.
 
-**Rodada 2:**
+**Rodada 2:** ← próxima
 4. **H2** (Ollama), **H4** (doctor de versões de IA), **I4** (notify).
 5. **I2** (pacnew/pacsave), **J1** (diagnóstico pip).
 
@@ -204,9 +204,11 @@ fechada numa release (ex.: H-series → v3.8.0).
 
 ## Progresso
 
-- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); **G1–G4 (v3.7.0)**.
-- **Próximo:** **H3** (extensões de IDE) → **I1** (Arch News) → **H1** (opencode).
-- **Restante:** H1–H6, I1–I4, J1–J3.
+- **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); **H1, H3, I1**
+  (Rodada 1, PRs #42/#43/#44 — em `[Unreleased]`, candidatos a v3.8.0).
+- **Próximo:** Rodada 2 — **H2** (Ollama), **H4** (doctor versões IA), **I4**
+  (notify), **I2** (pacnew/pacsave), **J1** (diagnóstico pip).
+- **Restante:** H2, H4, H5, H6, I2, I3, I4, J1, J2, J3.
 
 ---
 
