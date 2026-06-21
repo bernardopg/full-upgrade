@@ -336,6 +336,12 @@ run_all_steps() {
         step_skip "Atualizar opencode" "opencode não instalado"
     fi
 
+    if has ollama; then
+        run_step "Atualizar Ollama" update_ollama
+    else
+        step_skip "Atualizar Ollama" "ollama não instalado"
+    fi
+
     # ── Shell ─────────────────────────────────────────────────────────────────────
     
     if [[ -f "${ZSH:-$HOME/.oh-my-zsh}/tools/upgrade.sh" ]]; then

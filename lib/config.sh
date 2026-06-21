@@ -27,6 +27,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
 : "${ARCH_NEWS_CHECK:=1}"           # 1 = checa Arch News (RSS) antes das mutações e alerta sobre itens novos; 0 = desliga
 : "${NOTIFY_ON_FINISH:=0}"          # 1 = envia notificação desktop (notify-send) com o resumo ao fim do run; 0 = desliga
+: "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
@@ -62,7 +63,7 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS NOTIFY_ON_FINISH
+  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
@@ -156,6 +157,11 @@ ARCH_NEWS_CHECK=1
 # urgência conforme o pior status. 0 = desliga (default).
 NOTIFY_ON_FINISH=0
 
+# ── Auto-update do Ollama (H2) ──
+# 0 = só reporta a versão (default). 1 = reexecuta o instalador oficial
+# (curl -fsSL https://ollama.com/install.sh | sh) no step "Atualizar Ollama".
+OLLAMA_SELF_UPDATE=0
+
 # ── Extensões de IDE (H3) ──
 # Lista (separada por espaço) de CLIs VSCode-family cujas extensões atualizar.
 # Vazio = autodetect (code cursor codium code-insiders vscodium).
@@ -220,6 +226,7 @@ show_config() {
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
   _cfg_kv "ARCH_NEWS_CHECK" "$ARCH_NEWS_CHECK"
   _cfg_kv "NOTIFY_ON_FINISH" "$NOTIFY_ON_FINISH"
+  _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
   _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"
   _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"
   _cfg_kv "FULL_UPGRADE_UPDATE_CHANNEL" "$FULL_UPGRADE_UPDATE_CHANNEL"

@@ -6,6 +6,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Atualizar Ollama (H2).** Novo step "Atualizar Ollama" (`ai`/`mutating`). O
+  ollama vive em `/usr/local/bin` (instalador próprio), fora do pacman/npm. Por
+  padrão só reporta a versão; sob `OLLAMA_SELF_UPDATE=1` reexecuta o instalador
+  oficial (`curl -fsSL https://ollama.com/install.sh | sh`). Sem rede ou falha do
+  instalador → `warn`; sem `ollama` → `skip`. Helper puro `parse_ollama_version`
+  e suíte `tests/ollama.bats`.
 - **Notificação desktop ao fim do run (I4).** Nova chave `NOTIFY_ON_FINISH`
   (default `0`). Quando `1` e `notify-send` presente, `finalize()` envia o resumo
   (ok/warn/todo/fail/skip) com urgência conforme o pior status (fail→critical,
