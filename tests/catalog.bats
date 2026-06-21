@@ -144,6 +144,19 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "apply_only_names: mantém só os nomeados + core/final (L2)" {
+  FULL_UPGRADE_SKIP=""
+  apply_only_names "Atualizar servidores MCP" "Doctor: journal erros críticos" "nome-fantasma"
+  run _step_skip_requested "Atualizar servidores MCP"
+  [ "$status" -ne 0 ]              # mantido
+  run _step_skip_requested "Doctor: journal erros críticos"
+  [ "$status" -ne 0 ]              # mantido
+  run _step_skip_requested "Validar sudo"
+  [ "$status" -ne 0 ]              # core mantido
+  run _step_skip_requested "Atualizar Flatpak"
+  [ "$status" -eq 0 ]             # fora -> skip
+}
+
 # ── add_skip_mutating_steps (modo doctor não-mutável) ─────────────────────────
 
 @test "add_skip_mutating_steps: adiciona todos os steps mutantes ao skip-list" {

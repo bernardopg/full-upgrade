@@ -102,6 +102,9 @@ print_banner() {
   if [[ -n "$ONLY_CATEGORY" ]]; then
     log_always "${C_CYAN}  [ONLY] Rodando apenas (categoria/tag/nome): ${ONLY_CATEGORY}${C_RESET}"
   fi
+  if [[ -n "$RESUME_STEPS" ]]; then
+    log_always "${C_CYAN}  [RESUME] Retomando steps não-ok do último run: ${RESUME_STEPS}${C_RESET}"
+  fi
   if (( NO_REPAIR )); then
     log_always "${C_YELLOW}  [NO-REPAIR] Reparos mutáveis serão pulados.${C_RESET}"
   fi

@@ -100,6 +100,42 @@ EOF'
   [ "$output" = "  Remediação: sudo pacman -Syu" ]
 }
 
+@test "resume_pending_steps: extrai só warn/todo/fail, em ordem, sem duplicar (L2)" {
+  local j="${BATS_TEST_TMPDIR:-/tmp}/resume.jsonl"
+  cat > "$j" <<'JSONL'
+{"event":"run_start","run_id":"x"}
+{"event":"step","step":"A ok","status":"ok"}
+{"event":"step","step":"B warn","status":"warn"}
+{"event":"step","step":"C skip","status":"skip"}
+{"event":"step","step":"D todo","status":"todo"}
+{"event":"step","step":"E fail","status":"fail"}
+{"event":"step","step":"B warn","status":"warn"}
+{"event":"run_end","run_id":"x"}
+JSONL
+  out="$(resume_pending_steps "$j")"
+  [ "$out" = "B warn
+D todo
+E fail" ]
+}
+
+@test "resume_pending_steps: jsonl inexistente => rc 1" {
+  run resume_pending_steps "/nao/existe.jsonl"
+  [ "$status" -eq 1 ]
+}
+
+@test "resume_latest_real_jsonl: ignora dry-run e pega o run real mais recente (L2)" {
+  local d="${BATS_TEST_TMPDIR:-/tmp}/logdir-$$"
+  mkdir -p "$d"
+  printf '%s\n' '{"event":"run_start","run_id":"real","dry_run":false}' > "$d/full-upgrade-real.jsonl"
+  printf '%s\n' '{"event":"run_start","run_id":"dry","dry_run":true}'  > "$d/full-upgrade-dry.jsonl"
+  touch -d '2026-06-21T10:00:00' "$d/full-upgrade-real.jsonl"
+  touch -d '2026-06-21T11:00:00' "$d/full-upgrade-dry.jsonl"   # dry é mais novo
+  LOG_DIR="$d" run resume_latest_real_jsonl
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"full-upgrade-real.jsonl" ]]
+  rm -rf "$d"
+}
+
 @test "journal_hint_for: applications.menu ausente dá dica de XDG menu" {
   out="$(journal_hint_for 'Error: "applications.menu" not found in QList(...)')"
   [[ "$out" == *"archlinux-xdg-menu"* ]]
