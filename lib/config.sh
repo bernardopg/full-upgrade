@@ -13,6 +13,8 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${LANG_OVERRIDE:=auto}"          # auto|pt|en
 : "${SNAPSHOT_TOOL:=auto}"          # auto|snapper|timeshift|none
 : "${MIRROR_TOOL:=auto}"            # auto|reflector|rate-mirrors|none
+: "${AUR_HELPER:=}"                 # auto = detecta (paru > yay > pikaur); ou nome explícito
+: "${PRIV_CMD:=}"                   # auto = detecta (sudo > doas > sudo-rs > run0); ou nome explícito
 : "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
 : "${MIN_BOOT_FREE_MIB:=200}"       # espaço livre mínimo em /boot (MiB; ESP é pequeno)
 : "${SNAPSHOT_MIN_FREE_GIB:=2}"     # mínimo de livre em / p/ criar snapshot (0 = desliga)
@@ -44,6 +46,32 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${DMS_PLUGINS_DIR:=}"
 : "${OPENCLAW_BIN:=}"
 
+# I3 — detecta o helper AUR a usar. Prioridade: AUR_HELPER explícito (se
+# instalado) > paru > yay > pikaur. Emite o nome em stdout (rc 0) ou nada (rc 1).
+detect_aur_helper() {
+  local h
+  if [[ -n "${AUR_HELPER:-}" ]] && has "$AUR_HELPER" 2>/dev/null; then
+    printf '%s' "$AUR_HELPER"; return 0
+  fi
+  for h in paru yay pikaur; do
+    has "$h" 2>/dev/null && { printf '%s' "$h"; return 0; }
+  done
+  return 1
+}
+
+# I3 — detecta o elevador de privilégio. Prioridade: PRIV_CMD explícito (se
+# instalado) > sudo > doas > sudo-rs > run0. Emite o nome (rc 0) ou nada (rc 1).
+detect_priv_cmd() {
+  local c
+  if [[ -n "${PRIV_CMD:-}" ]] && has "$PRIV_CMD" 2>/dev/null; then
+    printf '%s' "$PRIV_CMD"; return 0
+  fi
+  for c in sudo doas sudo-rs run0; do
+    has "$c" 2>/dev/null && { printf '%s' "$c"; return 0; }
+  done
+  return 1
+}
+
 load_config() {
   if [[ -f "$FU_CONFIG_FILE" ]]; then
     # Config é bash sourced. Validação leve: só permite num arquivo regular do usuário.
@@ -60,10 +88,22 @@ load_config() {
   [[ -z "$OPENCLAW_BIN" ]] && OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
   [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="${HOME}/.config/DankMaterialShell/plugins"
 
+  # I3 — auto-detecção de helper AUR e elevador de privilégio (depois do config
+  # do usuário, que pode sobrescrever). Default final de PRIV_CMD é sempre sudo.
+  [[ -z "${AUR_HELPER:-}" ]] && AUR_HELPER="$(detect_aur_helper 2>/dev/null || true)"
+  [[ -z "${PRIV_CMD:-}"   ]] && PRIV_CMD="$(detect_priv_cmd 2>/dev/null || printf sudo)"
+  # Shim: quando o elevador não é sudo (ex.: doas), expõe `sudo` como alias para
+  # $PRIV_CMD. Assim todos os steps continuam chamando `sudo <cmd>` (incluindo os
+  # diagnósticos do doctor) sem refactor. doas/sudo-rs suportam `-n` como sudo.
+  if [[ "$PRIV_CMD" != sudo ]]; then
+    sudo() { "$PRIV_CMD" "$@"; }
+  fi
+
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
   export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE
+  export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 }
@@ -119,6 +159,13 @@ BACKUP_KEEP=5
 
 # ── Mirror refresh ── auto | reflector | rate-mirrors | none
 MIRROR_TOOL=auto
+
+# ── Helper AUR e elevador de privilégio (I3) ──
+# Vazio = auto-detecta. AUR_HELPER: paru > yay > pikaur.
+# PRIV_CMD: sudo > doas > sudo-rs > run0. Quando PRIV_CMD não é sudo, um shim
+# faz todos os `sudo <cmd>` usarem o elevador configurado (doas/sudo-rs têm -n).
+#AUR_HELPER=yay
+#PRIV_CMD=doas
 
 # ── Espaço mínimo livre ──
 MIN_FREE_GIB=2
@@ -212,6 +259,8 @@ show_config() {
   _cfg_kv "SNAPSHOT_MIN_FREE_GIB" "$SNAPSHOT_MIN_FREE_GIB"
   _cfg_kv "SNAPSHOT_KEEP" "$SNAPSHOT_KEEP"
   _cfg_kv "MIRROR_TOOL" "$MIRROR_TOOL"
+  _cfg_kv "AUR_HELPER" "${AUR_HELPER:-(nenhum)}"
+  _cfg_kv "PRIV_CMD" "${PRIV_CMD:-sudo}"
   _cfg_kv "MIN_FREE_GIB" "$MIN_FREE_GIB"
   _cfg_kv "MIN_BOOT_FREE_MIB" "$MIN_BOOT_FREE_MIB"
   _cfg_kv "BACKUP_CONFIGS" "$BACKUP_CONFIGS"

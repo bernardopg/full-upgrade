@@ -4,32 +4,50 @@
 # shellcheck shell=bash
 
 start_sudo_keepalive() {
-    if ! has sudo; then
+    local priv="${PRIV_CMD:-sudo}"
+    if ! has "$priv"; then
         return 1
     fi
-    if (( ASSUME_YES )) || [[ ! -t 0 ]]; then
+    # sudo: valida (-v ou -n) e mantém timestamp vivo em background.
+    if [[ "$priv" == sudo ]]; then
+      if (( ASSUME_YES )) || [[ ! -t 0 ]]; then
         if ! sudo -n true >/dev/null 2>&1; then
-            log "  sudo indisponível sem prompt interativo; steps que exigem privilégio serão pulados."
-            return "$RC_WARN"
+          log "  sudo indisponível sem prompt interativo; steps que exigem privilégio serão pulados."
+          return "$RC_WARN"
         fi
-    else
+      else
         if ! sudo -v; then
-            return 1
+          return 1
         fi
+      fi
+      (
+          while true; do
+              sleep 45
+              sudo -n true >/dev/null 2>&1 || exit 0
+          done
+      ) &
+      SUDO_KEEPALIVE_PID=$!
+      # Guard: SUDO_KEEPALIVE_PID_FILE só é definido em setup_logging; se a ordem
+      # de boot mudar um dia, falhar a escrita não pode derrubar o step (o kill
+      # de fallback em stop_sudo_keepalive usa a variável em memória).
+      if [[ -n "${SUDO_KEEPALIVE_PID_FILE:-}" ]]; then
+        printf '%s\n' "$SUDO_KEEPALIVE_PID" >"$SUDO_KEEPALIVE_PID_FILE" 2>/dev/null || true
+      fi
+      return 0
     fi
-    (
-        while true; do
-            sleep 45
-            sudo -n true >/dev/null 2>&1 || exit 0
-        done
-    ) &
-    SUDO_KEEPALIVE_PID=$!
-    # Guard: SUDO_KEEPALIVE_PID_FILE só é definido em setup_logging; se a ordem
-    # de boot mudar um dia, falhar a escrita não pode derrubar o step (o kill
-    # de fallback em stop_sudo_keepalive usa a variável em memória).
-    if [[ -n "${SUDO_KEEPALIVE_PID_FILE:-}" ]]; then
-      printf '%s\n' "$SUDO_KEEPALIVE_PID" >"$SUDO_KEEPALIVE_PID_FILE" 2>/dev/null || true
+    # doas/sudo-rs/run0: sem mecanismo equivalente ao `-v`/keepalive do sudo;
+    # valida uma única vez (não-interativo em batch, ou auth em modo interativo).
+    if (( ASSUME_YES )) || [[ ! -t 0 ]]; then
+      if ! "$priv" -n true >/dev/null 2>&1; then
+        log "  ${priv} indisponível sem prompt interativo; steps que exigem privilégio serão pulados."
+        return "$RC_WARN"
+      fi
+    else
+      if ! "$priv" true >/dev/null 2>&1; then
+        return 1
+      fi
     fi
+    log "  Elevador ${priv} validado (sem keepalive — só sudo tem timestamp caching)."
     return 0
 }
 

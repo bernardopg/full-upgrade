@@ -6,6 +6,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Helpers AUR e elevação de privilégio alternativos (I3).** O full-upgrade
+  agora autodetecta (ou aceita via config) o `AUR_HELPER` (paru > yay > pikaur)
+  e o `PRIV_CMD` (sudo > doas > sudo-rs > run0). Com só `yay` (ou `pikaur`)
+  instalado, o fluxo de update o usa; com `doas`, toda a elevação passa por ele
+  via um **shim** `sudo()` que delega para `$PRIV_CMD` — os diagnósticos do
+  doctor e as mutações do pacman continuam chamando `sudo <cmd>` e funcionam sob
+  doas/sudo-rs sem refactor. Removido o `cmd_dep=paru` do step de update (que
+  causava skip silencioso em máquinas só-yay). Helpers puros `detect_aur_helper`/
+  `detect_priv_cmd` e suíte `tests/i3_helpers.bats`. Inspirado no
+  [arch-update](https://github.com/Antiz96/arch-update).
 - **Saída JSON para `--report` e `--history` (J2).** `--report --json` agora emite
   um objeto JSON estruturado (run_id, versão, início/fim, duração, summary e
   array de steps com status/duração/reason) em vez de Markdown; `--history --json`

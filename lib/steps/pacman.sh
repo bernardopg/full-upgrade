@@ -128,7 +128,7 @@ update_system_aur() {
 
   repair_known_pacman_conflicts_before_update || return 1
 
-  if has paru; then
+  if [[ "${AUR_HELPER:-}" == paru ]] && has paru; then
     local -a cmd=(paru -Syu --skipreview --noconfirm --combinedupgrade "${ignore_args[@]}")
     (( DEVEL_UPDATE )) && cmd+=(--devel)
     local _paru_out _paru_rc
@@ -197,8 +197,14 @@ update_system_aur() {
     return "$_paru_rc"
   fi
 
-  if has yay; then
+  if [[ "${AUR_HELPER:-}" == yay ]] && has yay; then
     local -a cmd=(yay -Syu --noconfirm --answerclean None --answerdiff None --answeredit None --answerupgrade None "${ignore_args[@]}")
+    run_logged "${cmd[@]}"
+    return $?
+  fi
+
+  if [[ "${AUR_HELPER:-}" == pikaur ]] && has pikaur; then
+    local -a cmd=(pikaur -Syu --noconfirm --noedit "${ignore_args[@]}")
     run_logged "${cmd[@]}"
     return $?
   fi

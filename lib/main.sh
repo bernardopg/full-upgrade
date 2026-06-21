@@ -16,13 +16,13 @@ run_all_steps() {
 
     # ── Sudo ──────────────────────────────────────────────────────────────────────
     
-    if has sudo; then
+    if has "${PRIV_CMD:-sudo}"; then
         run_step "Validar sudo" start_sudo_keepalive
         if [[ "${STEP_RESULTS[-1]}" == "ok" || ( "${STEP_RESULTS[-1]}" == "skip" && "$DRY_RUN" -eq 1 ) ]]; then
             SUDO_READY=1
         fi
     else
-        step_skip "Validar sudo" "sudo não instalado"
+        step_skip "Validar sudo" "${PRIV_CMD:-sudo} não instalado"
     fi
     
     # ── Pré-flight: disco + keyring ─────────────────────────────────────────────────
@@ -43,7 +43,7 @@ run_all_steps() {
 
     # ── Pacman / AUR ──────────────────────────────────────────────────────────────
     
-    if has pacman || has yay || has paru; then
+    if has pacman || has yay || has paru || has pikaur; then
         if (( SUDO_READY )); then
             if (( NO_REPAIR )); then
                 step_skip "Limpar lock stale do pacman"                 "--no-repair"
@@ -429,10 +429,10 @@ run_all_steps() {
 
     if (( NO_CLEANUP )); then
         step_skip "Limpar cache de build do AUR" "--no-cleanup"
-    elif has paru || has yay; then
+    elif has paru || has yay || has pikaur; then
         run_step "Limpar cache de build do AUR" cleanup_aur_cache
     else
-        step_skip "Limpar cache de build do AUR" "sem helper AUR (paru/yay)"
+        step_skip "Limpar cache de build do AUR" "sem helper AUR (paru/yay/pikaur)"
     fi
 
     if (( NO_CLEANUP )); then
