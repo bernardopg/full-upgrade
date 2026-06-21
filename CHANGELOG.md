@@ -6,6 +6,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Alterado
 
+- **Doctor: diagnóstico acionável de `pip check` quebrado (J1).** O step
+  "Doctor: ambiente Python" agora resume os conflitos agrupados por pacote raiz
+  (em vez do dump bruto), preserva versões com ponto e specs PEP 440 multi-bound
+  (`>=1.0,<2.0`), classifica cada conflito por origem (`[pacman/AUR]` vs
+  `[pip --user]`) via `importlib.metadata` e sugere remediação direcionada —
+  inclusive o alerta **"NÃO use 'pip install' sobre pacote do sistema"** (quebra
+  o pacman). Continua `warn`, sem auto-instalação. Fallback ao dump bruto se o
+  parser não casar. Helpers `summarize_pip_check` (puro) e `_classify_pip_origins`
+  + suíte `tests/pip_check.bats`.
 - **Doctor: AI CLIs agora cobre o conjunto moderno (H4).** O step "Doctor: AI
   CLIs" passou de claude/copilot/hermes para um inventário data-driven read-only
   de claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi

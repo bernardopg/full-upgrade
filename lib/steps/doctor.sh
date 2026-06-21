@@ -1181,6 +1181,55 @@ PYEOF
 }
 
 
+# J1 — helper puro: resume a saída de `pip check`, agrupando os conflitos por
+# pacote dependente e anotando o detalhe. Lê stdin, emite "<pacote>\t<detalhe>"
+# (uma linha por dependente, ordenado). Cobre as duas formas do pip check:
+#   "<pkg> <ver> has requirement <spec>, but you have <inst ver>."
+#   "<pkg> <ver> requires <spec>, which is not installed."
+# As âncoras são os sufixos da frase (", but you have" / ", which is not
+# installed") — NÃO vírgula/ponto — para preservar versões com ponto ("7.4.3")
+# e specs PEP 440 com múltiplos bounds ("foo>=1.0,<2.0").
+summarize_pip_check() {
+  awk '
+    match($0, /^([A-Za-z0-9_.-]+) [^ ]+ has requirement (.+), but you have (.+)\.$/, m) {
+      d = m[2] " (instalado: " m[3] ")"
+      grp[m[1]] = grp[m[1]] (grp[m[1]] == "" ? "" : "; ") d
+      next
+    }
+    match($0, /^([A-Za-z0-9_.-]+) [^ ]+ requires (.+), which is not installed\.?$/, m2) {
+      grp[m2[1]] = grp[m2[1]] (grp[m2[1]] == "" ? "" : "; ") m2[2] " (ausente)"
+      next
+    }
+    END { for (k in grp) printf "%s\t%s\n", k, grp[k] }
+  ' | sort
+}
+
+# J1 — classifica a origem de cada pacote conflitante (stdin: um nome de
+# distribuição por linha) inspecionando onde sua dist-info está instalada.
+# Emite "<pkg>\tsystem|user":
+#   /usr/lib/python*, /usr/lib64/python*, /usr/local/lib/python* => "system"
+#     (gerenciado pelo pacman — pacote oficial/AUR — NÃO mexer com pip)
+#   demais (ex.: ~/.local/lib/python*) => "user" (instalação pip --user)
+# Falha silenciosa (pkg não resolvido) => "user". Importante: pipx/uv vivem em
+# venvs isoladas e não aparecem no `pip check` do python do sistema.
+_classify_pip_origins() {
+  python3 -c '
+import importlib.metadata as md, sys
+for line in sys.stdin:
+    pkg = line.strip()
+    if not pkg:
+        continue
+    try:
+        loc = str(md.distribution(pkg)._path)
+        origin = "system" if loc.startswith((
+            "/usr/lib/python", "/usr/lib64/python", "/usr/local/lib/python"
+        )) else "user"
+    except Exception:
+        origin = "user"
+    print(f"{pkg}\t{origin}")
+' 2>/dev/null
+}
+
 doctor_python_env() {
   local status=0
 
@@ -1192,8 +1241,35 @@ doctor_python_env() {
     if (( pip_check_rc == 0 )); then
       log "  pip check: sem dependências Python quebradas."
     else
-      log "  pip check encontrou dependências Python quebradas:"
-      printf '%s\n' "$pip_check_out" | grep -v '^$' | tee >(_strip_ansi >> "$LOG_FILE")
+      local summary cnt tab
+      tab="$(printf '\t')"
+      summary="$(printf '%s\n' "$pip_check_out" | summarize_pip_check)"
+      if [[ -n "${summary//[[:space:]]/}" ]]; then
+        cnt="$(printf '%s\n' "$summary" | grep -c "$tab")"
+        log "  pip check: ${cnt} pacote(s) com dependência quebrada:"
+        # Origem de cada pacote (sistema/pacman vs pip --user) decide a
+        # remediação: 'pip install' sobre pacote do sistema quebra o pacman.
+        local -A origin_map=()
+        local _pkg _orig dep detail sys=0 usr=0
+        while IFS=$'\t' read -r _pkg _orig; do
+          [[ -n "$_pkg" ]] && origin_map["$_pkg"]="$_orig"
+        done < <(_classify_pip_origins < <(printf '%s\n' "$summary" | cut -f1))
+        while IFS=$'\t' read -r dep detail; do
+          [[ -z "$dep" ]] && continue
+          if [[ "${origin_map[$dep]:-user}" == "system" ]]; then
+            sys=1; log "    • ${dep} [pacman/AUR]: ${detail}"
+          else
+            usr=1; log "    • ${dep} [pip --user]: ${detail}"
+          fi
+        done <<< "$summary"
+        log "  Remediação sugerida (sem auto-instalação):"
+        (( sys == 1 )) && log "    • [pacman/AUR]: NÃO use 'pip install' (quebra o pacman) — atualize via 'sudo pacman -Syu' ou rebuild do pacote AUR."
+        (( usr == 1 )) && log "    • [pip --user]: isole com 'pipx install <ferramenta>' (venv) ou corrija o pin com 'pip install --user <dep>==<ver>'."
+      else
+        # Parser não casou — preserva o dump bruto.
+        log "  pip check encontrou dependências Python quebradas:"
+        printf '%s\n' "$pip_check_out" | grep -v '^$' | tee >(_strip_ansi >> "$LOG_FILE")
+      fi
       (( status == 0 )) && status="$RC_WARN"
     fi
   fi

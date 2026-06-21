@@ -154,7 +154,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 
 ### Série J — Diagnóstico & integração (backlog acumulado)
 
-#### J1 — 🟡 M ☐ Diagnóstico melhorado de `pip check` quebrado
+#### J1 — 🟡 M ☑ Diagnóstico melhorado de `pip check` quebrado
 > **Achado real recorrente:** pygount↔chardet, doctoralia↔redis/uvicorn,
 > auto-cpufreq↔urwid. Auto-aplicar é arriscado (quebra constraints) → focar em
 > **diagnóstico acionável**, não remediação automática.
@@ -191,9 +191,9 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 2. ~~**I1** (Arch News pré-upgrade)~~ — ✅ PR #43.
 3. ~~**H1** (opencode)~~ — ✅ PR #44.
 
-**Rodada 2:** ← próxima
-4. **H2** (Ollama), **H4** (doctor de versões de IA), **I4** (notify).
-5. **I2** (pacnew/pacsave), **J1** (diagnóstico pip).
+**Rodada 2:** ← em andamento
+4. ~~**H2** (Ollama)~~, ~~**H4** (doctor de versões IA)~~, ~~**I4** (notify)~~,
+   ~~**I2** (pacnew/pacsave)~~, ~~**J1** (diagnóstico pip)~~.
 
 **Rodada 3 (maior esforço / menor urgência):**
 6. **H6** (MCP), **I3** (helpers/elevação alt.), **J2** (JSON), **J3** (btrfs multi-mount), **H5** (kimi).
@@ -205,10 +205,11 @@ fechada numa release (ex.: H-series → v3.8.0).
 ## Progresso
 
 - **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); **H1, H3, I1**
-  (Rodada 1, PRs #42/#43/#44 — em `[Unreleased]`, candidatos a v3.8.0).
-- **Próximo:** Rodada 2 — **H2** (Ollama), **H4** (doctor versões IA), **I4**
-  (notify), **I2** (pacnew/pacsave), **J1** (diagnóstico pip).
-- **Restante:** H2, H4, H5, H6, I2, I3, I4, J1, J2, J3.
+  (Rodada 1, PRs #42/#43/#44 — em `[Unreleased]`, candidatos a v3.8.0);
+  **H2, H4, I2, I4, J1** (Rodada 2, em `[Unreleased]`).
+- **Próximo:** Rodada 3 — **H6** (MCP), **I3** (helpers/elevação alt.), **J2**
+  (JSON em report/history), **J3** (btrfs multi-mount), **H5** (kimi).
+- **Restante:** H5, H6, I3, J2, J3.
 
 ---
 
