@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.10.0] — 2026-06-21
+
 ### Adicionado
 
 - **Dicas acionáveis no `Doctor: journal erros críticos` (K4).** Para assinaturas
