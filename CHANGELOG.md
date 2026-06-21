@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.8.1] — 2026-06-21
+
 ### Corrigido
 
 - **Auto-update (`full-upgrade -u`) resiliente a falha da API GitHub.** Se
