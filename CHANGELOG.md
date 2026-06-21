@@ -6,6 +6,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Notificação desktop ao fim do run (I4).** Nova chave `NOTIFY_ON_FINISH`
+  (default `0`). Quando `1` e `notify-send` presente, `finalize()` envia o resumo
+  (ok/warn/todo/fail/skip) com urgência conforme o pior status (fail→critical,
+  todo→normal, senão low). Nunca derruba o run. Helpers puros `_notify_counts`/
+  `notify_body` em `lib/notify.sh` e suíte `tests/notify.bats`. Inspirado no
+  [arch-update](https://github.com/Antiz96/arch-update).
 - **Atualizar opencode (H1).** Novo step "Atualizar opencode" (`ai`/`mutating`)
   que atualiza o opencode via seu instalador próprio (`opencode upgrade`) — ele
   vive em `~/.opencode/bin`, fora do npm, então não era coberto pelo update de

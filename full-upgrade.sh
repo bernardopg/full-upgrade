@@ -60,6 +60,8 @@ source "${FU_LIB}/cli.sh"
 source "${FU_LIB}/report.sh"
 # shellcheck source=lib/history.sh
 source "${FU_LIB}/history.sh"
+# shellcheck source=lib/notify.sh
+source "${FU_LIB}/notify.sh"
 
 # Implementações de steps (ordem não importa — só definições de função).
 for _m in "${FU_LIB}"/steps/*.sh; do
