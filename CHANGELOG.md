@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`--only` aceita nome exato de step e listas (L1).** Antes `--only` só casava
+  categoria/tag; agora cada token também casa o **nome exato** de um step, e
+  aceita lista por vírgula. Ex.: `--only "Atualizar Ollama"`,
+  `--only "lang,Doctor: saúde de rede"`. core/final continuam sempre rodando.
+  Helpers puros `catalog_has_step_name` e `apply_only_filter` (substitui
+  `apply_only_category` no caminho do `--only` do usuário); +5 testes.
+
 ## [3.10.1] — 2026-06-21
 
 ### Corrigido

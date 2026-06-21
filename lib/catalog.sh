@@ -182,6 +182,50 @@ apply_only_category() {
   done < <(step_catalog)
 }
 
+# L1 — true se TOKEN é nome exato de um step do catálogo.
+catalog_has_step_name() {
+  local wanted="$1"
+  local name rest
+  while IFS='|' read -r name rest; do
+    [[ "$name" == "$wanted" ]] && return 0
+  done < <(step_catalog)
+  return 1
+}
+
+# L1 — filtro --only generalizado: aceita lista (vírgula) de tokens, cada token
+# casando como categoria/tag OU nome exato de step. Mantém core/final sempre.
+# Retorna 1 se algum token não casar com nada (categoria/tag/nome) — o chamador
+# emite erro. Permite, ex.: --only "Atualizar Ollama,doctor".
+apply_only_filter() {
+  local spec="$1"
+  local -a tokens=() clean=()
+  local _t
+  IFS=',' read -ra tokens <<< "$spec"
+  for _t in "${tokens[@]}"; do
+    _t="${_t#"${_t%%[![:space:]]*}"}"; _t="${_t%"${_t##*[![:space:]]}"}"
+    [[ -n "$_t" ]] || continue
+    if ! catalog_has_token "$_t" && ! catalog_has_step_name "$_t"; then
+      return 1
+    fi
+    clean+=("$_t")
+  done
+  (( ${#clean[@]} > 0 )) || return 1
+
+  local name category tags effect timeout cmd_deps func_name desc keep
+  while IFS='|' read -r name category tags effect timeout cmd_deps func_name desc; do
+    [[ -n "$name" ]] || continue
+    [[ "$category" == "core" || "$category" == "final" ]] && continue
+    keep=0
+    for _t in "${clean[@]}"; do
+      if [[ "$name" == "$_t" ]] || catalog_match_token "$category" "$tags" "$_t"; then
+        keep=1; break
+      fi
+    done
+    (( keep == 0 )) && add_skip_step "$name"
+  done < <(step_catalog)
+  return 0
+}
+
 print_step_catalog() {
   local name category tags effect timeout cmd_deps func_name desc
   printf '%-48s  %-10s  %-32s  %-8s  %-7s  %-20s  %-30s  %s\n' "STEP" "CATEGORIA" "TAGS" "EFEITO" "TIMEOUT" "CMD_DEPS" "FUNÇÃO" "DESCRIÇÃO"

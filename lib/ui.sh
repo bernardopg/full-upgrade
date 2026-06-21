@@ -100,7 +100,7 @@ print_banner() {
     log_always "${C_CYAN}${C_BOLD}  [MODE:${MODE}] Rodando apenas steps do modo ${MODE}.${C_RESET}"
   fi
   if [[ -n "$ONLY_CATEGORY" ]]; then
-    log_always "${C_CYAN}  [ONLY] Rodando apenas categoria/tag: ${ONLY_CATEGORY}${C_RESET}"
+    log_always "${C_CYAN}  [ONLY] Rodando apenas (categoria/tag/nome): ${ONLY_CATEGORY}${C_RESET}"
   fi
   if (( NO_REPAIR )); then
     log_always "${C_YELLOW}  [NO-REPAIR] Reparos mutáveis serão pulados.${C_RESET}"
