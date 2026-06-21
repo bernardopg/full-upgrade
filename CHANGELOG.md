@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.8.0] — 2026-06-21
+
 ### Adicionado
 
 - **Doctor: servidores MCP (H6).** Novo step read-only "Doctor: servidores MCP"
