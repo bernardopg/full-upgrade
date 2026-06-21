@@ -17,6 +17,18 @@ self_version_compare() {
   version_compare "$1" "$2"
 }
 
+# Extrai "tag_name": "vX.Y.Z" do JSON de /releases/latest. Puro/testável.
+self_extract_tag_from_release_json() {
+  grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/'
+}
+
+# Extrai a tag final de uma URL efetiva de /releases/latest após redirect.
+# Ex.: https://github.com/owner/repo/releases/tag/v3.8.0 -> v3.8.0.
+# Puro/testável; aceita também query/fragmento e barra final.
+self_extract_tag_from_latest_url() {
+  sed -E 's/[?#].*$//; s#/$##; s#^.*/releases/tag/([^/]+)$#\1#' | grep -E '^v?[0-9]'
+}
+
 # Descobre a última versão publicada no GitHub, sem depender de gh/jq.
 # Canal 'release' → tag_name da última release. Canal 'main' → "main".
 # Ecoa a versão (ex.: "3.0.4") ou nada em falha. Não loga (uso por notice/update).
@@ -32,10 +44,17 @@ self_latest_version() {
   has curl || { return 1; }
 
   local api="https://api.github.com/repos/${repo}/releases/latest"
-  local body tag
-  body="$(curl -fsSL --max-time 10 "$api" 2>/dev/null)" || return 1
-  # extrai "tag_name": "vX.Y.Z" sem jq
-  tag="$(printf '%s' "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+  local body tag effective latest_url
+  body="$(curl -fsSL --max-time 10 "$api" 2>/dev/null || true)"
+  tag="$(printf '%s' "$body" | self_extract_tag_from_release_json)"
+
+  # Fallback: api.github.com pode retornar 5xx/rate-limit mesmo quando o GitHub
+  # web está ok. O redirect público /releases/latest aponta para /releases/tag/vX.
+  if [[ -z "$tag" ]]; then
+    latest_url="https://github.com/${repo}/releases/latest"
+    effective="$(curl -fsSIL --max-time 15 -o /dev/null -w '%{url_effective}' "$latest_url" 2>/dev/null || true)"
+    tag="$(printf '%s' "$effective" | self_extract_tag_from_latest_url)"
+  fi
   [[ -n "$tag" ]] || return 1
   printf '%s' "${tag#v}"
 }

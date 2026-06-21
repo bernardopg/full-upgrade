@@ -26,6 +26,41 @@ setup() {
   [ "$output" = "3.0.4" ]
 }
 
+# ── parsers de release/latest ────────────────────────────────────────────────
+
+@test "latest-json: extrai tag_name da API" {
+  out="$(printf '%s\n' '{"tag_name":"v3.8.1","name":"full-upgrade v3.8.1"}' | self_extract_tag_from_release_json)"
+  [ "$out" = "v3.8.1" ]
+}
+
+@test "latest-url: extrai tag do redirect /releases/latest" {
+  out="$(printf '%s\n' 'https://github.com/bernardopg/full-upgrade/releases/tag/v3.8.1' | self_extract_tag_from_latest_url)"
+  [ "$out" = "v3.8.1" ]
+}
+
+@test "latest-url: ignora query, fragmento e barra final" {
+  out="$(printf '%s\n' 'https://github.com/bernardopg/full-upgrade/releases/tag/v3.8.1/?x=1#y' | self_extract_tag_from_latest_url)"
+  [ "$out" = "v3.8.1" ]
+}
+
+@test "self_latest_version: fallback por redirect quando API falha" {
+  has() { [[ "$1" == curl ]]; }
+  curl() {
+    local args="$*"
+    if [[ "$args" == *api.github.com* ]]; then
+      return 22
+    fi
+    if [[ "$args" == *releases/latest* ]]; then
+      printf '%s' 'https://github.com/bernardopg/full-upgrade/releases/tag/v3.8.1'
+      return 0
+    fi
+    return 1
+  }
+  run self_latest_version
+  [ "$status" -eq 0 ]
+  [ "$output" = "3.8.1" ]
+}
+
 # ── self_version_compare (0=igual, 1=a>b, 2=a<b) ──────────────────────────────
 
 @test "compare: versões iguais retornam 0" {

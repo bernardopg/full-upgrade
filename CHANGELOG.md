@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Auto-update (`full-upgrade -u`) resiliente a falha da API GitHub.** Se
+  `api.github.com/repos/<repo>/releases/latest` retornar 5xx/rate-limit, o
+  detector de última release agora cai para o redirect público
+  `github.com/<repo>/releases/latest` e extrai a tag final (`/releases/tag/vX`).
+  Isso evita o erro "Não foi possível consultar a última release (rede/API)" em
+  cenários onde a API falha mas o GitHub/release está acessível.
+
 ## [3.8.0] — 2026-06-21
 
 ### Adicionado
