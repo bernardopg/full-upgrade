@@ -70,6 +70,21 @@ TOML
   [ "$out" == "context7,serena" ]
 }
 
+@test "codex: ignora subtabelas env de servidores MCP" {
+  cat > "$HOME/config.toml" <<'TOML'
+[mcp_servers.notionApi]
+command = "npx"
+
+[mcp_servers.notionApi.env]
+NOTION_TOKEN = "secret"
+
+[mcp_servers."foo.bar"]
+command = "uvx"
+TOML
+  out="$(parse_mcp_codex_names "$HOME/config.toml" | sort | paste -sd,)"
+  [ "$out" == "foo.bar,notionApi" ]
+}
+
 @test "codex: ignora seções não-mcp" {
   cat > "$HOME/config.toml" <<'TOML'
 [projects."/home"]

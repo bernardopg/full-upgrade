@@ -47,7 +47,18 @@ for path, pv in (d.get("projects") or {}).items():
 parse_mcp_codex_names() {
   local f="$1"
   [[ -r "$f" ]] || return 1
-  awk 'match($0, /^\[mcp_servers\.([A-Za-z0-9_.-]+)\]/, m) { print m[1] }' "$f" 2>/dev/null
+  python3 -c '
+import sys, tomllib
+try:
+    with open(sys.argv[1], "rb") as fh:
+        data = tomllib.load(fh)
+except Exception:
+    sys.exit(0)
+servers = data.get("mcp_servers") or {}
+if isinstance(servers, dict):
+    for name in sorted(servers):
+        print(name)
+' "$f" 2>/dev/null
 }
 
 # H6 — Doctor read-only: enumera servidores MCP configurados nas fontes conhecidas

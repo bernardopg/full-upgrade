@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Doctor MCP não lista subtabelas `.env` como servidores.** O parser do Codex
+  agora lê `~/.codex/config.toml` via TOML real (`tomllib`) e enumera só as chaves
+  diretas de `mcp_servers`, evitando falsos positivos como `notionApi.env`.
+- **npm global sinaliza scripts de install bloqueados.** Quando o npm emite
+  `npm warn allow-scripts`, o step "Atualizar npm global" retorna `todo` com
+  remediação explícita, em vez de tratar a instalação como totalmente OK.
+
 ## [3.8.1] — 2026-06-21
 
 ### Corrigido
