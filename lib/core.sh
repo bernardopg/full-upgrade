@@ -566,3 +566,31 @@ run_step() {
   esac
   return 0
 }
+
+
+# L3 — captura a lista de pacotes instalados (nome versão) ordenada em $1, para
+# o diff "o que mudou" no resumo. No-op sob --dry-run ou sem pacman.
+capture_installed_pkgs() {
+  local out="$1"
+  [[ -n "$out" ]] || return 0
+  (( DRY_RUN )) && return 0
+  has pacman || return 0
+  pacman -Q 2>/dev/null | sort > "$out" 2>/dev/null || true
+}
+
+# L3 — diff puro entre dois snapshots de `pacman -Q` (nome versão por linha).
+# Emite, uma por linha: "U nome velha nova" (atualizado), "I nome versão"
+# (instalado), "R nome versão" (removido). rc 1 se algum arquivo não é legível.
+pkg_diff() {
+  local before="$1" after="$2"
+  [[ -r "$before" && -r "$after" ]] || return 1
+  awk '
+    FNR == NR { b[$1] = $2; next }
+    {
+      a[$1] = $2
+      if ($1 in b) { if (b[$1] != $2) print "U " $1 " " b[$1] " " $2 }
+      else print "I " $1 " " $2
+    }
+    END { for (n in b) if (!(n in a)) print "R " n " " b[n] }
+  ' "$before" "$after" | sort -k2
+}

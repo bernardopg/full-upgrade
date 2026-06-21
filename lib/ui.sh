@@ -345,3 +345,37 @@ print_summary() {
     printf '%s\n' "$(summary_json_line "$ok" "$warn" "$todo" "$fail" "$skip" "$total_dur")"
   fi
 }
+
+
+# L3 — bloco "Pacotes alterados" no resumo: lê dois snapshots de pacman -Q
+# (antes/depois do run) e mostra atualizados (nome velha → nova), instalados e
+# removidos. Lista capada; sem diff => nada é impresso. rc 0 sempre.
+print_pkg_changes() {
+  local before="$1" after="$2"
+  [[ -r "$before" && -r "$after" ]] || return 0
+  local diff
+  diff="$(pkg_diff "$before" "$after" 2>/dev/null)"
+  [[ -n "${diff//[[:space:]]/}" ]] || return 0
+
+  local up ins rem
+  up="$(grep -c '^U ' <<< "$diff" || true)"
+  ins="$(grep -c '^I ' <<< "$diff" || true)"
+  rem="$(grep -c '^R ' <<< "$diff" || true)"
+
+  log_always "${C_BOLD}Pacotes alterados${C_RESET}  (${C_GREEN}${up} atualizados${C_RESET}, ${ins} instalados, ${rem} removidos)"
+
+  local shown=0 max=30 tag a b c
+  while read -r tag a b c; do
+    [[ -n "$tag" ]] || continue
+    if (( shown >= max )); then
+      log_always "    ${C_DIM}… e mais $(( up + ins + rem - shown )) (lista completa no log)${C_RESET}"
+      break
+    fi
+    case "$tag" in
+      U) log_always "    ${C_GREEN}↑${C_RESET} ${a}  ${C_DIM}${b} → ${c}${C_RESET}" ;;
+      I) log_always "    ${C_CYAN}+${C_RESET} ${a}  ${C_DIM}${b}${C_RESET}" ;;
+      R) log_always "    ${C_RED}−${C_RESET} ${a}  ${C_DIM}${b}${C_RESET}" ;;
+    esac
+    (( shown++ ))
+  done <<< "$diff"
+}

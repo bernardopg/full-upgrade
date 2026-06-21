@@ -56,6 +56,7 @@ run_all_steps() {
             run_step "Backup de configs críticas" backup_critical_configs
             run_step "Snapshot pré-upgrade" preupgrade_snapshot
             run_step "Atualizar mirrors" refresh_mirrors
+            capture_installed_pkgs "$PKG_SNAP_BEFORE"   # L3: estado pré-upgrade
             run_step "Atualizar pacotes do sistema e AUR" update_system_aur
             
             if (( NO_REPAIR )); then
@@ -529,8 +530,13 @@ run_all_steps() {
 }
 
 finalize() {
-    
+
     print_summary
+    # L3: "o que mudou" — captura o estado pós-run e mostra o diff de pacotes.
+    capture_installed_pkgs "$PKG_SNAP_AFTER"
+    print_pkg_changes "$PKG_SNAP_BEFORE" "$PKG_SNAP_AFTER"
+    write_pkg_changes_json "$PKG_SNAP_BEFORE" "$PKG_SNAP_AFTER"
+    rm -f "$PKG_SNAP_BEFORE" "$PKG_SNAP_AFTER" 2>/dev/null || true
     write_run_event_json "run_end"
     generate_report_on_finish
     notify_on_finish

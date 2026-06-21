@@ -329,3 +329,30 @@ setup() {
   run systemd_time_to_seconds "sem tempo aqui"
   [ "$output" = "0" ]
 }
+
+# ── pkg_diff (L3) ─────────────────────────────────────────────────────────────
+
+@test "pkg_diff: detecta atualizado, instalado e removido" {
+  local b="${BATS_TEST_TMPDIR}/b" a="${BATS_TEST_TMPDIR}/a"
+  printf 'linux 7.0.12\nbash 5.2\nold-pkg 1.0\n' > "$b"
+  printf 'linux 7.0.13\nbash 5.2\nnew-pkg 2.0\n' > "$a"
+  out="$(pkg_diff "$b" "$a")"
+  [[ "$out" == *"U linux 7.0.12 7.0.13"* ]]
+  [[ "$out" == *"I new-pkg 2.0"* ]]
+  [[ "$out" == *"R old-pkg 1.0"* ]]
+  # bash inalterado não aparece
+  [[ "$out" != *"bash"* ]]
+}
+
+@test "pkg_diff: sem mudanças não emite nada" {
+  local b="${BATS_TEST_TMPDIR}/b2" a="${BATS_TEST_TMPDIR}/a2"
+  printf 'linux 7.0.12\nbash 5.2\n' > "$b"
+  cp "$b" "$a"
+  out="$(pkg_diff "$b" "$a")"
+  [ -z "$out" ]
+}
+
+@test "pkg_diff: arquivo ausente => rc 1" {
+  run pkg_diff "/nao/existe1" "/nao/existe2"
+  [ "$status" -eq 1 ]
+}
