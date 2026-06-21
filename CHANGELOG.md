@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.8.2] — 2026-06-21
+
 ### Corrigido
 
 - **Doctor MCP não lista subtabelas `.env` como servidores.** O parser do Codex
