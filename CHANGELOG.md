@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-06-21
+
 ### Adicionado
 
 - **Typo-guard de chaves de config (L4).** Ao carregar o config, chaves
