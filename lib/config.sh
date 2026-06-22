@@ -73,6 +73,123 @@ detect_priv_cmd() {
   return 1
 }
 
+# L4 — chaves de config reconhecidas (uma por linha). Fonte de verdade do
+# typo-guard: uma chave atribuída no config do usuário que NÃO está aqui mas é
+# quase-igual a uma destas (Levenshtein 1..2) vira aviso "talvez você quis X?".
+config_known_keys() {
+  cat <<'EOF'
+ENABLE_CUSTOM_TOOLS
+LANG_OVERRIDE
+SNAPSHOT_TOOL
+SNAPSHOT_MIN_FREE_GIB
+SNAPSHOT_KEEP
+MIRROR_TOOL
+AUR_HELPER
+PRIV_CMD
+MIN_FREE_GIB
+MIN_BOOT_FREE_MIB
+BACKUP_CONFIGS
+BACKUP_KEEP
+BACKUP_PATHS
+BTRFS_SCRUB_MAX_DAYS
+BOOT_TIME_WARN_S
+DOCKER_INFO_TIMEOUT_S
+ORPHAN_CLEANUP_MAX_ROUNDS
+AUTO_FIX_RUST_CVES
+AUTO_BTRFS_SCRUB
+REPORT_ON_FINISH
+ARCH_NEWS_CHECK
+NOTIFY_ON_FINISH
+MCP_AUTO_UPDATE
+OLLAMA_SELF_UPDATE
+IDE_EXT_CLIS
+FULL_UPGRADE_REPO
+FULL_UPGRADE_UPDATE_CHANNEL
+FULL_UPGRADE_AUR_IGNORE
+FULL_UPGRADE_PIP_USER_IGNORE
+FULL_UPGRADE_SKIP
+GCLOUD_BIN
+COPILOT_BIN
+ADGUARD_BIN
+DMS_PLUGINS_DIR
+OPENCLAW_BIN
+EOF
+}
+
+# L4 — distância de edição (Levenshtein) entre $1 e $2. Pura; imprime o número.
+# Base do typo-guard: mede o quão perto uma chave digitada está de uma válida.
+levenshtein() {
+  awk -v a="$1" -v b="$2" '
+    BEGIN {
+      la = length(a); lb = length(b)
+      for (i = 0; i <= la; i++) d[i, 0] = i
+      for (j = 0; j <= lb; j++) d[0, j] = j
+      for (i = 1; i <= la; i++) {
+        ai = substr(a, i, 1)
+        for (j = 1; j <= lb; j++) {
+          cost = (ai == substr(b, j, 1)) ? 0 : 1
+          m = d[i-1, j] + 1
+          x = d[i, j-1] + 1; if (x < m) m = x
+          y = d[i-1, j-1] + cost; if (y < m) m = y
+          d[i, j] = m
+        }
+      }
+      print d[la, lb]
+    }'
+}
+
+# L4 — nomes de variáveis atribuídas no topo de um config bash ($1). Captura
+# `KEY=...` e `export KEY=...`; ignora comentários e nomes não-identificadores.
+# Um por linha, deduplicado. Read-only.
+config_assigned_keys() {
+  local file="$1"
+  [[ -r "$file" ]] || return 0
+  grep -oE '^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=' "$file" 2>/dev/null \
+    | sed -E 's/^[[:space:]]*(export[[:space:]]+)?//; s/=$//' \
+    | awk '!seen[$0]++'
+}
+
+# L4 — para cada chave atribuída no config ($1, default FU_CONFIG_FILE) que não
+# é reconhecida MAS é quase-igual a uma reconhecida (Levenshtein 1..2), imprime
+# `CHAVE_ERRADA|CHAVE_SUGERIDA`. Chaves curtas (<5) e vars sem near-miss são
+# ignoradas para não acusar variáveis legítimas do usuário. Read-only.
+config_lint_keys() {
+  local file="${1:-$FU_CONFIG_FILE}"
+  [[ -r "$file" ]] || return 0
+  local -A known=()
+  local k
+  while IFS= read -r k; do [[ -n "$k" ]] && known["$k"]=1; done < <(config_known_keys)
+  local key best_key best_dist d kk
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    [[ -n "${known[$key]:-}" ]] && continue
+    (( ${#key} >= 5 )) || continue
+    best_dist=99; best_key=""
+    for kk in "${!known[@]}"; do
+      d="$(levenshtein "$key" "$kk")"
+      (( d < best_dist )) && { best_dist=$d; best_key="$kk"; }
+    done
+    (( best_dist >= 1 && best_dist <= 2 )) && printf '%s|%s\n' "$key" "$best_key"
+  done < <(config_assigned_keys "$file")
+}
+
+# L4 — emite avisos (stderr) sobre chaves do config com cara de erro de digitação.
+# Chamado no fim de load_config; não-fatal, nunca bloqueia o run.
+config_warn_typos() {
+  [[ -f "$FU_CONFIG_FILE" ]] || return 0
+  local key sug n=0
+  while IFS='|' read -r key sug; do
+    [[ -n "$key" && -n "$sug" ]] || continue
+    if (( n++ == 0 )); then
+      printf '%s%s  [CONFIG] Chave(s) não reconhecida(s) — possível erro de digitação:%s\n' \
+        "$C_YELLOW" "$C_BOLD" "$C_RESET" >&2
+    fi
+    printf '%s    %s → talvez %s?%s\n' "$C_YELLOW" "$key" "$sug" "$C_RESET" >&2
+  done < <(config_lint_keys "$FU_CONFIG_FILE")
+  (( n > 0 )) && printf '%s    (rode --config para ver as chaves válidas)%s\n' "$C_DIM" "$C_RESET" >&2
+  return 0
+}
+
 load_config() {
   if [[ -f "$FU_CONFIG_FILE" ]]; then
     # Config é bash sourced. Validação leve: só permite num arquivo regular do usuário.
@@ -107,6 +224,9 @@ load_config() {
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
+
+  # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
+  config_warn_typos
 }
 
 # ── Inspeção de configuração (--config / -c) ───────────────────────────────────
@@ -255,6 +375,23 @@ show_config() {
   _cfg_kv "steps.d (usuário)" "${FU_CONFIG_DIR}/steps.d"
   _cfg_kv "logs/cache" "$cache_dir"
   printf '\n'
+
+  # ── Validação de chaves (typo-guard, L4) ──
+  if [[ -f "$FU_CONFIG_FILE" ]]; then
+    local _lint _key _sug _n=0
+    _lint="$(config_lint_keys "$FU_CONFIG_FILE")"
+    if [[ -n "$_lint" ]]; then
+      printf '%sChaves não reconhecidas%s %s(possível erro de digitação)%s\n' \
+        "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+      while IFS='|' read -r _key _sug; do
+        [[ -n "$_key" && -n "$_sug" ]] || continue
+        printf '  %s%s%s%s → talvez %s%s%s?%s\n' \
+          "$C_YELLOW" "$SYM_WARN" "$C_RESET" " $_key" "$C_BOLD" "$_sug" "$C_RESET" ""
+        _n=$((_n + 1))
+      done <<< "$_lint"
+      printf '\n'
+    fi
+  fi
 
   # ── Valores efetivos em uso ──
   printf '%sValores efetivos em uso%s %s(config + defaults + auto-detecção)%s\n' \
