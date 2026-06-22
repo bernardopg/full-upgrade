@@ -161,14 +161,15 @@ Comandos úteis no dia a dia:
 | `full-upgrade --mode update` | Atualizar e limpar, pulando `repair` e `doctor`. |
 | `full-upgrade --mode doctor` | Focar nas auditorias de saúde. O fluxo ainda passa pelo preflight compartilhado. |
 | `full-upgrade --mode repair` | Rodar apenas reparos conhecidos, além dos steps compartilhados necessários. |
-| `full-upgrade --only lang` | Rodar apenas steps de uma categoria ou tag. |
+| `full-upgrade --only lang` | Rodar apenas steps de uma categoria, tag **ou nome exato** (aceita lista por vírgula). Ex.: `--only "Atualizar Ollama,doctor"`. |
+| `full-upgrade --resume` | Re-rodar apenas os steps que **não** fecharam `ok` no último run real (`warn`/`todo`/`fail`), além de core/final. Sem pendências → sai sem rodar. |
 | `full-upgrade --skip-category slow` | Pular steps marcados com uma tag específica. |
 | `full-upgrade --skip "Atualizar ghcup"` | Pular um step pelo nome exato. |
 | `full-upgrade --json` | Imprimir uma linha JSON de resumo ao final. |
 | `full-upgrade --audit` | Auditoria de segurança consolidada (CVEs oficiais/AUR/Rust, firmware, btrfs), sem mutar. |
 | `full-upgrade --report [ARQ]` | Gerar relatório do último run em Markdown (ou `--report --json`). |
 | `full-upgrade --history` | Ver histórico/tendência dos runs gravados (ou `--history --json`). |
-| `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. |
+| `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. Também aponta chaves do config com cara de erro de digitação (typo-guard) e sugere a correta. |
 | `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
@@ -190,6 +191,9 @@ Filtros:
 full-upgrade --only doctor
 full-upgrade --only docker
 full-upgrade --only network
+full-upgrade --only "Atualizar Ollama"          # nome exato de step
+full-upgrade --only "lang,Doctor: saúde de rede" # categoria/tag + nome, em lista
+full-upgrade --resume                            # só os steps não-ok do último run
 full-upgrade --skip-category aur
 full-upgrade --skip-category cleanup
 FULL_UPGRADE_SKIP="Atualizar ghcup,Atualizar gems de usuário" full-upgrade
