@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.12.1] - 2026-06-21
+
 ### Corrigido
 
 - **`Atualizar gems de usuário` recriava o shadowing da stdlib (N4).** O step
