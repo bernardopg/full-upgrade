@@ -4,6 +4,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **`Doctor: CVEs de pacotes oficiais` cego no arch-audit moderno (N1).** O parser
+  exigia o formato antigo do `arch-audit` (prefixo `Package …` + marcador
+  `Update to V!`); o `arch-audit` atual emite `<pkg> is affected by <tipo>. <risco>
+  risk!` e indica corrigíveis pelo flag `-u`, não no texto. Resultado: o step
+  reportava "Sem CVEs" mesmo com dezenas de pacotes afetados (verificado: 0 contados
+  vs 21 reais). Agora o total vem de `is affected by` (aceita os dois formatos) e os
+  corrigíveis de `arch-audit -u`. Corrigível → `RC_WARN` (acionável, `pacman -Syu`);
+  só sem correção upstream → informativo (return 0, como os CVEs de toolchain Rust
+  do K3 — sem virar todo/warn recorrente), mas a contagem é exibida. O `--audit`
+  consolidado também separa corrigível (high) de sem-correção (info). Helper puro
+  `arch_audit_affected_count` (substitui `parse_arch_audit`); testes atualizados.
+
 ## [3.11.0] - 2026-06-21
 
 ### Adicionado
