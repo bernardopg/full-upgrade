@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **`Atualizar gems de usuário` recriava o shadowing da stdlib (N4).** O step
+  rodava `gem update` no `GEM_USER_HOME`, puxando versões novas de gems que o
+  Arch já gerencia (rdoc, rake, minitest, rbs…) para o dir do usuário — exatamente
+  o shadowing que o `doctor_gem_shadow` (N3) sinaliza, recriado a cada run (e com
+  o flood `already initialized constant`). Agora o step **exclui as gems
+  gerenciadas pelo Arch** do `gem update`, atualizando só as gems próprias do
+  usuário; se todas as desatualizadas forem do Arch, pula com aviso (use pacman).
+  Helper puro `gem_user_updatable`; +5 testes.
+
 ## [3.12.0] - 2026-06-21
 
 ### Adicionado
