@@ -241,6 +241,44 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > aviso não-fatal com sugestão; `--config` ganha seção. `levenshtein`/
 > `config_known_keys`/`config_assigned_keys`/`config_lint_keys`.
 
+### Série N — Achados dos runs reais v3.11.x
+
+> Definida a partir dos runs reais de 2026-06-21 (v3.11.0/v3.11.1). O sistema está
+> em estado estável (86 ok / 1 warn / 1 todo / 0 fail). Os itens abaixo miram os
+> dois únicos sinais recorrentes/reais que sobraram.
+
+#### N1 — 🔴 P ☑ Parser arch-audit cego no formato moderno — PR #78 (v3.11.1)
+> `doctor_arch_audit_cves` exigia o formato antigo (`Package … Update to V!`) →
+> reportava "Sem CVEs" com 21 pacotes afetados. Fix: total via `is affected by`
+> (`arch_audit_affected_count`), corrigíveis via `arch-audit -u`; corrigível→warn,
+> só-sem-fix→informativo (estilo K3). `--audit` separa high/info.
+
+#### N2 — 🟡 P ☐ Matar o `todo` recorrente do refresh MCP (lock uv)
+> **Achado:** em **todo** run, `serena` (uvx) está em uso (a própria sessão que
+> dispara o upgrade), então `uv cache clean serena` é adiado → `todo` permanente.
+> É o único `todo` que reaparece sempre e não há ação prática (o MCP está sempre
+> ativo durante um upgrade conduzido por agente).
+- **Arquivos:** `lib/steps/mcp.sh` (`mcp_update_servers`), catálogo.
+- **O quê:** quando o adiamento é por **lock de server ativo** (esperado, não
+  falha), classificar como **informativo (ok)** com a dica `uv cache clean serena`,
+  em vez de `todo` — mesma filosofia de K3/N1 (não criar ruído recorrente não
+  acionável). Distinguir de lock por *outra* causa (aí continua `todo`).
+- **Aceite:** lock por server-ativo → ok + dica; demais contenções → `todo`;
+  helper de classificação coberto por bats.
+
+#### N3 — 🟡 M ☐ Doctor: gems do usuário sombreando gems do sistema (Arch)
+> **Achado:** o build do pacote AUR despejou dezenas de warnings Ruby
+> `already initialized constant RDoc::*` — causa raiz: `rdoc 7.2.0` instalado como
+> user gem sombreia o `rdoc 6.14.0` gerenciado pelo Arch (`/usr/lib/ruby/gems`).
+> Várias default gems do Ruby têm cópia user duplicando a do sistema; quando a
+> versão **diverge**, há skew/conflito e ruído em toda invocação ruby.
+- **Arquivos:** novo helper em `lib/steps/lang_other.sh` (ou `doctor.sh`), catálogo.
+- **O quê:** step doctor read-only que lista gems do usuário que **duplicam** uma
+  gem gerenciada pelo Arch **com versão divergente** (duplicata de mesma versão é
+  benigna e ignorada); `RC_TODO`/informativo com dica `gem uninstall --user-install <g>`.
+- **Aceite:** divergência real (ex.: rdoc 7.2.0 vs 6.14.0) é listada; mesma-versão
+  e gems não-Arch são ignoradas; helper puro de diff coberto por bats.
+
 ## Ordem de execução sugerida (impacto × esforço)
 
 **Rodada 1 (alto impacto):** ✅ concluída (PRs #42/#43/#44).
@@ -273,8 +311,12 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
   em **v3.8.0**. Patches v3.8.1/v3.8.2. **Série K:** K1 (auto-update MCP) → v3.9.0,
   fix de lock uv → v3.9.1; K2/K3/K4/K5 → v3.10.0; fix autofix CVE Rust → v3.10.1.
   **Série L (UX):** L1 #72, L2 #73, L3 #74, L4 #75 → **v3.11.0**.
-- **Próximo:** séries K e L concluídas; novos itens virão de achados de run real.
-- **Restante:** nenhum item pendente no backlog.
+  **Série N (achados run real):** N1 (fix parser arch-audit) #78 → **v3.11.1**.
+- **Próximo:** N2 (matar `todo` recorrente do refresh MCP) e N3 (doctor de gems
+  user sombreando o sistema) — definidos pelo run v3.11.1.
+- **Restante:** N2 (🟡 P) + N3 (🟡 M) pendentes; demais resíduos do run são
+  benignos (Bluetooth/a2dp transiente, journal XDG histórico já corrigido) ou
+  by-design (skips de tools não instaladas).
 
 ---
 
@@ -293,6 +335,22 @@ priorizar. Não é roadmap — é evidência.
   300s). **Fix:** `UV_LOCK_TIMEOUT=15` + degrada p/ `todo` em contenção; nunca
   `--force`; timeout do step 120→180s. **Verificado:** rc=11 (`todo`) em 16s.
 - **Gotcha de ambiente:** cache uv do user = **22G** (uvx acumula envs).
+
+### Run 2026-06-21 (v3.11.1, full -y tudo ativo) · 86 ok / 1 warn / 1 todo / 0 fail / 3 skip · 5m47s
+
+- **Estado:** saudável e estável. N1 confirmado em produção (step `Doctor: CVEs de
+  pacotes oficiais` agora roda e conta 21 afetados em vez de "Sem CVEs"). L3 ao
+  vivo: `↑ full-upgrade 3.11.0→3.11.1`.
+- **warn (journal):** 3 assinaturas — `Bluetooth hci0 0x0401 -110` (3×, transiente
+  HW), `applications.menu not found` (2×, **histórico deste boot**: corrigido em
+  2026-06-21 com archlinux-xdg-menu + symlink repointado; some no próximo reboot),
+  `a2dp-sink busy` (1×, transiente). Nenhum acionável por código.
+- **todo (MCP):** `serena` uvx em uso → refresh adiado. Recorrente → vira **N2**.
+- **Achado novo → N3:** build do AUR despejou dezenas de warnings Ruby
+  `already initialized constant RDoc::*`. Causa: `rdoc 7.2.0` (user gem) sombreia
+  `rdoc 6.14.0` (Arch). Várias default gems do Ruby têm cópia user duplicando a do
+  sistema; versão divergente = skew/ruído.
+- **skips:** Snap, Bun, Kimi CLI — tools não instaladas (legítimo).
 
 ### Run 2026-06-21 15:28 · v3.8.2 · `--mode full -y`
 
