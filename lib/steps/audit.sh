@@ -46,14 +46,24 @@ _audit_probe_cargo() {
   return 0
 }
 
-# CVEs em pacotes oficiais (se arch-audit estiver instalado).
+# CVEs em pacotes oficiais (se arch-audit estiver instalado). N1: separa os já
+# corrigíveis nos repos (acionável via pacman -Syu) dos sem correção upstream
+# (informativo) — antes marcava todos como high/pacman -Syu, enganoso quando o
+# sistema já está atualizado e os remanescentes só dependem de upstream.
 _audit_probe_arch_audit() {
   has arch-audit || return 0
-  local out n
-  out="$(arch-audit --quiet 2>/dev/null)"
-  n="$(printf '%s\n' "$out" | grep -c . || true)"
-  (( n > 0 )) && _audit_add high pacman "$n pacote(s) com CVE (arch-audit)" \
-    "Pacotes oficiais com advisories conhecidos" "sudo pacman -Syu"
+  local total fixable manual
+  total="$(arch-audit --quiet 2>/dev/null | grep -cE '.' || true)"
+  total="${total:-0}"
+  (( total > 0 )) || return 0
+  fixable="$(arch-audit -u --quiet 2>/dev/null | grep -cE '.' || true)"
+  fixable="${fixable:-0}"
+  (( fixable > total )) && fixable="$total"
+  manual=$(( total - fixable ))
+  (( fixable > 0 )) && _audit_add high pacman "$fixable pacote(s) oficial(is) com CVE já corrigível" \
+    "Versão corrigida disponível nos repos" "sudo pacman -Syu"
+  (( manual > 0 )) && _audit_add info pacman "$manual pacote(s) oficial(is) com CVE sem correção upstream" \
+    "Afetados conhecidos, ainda sem versão corrigida; acompanhe o tracker de segurança Arch" "Sem ação local; aguarde atualização upstream"
   return 0
 }
 

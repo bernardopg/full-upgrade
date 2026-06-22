@@ -807,31 +807,33 @@ doctor_pacman_health() {
 }
 
 
-# G2 — helper puro: classifica a saída de `arch-audit` em corrigíveis vs sem
-# correção. Lê a saída por stdin e emite (stdout) "<corrigíveis> <sem_correção>".
-# Linha afetada típica: "Package X is affected by CVE-.... <risco>! Update to V!".
-# A presença de "Update to" marca o pacote como corrigível por `pacman -Syu`.
-parse_arch_audit() {
-  awk '
-    /[Pp]ackage .* is affected by/ {
-      total++
-      if ($0 ~ /Update to/) fix++
-    }
-    END { printf "%d %d\n", fix + 0, (total - fix) + 0 }
-  '
+# G2/N1 — helper puro: conta pacotes afetados na saída do `arch-audit`. Aceita o
+# formato MODERNO ("<pkg> is affected by <tipo>. <risco> risk!") e o ANTIGO
+# ("Package <pkg> is affected by ..."). O parser antigo exigia o prefixo "Package"
+# e o marcador "Update to", ambos ausentes no arch-audit atual — fazia o step
+# reportar "Sem CVEs" mesmo com dezenas de pacotes afetados. Lê stdin; imprime o
+# total (inteiro). A classificação corrigível×sem-correção vem do flag `-u` do
+# próprio arch-audit (ver doctor_arch_audit_cves), não mais de regex no texto.
+arch_audit_affected_count() {
+  grep -cE 'is affected by' || true
 }
 
-# G2 — CVEs de pacotes oficiais via arch-audit, no fluxo padrão (read-only).
-# Sem arch-audit, o run_step pula via cmd_deps do catálogo. Corrigíveis por
-# `pacman -Syu` → RC_WARN (acionável); apenas sem correção disponível → RC_TODO;
-# nenhuma → 0. Falha de rede ao consultar o tracker → RC_WARN.
+# G2/N1 — CVEs de pacotes oficiais via arch-audit, no fluxo padrão (read-only).
+# Sem arch-audit, o run_step pula via cmd_deps do catálogo.
+#  • corrigíveis (já há versão corrigida nos repos, via `arch-audit -u`) → RC_WARN
+#    acionável (`pacman -Syu`);
+#  • apenas sem correção upstream → informativo (return 0): como os CVEs de
+#    toolchain Rust (K3), não há ação local e todo sistema Arch atualizado tem
+#    alguns — não vira todo/warn recorrente. A contagem é exibida (visibilidade);
+#    o `--audit` consolidado lista os pacotes para revisão de segurança;
+#  • nenhuma → 0. Falha de rede ao consultar o tracker → RC_WARN.
 doctor_arch_audit_cves() {
   if ! has arch-audit; then
     log "  arch-audit não instalado; pulando."
     return 0
   fi
 
-  local out rc netre fix manual
+  local out rc netre total fixable manual
   netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
   out="$(arch-audit 2>&1)"
   rc=$?
@@ -842,26 +844,33 @@ doctor_arch_audit_cves() {
   fi
   log_raw "$out"
 
-  read -r fix manual < <(printf '%s\n' "$out" | parse_arch_audit)
-  fix="${fix:-0}"; manual="${manual:-0}"
-
-  if (( fix == 0 && manual == 0 )); then
+  total="$(printf '%s\n' "$out" | arch_audit_affected_count)"
+  total="${total:-0}"
+  if (( total == 0 )); then
     log "  Sem CVEs conhecidas em pacotes oficiais (arch-audit)."
     return 0
   fi
 
-  local status=0
-  if (( fix > 0 )); then
-    log "  ${C_YELLOW}arch-audit: ${fix} pacote(s) com CVE corrigível.${C_RESET}"
+  # Corrigíveis = pacotes que já têm versão corrigida nos repos. `arch-audit -u`
+  # ("show only packages that have already been fixed") é a fonte robusta — não
+  # depende do texto da saída padrão. Segunda consulta ao tracker; se falhar,
+  # cai para 0 (trata tudo como sem-correção) em vez de quebrar o step.
+  fixable="$(arch-audit -u --quiet 2>/dev/null | grep -cE '.' || true)"
+  fixable="${fixable:-0}"
+  (( fixable > total )) && fixable="$total"
+  manual=$(( total - fixable ))
+
+  if (( fixable > 0 )); then
+    log "  ${C_YELLOW}arch-audit: ${fixable} pacote(s) com CVE já corrigível nos repos.${C_RESET}"
     log "  Remediação: sudo pacman -Syu"
-    status="$RC_WARN"
+    (( manual > 0 )) && log "  ${C_DIM}+ ${manual} sem correção upstream ainda (informativo).${C_RESET}"
+    STEP_REASON="arch-audit: ${fixable} corrigível(is), ${manual} sem correção"
+    return "$RC_WARN"
   fi
-  if (( manual > 0 )); then
-    log "  ${C_YELLOW}arch-audit: ${manual} pacote(s) com CVE sem correção disponível ainda.${C_RESET}"
-    (( status == 0 )) && status="$RC_TODO"
-  fi
-  STEP_REASON="arch-audit: ${fix} corrigível(is), ${manual} sem correção"
-  return "$status"
+
+  log "  ${total} pacote(s) com CVE conhecida — todos sem correção upstream disponível ainda; não acionável localmente (informativo). Veja \`full-upgrade --audit\` para a lista."
+  STEP_REASON="arch-audit: ${total} sem correção (informativo)"
+  return 0
 }
 
 

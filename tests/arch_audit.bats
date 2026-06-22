@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
-# tests/arch_audit.bats — CVEs de pacotes oficiais via arch-audit (G2).
+# tests/arch_audit.bats — CVEs de pacotes oficiais via arch-audit (G2/N1).
 #
-# parse_arch_audit é puro (classifica a saída). doctor_arch_audit_cves orquestra
-# arch-audit; os testes stubam has/arch-audit e validam a máquina de estados.
+# arch_audit_affected_count é puro (conta afetados, formato moderno e antigo).
+# doctor_arch_audit_cves orquestra arch-audit: o total vem da saída padrão, os
+# corrigíveis de `arch-audit -u`. Os testes stubam has/arch-audit (este último
+# distingue a chamada com -u/--upgradable) e validam a máquina de estados.
 
 load test_helper
 
@@ -17,23 +19,31 @@ setup() {
 
 # ── parser puro ───────────────────────────────────────────────────────────────
 
-@test "parse: conta corrigíveis e sem-correção" {
+@test "count: formato moderno (sem prefixo Package) é contado" {
+  out="$(printf '%s\n' \
+    'djvulibre is affected by arbitrary code execution. High risk!' \
+    'libxml2 is affected by denial of service. High risk!' \
+    'pam is affected by arbitrary filesystem access. High risk!' \
+    | arch_audit_affected_count)"
+  [ "$out" = "3" ]
+}
+
+@test "count: formato antigo (com prefixo Package) ainda é contado" {
   out="$(printf '%s\n' \
     'Package openssl is affected by CVE-2024-0001. High risk! Update to 3.0.1-1!' \
     'Package foo is affected by CVE-2024-0002. Medium risk!' \
-    'Package bar is affected by CVE-2024-0003. Low risk! Update to 1.0-2!' \
-    | parse_arch_audit)"
-  [ "$out" = "2 1" ]
+    | arch_audit_affected_count)"
+  [ "$out" = "2" ]
 }
 
-@test "parse: saída vazia => 0 0" {
-  run bash -c 'printf "" | { source '"${FU_LIB}"'/steps/doctor.sh; parse_arch_audit; }'
-  [ "$output" = "0 0" ]
+@test "count: saída vazia => 0" {
+  run bash -c 'printf "" | { source '"${FU_LIB}"'/steps/doctor.sh; arch_audit_affected_count; }'
+  [ "$output" = "0" ]
 }
 
-@test "parse: ignora linhas não-afetadas" {
-  out="$(printf '%s\n' 'banner irrelevante' 'Avisos: nenhum' | parse_arch_audit)"
-  [ "$out" = "0 0" ]
+@test "count: ignora linhas não-afetadas" {
+  out="$(printf '%s\n' 'banner irrelevante' 'Avisos: nenhum' | arch_audit_affected_count)"
+  [ "$out" = "0" ]
 }
 
 # ── máquina de estados doctor_arch_audit_cves ─────────────────────────────────
@@ -52,30 +62,57 @@ setup() {
   [[ "$output" == *"Sem CVEs"* ]]
 }
 
-@test "step: CVE corrigível vira RC_WARN citando pacman -Syu" {
-  arch-audit() { printf 'Package openssl is affected by CVE-2024-0001. High risk! Update to 3.0.1-1!\n'; return 0; }
+@test "step: CVE corrigível (via -u) vira RC_WARN citando pacman -Syu" {
+  # saída padrão lista 1 afetado; -u confirma que ele já tem correção.
+  arch-audit() {
+    if [[ "$*" == *"-u"* || "$*" == *"--upgradable"* ]]; then
+      printf 'openssl 3.0.0-1\n'
+    else
+      printf 'openssl is affected by arbitrary code execution. High risk!\n'
+    fi
+    return 0
+  }
   run doctor_arch_audit_cves
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"corrigível"* ]]
   [[ "$output" == *"pacman -Syu"* ]]
 }
 
-@test "step: apenas CVE sem correção vira RC_TODO" {
-  arch-audit() { printf 'Package foo is affected by CVE-2024-0002. Medium risk!\n'; return 0; }
+@test "step: apenas CVE sem correção upstream => informativo (return 0)" {
+  # 2 afetados na saída padrão; -u vazio (nenhum corrigível ainda).
+  arch-audit() {
+    if [[ "$*" == *"-u"* || "$*" == *"--upgradable"* ]]; then
+      printf ''
+    else
+      printf '%s\n' \
+        'libheif is affected by information disclosure. Medium risk!' \
+        'linux is affected by multiple issues. Medium risk!'
+    fi
+    return 0
+  }
   run doctor_arch_audit_cves
-  [ "$status" -eq "$RC_TODO" ]
-  [[ "$output" == *"sem correção"* ]]
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sem correção upstream"* ]]
+  [[ "$output" == *"informativo"* ]]
 }
 
-@test "step: mistura corrigível + sem-correção => RC_WARN (precede)" {
+@test "step: mistura corrigível + sem-correção => RC_WARN e cita o resto" {
+  # 3 afetados; -u confirma 1 corrigível => 2 sem correção.
   arch-audit() {
-    printf '%s\n' \
-      'Package openssl is affected by CVE-2024-0001. High! Update to 3.0.1-1!' \
-      'Package foo is affected by CVE-2024-0002. Medium!'
+    if [[ "$*" == *"-u"* || "$*" == *"--upgradable"* ]]; then
+      printf 'openssl 3.0.0-1\n'
+    else
+      printf '%s\n' \
+        'openssl is affected by arbitrary code execution. High risk!' \
+        'libheif is affected by information disclosure. Medium risk!' \
+        'linux is affected by multiple issues. Medium risk!'
+    fi
     return 0
   }
   run doctor_arch_audit_cves
   [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"1 pacote(s) com CVE já corrigível"* ]]
+  [[ "$output" == *"2 sem correção"* ]]
 }
 
 @test "step: falha de rede vira RC_WARN" {
