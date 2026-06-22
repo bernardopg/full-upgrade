@@ -4,6 +4,27 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **`Doctor: gems do usuário sombreando o sistema` (N3).** Novo step doctor
+  read-only que detecta gems instaladas pelo usuário (`~/.local/share/gem`) que
+  **sombreiam uma gem real gerenciada pelo Arch** com versão divergente — ex.:
+  `rdoc 7.2.0` (user) sobre `6.14.0` (Arch), que faz toda invocação ruby carregar
+  a do usuário e despejar `already initialized constant RDoc::*`. Gems default do
+  Ruby (`default: X`) são ignoradas (upgrades de usuário nelas são normais);
+  sinaliza só divergência real. `RC_TODO` acionável com dica
+  `gem uninstall --user-install <gem>`. Helper puro `gem_shadow_diff`; +7 testes.
+
+### Corrigido
+
+- **`todo` recorrente do refresh MCP por lock do cache uv (N2).** Quando o
+  `uv cache clean` é adiado porque um server uvx está **ativo** (a própria sessão
+  que dispara o upgrade mantém o serena vivo, segurando o lock global), isso é
+  esperado e sem ação prática — agora vira **informativo (ok)** em vez de `todo`,
+  com a dica `uv cache clean <dist>` para rodar com os MCP ociosos. Erro do uv por
+  **outra** causa continua `RC_WARN`. Helper puro `mcp_uv_lock_busy`; testes
+  atualizados. Mata o único `todo` que reaparecia em todo run.
+
 ## [3.11.1] - 2026-06-21
 
 ### Corrigido

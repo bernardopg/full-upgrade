@@ -236,16 +236,34 @@ JSON
   grep -q "serena" "$HOME/uv.calls"
 }
 
-@test "update: lock do cache uv ocupado => RC_TODO (não trava)" {
+@test "update: lock do cache uv ocupado por server ativo => RC 0 informativo (N2)" {
   cat > "$HOME/.claude.json" <<'JSON'
 {"mcpServers":{"serena":{"command":"uvx","args":["--from","git+https://x/serena","serena"]}}}
 JSON
   has() { return 0; }
   uv() { echo "error: Timeout (15s) when waiting for lock on .cache/uv/.lock, is another uv process running?" >&2; return 2; }
   run mcp_update_servers
-  [ "$status" -eq "$RC_TODO" ]
+  [ "$status" -eq 0 ]
   [[ "$output" == *"Cache uv em uso"* ]]
+  [[ "$output" == *"não é falha"* ]]
   [[ "$output" == *"uv cache clean serena"* ]]
+}
+
+# ── mcp_uv_lock_busy (N2, puro) ───────────────────────────────────────────────
+
+@test "lock_busy: timeout no lock => true" {
+  run mcp_uv_lock_busy "error: Timeout (15s) when waiting for lock on .cache/uv/.lock"
+  [ "$status" -eq 0 ]
+}
+
+@test "lock_busy: 'another uv process running' => true" {
+  run mcp_uv_lock_busy "is another uv process running?"
+  [ "$status" -eq 0 ]
+}
+
+@test "lock_busy: erro genérico (disco cheio) => false" {
+  run mcp_uv_lock_busy "error: No space left on device"
+  [ "$status" -ne 0 ]
 }
 
 @test "update: erro genérico do uv => RC_WARN" {

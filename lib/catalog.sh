@@ -99,6 +99,7 @@ Doctor: AI CLIs|doctor|ai,read|read|30||doctor_ai_clis|Inventário read-only de 
 Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
 Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.
+Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem,read|read|30|gem|doctor_gem_shadow|Detecta gems do usuário que sombreiam uma gem real do Arch com versão divergente (ex.: rdoc); sugere gem uninstall.
 Doctor: saúde do btrfs|doctor|btrfs,disk,read,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.
 Auto-remediar scrub btrfs|repair|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
 Doctor: tempo de boot|doctor|boot,systemd,read|read|30||doctor_boot_time|Reporta tempo total de boot (systemd-analyze) e as piores units.
