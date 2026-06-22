@@ -6,6 +6,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Typo-guard de chaves de config (L4).** Ao carregar o config, chaves
+  atribuídas que não são reconhecidas mas estão a 1–2 edições (Levenshtein) de
+  uma chave válida viram aviso não-fatal em stderr — ex.: `ENABLE_CUSTOM_TOOL`
+  → "talvez `ENABLE_CUSTOM_TOOLS`?". Variáveis legítimas do usuário (sem
+  near-miss) e identificadores curtos são ignorados; nunca bloqueia o run.
+  `--config` ganhou uma seção **Chaves não reconhecidas** com as mesmas
+  sugestões. Helpers puros `levenshtein`/`config_known_keys`/
+  `config_assigned_keys`/`config_lint_keys`; +12 testes.
+
 - **Resumo "o que mudou": diff de pacotes pós-run (L3).** O run captura
   `pacman -Q` antes do upgrade e no fim, e mostra no resumo um bloco **Pacotes
   alterados** com contagem (atualizados/instalados/removidos) e a lista: cada
