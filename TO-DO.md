@@ -253,7 +253,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > (`arch_audit_affected_count`), corrigíveis via `arch-audit -u`; corrigível→warn,
 > só-sem-fix→informativo (estilo K3). `--audit` separa high/info.
 
-#### N2 — 🟡 P ☐ Matar o `todo` recorrente do refresh MCP (lock uv)
+#### N2 — 🟡 P ☑ Matar o `todo` recorrente do refresh MCP (lock uv) — PR #81 (v3.12.0)
 > **Achado:** em **todo** run, `serena` (uvx) está em uso (a própria sessão que
 > dispara o upgrade), então `uv cache clean serena` é adiado → `todo` permanente.
 > É o único `todo` que reaparece sempre e não há ação prática (o MCP está sempre
@@ -266,7 +266,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** lock por server-ativo → ok + dica; demais contenções → `todo`;
   helper de classificação coberto por bats.
 
-#### N3 — 🟡 M ☐ Doctor: gems do usuário sombreando gems do sistema (Arch)
+#### N3 — 🟡 M ☑ Doctor: gems do usuário sombreando gems do sistema (Arch) — PR #81 (v3.12.0)
 > **Achado:** o build do pacote AUR despejou dezenas de warnings Ruby
 > `already initialized constant RDoc::*` — causa raiz: `rdoc 7.2.0` instalado como
 > user gem sombreia o `rdoc 6.14.0` gerenciado pelo Arch (`/usr/lib/ruby/gems`).
@@ -311,12 +311,13 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
   em **v3.8.0**. Patches v3.8.1/v3.8.2. **Série K:** K1 (auto-update MCP) → v3.9.0,
   fix de lock uv → v3.9.1; K2/K3/K4/K5 → v3.10.0; fix autofix CVE Rust → v3.10.1.
   **Série L (UX):** L1 #72, L2 #73, L3 #74, L4 #75 → **v3.11.0**.
-  **Série N (achados run real):** N1 (fix parser arch-audit) #78 → **v3.11.1**.
-- **Próximo:** N2 (matar `todo` recorrente do refresh MCP) e N3 (doctor de gems
-  user sombreando o sistema) — definidos pelo run v3.11.1.
-- **Restante:** N2 (🟡 P) + N3 (🟡 M) pendentes; demais resíduos do run são
-  benignos (Bluetooth/a2dp transiente, journal XDG histórico já corrigido) ou
-  by-design (skips de tools não instaladas).
+  **Série N (achados run real):** N1 (fix parser arch-audit) #78 → **v3.11.1**;
+  N2 (fix `todo` recorrente MCP) + N3 (doctor gems sombreando) #81 → **v3.12.0**.
+- **Próximo:** série N concluída; backlog vazio. Novos itens só de achados de run
+  real. Resíduos atuais são benignos (Bluetooth/a2dp transiente; journal XDG
+  histórico já corrigido, some no reboot) ou by-design (skips de tools não
+  instaladas: Snap/Bun/Kimi/arch-audit-quando-ausente).
+- **Restante:** nenhum item pendente no backlog.
 
 ---
 
