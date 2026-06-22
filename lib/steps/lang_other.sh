@@ -2,6 +2,7 @@
 # steps/lang_other.sh — go, dotnet, gcloud, gem, ghcup, arduino
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # globais cross-module (STEP_REASON etc.)
 
 update_go_tools() {
   local gopath
@@ -153,6 +154,92 @@ update_gem_user() {
   printf '%s\n' "$outdated" | tee >(_strip_ansi >> "$LOG_FILE")
   # rdoc/rake/rubygems-update podem gerar conflito com versão do Arch — ignorar erros não-fatais
   run_logged gem update || log "  Aviso: gem update retornou erro (possível conflito rdoc/rake com pacman — inofensivo)."
+}
+
+
+# N3 — helper puro: dado o `gem list` do sistema ($1) e o do usuário ($2),
+# emite as gems que o usuário SOMBREIA com versão divergente. Considera só as
+# versões REAIS (instaladas) — entradas "default: X" (gems bundled do Ruby) são
+# ignoradas, pois existem em ambos e upgrades de usuário nelas são normais. Uma
+# linha por gem: "nome|versões_reais_sistema|versões_reais_usuário". Flag quando
+# o sistema tem versão real (gem do Arch) e o usuário tem alguma real ausente nela.
+# Read-only. Formato de entrada (gem list): "nome (1.2.3, 1.0.0, default: 0.9)".
+gem_shadow_diff() {
+  local sys="$1" usr="$2"
+  [[ -r "$sys" && -r "$usr" ]] || return 0
+  awk '
+    function gname(line,   name) { name = line; sub(/ *\(.*/, "", name); return name }
+    function realvers(line,   vers, n, parts, i, p, out) {
+      if (line !~ /\(/) return ""
+      vers = line; sub(/^[^(]*\(/, "", vers); sub(/\).*/, "", vers)
+      n = split(vers, parts, ",")
+      out = ""
+      for (i = 1; i <= n; i++) {
+        p = parts[i]; gsub(/^[ \t]+|[ \t]+$/, "", p)
+        if (p == "" || p ~ /^default:/) continue
+        out = (out == "") ? p : out " " p
+      }
+      return out
+    }
+    NR == FNR { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }
+    {
+      if ($0 !~ /\(/) next
+      name = gname($0)
+      if (!(name in sysv) || sysv[name] == "") next   # sistema sem versão real => ignora
+      uv = realvers($0)
+      if (uv == "") next                               # usuário só tem default => ignora
+      nn = split(uv, U, " "); diff = 0
+      for (i = 1; i <= nn && !diff; i++) {
+        found = 0; mm = split(sysv[name], S, " ")
+        for (j = 1; j <= mm; j++) if (U[i] == S[j]) { found = 1; break }
+        if (!found) diff = 1
+      }
+      if (diff) print name "|" sysv[name] "|" uv
+    }
+  ' "$sys" "$usr"
+}
+
+# N3 — Doctor read-only: gems instaladas pelo USUÁRIO que sombreiam uma gem real
+# do sistema (Arch) com versão divergente — ex.: rdoc 7.2.0 (user) sobre 6.14.0
+# (Arch), que faz toda invocação ruby carregar a do usuário e despejar
+# "already initialized constant". Gems default do Ruby são ignoradas. Sem gem =>
+# skip via catálogo. Acionável (`gem uninstall --user-install`) => RC_TODO.
+doctor_gem_shadow() {
+  has gem || { log "  gem não disponível; pulando."; return 0; }
+  local sys_home usr_home
+  sys_home="$(gem env home 2>/dev/null || true)"
+  usr_home="$(gem env user_gemhome 2>/dev/null || true)"
+  if [[ -z "$sys_home" || "$sys_home" == "$HOME"* || -z "$usr_home" || ! -d "$usr_home" ]]; then
+    log "  Sem separação sistema/usuário de gems; nada a checar."
+    return 0
+  fi
+
+  local sysf usrf
+  sysf="$(mktemp)"; usrf="$(mktemp)"
+  GEM_HOME="$sys_home" GEM_PATH="$sys_home" gem list --local 2>/dev/null > "$sysf"
+  GEM_HOME="$usr_home" GEM_PATH="$usr_home" gem list --local 2>/dev/null > "$usrf"
+  local -a shadow=()
+  mapfile -t shadow < <(gem_shadow_diff "$sysf" "$usrf")
+  rm -f "$sysf" "$usrf"
+
+  if (( ${#shadow[@]} == 0 )); then
+    log "  Sem gems do usuário sombreando gems do sistema (Arch)."
+    return 0
+  fi
+
+  log "  ${C_YELLOW}${#shadow[@]} gem(s) do usuário sombreiam a versão do sistema (Arch):${C_RESET}"
+  local line name sysv usrv shown=0
+  for line in "${shadow[@]}"; do
+    IFS='|' read -r name sysv usrv <<< "$line"
+    if (( shown < 20 )); then
+      log "    • ${name}: sistema ${sysv} vs usuário ${usrv}"
+      shown=$((shown + 1))
+    fi
+  done
+  (( ${#shadow[@]} > 20 )) && log "    … e mais $(( ${#shadow[@]} - 20 ))."
+  log "  Dica: remova a cópia do usuário p/ usar a do Arch — gem uninstall --user-install <gem>"
+  STEP_REASON="${#shadow[@]} gem(s) do usuário sombreando o sistema"
+  return "$RC_TODO"
 }
 
 

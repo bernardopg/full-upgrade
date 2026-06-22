@@ -512,6 +512,11 @@ run_all_steps() {
     fi
     run_step "Doctor: ambiente Python" doctor_python_env
     run_step "Doctor: conflitos JavaScript global" doctor_js_conflicts
+    if has gem; then
+        run_step "Doctor: gems do usuário sombreando o sistema" doctor_gem_shadow
+    else
+        step_skip "Doctor: gems do usuário sombreando o sistema" "gem não instalado"
+    fi
     run_step "Doctor: saúde do btrfs" doctor_btrfs_health
 
     # Auto-remediação opcional (G1): só sob AUTO_BTRFS_SCRUB=1, e nunca sob

@@ -256,12 +256,22 @@ elif kind == "codex":
 ' "$kind" "$f" 2>/dev/null
 }
 
+# N2 — true (rc 0) se a saída do `uv cache clean` ($1) indica que o lock global
+# de ~/.cache/uv está ocupado por um server uvx ativo. Esse é o caso ESPERADO num
+# upgrade conduzido por agente: a própria sessão (Claude/Codex) mantém o serena
+# uvx vivo, segurando o lock. Não é falha — apenas adiamento. Puro/testável.
+mcp_uv_lock_busy() {
+  printf '%s' "$1" | grep -qiE 'lock|in[ -]?use|another uv process|timeout'
+}
+
 # K1 — step mutating (gated MCP_AUTO_UPDATE=1): refresca os servidores MCP cujo
 # runtime é uvx (ambiente em cache que defasa) rodando `uv cache clean <dist>`,
 # forçando o próximo launch a reconstruir a última versão/HEAD. Servidores npx
 # sem pin já resolvem a última a cada run (auto-fresh); pinned/external/remote
 # ficam fora de escopo e são apenas reportados. Operação local (sem rede); nunca
 # muta pacote do sistema. Sem alvos uvx => ok. uv ausente com alvos => RC_TODO.
+# N2: lock ocupado por server uvx ativo => informativo (ok), não `todo` — é o
+# caso recorrente e sem ação prática durante o upgrade; erro de outra causa => warn.
 mcp_update_servers() {
   local claude_json="${HOME}/.claude.json"
   local codex_toml="${HOME}/.codex/config.toml"
@@ -338,11 +348,11 @@ mcp_update_servers() {
     log "  Cache uv refrescado para ${#names[@]} pacote(s) de servers MCP."
     return 0
   fi
-  if printf '%s' "$uv_out" | grep -qiE 'lock|in[ -]?use|another uv process|timeout'; then
-    log "  Cache uv em uso (server uvx rodando); refresh adiado para evitar travar/corromper."
+  if mcp_uv_lock_busy "$uv_out"; then
+    log "  Cache uv em uso (server uvx ativo); refresh adiado para evitar travar/corromper — não é falha."
     log "  Rode quando os servers MCP estiverem ociosos: uv cache clean ${names[*]}"
-    STEP_REASON="cache uv em uso; refrescar depois: uv cache clean ${names[*]}"
-    return "$RC_TODO"
+    STEP_REASON="cache uv em uso (server ativo); refrescar ocioso: uv cache clean ${names[*]}"
+    return 0
   fi
   log "  uv cache clean retornou erro (não-fatal): $(printf '%s' "$uv_out" | tail -n1)"
   STEP_REASON="uv cache clean falhou para servers MCP"
