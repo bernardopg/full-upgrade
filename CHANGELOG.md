@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.11.1] - 2026-06-21
+
 ### Corrigido
 
 - **`Doctor: CVEs de pacotes oficiais` cego no arch-audit moderno (N1).** O parser
