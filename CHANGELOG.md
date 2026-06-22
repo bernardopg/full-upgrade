@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-06-21
+
 ### Adicionado
 
 - **`Doctor: gems do usuário sombreando o sistema` (N3).** Novo step doctor
