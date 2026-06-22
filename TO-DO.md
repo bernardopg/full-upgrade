@@ -217,6 +217,30 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Arquivos:** `lib/steps/doctor.sh` (journal).
 - **Aceite:** padrões conhecidos ganham dica; demais inalterados.
 
+### Série L — Experiência de uso (UX) — v3.11.0 ☑
+
+> Mira tornar o run mais rápido de iterar e o config mais à prova de erro. Tudo
+> read-only/CLI; sem novos steps mutáveis. Liberados em **v3.11.0**.
+
+#### L1 — 🟡 P ☑ `--only` aceita nome exato e listas — PR #72
+> `--only` casava só categoria/tag; agora cada token também casa o **nome exato**
+> e aceita lista por vírgula. Helpers `catalog_has_step_name`/`apply_only_filter`.
+
+#### L2 — 🔴 M ☑ `--resume` re-roda só os steps não-ok — PR #73
+> Lê o jsonl do último run **real** (dry-runs marcados/ignorados), pega
+> `warn`/`todo`/`fail` e re-executa só esses (+ core/final). `resume_pending_steps`/
+> `resume_latest_real_jsonl`/`apply_only_names`.
+
+#### L3 — 🟡 M ☑ Diff de pacotes pós-run ("o que mudou") — PR #74
+> Snapshot `pacman -Q` antes/depois → bloco **Pacotes alterados** no resumo
+> (↑ atualizados / + instalados / − removidos, cap 30) + evento jsonl `pkg_changes`.
+> `pkg_diff`/`capture_installed_pkgs`/`print_pkg_changes`.
+
+#### L4 — 🟢 P ☑ Typo-guard de chaves de config — PR #75
+> Chave do config não-reconhecida e a 1–2 edições (Levenshtein) de uma válida vira
+> aviso não-fatal com sugestão; `--config` ganha seção. `levenshtein`/
+> `config_known_keys`/`config_assigned_keys`/`config_lint_keys`.
+
 ## Ordem de execução sugerida (impacto × esforço)
 
 **Rodada 1 (alto impacto):** ✅ concluída (PRs #42/#43/#44).
@@ -247,9 +271,10 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
 - **Concluído:** C1–C9; M1–M8; F1–F8 (v3.6.0); G1–G4 (v3.7.0); H1, H3, I1
   (PRs #42/#43/#44); H2, H4, I2, I4, J1; **H5, H6, I3, J2, J3** → todos liberados
   em **v3.8.0**. Patches v3.8.1/v3.8.2. **Série K:** K1 (auto-update MCP) → v3.9.0,
-  fix de lock uv → v3.9.1; K5 (sync doc) neste commit.
-- **Próximo:** série K concluída; novos itens virão de achados de run real.
-- **Restante:** nenhum item K pendente.
+  fix de lock uv → v3.9.1; K2/K3/K4/K5 → v3.10.0; fix autofix CVE Rust → v3.10.1.
+  **Série L (UX):** L1 #72, L2 #73, L3 #74, L4 #75 → **v3.11.0**.
+- **Próximo:** séries K e L concluídas; novos itens virão de achados de run real.
+- **Restante:** nenhum item pendente no backlog.
 
 ---
 
