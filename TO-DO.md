@@ -266,6 +266,14 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** lock por server-ativo → ok + dica; demais contenções → `todo`;
   helper de classificação coberto por bats.
 
+#### N4 — 🔴 P ☑ `Atualizar gems de usuário` recriava o shadowing — PR #84 (v3.12.1)
+> **Achado:** após o N3 remover as gems user que sombreiam o Arch, o run as
+> recriou — `update_gem_user` rodava `gem update` no GEM_USER_HOME, puxando versões
+> novas de gems do Arch (rdoc/rake/…) pro dir do usuário (loop infinito de todo).
+> **Fix:** exclui as gems gerenciadas pelo Arch do `gem update` (helper puro
+> `gem_user_updatable`); só atualiza gems próprias do usuário. Verificado no run
+> real: gems step pula as do Arch, shadow fica zero, doctor_gem_shadow → ok.
+
 #### N3 — 🟡 M ☑ Doctor: gems do usuário sombreando gems do sistema (Arch) — PR #81 (v3.12.0)
 > **Achado:** o build do pacote AUR despejou dezenas de warnings Ruby
 > `already initialized constant RDoc::*` — causa raiz: `rdoc 7.2.0` instalado como
@@ -312,11 +320,12 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
   fix de lock uv → v3.9.1; K2/K3/K4/K5 → v3.10.0; fix autofix CVE Rust → v3.10.1.
   **Série L (UX):** L1 #72, L2 #73, L3 #74, L4 #75 → **v3.11.0**.
   **Série N (achados run real):** N1 (fix parser arch-audit) #78 → **v3.11.1**;
-  N2 (fix `todo` recorrente MCP) + N3 (doctor gems sombreando) #81 → **v3.12.0**.
-- **Próximo:** série N concluída; backlog vazio. Novos itens só de achados de run
-  real. Resíduos atuais são benignos (Bluetooth/a2dp transiente; journal XDG
-  histórico já corrigido, some no reboot) ou by-design (skips de tools não
-  instaladas: Snap/Bun/Kimi/arch-audit-quando-ausente).
+  N2 (fix `todo` recorrente MCP) + N3 (doctor gems sombreando) #81 → **v3.12.0**;
+  N4 (fix gem-user-update recriava shadowing) #84 → **v3.12.1**.
+- **Próximo:** série N concluída; backlog vazio. Run real v3.12.1 = **88 ok / 1
+  warn / 0 todo / 0 fail / 3 skip** (0 todo pela 1ª vez). Único warn = journal,
+  benigno (Bluetooth/a2dp transiente; `applications.menu` histórico deste boot,
+  já corrigido — some no reboot). Novos itens só de achados de run real.
 - **Restante:** nenhum item pendente no backlog.
 
 ---
