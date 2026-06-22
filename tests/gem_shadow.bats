@@ -64,3 +64,42 @@ _mk() { local f="$1"; shift; printf '%s\n' "$@" > "$f"; }
   [[ "$output" == *"rdoc|6.14.0|7.2.0"* ]]
   [[ "$output" == *"rake|13.0.0|13.3.0"* ]]
 }
+
+# ── gem_user_updatable (N4) ───────────────────────────────────────────────────
+
+@test "updatable: exclui gems gerenciadas pelo Arch, mantém as próprias" {
+  # sistema (Arch) gerencia rdoc e rake; usuário tem rdoc+rake (Arch) e foo (própria)
+  _mk "$BATS_TEST_TMPDIR/sys" 'rdoc (6.14.0)' 'rake (13.3.1)' 'json (default: 2.9.1)'
+  _mk "$BATS_TEST_TMPDIR/out" 'rdoc (6.14.0 < 7.2.0)' 'rake (13.3.1 < 13.4.2)' 'foo (1.0 < 1.1)'
+  run gem_user_updatable "$BATS_TEST_TMPDIR/out" "$BATS_TEST_TMPDIR/sys"
+  [ "$output" = "foo" ]
+}
+
+@test "updatable: todas desatualizadas são do Arch => vazio" {
+  _mk "$BATS_TEST_TMPDIR/sys" 'rdoc (6.14.0)' 'rake (13.3.1)'
+  _mk "$BATS_TEST_TMPDIR/out" 'rdoc (6.14.0 < 7.2.0)' 'rake (13.3.1 < 13.4.2)'
+  run gem_user_updatable "$BATS_TEST_TMPDIR/out" "$BATS_TEST_TMPDIR/sys"
+  [ -z "$output" ]
+}
+
+@test "updatable: nenhuma gem do Arch => mantém todas as próprias" {
+  _mk "$BATS_TEST_TMPDIR/sys" 'json (default: 2.9.1)'
+  _mk "$BATS_TEST_TMPDIR/out" 'foo (1.0 < 1.1)' 'bar (2.0 < 2.1)'
+  run gem_user_updatable "$BATS_TEST_TMPDIR/out" "$BATS_TEST_TMPDIR/sys"
+  [ "${#lines[@]}" -eq 2 ]
+  [[ "$output" == *"foo"* ]]
+  [[ "$output" == *"bar"* ]]
+}
+
+@test "updatable: ignora cabeçalhos/linhas sem parênteses" {
+  _mk "$BATS_TEST_TMPDIR/sys" '*** LOCAL GEMS ***' 'rdoc (6.14.0)'
+  _mk "$BATS_TEST_TMPDIR/out" '*** OUTDATED ***' 'foo (1.0 < 1.1)' 'rdoc (6.14.0 < 7.2.0)'
+  run gem_user_updatable "$BATS_TEST_TMPDIR/out" "$BATS_TEST_TMPDIR/sys"
+  [ "$output" = "foo" ]
+}
+
+@test "updatable: arquivos inexistentes => vazio, rc 0" {
+  run gem_user_updatable "$BATS_TEST_TMPDIR/nope1" "$BATS_TEST_TMPDIR/nope2"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}

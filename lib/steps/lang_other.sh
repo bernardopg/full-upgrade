@@ -112,6 +112,20 @@ update_gcloud() {
 }
 
 
+# N4 — helper puro: dado o `gem outdated` do usuário ($1) e o `gem list` do
+# sistema/Arch ($2), emite os nomes de gems do usuário atualizáveis SEM sombrear
+# o sistema — i.e., cujo nome NÃO é gerenciado pelo Arch. Evita que o
+# `gem update` recrie o shadowing (rdoc/rake/etc.) a cada run. Uma por linha.
+# Linhas sem "(...)" (cabeçalhos, vazias) são ignoradas; casa pelo 1º campo (nome).
+gem_user_updatable() {
+  local outdated="$1" arch="$2"
+  [[ -r "$outdated" && -r "$arch" ]] || return 0
+  awk '
+    NR == FNR { if ($0 ~ /\(/) arch[$1] = 1; next }
+    $0 ~ /\(/ { if (!($1 in arch)) print $1 }
+  ' "$arch" "$outdated"
+}
+
 update_gem_user() {
   local gem_home gem_user_dir
   gem_home="$(gem env home 2>/dev/null || true)"
@@ -135,9 +149,25 @@ update_gem_user() {
       if [[ -z "${outdated_user//[[:space:]]/}" ]]; then
         log "  Gems do usuário: todas atualizadas."
       else
+        # N4: nunca atualizar gems que o Arch já gerencia — `gem update` puxaria
+        # versões novas pro GEM_USER_HOME, sombreando a stdlib do sistema e
+        # despejando "already initialized constant" (ver doctor_gem_shadow).
+        local sysf upf
+        sysf="$(mktemp)"; upf="$(mktemp)"
+        GEM_HOME="$gem_home" GEM_PATH="$gem_home" gem list --local 2>/dev/null > "$sysf"
+        printf '%s\n' "$outdated_user" > "$upf"
+        local -a updatable=()
+        mapfile -t updatable < <(gem_user_updatable "$upf" "$sysf")
+        rm -f "$sysf" "$upf"
+
         log "  Gems do usuário desatualizadas:"
         printf '%s\n' "$outdated_user" | tee >(_strip_ansi >> "$LOG_FILE")
-        GEM_HOME="$gem_user_dir" run_logged gem update
+        if (( ${#updatable[@]} == 0 )); then
+          log "  Todas as desatualizadas são gerenciadas pelo Arch — pulando p/ não sombrear o sistema (atualize via pacman)."
+        else
+          log "  Atualizando ${#updatable[@]} gem(s) próprias do usuário (excluídas as do Arch): ${updatable[*]}"
+          GEM_HOME="$gem_user_dir" run_logged gem update "${updatable[@]}"
+        fi
       fi
     fi
     return 0
