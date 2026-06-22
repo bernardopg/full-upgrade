@@ -10,6 +10,8 @@ setup_logging() {
   LOG_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.log"
   JSONL_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.jsonl"
   SUDO_KEEPALIVE_PID_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.sudo-keepalive.pid"
+  PKG_SNAP_BEFORE="${LOG_DIR}/full-upgrade-${RUN_ID}.pkgs-before"  # L3: snapshot pré-upgrade
+  PKG_SNAP_AFTER="${LOG_DIR}/full-upgrade-${RUN_ID}.pkgs-after"    # L3: snapshot pós-run
   rotate_logs
   touch "$LOG_FILE" "$JSONL_FILE"
   update_latest_links
@@ -127,6 +129,23 @@ rotate_logs() {
         | sort -rn | cut -d' ' -f2- | tail -n +"$(( MAX_LOGS + 1 ))"
     )
   done
+}
+
+# L3 — evento jsonl com as contagens do diff de pacotes (atualizados/instalados/
+# removidos) entre os snapshots $1 (antes) e $2 (depois). No-op se faltar snapshot.
+write_pkg_changes_json() {
+  local before="$1" after="$2"
+  [[ -r "$before" && -r "$after" ]] || return 0
+  local diff up ins rem
+  diff="$(pkg_diff "$before" "$after" 2>/dev/null)" || return 0
+  up="$(grep -c '^U ' <<< "$diff" || true)"
+  ins="$(grep -c '^I ' <<< "$diff" || true)"
+  rem="$(grep -c '^R ' <<< "$diff" || true)"
+  (( up + ins + rem == 0 )) && return 0
+  write_jsonl "$(
+    printf '{"event":"pkg_changes","run_id":%s,"upgraded":%d,"installed":%d,"removed":%d}\n' \
+      "$(json_escape "$RUN_ID")" "$up" "$ins" "$rem"
+  )"
 }
 
 # L2 — jsonl mais recente de um run REAL (dry_run:false). Ignora dry-runs (que

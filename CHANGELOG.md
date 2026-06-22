@@ -6,6 +6,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Resumo "o que mudou": diff de pacotes pós-run (L3).** O run captura
+  `pacman -Q` antes do upgrade e no fim, e mostra no resumo um bloco **Pacotes
+  alterados** com contagem (atualizados/instalados/removidos) e a lista: cada
+  atualizado como `nome velha → nova`, instalados com `+`, removidos com `−`
+  (capada em 30, restante no log). Inclui mudanças de pacman e AUR e também o que
+  a limpeza de órfãos removeu. Evento jsonl `pkg_changes` com as contagens.
+  No-op sob `--dry-run` ou sem pacman. Helpers puros `pkg_diff`/
+  `capture_installed_pkgs`/`print_pkg_changes`; +3 testes.
+
 - **`--resume`: re-roda só os steps que não fecharam ok no último run (L2).** Lê o
   jsonl do run **real** mais recente (ignora dry-runs, agora marcados com
   `"dry_run"` no evento de run), coleta os steps com status `warn`/`todo`/`fail` e
