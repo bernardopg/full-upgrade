@@ -123,3 +123,33 @@ EOF
 @test "tooltip: updates apenas" {
   [ "$(tray_tooltip_for_state updates 7 0 0)" = "full-upgrade: 7 atualização(ões)" ]
 }
+
+@test "wayland_session: detecta Wayland por tipo de sessão" {
+  XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=""
+  run tray_wayland_session
+  [ "$status" -eq 0 ]
+}
+
+@test "wayland_session: detecta Wayland por WAYLAND_DISPLAY" {
+  XDG_SESSION_TYPE="" WAYLAND_DISPLAY=wayland-1
+  run tray_wayland_session
+  [ "$status" -eq 0 ]
+}
+
+@test "wayland_session: X11 não força AppIndicator" {
+  XDG_SESSION_TYPE=x11 WAYLAND_DISPLAY=""
+  run tray_wayland_session
+  [ "$status" -eq 1 ]
+}
+
+@test "yad_pid_alive: PID vazio não é considerado vivo" {
+  FU_YAD_PID=""
+  run tray_yad_pid_alive
+  [ "$status" -eq 1 ]
+}
+
+@test "yad_pid_alive: PID real é considerado vivo" {
+  FU_YAD_PID="$$"
+  run tray_yad_pid_alive
+  [ "$status" -eq 0 ]
+}

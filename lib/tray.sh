@@ -460,8 +460,246 @@ tray_check_and_print() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Daemon (loop yad --notification --listen)
+# Daemon (AppIndicator em Wayland; yad em X11)
 # ─────────────────────────────────────────────────────────────────────────────
+
+tray_python_bin() {
+  if has python3; then printf 'python3'; return 0; fi
+  if has python; then printf 'python'; return 0; fi
+  return 1
+}
+
+tray_wayland_session() {
+  [[ "${XDG_SESSION_TYPE:-}" == "wayland" || -n "${WAYLAND_DISPLAY:-}" ]]
+}
+
+tray_appindicator_available() {
+  local py
+  py=$(tray_python_bin) || return 1
+  "$py" - <<'PY' >/dev/null 2>&1
+import gi
+try:
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3  # noqa: F401
+except Exception:
+    gi.require_version("AppIndicator3", "0.1")
+    from gi.repository import AppIndicator3  # noqa: F401
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk  # noqa: F401
+PY
+}
+
+tray_appindicator_main() {
+  local self="$1" interval="$2" py
+  py=$(tray_python_bin) || return 1
+  FU_TRAY_SELF="$self" \
+  FU_TRAY_INTERVAL="$interval" \
+  FU_TRAY_STATE_FILE="$TRAY_STATE_FILE" \
+  FU_TRAY_PID_FILE="$TRAY_PID_FILE" \
+  FU_TRAY_ROOT="${FU_ROOT:-}" \
+    exec "$py" - <<'PY'
+import atexit
+import json
+import os
+import signal
+import subprocess
+import threading
+
+import gi
+
+try:
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator
+except Exception:
+    gi.require_version("AppIndicator3", "0.1")
+    from gi.repository import AppIndicator3 as AppIndicator
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import GLib, Gtk
+
+
+SELF = os.environ.get("FU_TRAY_SELF", "full-upgrade")
+STATE_FILE = os.environ.get("FU_TRAY_STATE_FILE", "")
+PID_FILE = os.environ.get("FU_TRAY_PID_FILE", "")
+FU_ROOT = os.environ.get("FU_TRAY_ROOT", "")
+INTERVAL = max(int(os.environ.get("FU_TRAY_INTERVAL", "1800") or "1800"), 60)
+
+
+def write_pid():
+    if PID_FILE:
+        os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+        with open(PID_FILE, "w", encoding="utf-8") as f:
+            f.write(f"{os.getpid()}\n")
+
+
+def cleanup():
+    if PID_FILE:
+        try:
+            with open(PID_FILE, "r", encoding="utf-8") as f:
+                pid = f.read().strip()
+            if pid == str(os.getpid()):
+                os.unlink(PID_FILE)
+        except OSError:
+            pass
+
+
+def icon_name_for_state(state):
+    return {
+        "running": "full-upgrade-tray-running",
+        "error": "full-upgrade-tray-error",
+        "attention": "full-upgrade-tray-attention",
+        "updates": "full-upgrade-tray-updates",
+    }.get(state, "full-upgrade-tray-idle")
+
+
+def resolve_icon_name(name):
+    home = os.path.expanduser("~")
+    xdg_data = os.environ.get("XDG_DATA_HOME", os.path.join(home, ".local/share"))
+    candidates = [
+        os.path.join(FU_ROOT, "icons", f"{name}.svg"),
+        os.path.join(FU_ROOT, "assets/icons", f"{name}.svg"),
+        os.path.join(xdg_data, "icons/hicolor/scalable/apps", f"{name}.svg"),
+        os.path.join(xdg_data, "full-upgrade/icons", f"{name}.svg"),
+        os.path.join("/usr/share/icons/hicolor/scalable/apps", f"{name}.svg"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                indicator.set_icon_theme_path(os.path.dirname(path))
+            except Exception:
+                pass
+            return name
+    return name
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"state": "idle", "repo": 0, "aur": 0, "todo": 0, "fail": 0, "reboot": ""}
+
+
+def tooltip_for_state(data):
+    state = str(data.get("state") or "idle")
+    repo = int(data.get("repo") or 0)
+    aur = int(data.get("aur") or 0)
+    todo = int(data.get("todo") or 0)
+    fail = int(data.get("fail") or 0)
+    reboot = str(data.get("reboot") or "").strip()
+    updates = repo + aur
+    if state == "running":
+        return "full-upgrade: executando..."
+    if state == "error":
+        return f"full-upgrade: último run com {fail} falha(s)"
+    parts = []
+    if reboot:
+        parts.append("Reboot pendente")
+    if todo > 0:
+        parts.append(f"{todo} doctor todo")
+    if updates > 0:
+        parts.append(f"{updates} atualização(ões)")
+    return "full-upgrade: " + ("; ".join(parts) if parts else "sistema atualizado")
+
+
+def apply_state(data):
+    state = str(data.get("state") or "idle")
+    icon = resolve_icon_name(icon_name_for_state(state))
+    tooltip = tooltip_for_state(data)
+    try:
+        indicator.set_icon_full(icon, tooltip)
+    except Exception:
+        indicator.set_icon(icon)
+    try:
+        indicator.set_title(tooltip)
+    except Exception:
+        pass
+    return False
+
+
+checking = False
+
+
+def refresh(run_probe=True):
+    global checking
+    if checking:
+        return False
+    checking = True
+
+    def worker():
+        global checking
+        if run_probe:
+            subprocess.run(
+                [SELF, "--tray-check"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300,
+                check=False,
+            )
+        data = load_state()
+        GLib.idle_add(apply_state, data)
+        checking = False
+
+    threading.Thread(target=worker, daemon=True).start()
+    return False
+
+
+def every_interval():
+    refresh(True)
+    return True
+
+
+def launch(args):
+    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def menu_item(label, callback):
+    item = Gtk.MenuItem(label=label)
+    item.connect("activate", lambda *_: callback())
+    item.show()
+    return item
+
+
+def build_menu():
+    menu = Gtk.Menu()
+    menu.append(menu_item("Executar full-upgrade", lambda: launch([SELF, "--tray-launch"])))
+    menu.append(menu_item("Doctor (auditorias)", lambda: launch([SELF, "--tray-launch", "--mode", "doctor"])))
+    menu.append(menu_item("Verificar agora", lambda: refresh(True)))
+    menu.append(menu_item("Ver último log", lambda: launch([SELF, "--tray-view-log"])))
+    sep = Gtk.SeparatorMenuItem()
+    sep.show()
+    menu.append(sep)
+    menu.append(menu_item("Sair", Gtk.main_quit))
+    menu.show()
+    return menu
+
+
+def handle_usr1(_signum, _frame):
+    GLib.idle_add(refresh, True)
+
+
+def handle_usr2(_signum, _frame):
+    GLib.idle_add(Gtk.main_quit)
+
+
+write_pid()
+atexit.register(cleanup)
+signal.signal(signal.SIGUSR1, handle_usr1)
+signal.signal(signal.SIGUSR2, handle_usr2)
+
+indicator = AppIndicator.Indicator.new(
+    "full-upgrade",
+    "full-upgrade-tray-idle",
+    AppIndicator.IndicatorCategory.SYSTEM_SERVICES,
+)
+indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+indicator.set_menu(build_menu())
+
+refresh(True)
+GLib.timeout_add_seconds(INTERVAL, every_interval)
+Gtk.main()
+PY
+}
 
 # FD do coproc yad é ${FU_YAD[1]}; PID é FU_YAD_PID. Definidos por `coproc`.
 FU_YAD_PID=""
@@ -470,6 +708,10 @@ declare -a FU_YAD=()
 _tray_yad_send() {
   [[ -n "${FU_YAD[1]:-}" ]] || return 0
   printf '%s\n' "$1" 1>&"${FU_YAD[1]}" || true
+}
+
+tray_yad_pid_alive() {
+  [[ -n "${FU_YAD_PID:-}" ]] && kill -0 "$FU_YAD_PID" 2>/dev/null
 }
 
 # Constrói a string de menu do yad: name[!action] separados por '|'.
@@ -511,11 +753,6 @@ _tray_cleanup() {
 
 # Ponto de entrada do daemon (--tray). Bloqueante.
 tray_main() {
-  if ! has yad; then
-    echo "full-upgrade --tray requer 'yad'. Instale com: sudo pacman -S yad" >&2
-    exit 1
-  fi
-
   # Instância única.
   if [[ -r "$TRAY_PID_FILE" ]]; then
     local old
@@ -541,6 +778,17 @@ tray_main() {
 
   local _tray_force=0 _tray_quit=0
 
+  if tray_wayland_session; then
+    if tray_appindicator_available; then
+      tray_appindicator_main "$self" "$interval"
+    fi
+  fi
+
+  if ! has yad; then
+    echo "full-upgrade --tray requer 'yad' ou AppIndicator Python/GI." >&2
+    exit 1
+  fi
+
   # Inicia yad (notification, listen). coproc abre FDs de comunicação.
   local initial_icon initial_menu
   initial_icon=$(tray_resolve_icon "$(tray_icon_name_for_state idle)")
@@ -552,20 +800,25 @@ tray_main() {
       --command="${self} --tray-launch" \
       --menu="$initial_menu" >/dev/null 2>&1; } 2>/dev/null
 
+  if ! tray_yad_pid_alive; then
+    echo "full-upgrade --tray: yad não iniciou o modo notification." >&2
+    exit 1
+  fi
+
   # Primeira verificação + atualização do ícone.
   local cur_state
   cur_state=$(tray_check_now no_notify)
   _tray_yad_apply "$cur_state"
 
   # Loop principal: verifica, espera o intervalo (em incrementos reativos), repete.
-  while kill -0 "${FU_YAD_PID:-0}" 2>/dev/null && (( _tray_quit == 0 )); do
+  while tray_yad_pid_alive && (( _tray_quit == 0 )); do
     _tray_force=0
     cur_state=$(tray_check_now)
     _tray_yad_apply "$cur_state"
 
     local waited=0 prev_running=-1 r
     while (( waited < interval )) && (( _tray_force == 0 )) && (( _tray_quit == 0 )) \
-          && kill -0 "${FU_YAD_PID:-0}" 2>/dev/null; do
+          && tray_yad_pid_alive; do
       sleep 5
       waited=$(( waited + 5 ))
       tray_is_full_upgrade_running && r=1 || r=0
