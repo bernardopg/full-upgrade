@@ -81,7 +81,7 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 ### Systray daemon
 
-`lib/tray.sh` implements the optional systray applet with Bash + `yad --notification --listen` (no Python/Qt, no compiled artifact). It is an early-exit CLI surface: `--tray` starts the daemon, `--tray --enable|--disable|--status|--check` manages/checks it, `--tray-launch` and `--tray-view-log` are internal menu actions. Pure helpers in `tray.sh` are covered by `tests/tray.bats`; GUI/runtime behavior is smoke-tested via `--tray --status` and `--tray --check` when network is acceptable. State priority is `running > error > attention > updates > idle`, persisted in `~/.cache/system-upgrade/tray-state.json`. Icons live in `assets/icons/` in dev, are copied to `${DEST_DIR}/icons`, and are also installed into hicolor by `install.sh`.
+`lib/tray.sh` implements the optional systray applet. On Wayland it uses AppIndicator via Python/GI when available; on X11 it falls back to `yad --notification --listen`. It is an early-exit CLI surface: `--tray` starts the daemon, `--tray --enable|--disable|--status|--check` manages/checks it, `--tray-launch` and `--tray-view-log` are internal menu actions. Pure helpers in `tray.sh` are covered by `tests/tray.bats`; GUI/runtime behavior is smoke-tested via `--tray --status` and `--tray --check` when network is acceptable. State priority is `running > error > attention > updates > idle`, persisted in `~/.cache/system-upgrade/tray-state.json`. Icons live in `assets/icons/` in dev, are copied to `${DEST_DIR}/icons`, and are also installed into hicolor by `install.sh`.
 
 ## Conventions
 

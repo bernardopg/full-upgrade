@@ -149,7 +149,7 @@ full-upgrade --audit                       # auditoria de segurança consolidada
 full-upgrade --report relatorio.md         # grava relatório do último run em Markdown
 full-upgrade --report --json               # ou em JSON estruturado
 full-upgrade --history                     # tendência dos últimos runs (tabela)
-full-upgrade --tray                        # ícone de bandeja (requer yad)
+full-upgrade --tray                        # ícone de bandeja (Wayland/AppIndicator ou X11/yad)
 ```
 
 Comandos úteis no dia a dia:
@@ -174,16 +174,17 @@ Comandos úteis no dia a dia:
 | `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
-| `full-upgrade --tray` | Iniciar o systray daemon (`yad --notification`): ícone multi-estado, menu e notificações. |
+| `full-upgrade --tray` | Iniciar o systray daemon: ícone multi-estado, menu e notificações. Em Wayland usa AppIndicator; em X11 usa `yad --notification`. |
 | `full-upgrade --tray --enable` | Habilitar autostart XDG em `~/.config/autostart/full-upgrade-tray.desktop`. |
 | `full-upgrade --tray --status` | Mostrar o último estado cacheado do systray, sem rede. |
 | `full-upgrade --tray --check` | Recalcular o estado agora (usa `checkupdates`/AUR, faz rede) e sair. |
 
 ## Systray Daemon
 
-O `full-upgrade` inclui um applet opcional de bandeja feito em Bash com
-`yad --notification --listen`, mantendo o projeto sem linguagem nova e sem
-artefatos compilados. Ele mostra o estado da máquina com ícones simples:
+O `full-upgrade` inclui um applet opcional de bandeja. Em sessões Wayland
+(Hyprland/DankMaterialShell, KDE, barras com StatusNotifier) ele usa
+AppIndicator via Python/GI quando disponível; em X11 mantém o backend
+`yad --notification --listen`. Ele mostra o estado da máquina com ícones simples:
 
 | Estado | Prioridade | Significado |
 | --- | --- | --- |
@@ -196,7 +197,7 @@ artefatos compilados. Ele mostra o estado da máquina com ícones simples:
 Uso:
 
 ```bash
-sudo pacman -S yad libnotify pacman-contrib
+sudo pacman -S python-gobject libayatana-appindicator yad libnotify pacman-contrib
 full-upgrade --tray --check     # computa o primeiro estado
 full-upgrade --tray             # inicia o applet
 full-upgrade --tray --enable    # autostart via XDG
@@ -207,6 +208,7 @@ inclui executar o fluxo completo, rodar `--mode doctor`, verificar agora, abrir 
 último log e sair. Se o terminal não for detectado, defina `TRAY_TERMINAL` no
 config; `xdg-terminal-exec` é a opção mais confiável quando disponível.
 
+Hyprland/DankMaterialShell usa StatusNotifier e exibe o backend AppIndicator.
 GNOME Shell não expõe systray/AppIndicator nativamente; use uma extensão como
 “AppIndicator and KStatusNotifierItem Support” para o ícone aparecer.
 
@@ -519,8 +521,8 @@ fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx, uv, uvx, poetry
 rustup, cargo, cargo-install-update, cargo-audit, go, dotnet, gem, ghcup,
 arduino-cli, gcloud, claude, codex, copilot, gemini, qwen, cline, opencode,
 ollama, kimi, hermes, nvim, code, cursor, codium, hyprpm, needrestart,
-checkservices, smartctl, nvme, notify-send, yad, xdg-terminal-exec, vulkaninfo,
-glxinfo
+checkservices, smartctl, nvme, notify-send, yad, python-gobject,
+libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
 ```
 
 ## Arquitetura
@@ -544,7 +546,7 @@ glxinfo
 │   ├── cli.sh               # flags, modos e saídas precoces
 │   ├── report.sh            # relatório Markdown/JSON do run (--report)
 │   ├── history.sh           # histórico/tendência de runs (--history)
-│   ├── tray.sh              # systray daemon: estado, yad, menu e notificações
+│   ├── tray.sh              # systray daemon: estado, AppIndicator/yad, menu e notificações
 │   ├── main.sh              # ordem de execução
 │   └── steps/               # implementação por domínio (ai, mcp, news, ide, audit, doctor…)
 └── steps.d/                 # hooks opcionais de ferramentas customizadas

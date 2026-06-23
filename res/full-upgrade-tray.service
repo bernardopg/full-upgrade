@@ -1,6 +1,5 @@
 [Unit]
 Description=full-upgrade systray applet
-Description[pt_BR]=Ícone de bandeja do full-upgrade
 After=graphical-session.target
 PartOf=graphical-session.target
 

@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.13.1] - 2026-06-23
+
+### Corrigido
+
+- **Systray agora aparece em Hyprland/DankMaterialShell (Wayland).** O backend
+  anterior dependia de `yad --notification`, que aborta fora de X11 com
+  `WARNING: This mode not supported outside X11`; o daemon ficava vivo, mas sem
+  `StatusNotifierItem` para a barra. Em Wayland o tray agora usa AppIndicator via
+  Python/GI (`python-gobject` + `libayatana-appindicator`) e mantém `yad` como
+  fallback X11.
+- **Daemon não considera `yad` com PID vazio como vivo.** Se o backend gráfico não
+  inicializar, `--tray` falha de forma explícita em vez de ficar em background sem
+  ícone. Cobertura adicionada em `tests/tray.bats` para seleção Wayland e PID do
+  backend.
+- **Unit systemd user sem chave inválida.** Remove `Description[pt_BR]`, que o
+  systemd ignorava com warning.
+
 ## [3.13.0] - 2026-06-23
 
 ### Adicionado
