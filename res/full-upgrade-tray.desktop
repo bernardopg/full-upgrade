@@ -7,6 +7,6 @@ Comment[pt_BR]=Ícone de bandeja do full-upgrade (atualizações e saúde do sis
 Exec=full-upgrade --tray
 Icon=full-upgrade
 Terminal=false
-Categories=System;Utility;
+Categories=System;
 X-GNOME-Autostart-enabled=true
 StartupNotify=false

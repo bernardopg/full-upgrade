@@ -4,6 +4,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.13.2] - 2026-06-23
+
+### Corrigido
+
+- **Metadados de empacotamento AUR sincronizados.** O `.SRCINFO` ficou em
+  `3.13.0` após a v3.13.1, sem refletir o `pkgver` nem as novas `optdepends`
+  do systray em Wayland (`python-gobject`, `libayatana-appindicator`) e o texto
+  atualizado do `yad`. Regenerado a partir do `PKGBUILD` (`makepkg
+  --printsrcinfo`); agora bate byte a byte.
+- **Desktop entry do systray sem categoria duplicada.** `Categories` deixa de
+  incluir `Utility;` junto de `System;`, eliminando o aviso de
+  `desktop-file-validate` (a aplicação podia aparecer duas vezes no menu).
+- **Documentação interna (`CLAUDE.md`) atualizada.** A lista de domínios de
+  steps passou a incluir `audit`, `backup`, `ide`, `mcp`, `news` e
+  `self_update`, que já existiam em `lib/steps/` mas não estavam documentados.
+
 ## [3.13.1] - 2026-06-23
 
 ### Corrigido
