@@ -62,7 +62,7 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 ### Adding or changing a step
 
-1. Implement the function in the relevant `lib/steps/<domain>.sh` (ai, cleanup, containers, coverage, doctor, editor_shell, firmware, lang_js, lang_other, lang_py, lang_rust, pacman, repair).
+1. Implement the function in the relevant `lib/steps/<domain>.sh` (ai, audit, backup, cleanup, containers, coverage, doctor, editor_shell, firmware, ide, lang_js, lang_other, lang_py, lang_rust, mcp, news, pacman, repair, self_update).
 2. Add a catalog line in `lib/catalog.sh` with a realistic timeout and any `cmd_deps`.
 3. Call it from the correct point in `lib/main.sh` `run_all_steps()`.
 4. Use `RC_WARN`/`RC_TODO` for non-fatal outcomes; let a missing dependency become `skip`, not `fail`.
