@@ -29,6 +29,9 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
 : "${ARCH_NEWS_CHECK:=1}"           # 1 = checa Arch News (RSS) antes das mutações e alerta sobre itens novos; 0 = desliga
 : "${NOTIFY_ON_FINISH:=0}"          # 1 = envia notificação desktop (notify-send) com o resumo ao fim do run; 0 = desliga
+: "${TRAY_CHECK_INTERVAL_M:=30}"    # intervalo de checagem do systray daemon (minutos; mín. 1)
+: "${TRAY_TERMINAL:=}"              # terminal emulator do systray (vazio = auto-detecta; ex.: kitty, alacritty)
+: "${TRAY_NOTIFICATIONS:=1}"        # 1 = systray emite notificações desktop em transições de estado; 0 = desliga
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
@@ -100,6 +103,9 @@ AUTO_BTRFS_SCRUB
 REPORT_ON_FINISH
 ARCH_NEWS_CHECK
 NOTIFY_ON_FINISH
+TRAY_CHECK_INTERVAL_M
+TRAY_TERMINAL
+TRAY_NOTIFICATIONS
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
 IDE_EXT_CLIS
@@ -221,6 +227,7 @@ load_config() {
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
   export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
@@ -418,6 +425,9 @@ show_config() {
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
   _cfg_kv "ARCH_NEWS_CHECK" "$ARCH_NEWS_CHECK"
   _cfg_kv "NOTIFY_ON_FINISH" "$NOTIFY_ON_FINISH"
+  _cfg_kv "TRAY_CHECK_INTERVAL_M" "$TRAY_CHECK_INTERVAL_M"
+  _cfg_kv "TRAY_TERMINAL" "${TRAY_TERMINAL:-(auto)}"
+  _cfg_kv "TRAY_NOTIFICATIONS" "$TRAY_NOTIFICATIONS"
   _cfg_kv "MCP_AUTO_UPDATE" "$MCP_AUTO_UPDATE"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
   _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"

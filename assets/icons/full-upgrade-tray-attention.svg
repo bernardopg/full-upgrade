@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- full-upgrade tray — ATTENTION (doctor com pendência/todo). Âmbar. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <circle cx="24" cy="24" r="20" fill="#e66100"/>
+  <path d="M24 13l13 23H11z" fill="none" stroke="#ffffff" stroke-width="4"
+        stroke-linejoin="round"/>
+  <path d="M24 21v6" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linecap="round"/>
+  <circle cx="24" cy="32" r="2.6" fill="#ffffff"/>
+</svg>

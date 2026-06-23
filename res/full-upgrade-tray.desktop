@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=full-upgrade Tray
+Name[pt_BR]=Bandeja do full-upgrade
+Comment=Systray applet for full-upgrade
+Comment[pt_BR]=Ícone de bandeja do full-upgrade (atualizações e saúde do sistema)
+Exec=full-upgrade --tray
+Icon=full-upgrade
+Terminal=false
+Categories=System;Utility;
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
