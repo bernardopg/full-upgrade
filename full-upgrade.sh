@@ -25,7 +25,7 @@ fi
 #   1. git describe (rodando a partir de um clone do repo, durante o dev);
 #   2. arquivo VERSION ao lado do entrypoint (gravado por install.sh/build.sh);
 #   3. fallback embutido (último recurso).
-SCRIPT_VERSION="3.12.1"
+SCRIPT_VERSION="3.13.0"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 if [[ -n "$_git_ver" ]]; then
   SCRIPT_VERSION="${_git_ver#v}"
@@ -62,6 +62,8 @@ source "${FU_LIB}/report.sh"
 source "${FU_LIB}/history.sh"
 # shellcheck source=lib/notify.sh
 source "${FU_LIB}/notify.sh"
+# shellcheck source=lib/tray.sh
+source "${FU_LIB}/tray.sh"
 
 # Implementações de steps (ordem não importa — só definições de função).
 for _m in "${FU_LIB}"/steps/*.sh; do

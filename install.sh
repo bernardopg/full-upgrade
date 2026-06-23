@@ -74,6 +74,39 @@ else
   echo "  config : ${CONFIG_DIR}/config (preservado; veja config.example p/ novas chaves)"
 fi
 
+# ── Ícones do systray + desktop entry + unit systemd (opcional, p/ --tray) ──────
+# Ícones também ficam em ${DEST_DIR}/icons (resolução preferencial do tray) e no
+# tema hicolor (p/ launcher e Icon=full-upgrade).
+if [[ -d "${SRC_DIR}/assets/icons" ]]; then
+  mkdir -p "${DEST_DIR}/icons"
+  cp -f "${SRC_DIR}/assets/icons/"*.svg "${DEST_DIR}/icons/" 2>/dev/null || true
+
+  HICOLOR_SCALABLE="${HOME}/.local/share/icons/hicolor/scalable/apps"
+  mkdir -p "$HICOLOR_SCALABLE"
+  cp -f "${SRC_DIR}/assets/icons/"*.svg "$HICOLOR_SCALABLE/" 2>/dev/null || true
+  # Atualiza o cache de ícones se gtk-update-icon-cache existir.
+  command -v gtk-update-icon-cache >/dev/null 2>&1 && \
+    gtk-update-icon-cache -t "${HOME}/.local/share/icons/hicolor" >/dev/null 2>&1 || true
+  echo "  ícones : ${DEST_DIR}/icons + ${HICOLOR_SCALABLE}"
+fi
+
+# Desktop entry no menu de aplicativos (lança o systray applet).
+if [[ -f "${SRC_DIR}/res/full-upgrade-tray.desktop" ]]; then
+  APPS_DIR="${HOME}/.local/share/applications"
+  mkdir -p "$APPS_DIR"
+  cp -f "${SRC_DIR}/res/full-upgrade-tray.desktop" "$APPS_DIR/full-upgrade-tray.desktop" 2>/dev/null || true
+  (command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$APPS_DIR" >/dev/null 2>&1) || true
+  echo "  desktop: ${APPS_DIR}/full-upgrade-tray.desktop"
+fi
+
+# Unit systemd --user (alternativa de autostart via 'systemctl --user enable').
+if [[ -f "${SRC_DIR}/res/full-upgrade-tray.service" ]]; then
+  SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
+  mkdir -p "$SYSTEMD_USER_DIR"
+  cp -f "${SRC_DIR}/res/full-upgrade-tray.service" "${SYSTEMD_USER_DIR}/full-upgrade-tray.service" 2>/dev/null || true
+  echo "  systemd: ${SYSTEMD_USER_DIR}/full-upgrade-tray.service (enable: systemctl --user enable --now full-upgrade-tray.service)"
+fi
+
 echo ""
 if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
   echo "AVISO: ${BIN_DIR} não está no PATH. Adicione ao seu shell rc:"

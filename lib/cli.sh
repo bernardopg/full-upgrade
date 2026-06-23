@@ -56,6 +56,15 @@ Opções:
                    Continuar mesmo após um fail (padrão; torna explícito)
   -q, --quiet      Suprimir output interativo; manter log completo em arquivo
   -u, --update     Baixar e instalar a última versão do full-upgrade e sair
+  --tray [SUB]     Systray daemon (requer 'yad'). Sem SUB, inicia o applet.
+                     SUB: --enable  instalar autostart (XDG)
+                          --disable remover autostart
+                          --status  mostrar estado atual (sem rede)
+                          --check   computar estado agora (faz rede) e sair
+  --tray-launch [ARGS]
+                   Executar full-upgrade num terminal (usado pelo applet).
+                     ARGS são repassados (ex.: --mode doctor)
+  --tray-view-log  Abrir o último log humano (usado pelo applet)
   -V, --version    Mostrar a versão instalada e sair
   -h, --help       Mostra esta ajuda
 
@@ -226,6 +235,28 @@ parse_args() {
             -u|--update)
                 DO_SELF_UPDATE=1
             ;;
+            --tray)
+                case "${2:-}" in
+                    --enable|--disable|--status|--check|enable|disable|status|check)
+                        case "$2" in --*) TRAY_MODE="${2#--}" ;; *) TRAY_MODE="$2" ;; esac
+                        shift
+                    ;;
+                    *) TRAY_MODE=start ;;
+                esac
+            ;;
+            --tray-enable)   TRAY_MODE=enable ;;
+            --tray-disable)  TRAY_MODE=disable ;;
+            --tray-status)   TRAY_MODE=status ;;
+            --tray-check)    TRAY_MODE=check ;;
+            --tray-launch)
+                TRAY_LAUNCH=1
+                shift
+                TRAY_LAUNCH_ARGS=("$@")
+                break
+            ;;
+            --tray-view-log)
+                TRAY_VIEW_LOG=1
+            ;;
             -h|--help)
                 usage
                 exit 0
@@ -254,6 +285,23 @@ apply_mode_and_early_exits() {
         (( _rc == 0 )) && exit 0
         exit 1
     fi
+
+    # Systray daemon e ações relacionadas (todas saem sem rodar o fluxo).
+    if (( TRAY_LAUNCH )); then
+        tray_launch_full_upgrade "${TRAY_LAUNCH_ARGS[@]}"
+        exit 0
+    fi
+    if (( TRAY_VIEW_LOG )); then
+        tray_view_log
+        exit 0
+    fi
+    case "$TRAY_MODE" in
+        start)   tray_main ;;
+        enable)  tray_enable_autostart; exit 0 ;;
+        disable) tray_disable_autostart; exit 0 ;;
+        status)  tray_print_status; exit 0 ;;
+        check)   tray_check_and_print; exit 0 ;;
+    esac
 
     if [[ -n "$EXPLAIN_STEP" ]]; then
         explain_step "$EXPLAIN_STEP"

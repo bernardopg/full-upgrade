@@ -40,6 +40,12 @@ HISTORY_N=10
 DO_AUDIT=0           # --audit: auditoria de segurança consolidada (read-only)
 DO_RESUME=0          # --resume: re-roda só os steps não-ok do último run
 RESUME_STEPS=""      # preenchido por --resume: nomes dos steps retomados
+
+# ── Systray daemon (--tray) ──
+TRAY_MODE=""         # start|enable|disable|status|check (via --tray [--subcmd])
+TRAY_LAUNCH=0        # --tray-launch: roda full-upgrade num terminal (usado pelo applet)
+TRAY_VIEW_LOG=0      # --tray-view-log: abre o último log
+TRAY_LAUNCH_ARGS=()  # args extras repassados pelo --tray-launch (ex.: --mode doctor)
 PKG_SNAP_BEFORE=""   # L3: snapshot pacman -Q antes do upgrade
 PKG_SNAP_AFTER=""    # L3: snapshot pacman -Q no fim do run
 SUDO_KEEPALIVE_PID=""

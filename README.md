@@ -60,7 +60,7 @@ full-upgrade
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
-| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON e notificação desktop ao fim. |
+| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. |
 
 ## Instalação
 
@@ -149,6 +149,7 @@ full-upgrade --audit                       # auditoria de segurança consolidada
 full-upgrade --report relatorio.md         # grava relatório do último run em Markdown
 full-upgrade --report --json               # ou em JSON estruturado
 full-upgrade --history                     # tendência dos últimos runs (tabela)
+full-upgrade --tray                        # ícone de bandeja (requer yad)
 ```
 
 Comandos úteis no dia a dia:
@@ -173,6 +174,41 @@ Comandos úteis no dia a dia:
 | `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
+| `full-upgrade --tray` | Iniciar o systray daemon (`yad --notification`): ícone multi-estado, menu e notificações. |
+| `full-upgrade --tray --enable` | Habilitar autostart XDG em `~/.config/autostart/full-upgrade-tray.desktop`. |
+| `full-upgrade --tray --status` | Mostrar o último estado cacheado do systray, sem rede. |
+| `full-upgrade --tray --check` | Recalcular o estado agora (usa `checkupdates`/AUR, faz rede) e sair. |
+
+## Systray Daemon
+
+O `full-upgrade` inclui um applet opcional de bandeja feito em Bash com
+`yad --notification --listen`, mantendo o projeto sem linguagem nova e sem
+artefatos compilados. Ele mostra o estado da máquina com ícones simples:
+
+| Estado | Prioridade | Significado |
+| --- | --- | --- |
+| `running` | 1 | Há um `full-upgrade` rodando (lock ativo). |
+| `error` | 2 | O último run registrou `fail`. |
+| `attention` | 3 | O último run deixou `todo`/Doctor pendente, como reboot ou ação manual. |
+| `updates` | 4 | Há updates de repositório/AUR disponíveis. |
+| `idle` | 5 | Sem updates nem pendências conhecidas. |
+
+Uso:
+
+```bash
+sudo pacman -S yad libnotify pacman-contrib
+full-upgrade --tray --check     # computa o primeiro estado
+full-upgrade --tray             # inicia o applet
+full-upgrade --tray --enable    # autostart via XDG
+```
+
+O clique esquerdo roda `full-upgrade` em um terminal. O menu do clique direito
+inclui executar o fluxo completo, rodar `--mode doctor`, verificar agora, abrir o
+último log e sair. Se o terminal não for detectado, defina `TRAY_TERMINAL` no
+config; `xdg-terminal-exec` é a opção mais confiável quando disponível.
+
+GNOME Shell não expõe systray/AppIndicator nativamente; use uma extensão como
+“AppIndicator and KStatusNotifierItem Support” para o ícone aparecer.
 
 ## Modos e Filtros
 
@@ -400,6 +436,9 @@ Principais chaves:
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
 | `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
 | `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
+| `TRAY_CHECK_INTERVAL_M` | `30` | Intervalo, em minutos, entre checagens do systray daemon. O daemon impõe mínimo efetivo de 1 minuto. |
+| `TRAY_TERMINAL` | auto | Terminal usado pelo applet para abrir `full-upgrade`; vazio = auto-detecta (`xdg-terminal-exec`, kitty, alacritty, etc.). |
+| `TRAY_NOTIFICATIONS` | `1` | `1` = o systray notifica transições úteis (`updates`, `attention`, `error`, retorno a `idle`); `0` = só muda o ícone. |
 | `OLLAMA_SELF_UPDATE` | `0` | `1` = reexecuta o instalador oficial do Ollama (`curl \| sh`) no step; `0` = só reporta a versão. |
 | `MCP_AUTO_UPDATE` | `0` | `1` = refresca o cache uv dos servidores MCP uvx (rebuild da última no próximo launch); `0` = só doctor read-only. |
 | `IDE_EXT_CLIS` | auto | Lista (espaço) de CLIs VSCode-family para atualizar extensões; vazio = autodetect (`code cursor codium …`). |
@@ -480,13 +519,16 @@ fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx, uv, uvx, poetry
 rustup, cargo, cargo-install-update, cargo-audit, go, dotnet, gem, ghcup,
 arduino-cli, gcloud, claude, codex, copilot, gemini, qwen, cline, opencode,
 ollama, kimi, hermes, nvim, code, cursor, codium, hyprpm, needrestart,
-checkservices, smartctl, nvme, notify-send, vulkaninfo, glxinfo
+checkservices, smartctl, nvme, notify-send, yad, xdg-terminal-exec, vulkaninfo,
+glxinfo
 ```
 
 ## Arquitetura
 
 ```text
 .
+├── assets/icons/             # ícones SVG do app e dos estados do systray
+├── res/                      # desktop entry e unit systemd user do systray
 ├── full-upgrade.sh          # entrypoint: resolve paths, carrega libs e inicia o fluxo
 ├── install.sh               # instalação em ~/.local/share + symlink no PATH
 ├── build.sh                 # gera dist/full-upgrade-standalone.sh
@@ -502,6 +544,7 @@ checkservices, smartctl, nvme, notify-send, vulkaninfo, glxinfo
 │   ├── cli.sh               # flags, modos e saídas precoces
 │   ├── report.sh            # relatório Markdown/JSON do run (--report)
 │   ├── history.sh           # histórico/tendência de runs (--history)
+│   ├── tray.sh              # systray daemon: estado, yad, menu e notificações
 │   ├── main.sh              # ordem de execução
 │   └── steps/               # implementação por domínio (ai, mcp, news, ide, audit, doctor…)
 └── steps.d/                 # hooks opcionais de ferramentas customizadas

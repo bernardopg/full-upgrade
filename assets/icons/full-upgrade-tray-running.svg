@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- full-upgrade tray — RUNNING (full-upgrade em execução). Cinza com setas de reload. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <circle cx="24" cy="24" r="20" fill="#888a8d"/>
+  <path d="M16 21a9 9 0 0 1 16-3" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linecap="round"/>
+  <path d="M32 15v6h-6" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M32 27a9 9 0 0 1-16 3" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linecap="round"/>
+  <path d="M16 33v-6h6" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

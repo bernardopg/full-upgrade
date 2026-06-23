@@ -4,6 +4,34 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-06-23
+
+### Adicionado
+
+- **Systray daemon opcional (`--tray`) inspirado no arch-update, mantendo Bash puro.**
+  Novo `lib/tray.sh` implementa applet de bandeja com `yad --notification --listen`,
+  sem Python/Qt e sem artefato compilado. O estado é persistido em
+  `~/.cache/system-upgrade/tray-state.json` e segue a prioridade
+  `running > error > attention > updates > idle`: detecta run em andamento pelo
+  lock do full-upgrade, falhas/todos pelo último `latest.jsonl`, e updates por
+  `checkupdates` + helper AUR. O clique esquerdo abre `full-upgrade` em terminal;
+  o menu inclui fluxo completo, Doctor, verificar agora, último log e sair.
+  Novas flags: `--tray`, `--tray --enable|--disable|--status|--check`,
+  `--tray-launch` e `--tray-view-log`.
+
+- **Ícones e integração desktop do systray.** SVGs em `assets/icons/` cobrem o
+  ícone base e os estados `idle`, `updates`, `attention`, `running` e `error`.
+  `install.sh` agora instala os ícones no diretório da aplicação e no tema
+  hicolor, além de instalar o desktop entry em `~/.local/share/applications` e a
+  unit systemd user em `~/.config/systemd/user`. O pacote AUR passa a instalar os
+  mesmos ícones, desktop entry e unit systemd em paths de sistema.
+
+- **Configurações do systray.** `TRAY_CHECK_INTERVAL_M` controla o intervalo de
+  checagem, `TRAY_TERMINAL` permite fixar o terminal usado pelo applet, e
+  `TRAY_NOTIFICATIONS` liga/desliga notificações de transição (`updates`,
+  `attention`, `error`, retorno a `idle`). Helpers puros do tray têm cobertura
+  em `tests/tray.bats` (+20 testes).
+
 ## [3.12.1] - 2026-06-21
 
 ### Corrigido

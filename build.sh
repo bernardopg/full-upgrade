@@ -10,7 +10,7 @@ mkdir -p "${ROOT}/dist"
 # Ordem de dependência (igual ao entrypoint).
 ORDER=(
   lib/globals.sh lib/ui.sh lib/core.sh lib/json.sh lib/sudo.sh
-  lib/config.sh lib/catalog.sh lib/cli.sh lib/report.sh lib/history.sh lib/notify.sh
+  lib/config.sh lib/catalog.sh lib/cli.sh lib/report.sh lib/history.sh lib/notify.sh lib/tray.sh
   lib/steps/pacman.sh lib/steps/repair.sh lib/steps/containers.sh
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh lib/steps/ide.sh
@@ -57,7 +57,7 @@ unset _missing _f
   if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
     _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"
   fi
-  [[ -z "$_build_ver" ]] && _build_ver="3.12.1"
+  [[ -z "$_build_ver" ]] && _build_ver="3.13.0"
   printf 'SCRIPT_VERSION="%s"\n' "${_build_ver#v}"
   printf 'SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null || printf %%s "${BASH_SOURCE[0]}")"\n'
   printf 'SCRIPT_SHA256="$(sha256sum "$SCRIPT_PATH" 2>/dev/null | awk '"'"'{print $1}'"'"' || printf unknown)"\n'

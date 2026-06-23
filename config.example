@@ -71,3 +71,12 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # Usados por 'full-upgrade --update' e pelo aviso passivo de nova versão.
 FULL_UPGRADE_REPO="bernardopg/full-upgrade"
 FULL_UPGRADE_UPDATE_CHANNEL="release"
+
+# ── Systray daemon (ícone de bandeja) / Systray daemon ──────────────────────────
+# Requer 'yad' (pacman -S yad). Inicie com 'full-upgrade --tray'.
+# TRAY_CHECK_INTERVAL_M  intervalo de checagem em minutos (mín. 1; default 30)
+# TRAY_TERMINAL          terminal emulator (vazio = auto-detecta; ex.: kitty)
+# TRAY_NOTIFICATIONS     1 = notifica no desktop em transições de estado | 0 = off
+TRAY_CHECK_INTERVAL_M=30
+TRAY_TERMINAL=""
+TRAY_NOTIFICATIONS=1

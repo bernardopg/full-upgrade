@@ -23,6 +23,7 @@ bats tests/core.bats          # single file
 ./full-upgrade.sh --explain-step "Doctor: saúde de rede"
 ./full-upgrade.sh --config
 ./full-upgrade.sh --config-example
+./full-upgrade.sh --tray --status
 XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 
 # Build single-file distributable -> dist/full-upgrade-standalone.sh
@@ -32,13 +33,13 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 ./install.sh
 ```
 
-Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, snapshot retention, summary category totals/top slow steps, shared version compare, final pending reasons, build-warning filtering, and reboot footer formatting) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
+Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, snapshot retention, summary category totals/top slow steps, shared version compare, final pending reasons, build-warning filtering, tray state helpers, and reboot footer formatting) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`; tray tests additionally source `lib/tray.sh`). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
 
 ## Architecture
 
 Entrypoint `full-upgrade.sh` is thin: resolves the project root (follows symlinks so the `~/.local/bin` symlink works), sources `lib/*.sh` **in dependency order**, then runs `load_config → parse_args → apply_mode_and_early_exits → setup_logging → print_banner → run_all_steps → finalize`.
 
-Load order matters (set in the entrypoint): `globals → ui → core → json → sudo → config → catalog → cli → steps/*.sh → main`. `lib/steps/*.sh` are sourced in glob order but only define functions, so order among them is irrelevant. `lib/main.sh` is sourced last because it uses everything.
+Load order matters (set in the entrypoint): `globals → ui → core → json → sudo → config → catalog → cli → report → history → notify → tray → steps/*.sh → main`. `lib/steps/*.sh` are sourced in glob order but only define functions, so order among them is irrelevant. `lib/main.sh` is sourced last because it uses everything.
 
 ### The step framework (the central pattern)
 
@@ -78,10 +79,14 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 `lib/json.sh` `setup_logging` defines `RUN_ID` and writes paired artifacts to `~/.cache/system-upgrade/`: `full-upgrade-<run_id>.log` (human) and `.jsonl` (one event per step + `run_start`/`run_end`/`summary`), with `latest.log`/`latest.jsonl` symlinks and rotation keeping the newest 20 of each. Use `log` (respects `--quiet`, tees to log) vs `log_always` (always to terminal). `--json` prints a one-line summary at the end.
 
+### Systray daemon
+
+`lib/tray.sh` implements the optional systray applet with Bash + `yad --notification --listen` (no Python/Qt, no compiled artifact). It is an early-exit CLI surface: `--tray` starts the daemon, `--tray --enable|--disable|--status|--check` manages/checks it, `--tray-launch` and `--tray-view-log` are internal menu actions. Pure helpers in `tray.sh` are covered by `tests/tray.bats`; GUI/runtime behavior is smoke-tested via `--tray --status` and `--tray --check` when network is acceptable. State priority is `running > error > attention > updates > idle`, persisted in `~/.cache/system-upgrade/tray-state.json`. Icons live in `assets/icons/` in dev, are copied to `${DEST_DIR}/icons`, and are also installed into hicolor by `install.sh`.
+
 ## Conventions
 
 - All step functions return via the RC contract; never `exit` from inside a step.
 - Guard external tools with `has <cmd>` before calling; prefer letting `run_step`'s catalog-dep check produce the `skip`.
 - `set -uo pipefail` is active (no `-e`) — check return codes explicitly.
 - Comments and user-facing strings are PT-BR; keep that voice when editing.
-- `build.sh` inlines all libs into one file — anything relying on separate file paths at runtime (beyond root resolution) will break the standalone build, so test `./build.sh && ./dist/full-upgrade-standalone.sh --list-steps` after structural changes.
+- `build.sh` inlines all libs into one file — anything relying on separate file paths at runtime (beyond root resolution) will break the standalone build, so test `./build.sh && ./dist/full-upgrade-standalone.sh --list-steps` after structural changes. The systray can run from standalone, but icons are external assets; it falls back to hicolor/theme lookup if no `icons/` directory is beside the script.
