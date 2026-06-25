@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Alterado
+
+- **Burp Suite e Wireshark agora são steps independentes.** O antigo step único
+  `Garantir Burp Suite e Wireshark` (`ensure_security_tools`) foi dividido em
+  `Garantir Wireshark` (`ensure_wireshark`, só `wireshark-qt`) e `Garantir Burp
+  Suite` (`ensure_burpsuite`, com fallback PortSwigger). Cada ferramenta tem
+  agora status, timeout, tags e log próprios; um fica `warn`/`fail` sem mascarar
+  o outro. Ambos seguem atrás de `ENABLE_CUSTOM_TOOLS=1`.
+
 ## [3.14.1] - 2026-06-25
 
 ### Corrigido

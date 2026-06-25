@@ -238,34 +238,33 @@ _install_arch_package_via_helper() {
   run_logged sudo pacman -S --needed --noconfirm "$pkg"
 }
 
-ensure_security_tools() {
-  local -a failed=()
-
-  # wireshark-qt: pacote oficial extra — verifica e atualiza se necessário
+# Garante/atualiza apenas o Wireshark (pacote oficial wireshark-qt). Step próprio,
+# separado do Burp para que cada ferramenta tenha seu status, timeout e log isolados.
+ensure_wireshark() {
   if ! upgrade_arch_package wireshark-qt; then
-    failed+=(wireshark-qt)
+    log "  Falha ao garantir wireshark-qt."
+    return 1
   fi
+  return 0
+}
 
-  # burpsuite: AUR travado em FULL_UPGRADE_AUR_IGNORE; update via fallback PortSwigger apenas
-  # quando não estava instalado antes (instalação nova). Runs com burpsuite já presente não
-  # precisam hit de rede no PortSwigger — _install_arch_package_via_helper já chama o fallback
-  # se paru falhar.
+# Garante/atualiza apenas o Burp Suite. Step próprio, separado do Wireshark.
+# burpsuite: AUR travado em FULL_UPGRADE_AUR_IGNORE; update via fallback PortSwigger apenas
+# quando não estava instalado antes (instalação nova). Runs com burpsuite já presente não
+# precisam hit de rede no PortSwigger — _install_arch_package_via_helper já chama o fallback
+# se paru falhar.
+ensure_burpsuite() {
   local _burp_pre_ver
   _burp_pre_ver="$(pacman -Q burpsuite 2>/dev/null | awk '{print $2}' || true)"
   if ! install_arch_package burpsuite; then
-    failed+=(burpsuite)
+    log "  Falha ao garantir burpsuite."
+    return 1
   elif [[ -z "$_burp_pre_ver" ]]; then
     # instalação nova — sincronizar fallback para garantir .desktop e ícones
     if ! install_burpsuite_desktop_fallback; then
       log "  Não foi possivel verificar/atualizar Burp pelo fallback oficial agora."
     fi
   fi
-
-  if (( ${#failed[@]} > 0 )); then
-    log "  Falha ao garantir pacote(s): ${failed[*]}"
-    return 1
-  fi
-
   return 0
 }
 

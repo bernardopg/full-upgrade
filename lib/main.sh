@@ -60,14 +60,16 @@ run_all_steps() {
             run_step "Atualizar pacotes do sistema e AUR" update_system_aur
             
             if (( NO_REPAIR )); then
-                step_skip "Garantir Burp Suite e Wireshark"             "--no-repair"
+                step_skip "Garantir Wireshark"                         "--no-repair"
+                step_skip "Garantir Burp Suite"                        "--no-repair"
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
                 step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
             else
-                # Burp/Wireshark ficam atrás de ENABLE_CUSTOM_TOOLS: ensure_security_tools
+                # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: ensure_burpsuite
                 # INSTALA o pacote burpsuite se ausente, então não deve rodar por padrão
                 # (instalaria Burp na máquina de quem nunca pediu). Opt-in explícito.
-                custom_step_or_skip "Garantir Burp Suite e Wireshark"   ensure_security_tools
+                custom_step_or_skip "Garantir Wireshark"                ensure_wireshark
+                custom_step_or_skip "Garantir Burp Suite"               ensure_burpsuite
                 custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
                 custom_step_or_skip "Reparar atalhos antigos do Burp"   repair_broken_burpsuite_desktop_entries
             fi
@@ -77,7 +79,8 @@ run_all_steps() {
             "Reparar ambiente GnuPG/AUR" \
             "Backup de configs críticas" \
             "Atualizar pacotes do sistema e AUR" \
-            "Garantir Burp Suite e Wireshark" \
+            "Garantir Wireshark" \
+            "Garantir Burp Suite" \
             "Reparar comandos locais conflitantes" \
             "Reparar permissoes de captura do Wireshark" \
             "Reparar atalhos antigos do Burp"; do
@@ -88,7 +91,8 @@ run_all_steps() {
         for _s in \
         "Backup de configs críticas" \
         "Atualizar pacotes do sistema e AUR" \
-        "Garantir Burp Suite e Wireshark" \
+        "Garantir Wireshark" \
+        "Garantir Burp Suite" \
         "Reparar comandos locais conflitantes" \
         "Reparar permissoes de captura do Wireshark" \
         "Reparar atalhos antigos do Burp"; do
