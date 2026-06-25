@@ -21,7 +21,8 @@ setup() {
 }
 
 @test "_manual_apps_has_step: app sem step retorna não-zero" {
-  run _manual_apps_has_step gk
+  # 'idea' (JetBrains em /opt) é um app manual sem step de atualização dedicado.
+  run _manual_apps_has_step idea
   [ "$status" -ne 0 ]
 }
 
