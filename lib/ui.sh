@@ -42,6 +42,18 @@ ui_width() {
   printf '%d' "$w"
 }
 
+# Preenche $1 com espaços à direita até a largura $2, medindo por LARGURA DE
+# EXIBIÇÃO (número de caracteres, não bytes). Em locale UTF-8 `${#s}` conta
+# caracteres, então nomes com acento PT-BR (ã, ç, é…) alinham corretamente —
+# `printf '%-*s'` preenche por bytes e desalinha qualquer nome acentuado.
+# Texto já maior que a largura é devolvido sem corte.
+ui_pad() {
+  local s="$1" w="$2" len="${#1}" i pad=""
+  (( len >= w )) && { printf '%s' "$s"; return; }
+  for (( i = len; i < w; i++ )); do pad+=" "; done
+  printf '%s%s' "$s" "$pad"
+}
+
 # Linha horizontal de largura adaptativa. $1 = char (default HR_HEAVY).
 ui_hr() {
   local ch="${1:-$HR_HEAVY}" w; w="$(ui_width)"
@@ -286,6 +298,17 @@ print_summary() {
   log_always "${C_BOLD}$(ui_hr "$HR_HEAVY")${C_RESET}"
   log_always "${C_BOLD}Resumo${C_RESET}"
 
+  # Largura da coluna de nome p/ alinhar as durações: maior nome não-pulado,
+  # limitado a [24, 50] para não empurrar demais em terminais estreitos.
+  local namew=0 _nlen
+  for i in "${!STEP_NAMES[@]}"; do
+    [[ "${STEP_RESULTS[$i]}" == "skip" ]] && continue
+    _nlen=${#STEP_NAMES[$i]}
+    (( _nlen > namew )) && namew=$_nlen
+  done
+  (( namew > 50 )) && namew=50
+  (( namew < 24 )) && namew=24
+
   # Ordem/grupos de categorias para exibição.
   local group_label group_cats
   while IFS='|' read -r group_label group_cats; do
@@ -305,7 +328,7 @@ print_summary() {
       dur="$(elapsed "${STEP_TIMES[$i]}")"
       time_color="$C_DIM"
       (( "${STEP_TIMES[$i]}" >= 30 )) && time_color="${C_YELLOW}"
-      log_always "    ${color}${sym}${C_RESET}  ${STEP_NAMES[$i]} ${time_color}(${dur})${C_RESET}"
+      log_always "    ${color}${sym}${C_RESET}  $(ui_pad "${STEP_NAMES[$i]}" "$namew")  ${time_color}(${dur})${C_RESET}"
     done
   done < <(summary_group_specs)
 
@@ -317,7 +340,7 @@ print_summary() {
     local symcolor sym color dur
     symcolor="$(_status_sym "${STEP_RESULTS[$i]}")"; sym="${symcolor%%|*}"; color="${symcolor##*|}"
     dur="$(elapsed "${STEP_TIMES[$i]}")"
-    log_always "    ${color}${sym}${C_RESET}  ${STEP_NAMES[$i]} ${C_DIM}(${dur})${C_RESET}"
+    log_always "    ${color}${sym}${C_RESET}  $(ui_pad "${STEP_NAMES[$i]}" "$namew")  ${C_DIM}(${dur})${C_RESET}"
   done
 
   # Skips agrupados ao final.

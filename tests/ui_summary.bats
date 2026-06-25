@@ -47,3 +47,22 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "Outros" ]
 }
+
+@test "ui_pad: preenche com espaços até a largura alvo" {
+  run ui_pad "abc" 6
+  [ "$status" -eq 0 ]
+  [ "$output" = "abc   " ]
+}
+
+@test "ui_pad: texto maior que a largura não é cortado nem alterado" {
+  run ui_pad "abcdefgh" 4
+  [ "$status" -eq 0 ]
+  [ "$output" = "abcdefgh" ]
+}
+
+@test "ui_pad: conta caracteres (não bytes) — acento PT-BR alinha" {
+  # 'café' tem 4 caracteres mas 5 bytes em UTF-8; o pad deve usar 4.
+  run ui_pad "café" 6
+  [ "$status" -eq 0 ]
+  [ "$output" = "café  " ]
+}
