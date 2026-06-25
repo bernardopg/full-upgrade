@@ -153,3 +153,61 @@ EOF
   run tray_yad_pid_alive
   [ "$status" -eq 0 ]
 }
+
+# ── badge_text (rótulo do painel) ───────────────────────────────────────────────
+@test "badge_text: updates mostra total" {
+  run tray_badge_text updates 12 0 0
+  [ "$output" = "12" ]
+}
+
+@test "badge_text: attention com todo mostra contagem" {
+  run tray_badge_text attention 0 3 0
+  [ "$output" = "3" ]
+}
+
+@test "badge_text: attention só reboot mostra '!'" {
+  run tray_badge_text attention 0 0 0
+  [ "$output" = "!" ]
+}
+
+@test "badge_text: error mostra falhas" {
+  run tray_badge_text error 0 0 2
+  [ "$output" = "2" ]
+}
+
+@test "badge_text: idle e running ficam vazios" {
+  run tray_badge_text idle 0 0 0
+  [ -z "$output" ]
+  run tray_badge_text running 5 0 0
+  [ -z "$output" ]
+}
+
+# ── relative_time ───────────────────────────────────────────────────────────────
+@test "relative_time: < 1 min => agora" {
+  now=$(date -d "2026-06-25T10:00:30" +%s)
+  run tray_relative_time "2026-06-25T10:00:00" "$now"
+  [ "$output" = "agora" ]
+}
+
+@test "relative_time: minutos" {
+  now=$(date -d "2026-06-25T10:05:00" +%s)
+  run tray_relative_time "2026-06-25T10:00:00" "$now"
+  [ "$output" = "há 5 min" ]
+}
+
+@test "relative_time: horas" {
+  now=$(date -d "2026-06-25T12:00:00" +%s)
+  run tray_relative_time "2026-06-25T10:00:00" "$now"
+  [ "$output" = "há 2 h" ]
+}
+
+@test "relative_time: dias" {
+  now=$(date -d "2026-06-27T10:00:00" +%s)
+  run tray_relative_time "2026-06-25T10:00:00" "$now"
+  [ "$output" = "há 2 d" ]
+}
+
+@test "relative_time: timestamp inválido => vazio" {
+  run tray_relative_time "not-a-date" 1000
+  [ -z "$output" ]
+}

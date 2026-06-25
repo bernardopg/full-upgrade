@@ -135,6 +135,43 @@ tray_tooltip_for_state() {
   printf 'full-upgrade: %s' "$joined"
 }
 
+# Texto curto do "badge" (rótulo ao lado do ícone no painel, via AppIndicator
+# set_label). Puro. Mostra o número de itens acionáveis por estado:
+#   updates -> total de atualizações | attention -> nº de todos (ou "!" se só reboot)
+#   error -> nº de falhas | running/idle -> vazio (sem badge).
+# Uso: tray_badge_text <state> <updates> <todo> <fail>
+tray_badge_text() {
+  local state="$1" updates="$2" todo="$3" fail="$4"
+  [[ "$updates" =~ ^[0-9]+$ ]] || updates=0
+  [[ "$todo" =~ ^[0-9]+$ ]] || todo=0
+  [[ "$fail" =~ ^[0-9]+$ ]] || fail=0
+  case "$state" in
+    updates)   (( updates > 0 )) && printf '%s' "$updates" ;;
+    attention) if (( todo > 0 )); then printf '%s' "$todo"; else printf '!'; fi ;;
+    error)     (( fail > 0 )) && printf '%s' "$fail" ;;
+    *)         printf '' ;;
+  esac
+}
+
+# Tempo relativo curto (PT-BR) a partir de um timestamp ISO-8601. Determinístico
+# quando o "agora" (epoch) é passado em $2; senão usa a hora atual. rc 0 sempre;
+# string vazia se o timestamp não puder ser parseado.
+# Uso: tray_relative_time <iso8601> [now_epoch]  ->  "agora" | "há N min" | "há N h" | "há N d"
+tray_relative_time() {
+  local iso="$1" now="${2:-}" ts delta
+  [[ -n "${iso//[[:space:]]/}" ]] || { printf ''; return 0; }
+  ts=$(date -d "$iso" +%s 2>/dev/null) || { printf ''; return 0; }
+  [[ "$ts" =~ ^[0-9]+$ ]] || { printf ''; return 0; }
+  [[ "$now" =~ ^[0-9]+$ ]] || now=$(date +%s)
+  delta=$(( now - ts ))
+  (( delta < 0 )) && delta=0
+  if   (( delta < 60 ));    then printf 'agora'
+  elif (( delta < 3600 ));  then printf 'há %d min' "$(( delta / 60 ))"
+  elif (( delta < 86400 )); then printf 'há %d h' "$(( delta / 3600 ))"
+  else                           printf 'há %d d' "$(( delta / 86400 ))"
+  fi
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Camada 2 — I/O leve (sem yad)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -422,6 +459,8 @@ tray_print_status() {
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   reboot=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || echo "")
   checked=$(tray_read_state_field "$TRAY_STATE_FILE" checked_at 2>/dev/null || echo "?")
+  local rel; rel=$(tray_relative_time "$checked")
+  [[ -n "$rel" ]] && checked="${checked} (${rel})"
   cat <<EOF
 Estado      : ${state}
 Updates     : ${repo} repo + ${aur} AUR
@@ -497,8 +536,11 @@ tray_appindicator_main() {
   FU_TRAY_STATE_FILE="$TRAY_STATE_FILE" \
   FU_TRAY_PID_FILE="$TRAY_PID_FILE" \
   FU_TRAY_ROOT="${FU_ROOT:-}" \
+  FU_TRAY_LOG_DIR="${LOG_DIR:-}" \
+  FU_TRAY_BADGE="${TRAY_BADGE:-1}" \
     exec "$py" - <<'PY'
 import atexit
+import datetime
 import json
 import os
 import signal
@@ -522,7 +564,18 @@ SELF = os.environ.get("FU_TRAY_SELF", "full-upgrade")
 STATE_FILE = os.environ.get("FU_TRAY_STATE_FILE", "")
 PID_FILE = os.environ.get("FU_TRAY_PID_FILE", "")
 FU_ROOT = os.environ.get("FU_TRAY_ROOT", "")
+LOG_DIR = os.environ.get("FU_TRAY_LOG_DIR", "")
+BADGE_ENABLED = os.environ.get("FU_TRAY_BADGE", "1") != "0"
 INTERVAL = max(int(os.environ.get("FU_TRAY_INTERVAL", "1800") or "1800"), 60)
+
+# Glifo + rótulo curto por estado, usado no cabeçalho do menu.
+STATE_GLYPH = {
+    "running": "⟳",    # ⟳
+    "error": "✕",      # ✕
+    "attention": "⚠",  # ⚠
+    "updates": "↑",    # ↑
+    "idle": "●",       # ●
+}
 
 
 def write_pid():
@@ -580,13 +633,19 @@ def load_state():
         return {"state": "idle", "repo": 0, "aur": 0, "todo": 0, "fail": 0, "reboot": ""}
 
 
+def _ints(data):
+    return (
+        str(data.get("state") or "idle"),
+        int(data.get("repo") or 0),
+        int(data.get("aur") or 0),
+        int(data.get("todo") or 0),
+        int(data.get("fail") or 0),
+        str(data.get("reboot") or "").strip(),
+    )
+
+
 def tooltip_for_state(data):
-    state = str(data.get("state") or "idle")
-    repo = int(data.get("repo") or 0)
-    aur = int(data.get("aur") or 0)
-    todo = int(data.get("todo") or 0)
-    fail = int(data.get("fail") or 0)
-    reboot = str(data.get("reboot") or "").strip()
+    state, repo, aur, todo, fail, reboot = _ints(data)
     updates = repo + aur
     if state == "running":
         return "full-upgrade: executando..."
@@ -602,10 +661,71 @@ def tooltip_for_state(data):
     return "full-upgrade: " + ("; ".join(parts) if parts else "sistema atualizado")
 
 
+def badge_text(data):
+    """Rótulo curto ao lado do ícone no painel (set_label)."""
+    if not BADGE_ENABLED:
+        return ""
+    state, repo, aur, todo, fail, _reboot = _ints(data)
+    updates = repo + aur
+    if state == "updates" and updates > 0:
+        return str(updates)
+    if state == "attention":
+        return str(todo) if todo > 0 else "!"
+    if state == "error" and fail > 0:
+        return str(fail)
+    return ""
+
+
+def relative_time(iso):
+    if not iso:
+        return ""
+    try:
+        then = datetime.datetime.fromisoformat(iso)
+    except Exception:
+        return ""
+    now = datetime.datetime.now(then.tzinfo) if then.tzinfo else datetime.datetime.now()
+    delta = int((now - then).total_seconds())
+    if delta < 0:
+        delta = 0
+    if delta < 60:
+        return "agora"
+    if delta < 3600:
+        return f"há {delta // 60} min"
+    if delta < 86400:
+        return f"há {delta // 3600} h"
+    return f"há {delta // 86400} d"
+
+
+def state_headline(data):
+    state, repo, aur, todo, fail, reboot = _ints(data)
+    updates = repo + aur
+    glyph = STATE_GLYPH.get(state, STATE_GLYPH["idle"])
+    if state == "running":
+        return f"{glyph}  Executando full-upgrade…"
+    if state == "error":
+        return f"{glyph}  Último run falhou ({fail})"
+    if state == "updates":
+        return f"{glyph}  {updates} atualização(ões) disponível(is)"
+    if state == "attention":
+        if todo > 0:
+            return f"{glyph}  Atenção: {todo} item(ns) do Doctor"
+        return f"{glyph}  Atenção necessária"
+    return f"{glyph}  Sistema atualizado"
+
+
+# ── Indicador + menu ────────────────────────────────────────────────────────────
+checking = False
+running_now = False
+
+
 def apply_state(data):
-    state = str(data.get("state") or "idle")
+    global running_now
+    state, repo, aur, todo, fail, reboot = _ints(data)
+    running_now = state == "running"
     icon = resolve_icon_name(icon_name_for_state(state))
     tooltip = tooltip_for_state(data)
+
+    # Ícone (com fallback) + título (lido pelos hosts SNI como tooltip).
     try:
         indicator.set_icon_full(icon, tooltip)
     except Exception:
@@ -614,10 +734,25 @@ def apply_state(data):
         indicator.set_title(tooltip)
     except Exception:
         pass
+
+    # Badge: número de itens acionáveis ao lado do ícone no painel.
+    try:
+        indicator.set_label(badge_text(data), "00")
+    except Exception:
+        pass
+
+    # Estados que pedem destaque viram ATTENTION (hosts realçam/piscam).
+    try:
+        if state in ("error", "attention"):
+            indicator.set_attention_icon_full(icon, tooltip)
+            indicator.set_status(AppIndicator.IndicatorStatus.ATTENTION)
+        else:
+            indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+    except Exception:
+        pass
+
+    rebuild_menu(data)
     return False
-
-
-checking = False
 
 
 def refresh(run_probe=True):
@@ -653,25 +788,80 @@ def launch(args):
     subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-def menu_item(label, callback):
+def open_path(path):
+    if path:
+        launch(["xdg-open", path])
+
+
+def info_item(label):
+    """Item de menu informativo (não-clicável)."""
     item = Gtk.MenuItem(label=label)
-    item.connect("activate", lambda *_: callback())
+    item.set_sensitive(False)
     item.show()
     return item
 
 
-def build_menu():
-    menu = Gtk.Menu()
-    menu.append(menu_item("Executar full-upgrade", lambda: launch([SELF, "--tray-launch"])))
-    menu.append(menu_item("Doctor (auditorias)", lambda: launch([SELF, "--tray-launch", "--mode", "doctor"])))
-    menu.append(menu_item("Verificar agora", lambda: refresh(True)))
-    menu.append(menu_item("Ver último log", lambda: launch([SELF, "--tray-view-log"])))
+def menu_item(label, callback, enabled=True):
+    item = Gtk.MenuItem(label=label)
+    item.set_sensitive(enabled)
+    if enabled:
+        item.connect("activate", lambda *_: callback())
+    item.show()
+    return item
+
+
+def separator():
     sep = Gtk.SeparatorMenuItem()
     sep.show()
-    menu.append(sep)
+    return sep
+
+
+def rebuild_menu(data):
+    """Reconstrói o menu a cada refresh para refletir o estado atual."""
+    state, repo, aur, todo, fail, reboot = _ints(data)
+    updates = repo + aur
+    can_run = not running_now
+
+    menu = Gtk.Menu()
+
+    # Cabeçalho informativo (estado + detalhamento).
+    menu.append(info_item(state_headline(data)))
+    if updates > 0:
+        menu.append(info_item(f"     {repo} repo · {aur} AUR"))
+    if todo > 0:
+        menu.append(info_item(f"     {todo} item(ns) do Doctor"))
+    if reboot:
+        menu.append(info_item(f"     Reboot: {reboot[:48]}"))
+    rel = relative_time(str(data.get("checked_at") or ""))
+    if rel:
+        menu.append(info_item(f"     Verificado {rel}"))
+    menu.append(separator())
+
+    # Ações de execução (desabilitadas enquanto um run está em andamento).
+    menu.append(menu_item(
+        "Atualizar tudo" if can_run else "Em execução…",
+        lambda: launch([SELF, "--tray-launch"]), enabled=can_run))
+    menu.append(menu_item(
+        "Só pacotes (update)", lambda: launch([SELF, "--tray-launch", "--mode", "update"]),
+        enabled=can_run))
+    menu.append(menu_item(
+        "Doctor (auditorias)", lambda: launch([SELF, "--tray-launch", "--mode", "doctor"]),
+        enabled=can_run))
+    menu.append(menu_item(
+        "Reparos", lambda: launch([SELF, "--tray-launch", "--mode", "repair"]),
+        enabled=can_run))
+    menu.append(separator())
+
+    # Utilitários.
+    menu.append(menu_item("Verificar agora", lambda: refresh(True)))
+    menu.append(menu_item("Ver último log", lambda: launch([SELF, "--tray-view-log"])))
+    if LOG_DIR:
+        menu.append(menu_item("Abrir pasta de logs", lambda: open_path(LOG_DIR)))
+    menu.append(separator())
     menu.append(menu_item("Sair", Gtk.main_quit))
-    menu.show()
-    return menu
+
+    menu.show_all()
+    indicator.set_menu(menu)
 
 
 def handle_usr1(_signum, _frame):
@@ -693,7 +883,14 @@ indicator = AppIndicator.Indicator.new(
     AppIndicator.IndicatorCategory.SYSTEM_SERVICES,
 )
 indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-indicator.set_menu(build_menu())
+indicator.set_title("full-upgrade")
+# Scroll sobre o ícone => verifica agora (atalho sem abrir o menu).
+try:
+    indicator.connect("scroll-event", lambda *_: refresh(True))
+except Exception:
+    pass
+# Menu inicial a partir do estado em cache (rebuild_menu já faz set_menu).
+rebuild_menu(load_state())
 
 refresh(True)
 GLib.timeout_add_seconds(INTERVAL, every_interval)

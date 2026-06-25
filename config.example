@@ -79,6 +79,9 @@ FULL_UPGRADE_UPDATE_CHANNEL="release"
 # TRAY_CHECK_INTERVAL_M  intervalo de checagem em minutos (mín. 1; default 30)
 # TRAY_TERMINAL          terminal emulator (vazio = auto-detecta; ex.: kitty)
 # TRAY_NOTIFICATIONS     1 = notifica no desktop em transições de estado | 0 = off
+# TRAY_BADGE             1 = mostra contador ao lado do ícone (AppIndicator) | 0 = off
+#                        (nº de atualizações / todos do Doctor / falhas, por estado)
 TRAY_CHECK_INTERVAL_M=30
 TRAY_TERMINAL=""
 TRAY_NOTIFICATIONS=1
+TRAY_BADGE=1
