@@ -88,3 +88,4 @@ STEP_REASON=""                  # motivo opcional p/ warn/todo/fail (gravado no 
 TOTAL_START=$SECONDS
 TOTAL_STEPS=0                    # NOVO: total efetivo (p/ barra de progresso)
 REBOOT_RECOMMENDATION=""         # rodapé de resumo quando Doctor detectar reboot
+LAST_SECTION_GROUP=""            # último cabeçalho de seção impresso ao vivo (output agrupado)

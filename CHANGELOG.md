@@ -4,6 +4,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Cabeçalhos de seção no output ao vivo.** A execução agora é dividida em
+  blocos visuais (`── linha ──` + `▶▶ Grupo`) sempre que o grupo do step muda,
+  reaproveitando o mesmo agrupamento do resumo final (`summary_group_specs`).
+  O print fica organizado e alinhado, com a execução espelhando os blocos do
+  resumo. Novo helper puro `_group_label_for_category` (com testes bats).
+
 ### Alterado
 
 - **Burp Suite e Wireshark agora são steps independentes.** O antigo step único

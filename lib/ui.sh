@@ -175,6 +175,17 @@ summary_category_in_groups() {
   return 1
 }
 
+# Rótulo do grupo de resumo ao qual uma categoria pertence (mesma fonte de
+# verdade do resumo). Usado para imprimir cabeçalhos de seção no output ao vivo,
+# mantendo a organização da execução idêntica à do resumo final.
+_group_label_for_category() {
+  local category="$1" label cats
+  while IFS='|' read -r label cats; do
+    summary_category_in_group_list "$category" "$cats" && { printf '%s' "$label"; return 0; }
+  done < <(summary_group_specs)
+  printf 'Outros'
+}
+
 # Rótulo legível por categoria (fallback para callers antigos; o resumo usa
 # summary_group_specs para evitar duplicação de headers).
 _category_label() {

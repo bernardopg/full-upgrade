@@ -30,3 +30,20 @@ setup() {
 
   [ -z "$missing" ]
 }
+
+@test "_group_label_for_category: mapeia categoria do catálogo ao rótulo do grupo" {
+  run _group_label_for_category pacman
+  [ "$status" -eq 0 ]
+  [ "$output" = "Sistema / Pacman" ]
+}
+
+@test "_group_label_for_category: editor e shell caem no mesmo rótulo" {
+  [ "$(_group_label_for_category editor)" = "Shell / Editor" ]
+  [ "$(_group_label_for_category shell)" = "Shell / Editor" ]
+}
+
+@test "_group_label_for_category: categoria desconhecida cai em Outros" {
+  run _group_label_for_category categoria-inexistente-xyz
+  [ "$status" -eq 0 ]
+  [ "$output" = "Outros" ]
+}

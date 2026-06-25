@@ -381,10 +381,25 @@ _category_of() {
   printf '%s' "$category"
 }
 
+# Imprime um cabeçalho de seção ao vivo quando o grupo do step muda em relação
+# ao último impresso. Reaproveita o agrupamento do resumo (summary_group_specs)
+# para que a execução fique visualmente dividida nos mesmos blocos do resumo.
+_maybe_print_section() {
+  local category="$1" group
+  group="$(_group_label_for_category "$category")"
+  [[ "$group" == "${LAST_SECTION_GROUP}" ]] && return 0
+  LAST_SECTION_GROUP="$group"
+  log ""
+  log "${C_DIM}$(ui_hr "$HR_LIGHT")${C_RESET}"
+  log "${C_BOLD}${C_CYAN}${SYM_ARROW}${SYM_ARROW} ${group}${C_RESET}"
+}
+
 step_start() {
   local name="$1"
+  local _cat; _cat="$(_category_of "$name")"
+  _maybe_print_section "$_cat"
   STEP_NAMES+=("$name")
-  STEP_CATEGORIES+=("$(_category_of "$name")")
+  STEP_CATEGORIES+=("$_cat")
   STEP_START=$SECONDS
   STEP_START_ISO="$(date -Is)"
   STEP_REASON=""   # limpa motivo do step anterior; a função do step pode redefinir
@@ -441,8 +456,10 @@ step_todo() {
 step_skip() {
   local name="$1"
   local reason="$2"
+  local _cat; _cat="$(_category_of "$name")"
+  _maybe_print_section "$_cat"
   STEP_NAMES+=("$name")
-  STEP_CATEGORIES+=("$(_category_of "$name")")
+  STEP_CATEGORIES+=("$_cat")
   STEP_RESULTS+=("skip")
   STEP_TIMES+=(0)
   STEP_START_ISO="$(date -Is)"
