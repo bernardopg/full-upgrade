@@ -9,6 +9,25 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module
 
+# Resolve como escrever em <path> (binário existente): ecoa o prefixo de comando
+# a usar — "sudo" quando o destino é protegido e há sudo pronto, ou vazio quando
+# já é escrevível direto. rc 1 = precisa de privilégio e sudo não está disponível
+# (o caller deve devolver RC_TODO). Centraliza a lógica compartilhada por
+# update_snyk/update_gk e é coberta por teste.
+_manual_write_prefix() {
+  local target="$1" dir
+  dir="$(dirname "$target")"
+  if [[ -w "$target" && -w "$dir" ]]; then
+    printf ''
+    return 0
+  fi
+  if has sudo && sudo -n true 2>/dev/null; then
+    printf 'sudo'
+    return 0
+  fi
+  return 1
+}
+
 # ── Factory droid ───────────────────────────────────────────────────────────────
 # CLI de IA da Factory, instalada via instalador próprio em ~/.local/bin (sem
 # pacote). Possui self-update nativo: `droid update` (e `--check` só verifica).
@@ -121,17 +140,13 @@ update_snyk() {
 
   # Resolve o prefixo de sudo cedo: se o binário/dir não é escrevível e não há
   # sudo pronto, vira RC_TODO antes de gastar rede no download.
-  local dir; dir="$(dirname "$snyk_bin")"
-  local -a sudo_pfx=()
-  if [[ ! -w "$snyk_bin" || ! -w "$dir" ]]; then
-    if has sudo && sudo -n true 2>/dev/null; then
-      sudo_pfx=(sudo)
-    else
-      log "  ${snyk_bin} exige privilégios para escrita e sudo não está pronto."
-      STEP_REASON="atualize o snyk com sudo disponível (binário em ${dir})"
-      return "$RC_TODO"
-    fi
+  local -a sudo_pfx=() ; local pfx
+  if ! pfx="$(_manual_write_prefix "$snyk_bin")"; then
+    log "  ${snyk_bin} exige privilégios para escrita e sudo não está pronto."
+    STEP_REASON="atualize o snyk com sudo disponível (binário em $(dirname "$snyk_bin"))"
+    return "$RC_TODO"
   fi
+  [[ -n "$pfx" ]] && sudo_pfx=("$pfx")
 
   log "  Atualizando snyk: ${current:-?} → ${latest}"
 
@@ -246,17 +261,13 @@ update_gk() {
     return 0
   fi
 
-  local dir; dir="$(dirname "$gk_bin")"
-  local -a sudo_pfx=()
-  if [[ ! -w "$gk_bin" || ! -w "$dir" ]]; then
-    if has sudo && sudo -n true 2>/dev/null; then
-      sudo_pfx=(sudo)
-    else
-      log "  ${gk_bin} exige privilégios para escrita e sudo não está pronto."
-      STEP_REASON="atualize o gk com sudo disponível (binário em ${dir})"
-      return "$RC_TODO"
-    fi
+  local -a sudo_pfx=() ; local pfx
+  if ! pfx="$(_manual_write_prefix "$gk_bin")"; then
+    log "  ${gk_bin} exige privilégios para escrita e sudo não está pronto."
+    STEP_REASON="atualize o gk com sudo disponível (binário em $(dirname "$gk_bin"))"
+    return "$RC_TODO"
   fi
+  [[ -n "$pfx" ]] && sudo_pfx=("$pfx")
 
   log "  Atualizando gk: ${current:-?} → ${latest}"
 

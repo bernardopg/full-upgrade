@@ -44,3 +44,11 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "Apps manuais" ]
 }
+
+@test "_manual_write_prefix: destino escrevível não exige sudo (prefixo vazio)" {
+  tmp="$(mktemp)"
+  run _manual_write_prefix "$tmp"
+  rm -f "$tmp"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
