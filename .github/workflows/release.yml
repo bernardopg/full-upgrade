@@ -68,8 +68,11 @@ jobs:
           test -n "${VERSION}"
           test -n "${TAG}"
           printf '%s' "${VERSION}" > VERSION
-          sed -i -E "s/SCRIPT_VERSION=\"[^\"]*\"/SCRIPT_VERSION=\"${VERSION}\"/" full-upgrade.sh
-          sed -i -E "s/_build_ver=\"[^\"]*\"/_build_ver=\"${VERSION}\"/" build.sh
+          # Atualiza só a linha de fallback literal (valor começa com dígito);
+          # as linhas que resolvem via git describe / arquivo VERSION usam
+          # variáveis ($_git_ver/$_file_ver) e não devem ser sobrescritas.
+          sed -i -E "s/SCRIPT_VERSION=\"[0-9][^\"]*\"/SCRIPT_VERSION=\"${VERSION}\"/" full-upgrade.sh
+          sed -i -E "s/_build_ver=\"[0-9][^\"]*\"/_build_ver=\"${VERSION}\"/" build.sh
           bash -n full-upgrade.sh build.sh
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

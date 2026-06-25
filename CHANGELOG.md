@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.14.1] - 2026-06-25
+
+### Corrigido
+
+- **Resolução de versão (`SCRIPT_VERSION`) restaurada.** As três linhas de
+  `full-upgrade.sh` carregavam o mesmo literal — o `sed` de bump do
+  `release.yml` (sem isolar a linha de fallback) tinha sobrescrito os ramos que
+  resolvem via `git describe` e arquivo `VERSION`, deixando-os mortos. Os ramos
+  voltam a usar `$_git_ver`/`$_file_ver`; o `sed` do `release.yml` (full-upgrade.sh
+  e build.sh) agora casa só o valor literal iniciado por dígito, preservando as
+  linhas com variável.
+
 ## [3.14.0] - 2026-06-25
 
 ### Adicionado
