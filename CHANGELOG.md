@@ -4,6 +4,25 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-06-25
+
+### Adicionado
+
+- **`MIRROR_MAX_AGE_DAYS` (default 7) — pula o refresh de mirrors quando o
+  mirrorlist é recente.** O rate-test de mirrors (reflector baixa a `.db` de cada
+  candidato) custava mais de 1 min por run. Como mirrors mudam devagar, agora o
+  step `Atualizar mirrors` é pulado quando o `/etc/pacman.d/mirrorlist` tem menos
+  de N dias — a maioria dos runs nem toca nessa etapa. `0` = roteia sempre.
+  Helper puro `mirror_is_fresh` com testes bats.
+
+### Alterado
+
+- **`Atualizar mirrors` muito mais rápido quando roda.** Flags do reflector
+  ajustadas: `--age 24` (descarta mirrors não-sincronizados há >24h),
+  `--connection-timeout 3`/`--download-timeout 3` (corta a penalidade de mirror
+  lento, antes 5s) e `--number 10` (top 10). Em `MIRROR_TOOL=auto`, `rate-mirrors`
+  (Rust, paralelo) passa a ser preferido sobre o reflector quando instalado.
+
 ## [3.16.1] - 2026-06-25
 
 ### Corrigido

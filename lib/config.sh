@@ -13,6 +13,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${LANG_OVERRIDE:=auto}"          # auto|pt|en
 : "${SNAPSHOT_TOOL:=auto}"          # auto|snapper|timeshift|none
 : "${MIRROR_TOOL:=auto}"            # auto|reflector|rate-mirrors|none
+: "${MIRROR_MAX_AGE_DAYS:=7}"       # pula refresh de mirrors se o mirrorlist tem < N dias (0 = sempre rotear)
 : "${AUR_HELPER:=}"                 # auto = detecta (paru > yay > pikaur); ou nome explícito
 : "${PRIV_CMD:=}"                   # auto = detecta (sudo > doas > sudo-rs > run0); ou nome explícito
 : "${MIN_FREE_GIB:=2}"              # espaço livre mínimo em / (GiB)
@@ -89,6 +90,7 @@ SNAPSHOT_TOOL
 SNAPSHOT_MIN_FREE_GIB
 SNAPSHOT_KEEP
 MIRROR_TOOL
+MIRROR_MAX_AGE_DAYS
 AUR_HELPER
 PRIV_CMD
 MIN_FREE_GIB
@@ -227,7 +229,7 @@ load_config() {
     sudo() { "$PRIV_CMD" "$@"; }
   fi
 
-  export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
+  export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIRROR_MAX_AGE_DAYS MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
   export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
@@ -408,6 +410,7 @@ show_config() {
   _cfg_kv "SNAPSHOT_MIN_FREE_GIB" "$SNAPSHOT_MIN_FREE_GIB"
   _cfg_kv "SNAPSHOT_KEEP" "$SNAPSHOT_KEEP"
   _cfg_kv "MIRROR_TOOL" "$MIRROR_TOOL"
+  _cfg_kv "MIRROR_MAX_AGE_DAYS" "$MIRROR_MAX_AGE_DAYS"
   _cfg_kv "AUR_HELPER" "${AUR_HELPER:-(nenhum)}"
   _cfg_kv "PRIV_CMD" "${PRIV_CMD:-sudo}"
   _cfg_kv "MIN_FREE_GIB" "$MIN_FREE_GIB"

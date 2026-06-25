@@ -34,8 +34,11 @@ BACKUP_KEEP=5           # quantos tarballs manter (rotação)
 # BACKUP_PATHS="/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/systemd/system"
 
 # ── Mirror refresh ──────────────────────────────────────────────────────────────
-# auto = detecta reflector/rate-mirrors | reflector | rate-mirrors | none
+# auto = detecta rate-mirrors (preferido, mais rápido) / reflector | reflector | rate-mirrors | none
 MIRROR_TOOL=auto
+# Pula o rate-test de mirrors (caro) se o mirrorlist tem menos de N dias.
+# A maioria dos runs nem toca nessa etapa. 0 = roteia sempre.
+MIRROR_MAX_AGE_DAYS=7
 
 # ── Espaço mínimo livre / Min free space ────────────────────────────────────────
 MIN_FREE_GIB=2          # em / (GiB)

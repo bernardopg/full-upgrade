@@ -179,27 +179,55 @@ _restore_mirror_backup() {
 }
 
 # ── Mirror refresh (reflector / rate-mirrors) ───────────────────────────────────
+# Verdadeiro se o mirrorlist é "fresco" (atualizado há menos de max_days dias).
+# Puro/testável. Uso: mirror_is_fresh <mtime_epoch> <now_epoch> <max_days>.
+mirror_is_fresh() {
+  local mtime="$1" now="$2" max_days="$3"
+  [[ "$mtime" =~ ^[0-9]+$ && "$now" =~ ^[0-9]+$ && "$max_days" =~ ^[0-9]+$ ]] || return 1
+  (( mtime > 0 && max_days > 0 )) || return 1
+  (( now - mtime < max_days * 86400 ))
+}
+
 refresh_mirrors() {
   local tool="${MIRROR_TOOL:-auto}"
   [[ "$tool" == "none" ]] && { log "  Mirror refresh desabilitado (MIRROR_TOOL=none)."; return 0; }
   has pacman || { log "  pacman ausente; mirror refresh pulado."; return 0; }
 
-  if [[ "$tool" == "auto" ]]; then
-    if has reflector; then tool="reflector"
-    elif has rate-mirrors; then tool="rate-mirrors"
-    else log "  Nenhuma ferramenta de mirror (reflector/rate-mirrors); pulando."; return 0; fi
-  fi
-
   local mirrorlist="/etc/pacman.d/mirrorlist"
   local backup="${mirrorlist}.full-upgrade.bak"
+
+  # Freshness gate: rate-test de mirrors é caro (reflector baixa a .db de cada
+  # candidato). Mirrors mudam devagar, então pulamos o refresh quando o
+  # mirrorlist já foi atualizado há menos de MIRROR_MAX_AGE_DAYS dias — a maioria
+  # dos runs nem toca nesta etapa. MIRROR_MAX_AGE_DAYS=0 força sempre rotear.
+  local max_age="${MIRROR_MAX_AGE_DAYS:-7}"
+  if [[ "$max_age" =~ ^[0-9]+$ ]] && (( max_age > 0 )) && [[ -r "$mirrorlist" ]]; then
+    local mtime now
+    mtime="$(stat -c %Y "$mirrorlist" 2>/dev/null || echo 0)"
+    now="$(date +%s)"
+    if mirror_is_fresh "$mtime" "$now" "$max_age"; then
+      log "  Mirrorlist atualizado há $(( (now - mtime) / 86400 ))d (< ${max_age}d) — pulando refresh (MIRROR_MAX_AGE_DAYS=${max_age})."
+      return 0
+    fi
+  fi
+
+  if [[ "$tool" == "auto" ]]; then
+    if has rate-mirrors; then tool="rate-mirrors"   # mais rápido (Rust, paralelo)
+    elif has reflector; then tool="reflector"
+    else log "  Nenhuma ferramenta de mirror (reflector/rate-mirrors); pulando."; return 0; fi
+  fi
 
   case "$tool" in
     reflector)
       has reflector || { log "  reflector não instalado."; return 0; }
       run_logged sudo cp -f "$mirrorlist" "$backup" 2>/dev/null || true
       log "  Backup do mirrorlist: ${backup}"
-      if run_logged sudo reflector --latest 20 --protocol https --sort rate --save "$mirrorlist"; then
-        log "  Mirrors atualizados via reflector (top 20 por rate)."
+      # Flags rápidas: --age 24 descarta mirrors não-sincronizados há >24h (menos
+      # candidatos mortos), timeouts curtos (3s) cortam a penalidade de mirror
+      # lento (default é 5s), e --number 10 devolve só os 10 mais rápidos.
+      if run_logged sudo reflector --protocol https --age 24 --latest 20 --sort rate \
+           --connection-timeout 3 --download-timeout 3 --number 10 --save "$mirrorlist"; then
+        log "  Mirrors atualizados via reflector (top 10 por rate)."
       else
         log "  Aviso: reflector falhou; restaurando backup válido se possível."
         _restore_mirror_backup "$backup" "$mirrorlist"
