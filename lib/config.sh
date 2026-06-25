@@ -27,7 +27,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
-: "${ARCH_NEWS_CHECK:=1}"           # 1 = checa Arch News (RSS) antes das mutações e alerta sobre itens novos; 0 = desliga
+
 : "${NOTIFY_ON_FINISH:=0}"          # 1 = envia notificação desktop (notify-send) com o resumo ao fim do run; 0 = desliga
 : "${TRAY_CHECK_INTERVAL_M:=30}"    # intervalo de checagem do systray daemon (minutos; mín. 1)
 : "${TRAY_TERMINAL:=}"              # terminal emulator do systray (vazio = auto-detecta; ex.: kitty, alacritty)
@@ -101,7 +101,6 @@ ORPHAN_CLEANUP_MAX_ROUNDS
 AUTO_FIX_RUST_CVES
 AUTO_BTRFS_SCRUB
 REPORT_ON_FINISH
-ARCH_NEWS_CHECK
 NOTIFY_ON_FINISH
 TRAY_CHECK_INTERVAL_M
 TRAY_TERMINAL
@@ -226,7 +225,7 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH ARCH_NEWS_CHECK IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
@@ -321,11 +320,6 @@ AUTO_BTRFS_SCRUB=0
 # 0 = desliga (default). 1 = grava o relatório Markdown do run concluído em
 # ~/.cache/system-upgrade/full-upgrade-<run_id>.md (mesmo conteúdo de --report).
 REPORT_ON_FINISH=0
-
-# ── Arch News pré-upgrade (I1) ──
-# 1 = checa o feed RSS de Arch News antes das mutações e alerta (todo) sobre
-# itens novos desde a última verificação. 0 = desliga.
-ARCH_NEWS_CHECK=1
 
 # ── Notificação desktop ao fim do run (I4) ──
 # 1 = envia resumo (ok/warn/todo/fail/skip) via notify-send ao final, com
@@ -423,7 +417,6 @@ show_config() {
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
-  _cfg_kv "ARCH_NEWS_CHECK" "$ARCH_NEWS_CHECK"
   _cfg_kv "NOTIFY_ON_FINISH" "$NOTIFY_ON_FINISH"
   _cfg_kv "TRAY_CHECK_INTERVAL_M" "$TRAY_CHECK_INTERVAL_M"
   _cfg_kv "TRAY_TERMINAL" "${TRAY_TERMINAL:-(auto)}"

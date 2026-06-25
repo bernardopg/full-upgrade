@@ -26,19 +26,11 @@ run_all_steps() {
     fi
     
     # ── Pré-flight: disco + keyring ─────────────────────────────────────────────────
-    
+    run_step "Pré-flight: espaço em disco" preflight_disk_space
     if has pacman; then
-        run_step "Pré-flight: disco e keyring" preflight_disk_and_keyring
-    fi
-
-    # ── Arch News (antes de qualquer mutação) ────────────────────────────────────
-
-    if (( ${ARCH_NEWS_CHECK:-1} == 0 )); then
-        step_skip "Verificar Arch News" "ARCH_NEWS_CHECK=0"
-    elif has curl; then
-        run_step "Verificar Arch News" check_arch_news
+        run_step "Atualizar archlinux-keyring" update_archlinux_keyring
     else
-        step_skip "Verificar Arch News" "curl não instalado"
+        step_skip "Atualizar archlinux-keyring" "pacman não instalado"
     fi
 
     # ── Pacman / AUR ──────────────────────────────────────────────────────────────

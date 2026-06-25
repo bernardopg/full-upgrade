@@ -163,7 +163,7 @@ setup() {
   FULL_UPGRADE_SKIP=""
   add_skip_mutating_steps
   # steps core/final mutantes que motivaram o fix (rodavam em --mode doctor)
-  run _step_skip_requested "Pré-flight: disco e keyring"
+run _step_skip_requested "Atualizar archlinux-keyring"
   [ "$status" -eq 0 ]
   run _step_skip_requested "Backup de configs críticas"
   [ "$status" -eq 0 ]
@@ -178,8 +178,10 @@ setup() {
   [ "$status" -ne 0 ]
   run _step_skip_requested "Adquirir lock de execução"
   [ "$status" -ne 0 ]
-  run _step_skip_requested "Validar sudo"
-  [ "$status" -ne 0 ]
-  run _step_skip_requested "Verificar arquivos .pacnew/.pacsave"
+run _step_skip_requested "Validar sudo"
+[ "$status" -ne 0 ]
+run _step_skip_requested "Pré-flight: espaço em disco"
+[ "$status" -ne 0 ]
+run _step_skip_requested "Verificar arquivos .pacnew/.pacsave"
   [ "$status" -ne 0 ]
 }

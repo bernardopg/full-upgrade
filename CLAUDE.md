@@ -73,7 +73,7 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 ### Config & custom tools
 
-`load_config` (`lib/config.sh`) sources `~/.config/full-upgrade/config` (plain Bash — zero-config works) and auto-detects binary paths. Custom/author-specific tools (Hermes, AdGuard, Copilot, DMS, Burp/Wireshark, OpenClaw) live in `steps.d/*.sh` and are **double-gated**: `ENABLE_CUSTOM_TOOLS=1` must be set, and the step is dispatched via `custom_step_or_skip` which also checks the impl function was actually loaded. `steps.d/` files are sourced from both `~/.config/full-upgrade/steps.d/` and the installed `steps.d/`, only when enabled.
+`load_config` (`lib/config.sh`) sources `~/.config/full-upgrade/config` (plain Bash — zero-config works) and auto-detects binary paths. Packaged integrations in the repository `steps.d/*.sh` are always sourced; each step decides whether to run by tool presence and its own gate. User plugins in `~/.config/full-upgrade/steps.d/` are sourced only with `ENABLE_CUSTOM_TOOLS=1`, because they are arbitrary local code. Burp/Wireshark remains explicit opt-in through `custom_step_or_skip` because its helper may install `burpsuite`.
 
 ### Logging
 

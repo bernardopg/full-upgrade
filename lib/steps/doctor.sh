@@ -686,52 +686,89 @@ doctor_stale_services() {
     printf '%s\n' "${_affected_services[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
     STEP_REASON="${svc_count} serviço(s) com libs antigas (reinício pendente)"
 
-    if (( RESTART_SERVICES )); then
-      # Reusa a lista já parseada; restringe a units systemd válidas para não
-      # tentar reiniciar nomes soltos vindos do fallback genérico.
-      local -a restart_cmds=()
-      local _svc
-      for _svc in "${_affected_services[@]}"; do
-        [[ "$_svc" =~ \.(service|socket|timer|mount|target|scope|path)$ ]] && restart_cmds+=("$_svc")
-      done
-      if (( ${#restart_cmds[@]} == 0 )); then
-        log "  --restart-services: nenhuma unit systemd reiniciável detectada na saída."
-        return "$RC_TODO"
-      fi
-      log "  --restart-services: ${#restart_cmds[@]} serviço(s) a reiniciar: ${restart_cmds[*]}"
-      if (( ASSUME_YES == 0 )); then
-        if [[ -t 0 ]]; then
-          printf '%b' "${C_YELLOW}  Reiniciar esses serviços agora? [s/N] ${C_RESET}"
-          local answer
-          read -r answer
-          case "$answer" in
-            [sS][iI][mM]|[sS]) ;;
-            *) log "  Reinício de serviços cancelado pelo usuário."; return "$RC_TODO" ;;
-          esac
-        else
-          log "  Execução não interativa sem --yes; pulando reinício de serviços."
-          return "$RC_TODO"
-        fi
-      fi
-      local svc all_ok=1
-      for svc in "${restart_cmds[@]}"; do
-        log "  Reiniciando ${svc}..."
-        if run_logged sudo -n systemctl restart "$svc"; then
-          log "  ${svc}: reiniciado."
-        else
-          log "  Aviso: falha ao reiniciar ${svc}."
-          all_ok=0
-        fi
-      done
-      (( all_ok )) && return 0
-      return "$RC_WARN"
-    fi
-
-    return "$RC_TODO"
+  if (( RESTART_SERVICES )); then
+    log "  --restart-services ativo: o reinício é feito pelo step 'Reiniciar serviços com libs antigas'."
+  fi
+  return "$RC_TODO"
+  return "$RC_TODO"
   fi
 
   log "  needrestart e checkservices não encontrados; instale um para monitorar serviços com libs antigas."
   return 0
+}
+
+restart_stale_services() {
+  if (( ! RESTART_SERVICES )); then
+    log "  --restart-services não informado; reinício de serviços pulado."
+    return 0
+  fi
+  if ! _doctor_sudo_ok; then
+    log "  checkservices requer sudo sem prompt; reinício pulado."
+    return 0
+  fi
+  if ! has checkservices; then
+    log "  checkservices não instalado; reinício automático indisponível."
+    return 0
+  fi
+
+  local output rc
+  output="$(sudo -n checkservices 2>&1)"
+  rc=$?
+  if (( rc != 0 )); then
+    log "  checkservices retornou código ${rc}."
+    return "$RC_WARN"
+  fi
+
+  local -a affected_services=()
+  mapfile -t affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
+  if (( ${#affected_services[@]} == 0 )); then
+    mapfile -t affected_services < <(
+      printf '%s\n' "$output" \
+        | grep -vE '^::|^Found:|^[[:space:]]*-+8<-+|pacnew file found|^[[:space:]]*$|^Execute' \
+        | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+        | grep -E '\.(service|socket|timer|mount|target|scope|path)$|\.service' \
+        | sort -u
+    )
+  fi
+
+  local -a restart_cmds=()
+  local svc
+  for svc in "${affected_services[@]}"; do
+    [[ "$svc" =~ \.(service|socket|timer|mount|target|scope|path)$ ]] && restart_cmds+=("$svc")
+  done
+  if (( ${#restart_cmds[@]} == 0 )); then
+    log "  Nenhuma unit systemd reiniciável detectada por checkservices."
+    return 0
+  fi
+
+  log "  ${#restart_cmds[@]} serviço(s) a reiniciar: ${restart_cmds[*]}"
+  if (( ASSUME_YES == 0 )); then
+    if [[ -t 0 ]]; then
+      printf '%b' "${C_YELLOW}  Reiniciar esses serviços agora? [s/N] ${C_RESET}"
+      local answer
+      read -r answer
+      case "$answer" in
+        [sS][iI][mM]|[sS]) ;;
+        *) log "  Reinício de serviços cancelado pelo usuário."; return "$RC_TODO" ;;
+      esac
+    else
+      log "  Execução não interativa sem --yes; pulando reinício de serviços."
+      return "$RC_TODO"
+    fi
+  fi
+
+  local all_ok=1
+  for svc in "${restart_cmds[@]}"; do
+    log "  Reiniciando ${svc}..."
+    if run_logged sudo -n systemctl restart "$svc"; then
+      log "  ${svc}: reiniciado."
+    else
+      log "  Aviso: falha ao reiniciar ${svc}."
+      all_ok=0
+    fi
+  done
+  (( all_ok )) && return 0
+  return "$RC_WARN"
 }
 
 
@@ -1651,4 +1688,3 @@ doctor_boot_time() {
   log "  Tempo de boot dentro do limite (~${total_s}s ≤ ${warn_s}s)."
   return 0
 }
-

@@ -51,8 +51,8 @@ release_run_lock() {
   FU_LOCK_HELD=0
 }
 
-# ── Pré-flight: espaço em disco + keyring ───────────────────────────────────────
-preflight_disk_and_keyring() {
+# ── Pré-flight: espaço em disco ────────────────────────────────────────────────
+preflight_disk_space() {
   local status=0 min_gib="${MIN_FREE_GIB:-2}"
   # Threshold por mount: / usa MIN_FREE_GIB; /boot (ESP) é pequeno, usa MIN_BOOT_FREE_MIB.
   local min_boot_mib="${MIN_BOOT_FREE_MIB:-200}"
@@ -75,19 +75,28 @@ preflight_disk_and_keyring() {
     fi
   done
 
-  # archlinux-keyring antes do upgrade grande (evita falhas de assinatura).
-  if has pacman && (( SUDO_READY )); then
-    log "  Atualizando archlinux-keyring..."
-    if run_logged sudo pacman -Sy --needed --noconfirm archlinux-keyring; then
-      log "  archlinux-keyring atualizado."
-    else
-      log "  Aviso: falha ao atualizar archlinux-keyring (seguindo)."
-      (( status == 0 )) && status="$RC_WARN"
-    fi
-  else
-    log "  archlinux-keyring: pulado (sem pacman ou sudo)."
-  fi
   return "$status"
+}
+
+update_archlinux_keyring() {
+  if ! has pacman; then
+    log "  pacman ausente; archlinux-keyring pulado."
+    return 0
+  fi
+  if (( ! SUDO_READY )); then
+    log "  archlinux-keyring: pulado (sudo indisponível)."
+    return 0
+  fi
+
+  # archlinux-keyring antes do upgrade grande (evita falhas de assinatura).
+  log "  Atualizando archlinux-keyring..."
+  if run_logged sudo pacman -Sy --needed --noconfirm archlinux-keyring; then
+    log "  archlinux-keyring atualizado."
+    return 0
+  fi
+
+  log "  Aviso: falha ao atualizar archlinux-keyring (seguindo)."
+  return "$RC_WARN"
 }
 
 # ── Snapshot pré-upgrade (btrfs via snapper/timeshift) ──────────────────────────

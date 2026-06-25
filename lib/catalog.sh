@@ -13,7 +13,8 @@ step_catalog() {
   cat <<'EOF'
 Adquirir lock de execução|core|lock,preflight|read|0||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
 Validar sudo|core|sudo,preflight|read|0||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
-Pré-flight: disco e keyring|core|disk,keyring,sudo,preflight|mutating|120|pacman|preflight_disk_and_keyring|Verifica espaço livre mínimo e atualiza archlinux-keyring.
+Pré-flight: espaço em disco|core|disk,read,preflight|read|30||preflight_disk_space|Verifica espaço livre mínimo em / e /boot antes de mutações.
+Atualizar archlinux-keyring|core|keyring,sudo,preflight|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
 Backup de configs críticas|core|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
 Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
 Atualizar mirrors|pacman|mirror,network,sudo|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
@@ -88,7 +89,7 @@ Doctor: saúde de disco|doctor|disk,read|read|15||doctor_disk_health|Verifica us
 Doctor: saúde de boot|doctor|boot,systemd,read,sudo|read|30|bootctl|doctor_boot_health|Verifica systemd-boot, kernel/initrd no ESP e espaço livre.
 Doctor: saúde de rede|doctor|network,read|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.
 Doctor: serviços com libs antigas|doctor|systemd,read,sudo|read|60||doctor_stale_services|Detecta serviços usando bibliotecas atualizadas sem restart (needrestart/checkservices).
-Verificar Arch News|pacman|news,arch,read,network|read|60|curl|check_arch_news|Alerta sobre Arch News novas (RSS) desde a última verificação, antes do -Syu.
+Reiniciar serviços com libs antigas|repair|systemd,sudo,mutating|mutating|120||restart_stale_services|Sob --restart-services, reinicia units apontadas por checkservices, com confirmação salvo --yes.
 Doctor: saúde do pacman|doctor|pacman,read|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
 Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,read,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
 Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config,read|read|60||doctor_pacfiles|Lista arquivos .pacnew/.pacsave pendentes de mesclagem (sugere pacdiff); todo se houver.
