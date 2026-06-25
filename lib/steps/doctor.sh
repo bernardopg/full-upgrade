@@ -13,6 +13,19 @@ _doctor_sudo_ok() {
   has "$priv" && "$priv" -n true >/dev/null 2>&1
 }
 
+# Versão do systemd EM EXECUÇÃO, extraída da 1ª linha de `systemctl --version`.
+# Em Arch a linha é "systemd 261 (261-1-arch)": o parêntese traz a versão Arch
+# COMPLETA (com pkgrel), idêntica à de `pacman -Q systemd` ("261-1"). Puro.
+# O token $2 ("261") NÃO traz o pkgrel, então comparar com "261-1" falso-positivava
+# "reboot pendente" para sempre após bump de pkgrel — daí preferir o parêntese.
+# Fallback (formato atípico/sem parêntese): só o major numérico do $2.
+systemd_running_version() {
+  local line="$1" v
+  v="$(sed -nE 's/.*\(([0-9][^)]*)\).*/\1/p' <<<"$line" | sed 's/-arch.*$//')"
+  [[ -n "$v" ]] || v="$(awk '{print $2}' <<<"$line" | grep -oE '^[0-9]+' || true)"
+  printf '%s' "$v"
+}
+
 doctor_reboot_pending() {
   if ! has pacman || ! pacman -Q linux >/dev/null 2>&1; then
     log "  Pacote linux não encontrado; pulando checagem de reboot do kernel."
@@ -41,11 +54,15 @@ doctor_reboot_pending() {
     status="$RC_TODO"
   fi
 
-  # systemd: versão em uso vs instalado
+  # systemd: versão em uso vs instalado (comparação precisa via parêntese da
+  # `systemctl --version`, que traz a versão Arch completa com pkgrel).
   if has systemctl; then
     local sd_running sd_installed
-    sd_running="$(systemctl --version 2>/dev/null | awk 'NR==1{print $2}' || true)"
-    sd_installed="$(pacman -Q systemd 2>/dev/null | awk '{print $2}' | cut -d. -f1 || true)"
+    sd_running="$(systemd_running_version "$(systemctl --version 2>/dev/null | head -1)")"
+    sd_installed="$(pacman -Q systemd 2>/dev/null | awk '{print $2}' || true)"
+    # Se o parse trouxe só o major (fallback sem pkgrel), reduz o instalado ao
+    # mesmo nível para não comparar "261" contra "261-1".
+    [[ "$sd_running" == *-* ]] || sd_installed="${sd_installed%%-*}"
     if [[ -n "$sd_running" && -n "$sd_installed" ]]; then
       if [[ "$sd_running" == "$sd_installed" ]]; then
         log "  systemd em execução ok: ${sd_running}."

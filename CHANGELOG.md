@@ -4,6 +4,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.16.1] - 2026-06-25
+
+### Corrigido
+
+- **`Doctor: reboot pendente` não falso-positiva mais o systemd.** A comparação
+  usava `systemctl --version` token `$2` (ex.: `261`, sem pkgrel) contra
+  `pacman -Q systemd` (`261-1`), e o `cut -d. -f1` não removia o `-1` quando o
+  pkgver não tinha ponto — então **todo** bump de pkgrel marcava “reboot
+  recomendado” para sempre, mesmo recém-reiniciado. Agora extrai a versão Arch
+  completa do parêntese da `systemctl --version` (`systemd 261 (261-1-arch)` →
+  `261-1`), idêntica à do pacman, com fallback para o major. Novo helper puro
+  `systemd_running_version` com testes bats (achado em run/reboot real).
+
 ## [3.16.0] - 2026-06-25
 
 ### Adicionado
