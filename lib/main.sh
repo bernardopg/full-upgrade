@@ -47,24 +47,14 @@ run_all_steps() {
 
             if (( NO_REPAIR )); then
                 step_skip "Reparar comandos locais conflitantes"        "--no-repair"
-            else
-                # Shadowing é reparo genérico, útil p/ todos e deve acontecer
-                # antes do update principal.
-                run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
-            fi
-            
-            run_step "Backup de configs críticas" backup_critical_configs
-            run_step "Snapshot pré-upgrade" preupgrade_snapshot
-            run_step "Atualizar mirrors" refresh_mirrors
-            capture_installed_pkgs "$PKG_SNAP_BEFORE"   # L3: estado pré-upgrade
-            run_step "Atualizar pacotes do sistema e AUR" update_system_aur
-            
-            if (( NO_REPAIR )); then
                 step_skip "Garantir Wireshark"                         "--no-repair"
                 step_skip "Garantir Burp Suite"                        "--no-repair"
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
                 step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
             else
+                # Shadowing é reparo genérico, útil p/ todos e deve acontecer
+                # antes do update principal.
+                run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
                 # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: ensure_burpsuite
                 # INSTALA o pacote burpsuite se ausente, então não deve rodar por padrão
                 # (instalaria Burp na máquina de quem nunca pediu). Opt-in explícito.
@@ -73,6 +63,12 @@ run_all_steps() {
                 custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
                 custom_step_or_skip "Reparar atalhos antigos do Burp"   repair_broken_burpsuite_desktop_entries
             fi
+            
+            run_step "Backup de configs críticas" backup_critical_configs
+            run_step "Snapshot pré-upgrade" preupgrade_snapshot
+            run_step "Atualizar mirrors" refresh_mirrors
+            capture_installed_pkgs "$PKG_SNAP_BEFORE"   # L3: estado pré-upgrade
+            run_step "Atualizar pacotes do sistema e AUR" update_system_aur
         else
             for _s in \
             "Limpar lock stale do pacman" \
@@ -126,28 +122,6 @@ run_all_steps() {
         run_step "Atualizar Arduino (cores/libs)" update_arduino
     else
         step_skip "Atualizar Arduino (cores/libs)" "arduino-cli não instalado"
-    fi
-    
-    # ── Firmware ──────────────────────────────────────────────────────────────────
-    
-    if has fwupdmgr; then
-        if (( SUDO_READY )); then
-            run_step "Atualizar firmware (fwupd)" update_fwupd
-        else
-            step_skip "Atualizar firmware (fwupd)" "sudo indisponível"
-        fi
-    else
-        step_skip "Atualizar firmware (fwupd)" "fwupdmgr não instalado"
-    fi
-    
-    if has bootctl; then
-        if (( SUDO_READY )); then
-            run_step "Atualizar systemd-boot (bootctl)" update_bootctl
-        else
-            step_skip "Atualizar systemd-boot (bootctl)" "sudo indisponível"
-        fi
-    else
-        step_skip "Atualizar systemd-boot (bootctl)" "bootctl não instalado"
     fi
     
     # ── JavaScript ────────────────────────────────────────────────────────────────
@@ -292,6 +266,28 @@ run_all_steps() {
         step_skip "Atualizar ghcup" "ghcup não instalado"
     fi
     
+    # ── Firmware / Boot ───────────────────────────────────────────────────────────
+
+    if has fwupdmgr; then
+        if (( SUDO_READY )); then
+            run_step "Atualizar firmware (fwupd)" update_fwupd
+        else
+            step_skip "Atualizar firmware (fwupd)" "sudo indisponível"
+        fi
+    else
+        step_skip "Atualizar firmware (fwupd)" "fwupdmgr não instalado"
+    fi
+
+    if has bootctl; then
+        if (( SUDO_READY )); then
+            run_step "Atualizar systemd-boot (bootctl)" update_bootctl
+        else
+            step_skip "Atualizar systemd-boot (bootctl)" "sudo indisponível"
+        fi
+    else
+        step_skip "Atualizar systemd-boot (bootctl)" "bootctl não instalado"
+    fi
+    
     # ── Integrações de ferramentas (rodam por presença, como os steps core) ──────
 
     if has hermes; then
@@ -306,66 +302,20 @@ run_all_steps() {
         step_skip "Atualizar RTK" "rtk não instalado"
     fi
 
-    if has adguardvpn-cli || [[ -x "${ADGUARD_BIN:-}" ]]; then
-        run_step "Atualizar AdGuard VPN CLI" update_adguardvpn
-    else
-        step_skip "Atualizar AdGuard VPN CLI" "adguardvpn-cli não instalado"
-    fi
-
     if has openclaw || [[ -x "${OPENCLAW_BIN:-}" ]]; then
         run_step "Atualizar OpenClaw" update_openclaw
     else
         step_skip "Atualizar OpenClaw" "openclaw não instalado"
     fi
 
-    # ── Apps manuais (fora de qualquer gerenciador de pacotes) ───────────────────
-    # Cada programa instalado por instalador próprio/binário avulso tem seu step
-    # dedicado; rodam por presença e usam o self-update nativo de cada um.
-
-    if has droid; then
-        run_step "Atualizar Factory droid" update_droid
-    else
-        step_skip "Atualizar Factory droid" "droid não instalado"
-    fi
-
-    if has coderabbit; then
-        run_step "Atualizar CodeRabbit CLI" update_coderabbit
-    else
-        step_skip "Atualizar CodeRabbit CLI" "coderabbit não instalado"
-    fi
-
-    if has kiro-cli; then
-        run_step "Atualizar Kiro CLI (Amazon)" update_kiro_cli
-    else
-        step_skip "Atualizar Kiro CLI (Amazon)" "kiro-cli não instalado"
-    fi
-
-    if has snyk; then
-        run_step "Atualizar Snyk CLI" update_snyk
-    else
-        step_skip "Atualizar Snyk CLI" "snyk não instalado"
-    fi
-
-    if has zap || has zap.sh; then
-        run_step "Atualizar add-ons do OWASP ZAP" update_zap
-    else
-        step_skip "Atualizar add-ons do OWASP ZAP" "zap não instalado"
-    fi
-
-    if has gk; then
-        run_step "Atualizar GitKraken CLI (gk)" update_gk
-    else
-        step_skip "Atualizar GitKraken CLI (gk)" "gk não instalado"
-    fi
-
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
-    
+
     if has claude; then
         run_step "Atualizar Claude Code CLI" update_claude_code
     else
         step_skip "Atualizar Claude Code CLI" "claude não instalado"
     fi
-    
+
     if has copilot || [[ -x "${COPILOT_BIN:-}" ]]; then
         run_step "Atualizar GitHub Copilot CLI" update_copilot_cli
     else
@@ -409,6 +359,54 @@ run_all_steps() {
         run_step "Atualizar Kimi CLI" update_kimi
     else
         step_skip "Atualizar Kimi CLI" "kimi não instalado"
+    fi
+
+    # ── Apps manuais (fora de qualquer gerenciador de pacotes) ───────────────────
+    # Cada programa instalado por instalador próprio/binário avulso tem seu step
+    # dedicado; rodam por presença e usam o self-update nativo de cada um.
+
+    if has droid; then
+        run_step "Atualizar Factory droid" update_droid
+    else
+        step_skip "Atualizar Factory droid" "droid não instalado"
+    fi
+
+    if has coderabbit; then
+        run_step "Atualizar CodeRabbit CLI" update_coderabbit
+    else
+        step_skip "Atualizar CodeRabbit CLI" "coderabbit não instalado"
+    fi
+
+    if has kiro-cli; then
+        run_step "Atualizar Kiro CLI (Amazon)" update_kiro_cli
+    else
+        step_skip "Atualizar Kiro CLI (Amazon)" "kiro-cli não instalado"
+    fi
+
+    if has snyk; then
+        run_step "Atualizar Snyk CLI" update_snyk
+    else
+        step_skip "Atualizar Snyk CLI" "snyk não instalado"
+    fi
+
+    if has zap || has zap.sh; then
+        run_step "Atualizar add-ons do OWASP ZAP" update_zap
+    else
+        step_skip "Atualizar add-ons do OWASP ZAP" "zap não instalado"
+    fi
+
+    if has gk; then
+        run_step "Atualizar GitKraken CLI (gk)" update_gk
+    else
+        step_skip "Atualizar GitKraken CLI (gk)" "gk não instalado"
+    fi
+
+    # ── Rede ─────────────────────────────────────────────────────────────────────
+
+    if has adguardvpn-cli || [[ -x "${ADGUARD_BIN:-}" ]]; then
+        run_step "Atualizar AdGuard VPN CLI" update_adguardvpn
+    else
+        step_skip "Atualizar AdGuard VPN CLI" "adguardvpn-cli não instalado"
     fi
 
     # ── Shell ─────────────────────────────────────────────────────────────────────
@@ -510,16 +508,6 @@ run_all_steps() {
         step_skip "Remover pacotes orfãos" "pacman não instalado"
     fi
     
-    if has pacdiff; then
-        if (( SUDO_READY )); then
-            run_step "Verificar arquivos .pacnew/.pacsave" check_pacnew_files
-        else
-            step_skip "Verificar arquivos .pacnew/.pacsave" "sudo indisponível"
-        fi
-    else
-        step_skip "Verificar arquivos .pacnew/.pacsave" "pacdiff não instalado (pacman-contrib)"
-    fi
-    
     if (( NO_CLEANUP )); then
         step_skip "Limpar symlinks quebrados (~/.local/bin)" "--no-cleanup"
     else
@@ -539,6 +527,16 @@ run_all_steps() {
     fi
     
     # ── Verificação final ─────────────────────────────────────────────────────────
+
+    if has pacdiff; then
+        if (( SUDO_READY )); then
+            run_step "Verificar arquivos .pacnew/.pacsave" check_pacnew_files
+        else
+            step_skip "Verificar arquivos .pacnew/.pacsave" "sudo indisponível"
+        fi
+    else
+        step_skip "Verificar arquivos .pacnew/.pacsave" "pacdiff não instalado (pacman-contrib)"
+    fi
     
     run_step "Verificação final de pendências" final_check_pending
     run_step "Checar atualização do full-upgrade" self_update_notice

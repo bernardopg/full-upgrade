@@ -18,8 +18,8 @@ update_nvim_lazy() {
   log "  Atualizando plugins Lazy.nvim..."
   local count rc
   count="$(find "$lazy_dir" -maxdepth 1 -mindepth 1 -type d | wc -l)"
-  nvim --headless "+Lazy! sync" +qa >> "$LOG_FILE" 2>&1
-  rc=$?
+  nvim --headless "+Lazy! sync" +qa 2>&1 | _strip_ansi >> "$LOG_FILE"
+  rc=${PIPESTATUS[0]}
   log "  Lazy.nvim: ${count} plugins presentes, sincronização concluída."
   return "$rc"
 }
@@ -39,8 +39,8 @@ update_nvim_mason() {
 
   log "  Atualizando LSPs/tools do Mason.nvim..."
   local rc
-  nvim --headless "+MasonUpdate" +qa >> "$LOG_FILE" 2>&1
-  rc=$?
+  nvim --headless "+MasonUpdate" +qa 2>&1 | _strip_ansi >> "$LOG_FILE"
+  rc=${PIPESTATUS[0]}
   log "  Mason.nvim: atualização de registros concluída."
   return "$rc"
 }

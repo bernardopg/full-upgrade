@@ -161,11 +161,11 @@ Sistema / Pacman|pacman
 Contêineres|containers flatpak docker snap
 Linguagens|lang
 Firmware / Boot|firmware
-Shell / Editor|editor shell
-Hyprland|hyprland
 IA|ai
 Apps manuais|manual
 Rede|network
+Shell / Editor|editor shell
+Hyprland|hyprland
 Limpeza|cleanup
 Verificação final|final
 Doctor (auditorias)|doctor
