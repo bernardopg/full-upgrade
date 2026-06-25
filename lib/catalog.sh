@@ -15,7 +15,7 @@ Adquirir lock de execução|core|lock,preflight|read|0||acquire_run_lock|Impede 
 Validar sudo|core|sudo,preflight|read|0||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
 Pré-flight: espaço em disco|core|disk,read,preflight|read|30||preflight_disk_space|Verifica espaço livre mínimo em / e /boot antes de mutações.
 Atualizar archlinux-keyring|core|keyring,sudo,preflight|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
-Backup de configs críticas|core|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
+Backup de configs críticas|pacman|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
 Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
 Atualizar mirrors|pacman|mirror,network,sudo|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
 Limpar lock stale do pacman|repair|pacman,mutating|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
@@ -47,7 +47,7 @@ Atualizar ferramentas uv|lang|python,uv,update,network|mutating|300|uv|update_uv
 Atualizar Poetry|lang|python,poetry,update,network|mutating|120|pip|update_poetry|Atualiza Poetry instalado via pip --user.
 Atualizar Rust (rustup)|lang|rust,rustup,update,network,slow|mutating|600|rustup|update_rustup|Atualiza toolchains Rust quando rustup reporta update disponível.
 Atualizar bins do cargo|lang|rust,cargo,update,network,slow|mutating|600|cargo-install-update|update_cargo_bins|Atualiza binários Cargo usando cargo-install-update.
-Auditar binários cargo (CVEs)|doctor|rust,cargo,security,read,network|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
+Auditar binários cargo (CVEs)|lang|rust,cargo,security,read,network|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
 Auto-remediar CVEs de toolchain Rust|lang|rust,cargo,security,update,network,slow|mutating|600|cargo-audit|autofix_rust_cves|Sob AUTO_FIX_RUST_CVES=1 e confirmação/--yes, aplica rustup self update/update e cargo install-update para CVEs corrigíveis e re-audita.
 Atualizar ferramentas Go|lang|go,update,network|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas em GOPATH/bin.
 Atualizar ferramentas .NET|lang|dotnet,update,network|mutating|300|dotnet|update_dotnet_tools|Atualiza ferramentas .NET globais.
@@ -98,7 +98,7 @@ Doctor: saúde de disco|doctor|disk,read|read|15||doctor_disk_health|Verifica us
 Doctor: saúde de boot|doctor|boot,systemd,read,sudo|read|30|bootctl|doctor_boot_health|Verifica systemd-boot, kernel/initrd no ESP e espaço livre.
 Doctor: saúde de rede|doctor|network,read|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.
 Doctor: serviços com libs antigas|doctor|systemd,read,sudo|read|60||doctor_stale_services|Detecta serviços usando bibliotecas atualizadas sem restart (needrestart/checkservices).
-Reiniciar serviços com libs antigas|repair|systemd,sudo,mutating|mutating|120||restart_stale_services|Sob --restart-services, reinicia units apontadas por checkservices, com confirmação salvo --yes.
+Reiniciar serviços com libs antigas|doctor|systemd,sudo,mutating|mutating|120||restart_stale_services|Sob --restart-services, reinicia units apontadas por checkservices, com confirmação salvo --yes.
 Doctor: saúde do pacman|doctor|pacman,read|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
 Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,read,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
 Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config,read|read|60||doctor_pacfiles|Lista arquivos .pacnew/.pacsave pendentes de mesclagem (sugere pacdiff); todo se houver.
@@ -112,7 +112,7 @@ Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|De
 Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.
 Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem,read|read|30|gem|doctor_gem_shadow|Detecta gems do usuário que sombreiam uma gem real do Arch com versão divergente (ex.: rdoc); sugere gem uninstall.
 Doctor: saúde do btrfs|doctor|btrfs,disk,read,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.
-Auto-remediar scrub btrfs|repair|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
+Auto-remediar scrub btrfs|doctor|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
 Doctor: tempo de boot|doctor|boot,systemd,read|read|30||doctor_boot_time|Reporta tempo total de boot (systemd-analyze) e as piores units.
 EOF
 }
