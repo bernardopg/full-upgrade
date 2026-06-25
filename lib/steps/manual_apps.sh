@@ -46,3 +46,100 @@ update_droid() {
   log "  droid atualizado para ${newver:-?}."
   return 0
 }
+
+# ── Snyk CLI ────────────────────────────────────────────────────────────────────
+# Binário standalone distribuído pela própria Snyk (static.snyk.io), sem pacote e
+# sem subcomando de self-update. Estratégia: compara a versão local com
+# /cli/latest/version; se desatualizada, baixa o binário do alvo, VERIFICA o
+# sha256 publicado (recusa instalar binário não verificado) e substitui no lugar.
+# Se o `snyk` for um symlink para uma instalação npm, o step npm global já cobre —
+# aqui só reporta. Escrita em diretório protegido usa sudo quando disponível.
+update_snyk() {
+  has snyk || { log "  snyk não encontrado."; return 0; }
+  has curl || { log "  curl ausente; não é possível atualizar o snyk."; return 0; }
+
+  local snyk_bin resolved
+  snyk_bin="$(command -v snyk 2>/dev/null || true)"
+  resolved="$(readlink -f "$snyk_bin" 2>/dev/null || printf '%s' "$snyk_bin")"
+  if [[ "$resolved" == *node_modules* || "$resolved" == *"/npm/"* ]]; then
+    log "  snyk gerenciado pelo npm (${resolved}); coberto por 'Atualizar npm global'."
+    return 0
+  fi
+
+  local arch asset
+  case "$(uname -m)" in
+    x86_64)        asset="snyk-linux" ;;
+    aarch64|arm64) asset="snyk-linux-arm64" ;;
+    *) log "  Arquitetura $(uname -m) não suportada pelo atualizador do snyk; pulando."; return 0 ;;
+  esac
+
+  local current
+  current="$(snyk --version 2>/dev/null | awk 'NR==1{print $1}' | sed 's/[^0-9.].*$//' || true)"
+  log "  snyk em: ${snyk_bin} (versão atual: ${current:-desconhecida})"
+
+  local latest
+  latest="$(run_network_cmd curl -fsSL https://static.snyk.io/cli/latest/version 2>/dev/null | head -1 | tr -d '[:space:]')"
+  if [[ -z "$latest" ]]; then
+    log "  Não foi possível determinar a última versão do snyk (rede/Snyk indisponível)."
+    return "$RC_WARN"
+  fi
+  if [[ -n "$current" ]] && ! version_is_outdated "$current" "$latest"; then
+    log "  snyk já está na versão mais recente (${current})."
+    return 0
+  fi
+
+  # Resolve o prefixo de sudo cedo: se o binário/dir não é escrevível e não há
+  # sudo pronto, vira RC_TODO antes de gastar rede no download.
+  local dir; dir="$(dirname "$snyk_bin")"
+  local -a sudo_pfx=()
+  if [[ ! -w "$snyk_bin" || ! -w "$dir" ]]; then
+    if has sudo && sudo -n true 2>/dev/null; then
+      sudo_pfx=(sudo)
+    else
+      log "  ${snyk_bin} exige privilégios para escrita e sudo não está pronto."
+      STEP_REASON="atualize o snyk com sudo disponível (binário em ${dir})"
+      return "$RC_TODO"
+    fi
+  fi
+
+  log "  Atualizando snyk: ${current:-?} → ${latest}"
+
+  local tmp
+  tmp="$(mktemp -d 2>/dev/null || true)"
+  if [[ -z "$tmp" || ! -d "$tmp" ]]; then
+    log "  mktemp falhou; não é possível atualizar o snyk."
+    return "$RC_WARN"
+  fi
+
+  local base="https://static.snyk.io/cli/latest"
+  if ! run_network_cmd curl -fsSL "${base}/${asset}" -o "${tmp}/snyk" >/dev/null \
+     || ! run_network_cmd curl -fsSL "${base}/${asset}.sha256" -o "${tmp}/snyk.sha256" >/dev/null; then
+    rm -rf "$tmp"
+    log "  Falha de rede ao baixar o binário do snyk."
+    return "$RC_WARN"
+  fi
+
+  # Verificação de integridade OBRIGATÓRIA. O arquivo .sha256 referencia o nome
+  # do asset (ex.: "snyk-linux"); renomeamos a referência para "snyk" para o -c.
+  local expected
+  expected="$(awk 'NR==1{print $1}' "${tmp}/snyk.sha256" 2>/dev/null || true)"
+  if [[ -z "$expected" ]] || ! printf '%s  %s\n' "$expected" "${tmp}/snyk" | sha256sum -c - >>"$LOG_FILE" 2>&1; then
+    rm -rf "$tmp"
+    log "  Checksum do snyk não confere; abortando (binário não verificado)."
+    return 1
+  fi
+
+  chmod +x "${tmp}/snyk" 2>/dev/null || true
+  if ! "${sudo_pfx[@]}" install -m755 "${tmp}/snyk" "$snyk_bin" 2>>"$LOG_FILE"; then
+    rm -rf "$tmp"
+    log "  Falha ao instalar o binário snyk em ${snyk_bin}."
+    return 1
+  fi
+  rm -rf "$tmp"
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(snyk --version 2>/dev/null | awk 'NR==1{print $1}' | sed 's/[^0-9.].*$//' || true)"
+  log "  snyk atualizado para ${newver:-$latest}."
+  return 0
+}

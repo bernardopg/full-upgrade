@@ -328,6 +328,12 @@ run_all_steps() {
         step_skip "Atualizar Factory droid" "droid não instalado"
     fi
 
+    if has snyk; then
+        run_step "Atualizar Snyk CLI" update_snyk
+    else
+        step_skip "Atualizar Snyk CLI" "snyk não instalado"
+    fi
+
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
     
     if has claude; then

@@ -12,6 +12,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Primeiro step: **Atualizar Factory droid** (`update_droid`) — usa o self-update
   nativo `droid update`, verifica antes com `--check` e converte falha de rede
   em `RC_WARN`.
+- **Step Atualizar Snyk CLI** (`update_snyk`) — atualiza o binário standalone do
+  Snyk (`static.snyk.io`) com verificação **obrigatória** de sha256 publicado,
+  detecta instalações via npm (delega ao step npm), e usa sudo só quando o
+  binário fica em diretório protegido (senão `RC_TODO`).
 - **Cabeçalhos de seção no output ao vivo.** A execução agora é dividida em
   blocos visuais (`── linha ──` + `▶▶ Grupo`) sempre que o grupo do step muda,
   reaproveitando o mesmo agrupamento do resumo final (`summary_group_specs`).
