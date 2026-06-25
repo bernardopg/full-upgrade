@@ -290,7 +290,8 @@ Status possíveis no resumo:
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
 | IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
-| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark quando habilitados. |
+| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
+| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
 `skip` com o motivo, e o restante do fluxo continua.
@@ -548,7 +549,7 @@ libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
 │   ├── history.sh           # histórico/tendência de runs (--history)
 │   ├── tray.sh              # systray daemon: estado, AppIndicator/yad, menu e notificações
 │   ├── main.sh              # ordem de execução
-│   └── steps/               # implementação por domínio (ai, mcp, news, ide, audit, doctor…)
+│   └── steps/               # implementação por domínio (ai, mcp, manual_apps, ide, audit, doctor…)
 └── steps.d/                 # hooks opcionais de ferramentas customizadas
 ```
 
