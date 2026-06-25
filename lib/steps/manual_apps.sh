@@ -172,3 +172,88 @@ update_zap() {
   log "  Add-ons do ZAP atualizados (core ${core:-?} é atualizado manualmente)."
   return 0
 }
+
+# ── Doctor: inventário de apps manuais ──────────────────────────────────────────
+# Read-only. Mapeia programas instalados FORA de qualquer gerenciador de pacotes
+# (binários reais em /usr/local/bin e ~/.local/bin sem dono pacman, + diretórios
+# de app em /opt) e indica quais já possuem step de atualização dedicado no
+# full-upgrade e quais não. NÃO executa binários desconhecidos (evitar abrir GUIs
+# como wireshark/cava); só reporta nome, local e cobertura. Sempre rc 0.
+_manual_apps_has_step() {
+  # Marcadores (basename de binário OU nome de diretório /opt) cobertos por um
+  # step de atualização do full-upgrade. Mantido manualmente em sincronia com os
+  # steps acima e com ai.sh/self_update.sh/steps.d.
+  local marker="$1"
+  case "$marker" in
+    droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
+    hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|\
+    uv|copilot|kimi)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+doctor_manual_apps() {
+  has pacman || { log "  pacman ausente; inventário de apps manuais indisponível."; return 0; }
+
+  local total=0 covered=0 f d name
+  local -a uncovered=()
+
+  # 1) Binários reais (regular files, não symlinks) em /usr/local/bin e ~/.local/bin
+  #    sem dono pacman. pacman -Qo sobre um arquivo é confiável. Filtra por tamanho
+  #    mínimo (≥ 1 MiB): apps instalados à mão são binários auto-contidos grandes
+  #    (Go/Rust/Node-pkg/Electron); scripts pessoais e wrappers pequenos ficam de
+  #    fora para o inventário não virar ruído.
+  local bindir min_size=1048576 sz
+  for bindir in /usr/local/bin "${HOME}/.local/bin"; do
+    [[ -d "$bindir" ]] || continue
+    for f in "$bindir"/*; do
+      [[ -f "$f" && ! -L "$f" && -x "$f" ]] || continue
+      sz="$(stat -c%s "$f" 2>/dev/null || echo 0)"
+      (( sz >= min_size )) || continue
+      pacman -Qo "$f" >/dev/null 2>&1 && continue
+      name="${f##*/}"
+      total=$((total + 1))
+      if _manual_apps_has_step "$name"; then
+        covered=$((covered + 1))
+      else
+        uncovered+=("${name}  (${bindir})")
+      fi
+    done
+  done
+
+  # 2) Diretórios de aplicação em /opt (convencionalmente instalação manual).
+  if [[ -d /opt ]]; then
+    for d in /opt/*/; do
+      [[ -d "$d" ]] || continue
+      name="${d%/}"; name="${name##*/}"
+      total=$((total + 1))
+      if _manual_apps_has_step "$name"; then
+        covered=$((covered + 1))
+      else
+        uncovered+=("${name}  (/opt)")
+      fi
+    done
+  fi
+
+  if (( total == 0 )); then
+    log "  Nenhum app fora de gerenciador de pacotes detectado."
+    return 0
+  fi
+
+  log "  Apps fora de gerenciador de pacotes: ${total} (com step de atualização: ${covered}, sem step: ${#uncovered[@]})."
+  local u shown=0
+  for u in "${uncovered[@]}"; do
+    if (( shown >= 25 )); then
+      log "    … e mais $(( ${#uncovered[@]} - shown )) (lista completa no log)."
+      break
+    fi
+    log "    • ${u}"
+    shown=$((shown + 1))
+  done
+
+  if (( ${#uncovered[@]} > 0 )); then
+    log "  Itens 'sem step' atualizam-se sozinhos (GUIs/Electron) ou exigem reinstalação manual."
+  fi
+  return 0
+}

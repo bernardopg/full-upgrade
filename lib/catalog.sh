@@ -101,6 +101,7 @@ Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config,read|read|60||doctor_pacf
 Doctor: hooks ALPM com falha|doctor|pacman,journal,read|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
 Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
+Doctor: apps manuais (fora de pacote)|doctor|manual,inventory,read|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
 Doctor: AI CLIs|doctor|ai,read|read|30||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
 Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.

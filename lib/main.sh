@@ -545,6 +545,7 @@ run_all_steps() {
     run_step "Doctor: hooks ALPM com falha" doctor_pacman_hooks
     run_step "Doctor: SMART e NVMe" doctor_smart_health
     run_step "Doctor: saúde da sessão desktop" doctor_desktop_health
+    run_step "Doctor: apps manuais (fora de pacote)" doctor_manual_apps
     run_step "Doctor: AI CLIs" doctor_ai_clis
     if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
        || has claude || has codex || has opencode; then

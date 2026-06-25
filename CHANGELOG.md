@@ -19,6 +19,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Step Atualizar add-ons do OWASP ZAP** (`update_zap`) — mantém os add-ons do
   ZAP em dia via Marketplace headless (`zap.sh -cmd -addonupdate`) e reporta a
   versão do core (atualizado manualmente). Falha de rede vira `RC_WARN`.
+- **Step Doctor: apps manuais (fora de pacote)** (`doctor_manual_apps`) —
+  inventário read-only que mapeia binários reais (≥ 1 MiB) em `/usr/local/bin` e
+  `~/.local/bin` sem dono pacman, mais diretórios de app em `/opt`, e indica
+  quais já têm step de atualização dedicado. Não executa binários desconhecidos
+  (evita abrir GUIs). Helper puro `_manual_apps_has_step` com testes bats.
 - **Cabeçalhos de seção no output ao vivo.** A execução agora é dividida em
   blocos visuais (`── linha ──` + `▶▶ Grupo`) sempre que o grupo do step muda,
   reaproveitando o mesmo agrupamento do resumo final (`summary_group_specs`).
