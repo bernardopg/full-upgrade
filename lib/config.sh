@@ -49,6 +49,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${ADGUARD_BIN:=}"
 : "${DMS_PLUGINS_DIR:=}"
 : "${OPENCLAW_BIN:=}"
+: "${ORCA_IDE_BIN:=}"
 
 # I3 — detecta o helper AUR a usar. Prioridade: AUR_HELPER explícito (se
 # instalado) > paru > yay > pikaur. Emite o nome em stdout (rc 0) ou nada (rc 1).
@@ -118,6 +119,7 @@ COPILOT_BIN
 ADGUARD_BIN
 DMS_PLUGINS_DIR
 OPENCLAW_BIN
+ORCA_IDE_BIN
 EOF
 }
 
@@ -209,6 +211,7 @@ load_config() {
   [[ -z "$COPILOT_BIN" ]] && COPILOT_BIN="$(command -v copilot 2>/dev/null || true)"
   [[ -z "$ADGUARD_BIN" ]] && ADGUARD_BIN="$(command -v adguardvpn-cli 2>/dev/null || true)"
   [[ -z "$OPENCLAW_BIN" ]] && OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
+  [[ -z "$ORCA_IDE_BIN" ]] && ORCA_IDE_BIN="$(command -v stably-orca 2>/dev/null || true)"
   [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="${HOME}/.config/DankMaterialShell/plugins"
 
   # I3 — auto-detecção de helper AUR e elevador de privilégio (depois do config
@@ -228,7 +231,7 @@ load_config() {
   export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS
   export AUR_HELPER PRIV_CMD
-  export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN DMS_PLUGINS_DIR
+  export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
@@ -442,6 +445,7 @@ show_config() {
   _cfg_kv "COPILOT_BIN" "$COPILOT_BIN" "<não encontrado>"
   _cfg_kv "ADGUARD_BIN" "$ADGUARD_BIN" "<não encontrado>"
   _cfg_kv "OPENCLAW_BIN" "$OPENCLAW_BIN" "<não encontrado>"
+  _cfg_kv "ORCA_IDE_BIN" "$ORCA_IDE_BIN" "<não encontrado>"
   _cfg_kv "DMS_PLUGINS_DIR" "$DMS_PLUGINS_DIR"
   printf '\n'
 

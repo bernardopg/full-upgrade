@@ -54,9 +54,9 @@ full-upgrade
 | Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
 | Catálogo técnico | Steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
 | Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. Elevação configurável (`sudo`/`doas`/`run0`/`sudo-rs`). |
-| Arch completo | `pacman`, AUR via `paru`/`yay`/`pikaur`, keyring, mirrors, snapshot btrfs, `.pacnew/.pacsave`, órfãos, cache e checagem de **Arch News** antes das mutações. |
+| Arch completo | `pacman`, AUR via `paru`/`yay`/`pikaur`, keyring, mirrors, snapshot btrfs, `.pacnew/.pacsave`, órfãos e cache. |
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
-| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi), servidores **MCP** e extensões de IDE da família VSCode (Code/Cursor/Codium). |
+| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi), servidores **MCP**, Orca IDE (Stably AI) e extensões de IDE da família VSCode (Code/Cursor/Codium). |
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
@@ -280,7 +280,6 @@ Status possíveis no resumo:
 | --- | --- |
 | Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
 | Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup validado da mirrorlist. |
-| Arch News | Lê o feed de notícias do Arch antes das mutações e marca `todo` quando há intervenção manual nova (via `informant` ou parse RSS). |
 | Sistema | `pacman`, AUR (`paru`/`yay`/`pikaur`), reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos, snapshots antigos do próprio script e `.pacnew/.pacsave`. |
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
@@ -290,7 +289,7 @@ Status possíveis no resumo:
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark quando habilitados. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
@@ -433,7 +432,6 @@ Principais chaves:
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
-| `ARCH_NEWS_CHECK` | `1` | Checa Arch News (RSS/`informant`) antes das mutações e alerta sobre itens novos. `0` desliga. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
 | `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
@@ -455,6 +453,7 @@ Principais chaves:
 | `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
 | `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
 | `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |
+| `ORCA_IDE_BIN` | auto | Override do binário `stably-orca` (Orca IDE). |
 | `BURPSUITE_JAVA_BIN` | auto | Java usado pelo fallback de instalação do Burp. |
 
 Como o arquivo é carregado com `source`, use sintaxe Bash válida.
@@ -489,6 +488,7 @@ aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
 | `steps.d/40-dms.sh` | `update_dms_plugins` | diretório `DMS_PLUGINS_DIR` existe |
 | `steps.d/60-openclaw.sh` | `update_openclaw` | `openclaw` no PATH ou `OPENCLAW_BIN` |
 | `steps.d/70-rtk.sh` | `update_rtk` | `rtk` no PATH ou `RTK_BIN` |
+| `steps.d/80-orca.sh` | `ensure_orca_ide` | Orca instalado (binário/`ORCA_IDE_PACKAGE`); instala novo só com `ENABLE_CUSTOM_TOOLS=1` |
 
 **Opt-in via `ENABLE_CUSTOM_TOOLS=1`** (porque INSTALA pacote, não só atualiza):
 

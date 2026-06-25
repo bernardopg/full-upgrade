@@ -4,6 +4,43 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-06-25
+
+### Adicionado
+
+- **Integração com o Orca IDE (Stably AI).** Novo step `Garantir Orca IDE`
+  (`steps.d/80-orca.sh`): roda por presença do binário/pacote `stably-orca`;
+  com `ENABLE_CUSTOM_TOOLS=1` instala quando ausente via helper AUR
+  (`stably-orca-bin`) com fallback para AppImage do release oficial — este
+  verificado por checksum SHA-256 do próprio release antes de ativar. Em todos
+  os casos repara o `.desktop` do usuário e instala o ícone no
+  `hicolor/512x512` local. Nova chave de config `ORCA_IDE_BIN` (override do
+  binário, auto-detectado).
+
+### Alterado
+
+- **Ordem do fluxo: reparo de shadowing antes do upgrade base.**
+  `Reparar comandos locais conflitantes` (genérico e preventivo) agora roda
+  antes de `Atualizar pacotes do sistema e AUR`, não depois.
+- **Reinício de serviços com libs antigas separado do doctor.**
+  `Doctor: serviços com libs antigas` voltou a ser estritamente read-only
+  (apenas lista as units afetadas); o reinício passou para um novo step
+  mutating `Reiniciar serviços com libs antigas`, gateado por
+  `--restart-services` + confirmação/`--yes`. Garante que
+  `--mode doctor --restart-services` não reinicia nada.
+
+### Removido
+
+- **Step `Verificar Arch News` removido em definitivo.** Limpeza completa do
+  que restava após a refatoração do pré-flight: `tests/arch_news.bats`,
+  referências em `README.md`/`TO-DO.md` e a chave `ARCH_NEWS_CHECK`.
+
+### Corrigido
+
+- **Dead code em `doctor_stale_services`.** `return "$RC_TODO"` duplicado,
+  indentação quebrada do bloco `RESTART_SERVICES` e variável `problems`
+  declarada e nunca usada.
+
 ## [3.13.2] - 2026-06-23
 
 ### Corrigido

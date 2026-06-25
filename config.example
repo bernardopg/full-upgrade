@@ -62,6 +62,7 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
+# ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"
 # RTK_BIN="$HOME/.local/bin/rtk"
 # BURPSUITE_JAVA_BIN="/usr/lib/jvm/java-21-openjdk/bin/java"  # Java p/ o fallback do Burp
 

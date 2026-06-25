@@ -134,8 +134,34 @@ setup() {
       bad=1
     fi
   done < <(grep -oE '(run_step|step_skip|custom_step_or_skip) "[^"]+"' "$main" \
-             | sed -E 's/^[a-z_]+ "//; s/"$//' | sort -u)
+              | sed -E 's/^[a-z_]+ "//; s/"$//' | sort -u)
   [ "$bad" -eq 0 ]
+}
+
+@test "main.sh: shadowing roda antes do update principal" {
+  local main="${FU_ROOT}/lib/main.sh"
+  [ -f "$main" ]
+
+  local shadow_line update_line
+  shadow_line="$(grep -nF 'run_step "Reparar comandos locais conflitantes"' "$main" | head -n1 | cut -d: -f1)"
+  update_line="$(grep -nF 'run_step "Atualizar pacotes do sistema e AUR"' "$main" | head -n1 | cut -d: -f1)"
+
+  [ -n "$shadow_line" ]
+  [ -n "$update_line" ]
+  [ "$shadow_line" -lt "$update_line" ]
+}
+
+@test "main.sh: reinício de serviços antigos é despachado" {
+  local main="${FU_ROOT}/lib/main.sh"
+  [ -f "$main" ]
+
+  local stale_line restart_line
+  stale_line="$(grep -nF 'run_step "Doctor: serviços com libs antigas"' "$main" | head -n1 | cut -d: -f1)"
+  restart_line="$(grep -nF 'run_step "Reiniciar serviços com libs antigas"' "$main" | head -n1 | cut -d: -f1)"
+
+  [ -n "$stale_line" ]
+  [ -n "$restart_line" ]
+  [ "$stale_line" -lt "$restart_line" ]
 }
 
 @test "catálogo: steps que mutam estado do shell pai têm timeout 0" {

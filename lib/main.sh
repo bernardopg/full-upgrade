@@ -44,6 +44,14 @@ run_all_steps() {
                 run_step "Limpar lock stale do pacman"                  ensure_pacman_lock_is_clean
                 run_step "Reparar ambiente GnuPG/AUR"                   repair_gnupg_runtime
             fi
+
+            if (( NO_REPAIR )); then
+                step_skip "Reparar comandos locais conflitantes"        "--no-repair"
+            else
+                # Shadowing é reparo genérico, útil p/ todos e deve acontecer
+                # antes do update principal.
+                run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
+            fi
             
             run_step "Backup de configs críticas" backup_critical_configs
             run_step "Snapshot pré-upgrade" preupgrade_snapshot
@@ -53,7 +61,6 @@ run_all_steps() {
             
             if (( NO_REPAIR )); then
                 step_skip "Garantir Burp Suite e Wireshark"             "--no-repair"
-                step_skip "Reparar comandos locais conflitantes"        "--no-repair"
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
                 step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
             else
@@ -61,8 +68,6 @@ run_all_steps() {
                 # INSTALA o pacote burpsuite se ausente, então não deve rodar por padrão
                 # (instalaria Burp na máquina de quem nunca pediu). Opt-in explícito.
                 custom_step_or_skip "Garantir Burp Suite e Wireshark"   ensure_security_tools
-                # Shadowing é reparo genérico, útil p/ todos.
-                run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
                 custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
                 custom_step_or_skip "Reparar atalhos antigos do Burp"   repair_broken_burpsuite_desktop_entries
             fi
@@ -90,7 +95,7 @@ run_all_steps() {
             step_skip "$_s" "gerenciador Arch não encontrado"
         done
     fi
-    
+
     # ── Flatpak ───────────────────────────────────────────────────────────────────
     
     if has flatpak; then
@@ -342,6 +347,14 @@ run_all_steps() {
         step_skip "Atualizar servidores MCP" "MCP_AUTO_UPDATE!=1 ou sem fonte MCP"
     fi
 
+    if declare -F orca_ide_installed >/dev/null 2>&1 && orca_ide_installed; then
+        run_step "Garantir Orca IDE" ensure_orca_ide
+    elif (( ${ENABLE_CUSTOM_TOOLS:-0} == 1 )); then
+        run_step "Garantir Orca IDE" ensure_orca_ide
+    else
+        step_skip "Garantir Orca IDE" "orca não instalado e ENABLE_CUSTOM_TOOLS=0"
+    fi
+
     if has kimi; then
         run_step "Atualizar Kimi CLI" update_kimi
     else
@@ -489,6 +502,17 @@ run_all_steps() {
     run_step "Doctor: saúde de boot" doctor_boot_health
     run_step "Doctor: saúde de rede" doctor_network_health
     run_step "Doctor: serviços com libs antigas" doctor_stale_services
+    if (( NO_REPAIR )); then
+        step_skip "Reiniciar serviços com libs antigas" "--no-repair"
+    elif (( RESTART_SERVICES )) && ! has checkservices; then
+        step_skip "Reiniciar serviços com libs antigas" "checkservices não instalado"
+    elif (( RESTART_SERVICES )) && (( ! SUDO_READY )); then
+        step_skip "Reiniciar serviços com libs antigas" "sudo indisponível"
+    elif (( RESTART_SERVICES )); then
+        run_step "Reiniciar serviços com libs antigas" restart_stale_services
+    else
+        step_skip "Reiniciar serviços com libs antigas" "--restart-services ausente"
+    fi
     run_step "Doctor: saúde do pacman" doctor_pacman_health
     run_step "Doctor: CVEs de pacotes oficiais (arch-audit)" doctor_arch_audit_cves
     run_step "Doctor: arquivos .pacnew/.pacsave" doctor_pacfiles

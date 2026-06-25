@@ -110,17 +110,8 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > <https://github.com/Antiz96/arch-update>.
 
 #### I1 — 🔴 M ☑ Checagem de Arch News pré-upgrade — PR #43
-> **Maior ganho de segurança.** Arch publica intervenções manuais necessárias
-> ANTES do `-Syu` (ex.: troca de chaves, particionamento). `arch-update` checa
-> e exibe news antes de atualizar; hoje o full-upgrade não.
-- **Arquivos:** novo `lib/steps/news.sh`, `lib/catalog.sh`, `lib/main.sh`, config
-- **O quê:** step "Verificar Arch News" (read-only, antes das mutações) que lê o
-  feed RSS (`https://archlinux.org/feeds/news/`) e mostra entradas desde o último
-  upgrade. Se houver news não vista → `RC_TODO` (gate de atenção). Usa
-  `informant` se instalado; senão parse RSS via `curl` + helper puro. Config
-  `ARCH_NEWS_CHECK=1` (default), janela por data do último run.
-- **Aceite:** news recente → `todo` citando os títulos; nenhuma → `ok`; sem rede
-  → `RC_WARN`; parser de RSS coberto por bats (fixture).
+> Removido intencionalmente neste branch. Mantido aqui só como histórico do que
+> já existiu no fluxo anterior.
 
 #### I2 — 🟡 M ☐ Processar pacnew/pacsave (pacdiff)
 > `arch-update` trata `.pacnew`/`.pacsave`. Configs órfãs/novas acumulam e
@@ -368,9 +359,9 @@ priorizar. Não é roadmap — é evidência.
 - **Contexto:** primeiro run real após ligar as chaves opt-in das séries H/I/J no
   config do usuário (`AUTO_BTRFS_SCRUB`, `AUTO_FIX_RUST_CVES`, `NOTIFY_ON_FINISH`,
   `REPORT_ON_FINISH`, `OLLAMA_SELF_UPDATE`). Todos os steps novos dispararam OK:
-  "Auto-remediar scrub btrfs", "Verificar Arch News" (3s), "Atualizar Ollama"
-  (18s, self-update), "Atualizar extensões de IDE", "Atualizar RTK", relatório
-  `.md` gravado em `~/.cache/system-upgrade/`.
+  "Auto-remediar scrub btrfs", "Atualizar Ollama" (18s, self-update),
+  "Atualizar extensões de IDE", "Atualizar RTK", relatório `.md` gravado em
+  `~/.cache/system-upgrade/`.
 - **todo (1)** — `Verificação final de pendências`: cluster Haskell/cabal segurado
   em repositórios oficiais (cabal-install, haskell-aeson, -attoparsec-aeson,
   -bitvec, -casa-*, -cborg, …). `-Syu` rodou em 4s (sistema já corrente); held por

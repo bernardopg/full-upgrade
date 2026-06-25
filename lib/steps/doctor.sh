@@ -645,7 +645,7 @@ doctor_stale_services() {
   fi
 
   if has checkservices; then
-    local output rc problems
+    local output rc
     output="$(sudo -n checkservices 2>&1)"
     rc=$?
     if (( rc != 0 )); then
@@ -680,17 +680,15 @@ doctor_stale_services() {
       log "  checkservices: nenhum serviço com bibliotecas antigas."
       return 0
     fi
-    problems="$(printf '%s\n' "${_affected_services[@]}")"
     local svc_count="${#_affected_services[@]}"
     log "  checkservices: ${svc_count} serviço(s) usando bibliotecas substituídas (reinício recomendado):"
     printf '%s\n' "${_affected_services[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
     STEP_REASON="${svc_count} serviço(s) com libs antigas (reinício pendente)"
 
-  if (( RESTART_SERVICES )); then
-    log "  --restart-services ativo: o reinício é feito pelo step 'Reiniciar serviços com libs antigas'."
-  fi
-  return "$RC_TODO"
-  return "$RC_TODO"
+    if (( RESTART_SERVICES )); then
+      log "  --restart-services ativo: o reinício é feito pelo step 'Reiniciar serviços com libs antigas'."
+    fi
+    return "$RC_TODO"
   fi
 
   log "  needrestart e checkservices não encontrados; instale um para monitorar serviços com libs antigas."

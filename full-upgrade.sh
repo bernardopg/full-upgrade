@@ -25,13 +25,13 @@ fi
 #   1. git describe (rodando a partir de um clone do repo, durante o dev);
 #   2. arquivo VERSION ao lado do entrypoint (gravado por install.sh/build.sh);
 #   3. fallback embutido (último recurso).
-SCRIPT_VERSION="3.13.2"
+SCRIPT_VERSION="3.14.0"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 if [[ -n "$_git_ver" ]]; then
-  SCRIPT_VERSION="3.13.2"
+  SCRIPT_VERSION="3.14.0"
 elif [[ -r "${FU_ROOT}/VERSION" ]]; then
   _file_ver="$(tr -d '[:space:]' < "${FU_ROOT}/VERSION" 2>/dev/null || true)"
-  [[ -n "$_file_ver" ]] && SCRIPT_VERSION="3.13.2"
+  [[ -n "$_file_ver" ]] && SCRIPT_VERSION="3.14.0"
   unset _file_ver
 fi
 unset _git_ver
