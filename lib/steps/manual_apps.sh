@@ -143,3 +143,32 @@ update_snyk() {
   log "  snyk atualizado para ${newver:-$latest}."
   return 0
 }
+
+# ── OWASP ZAP ───────────────────────────────────────────────────────────────────
+# Instalado fora de pacote (ex.: /opt/zaproxy via instalador). O core (jar) é
+# atualizado manualmente, mas os add-ons do Marketplace têm atualização headless
+# nativa: `zap.sh -cmd -addonupdate`. Este step mantém os add-ons em dia (a parte
+# que realmente muda com frequência) e reporta a versão do core.
+update_zap() {
+  local zap_cmd
+  zap_cmd="$(command -v zap 2>/dev/null || command -v zap.sh 2>/dev/null || true)"
+  [[ -n "$zap_cmd" ]] || { log "  OWASP ZAP não encontrado."; return 0; }
+
+  # Versão do core: derivada do jar empacotado ao lado do zap.sh resolvido.
+  local zap_home core="" j
+  zap_home="$(dirname "$(readlink -f "$zap_cmd" 2>/dev/null || printf '%s' "$zap_cmd")")"
+  for j in "$zap_home"/zap-*.jar; do
+    [[ -e "$j" ]] || continue
+    core="${j##*/zap-}"; core="${core%.jar}"
+    break
+  done
+  log "  OWASP ZAP core: ${core:-desconhecido} (${zap_home})"
+
+  log "  Atualizando add-ons do ZAP via Marketplace (headless)…"
+  if ! run_network_cmd "$zap_cmd" -cmd -addonupdate; then
+    log "  Falha ao atualizar add-ons do ZAP."
+    return "$RC_WARN"
+  fi
+  log "  Add-ons do ZAP atualizados (core ${core:-?} é atualizado manualmente)."
+  return 0
+}

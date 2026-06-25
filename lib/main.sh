@@ -334,6 +334,12 @@ run_all_steps() {
         step_skip "Atualizar Snyk CLI" "snyk não instalado"
     fi
 
+    if has zap || has zap.sh; then
+        run_step "Atualizar add-ons do OWASP ZAP" update_zap
+    else
+        step_skip "Atualizar add-ons do OWASP ZAP" "zap não instalado"
+    fi
+
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
     
     if has claude; then

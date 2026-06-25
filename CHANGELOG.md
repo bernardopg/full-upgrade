@@ -16,6 +16,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Snyk (`static.snyk.io`) com verificação **obrigatória** de sha256 publicado,
   detecta instalações via npm (delega ao step npm), e usa sudo só quando o
   binário fica em diretório protegido (senão `RC_TODO`).
+- **Step Atualizar add-ons do OWASP ZAP** (`update_zap`) — mantém os add-ons do
+  ZAP em dia via Marketplace headless (`zap.sh -cmd -addonupdate`) e reporta a
+  versão do core (atualizado manualmente). Falha de rede vira `RC_WARN`.
 - **Cabeçalhos de seção no output ao vivo.** A execução agora é dividida em
   blocos visuais (`── linha ──` + `▶▶ Grupo`) sempre que o grupo do step muda,
   reaproveitando o mesmo agrupamento do resumo final (`summary_group_specs`).
