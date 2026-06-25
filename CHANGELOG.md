@@ -19,6 +19,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Primeiro step: **Atualizar Factory droid** (`update_droid`) — usa o self-update
   nativo `droid update`, verifica antes com `--check` e converte falha de rede
   em `RC_WARN`.
+- **Step Atualizar Kiro CLI (Amazon)** (`update_kiro_cli`) — self-update nativo
+  `kiro-cli update --non-interactive` (não confundir com a Kimi CLI da Moonshot);
+  falha de rede vira `RC_WARN`.
 - **Step Atualizar CodeRabbit CLI** (`update_coderabbit`) — usa o self-update
   nativo `coderabbit update` (binário em `~/.local/bin`, sem sudo); falha de rede
   vira `RC_WARN`.

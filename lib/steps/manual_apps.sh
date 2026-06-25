@@ -97,6 +97,37 @@ update_coderabbit() {
   return 0
 }
 
+# ── Amazon Kiro CLI ─────────────────────────────────────────────────────────────
+# CLI da IDE Kiro (Amazon), instalada fora de pacote em ~/.local/bin. Tem
+# self-update nativo: `kiro-cli update --non-interactive` (sem prompt). Não
+# confundir com 'Atualizar Kimi CLI' (Moonshot). Falha de rede vira RC_WARN.
+update_kiro_cli() {
+  has kiro-cli || { log "  kiro-cli não encontrado."; return 0; }
+
+  local current
+  current="$(kiro-cli --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kiro-cli versão atual: ${current:-desconhecida}"
+
+  log "  Atualizando Kiro CLI…"
+  local out rc
+  out="$(run_network_cmd kiro-cli update --non-interactive 2>&1)"; rc=$?
+  printf '%s\n' "$out" >>"$LOG_FILE"
+  if (( rc != 0 )); then
+    log "  Falha ao atualizar o kiro-cli."
+    return "$RC_WARN"
+  fi
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(kiro-cli --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  if [[ -n "$newver" && "$newver" != "$current" ]]; then
+    log "  kiro-cli atualizado: ${current:-?} → ${newver}."
+  else
+    log "  kiro-cli já está na versão mais recente (${newver:-${current:-?}})."
+  fi
+  return 0
+}
+
 # ── Snyk CLI ────────────────────────────────────────────────────────────────────
 # Binário standalone distribuído pela própria Snyk (static.snyk.io), sem pacote e
 # sem subcomando de self-update. Estratégia: compara a versão local com
@@ -337,7 +368,8 @@ _manual_apps_has_step() {
   case "$marker" in
     droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|\
-    uv|copilot|kimi|gk|gitkraken|coderabbit|cr)
+    uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
+    kiro-cli|kiro-cli-chat|kiro-cli-term)
       return 0 ;;
     *) return 1 ;;
   esac
