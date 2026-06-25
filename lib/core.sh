@@ -374,6 +374,24 @@ _ts() {
   printf '%02d:%02d' $((secs / 60)) $((secs % 60))
 }
 
+# Largura da coluna de nome p/ alinhar as linhas de status ao vivo. Memoizada:
+# derivada do maior nome do catálogo (limitada a [24,50]), igual ao resumo, para
+# que as durações/motivos fiquem numa coluna consistente em toda a execução.
+STEP_NAME_W=0
+_step_name_width() {
+  if (( STEP_NAME_W == 0 )); then
+    local w=0 n _rest l
+    while IFS='|' read -r n _rest; do
+      [[ -n "$n" ]] || continue
+      l=${#n}; (( l > w )) && w=$l
+    done < <(step_catalog)
+    (( w > 50 )) && w=50
+    (( w < 24 )) && w=24
+    STEP_NAME_W=$w
+  fi
+  printf '%d' "$STEP_NAME_W"
+}
+
 # Resolve a categoria de um step pelo catálogo (vazio se não-catalogado).
 _category_of() {
   local name="$1" category rest
@@ -422,7 +440,7 @@ step_ok() {
   write_step_event_json "${STEP_NAMES[-1]}" "ok" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   local time_color="$C_DIM"
   (( dur >= 30 )) && time_color="${C_YELLOW}${C_BOLD}"
-  log "${C_GREEN}${SYM_OK}${C_RESET} ${STEP_NAMES[-1]} ${time_color}($(elapsed "$dur"))${C_RESET}"
+  log "${C_GREEN}${SYM_OK}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${time_color}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_fail() {
@@ -431,7 +449,7 @@ step_fail() {
   STEP_TIMES+=("$dur")
   HAS_FAIL=1
   write_step_event_json "${STEP_NAMES[-1]}" "fail" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_RED}${SYM_FAIL}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_RED}${SYM_FAIL}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_warn() {
@@ -439,7 +457,7 @@ step_warn() {
   STEP_RESULTS+=("warn")
   STEP_TIMES+=("$dur")
   write_step_event_json "${STEP_NAMES[-1]}" "warn" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_YELLOW}${SYM_WARN}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_YELLOW}${SYM_WARN}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_todo() {
@@ -450,7 +468,7 @@ step_todo() {
     REBOOT_RECOMMENDATION="$STEP_REASON"
   fi
   write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_CYAN}${SYM_TODO}${C_RESET} ${STEP_NAMES[-1]} ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_CYAN}${SYM_TODO}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_skip() {
@@ -464,7 +482,7 @@ step_skip() {
   STEP_TIMES+=(0)
   STEP_START_ISO="$(date -Is)"
   write_step_event_json "$name" "skip" 0 0 "$reason"
-  log "${C_YELLOW}${SYM_SKIP}${C_RESET} ${name} ${C_DIM}(${reason})${C_RESET}"
+  log "${C_YELLOW}${SYM_SKIP}${C_RESET} $(ui_pad "${name}" "$(_step_name_width)") ${C_DIM}(${reason})${C_RESET}"
 }
 
 run_step() {

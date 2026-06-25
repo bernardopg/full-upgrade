@@ -6,11 +6,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
-- **Durações alinhadas em coluna no resumo.** Os nomes dos steps são preenchidos
-  até uma coluna comum (largura = maior nome, limitada a `[24,50]`) para que as
-  durações `(Ns)` fiquem alinhadas. Novo helper puro `ui_pad`, ciente de UTF-8
-  (conta caracteres, não bytes — nomes acentuados PT-BR alinham certo). Testes
-  bats inclusos.
+- **Durações alinhadas em coluna no resumo e no output ao vivo.** Os nomes dos
+  steps são preenchidos até uma coluna comum (largura = maior nome, limitada a
+  `[24,50]`) para que as durações/motivos `(…)` fiquem alinhados — tanto nas
+  linhas de status ao vivo (✔/⚠/→/✘/⊘) quanto no resumo final. Novo helper puro
+  `ui_pad`, ciente de UTF-8 (conta caracteres, não bytes — nomes acentuados PT-BR
+  alinham certo), e largura memoizada `_step_name_width` derivada do catálogo.
+  Testes bats inclusos.
 - **Nova família de steps "Apps manuais"** para programas instalados fora de
   qualquer gerenciador de pacotes (sem pacman/AUR/flatpak/snap). Arquivo
   `lib/steps/manual_apps.sh`, categoria `manual` e grupo de resumo próprio.
