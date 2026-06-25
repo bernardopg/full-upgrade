@@ -4,6 +4,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.1] - 2026-06-25
+
+### Alterado
+
+- **`Atualizar Ollama` pula o instalador quando já está atual.** O instalador
+  oficial (`curl|sh`) levava ~20s mesmo sem update. Agora compara a versão local
+  com a última release do GitHub (redirect 302, sem API) e só roda o instalador
+  se desatualizado (~20s → ~1s no caso comum). Falha de rede na checagem não
+  bloqueia: cai no instalador.
+- **`Atualizar OpenClaw` pula o update real quando o core já está atual.** O
+  `openclaw update` (npm refresh + sync de plugins + restart do gateway) levava
+  ~50s sempre. Agora um `openclaw update --dry-run --json` (rápido) compara
+  `currentVersion`/`targetVersion` e pula o update pesado se forem iguais
+  (~50s → ~4s no caso comum). Helper puro `openclaw_update_available` com testes.
+
 ## [3.17.0] - 2026-06-25
 
 ### Adicionado

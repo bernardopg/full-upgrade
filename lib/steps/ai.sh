@@ -32,6 +32,19 @@ update_ollama() {
     return 0
   fi
 
+  # Otimização: o instalador oficial (curl|sh) leva ~20s mesmo quando o Ollama já
+  # está atual. Antes de rodá-lo, compara a versão local com a última release no
+  # GitHub (via o redirect 302 de /releases/latest, sem API/rate-limit) e pula se
+  # já estiver na mais recente. Falha de rede aqui não bloqueia — cai no instalador.
+  local effective tag latest
+  effective="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+                 "https://github.com/ollama/ollama/releases/latest" 2>/dev/null || true)"
+  tag="${effective##*/}"; latest="${tag#v}"
+  if [[ -n "$latest" && -n "$before" ]] && ! version_is_outdated "$before" "$latest"; then
+    log "  ollama já está na versão mais recente (${before}); pulando instalador."
+    return 0
+  fi
+
   log "  Baixando e executando o instalador oficial do Ollama..."
   local script rc
   script="$(run_network_cmd curl -fsSL https://ollama.com/install.sh)"
