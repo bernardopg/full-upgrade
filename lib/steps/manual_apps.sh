@@ -346,7 +346,7 @@ _manual_apps_has_step() {
 doctor_manual_apps() {
   has pacman || { log "  pacman ausente; inventário de apps manuais indisponível."; return 0; }
 
-  local total=0 covered=0 f d name
+  local total=0 covered=0 f d name probe
   local -a uncovered=()
 
   # 1) Binários reais (regular files, não symlinks) em /usr/local/bin e ~/.local/bin
@@ -372,11 +372,18 @@ doctor_manual_apps() {
     done
   done
 
-  # 2) Diretórios de aplicação em /opt (convencionalmente instalação manual).
+  # 2) Diretórios de aplicação em /opt. Convencionalmente instalação manual, mas
+  #    pacotes do repo/AUR também usam /opt (google-chrome, spotify, android-studio,
+  #    intel-oneapi…). Probe de propriedade: se o 1º arquivo dentro pertence a um
+  #    pacote, é gerenciado e não conta. Dirs vazios também são ignorados.
   if [[ -d /opt ]]; then
     for d in /opt/*/; do
       [[ -d "$d" ]] || continue
+      [[ -L "${d%/}" ]] && continue          # ignora symlink (ex.: /opt/idea -> idea-X.Y)
       name="${d%/}"; name="${name##*/}"
+      probe="$(find "$d" -maxdepth 2 -type f 2>/dev/null | head -1)"
+      [[ -n "$probe" ]] || continue
+      pacman -Qo "$probe" >/dev/null 2>&1 && continue
       total=$((total + 1))
       if _manual_apps_has_step "$name"; then
         covered=$((covered + 1))
