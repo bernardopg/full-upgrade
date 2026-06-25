@@ -12,6 +12,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Primeiro step: **Atualizar Factory droid** (`update_droid`) — usa o self-update
   nativo `droid update`, verifica antes com `--check` e converte falha de rede
   em `RC_WARN`.
+- **Step Atualizar CodeRabbit CLI** (`update_coderabbit`) — usa o self-update
+  nativo `coderabbit update` (binário em `~/.local/bin`, sem sudo); falha de rede
+  vira `RC_WARN`.
 - **Step Atualizar Snyk CLI** (`update_snyk`) — atualiza o binário standalone do
   Snyk (`static.snyk.io`) com verificação **obrigatória** de sha256 publicado,
   detecta instalações via npm (delega ao step npm), e usa sudo só quando o

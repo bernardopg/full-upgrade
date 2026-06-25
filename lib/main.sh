@@ -328,6 +328,12 @@ run_all_steps() {
         step_skip "Atualizar Factory droid" "droid não instalado"
     fi
 
+    if has coderabbit; then
+        run_step "Atualizar CodeRabbit CLI" update_coderabbit
+    else
+        step_skip "Atualizar CodeRabbit CLI" "coderabbit não instalado"
+    fi
+
     if has snyk; then
         run_step "Atualizar Snyk CLI" update_snyk
     else

@@ -66,6 +66,7 @@ Atualizar servidores MCP|ai|mcp,update|mutating|180||mcp_update_servers|Sob MCP_
 Garantir Orca IDE|ai|orca,ide,desktop,aur,network,mutating|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
 Atualizar Kimi CLI|ai|kimi,update,network|mutating|30|kimi|update_kimi|Kimi (Moonshot) via npm global (@moonshot-ai/kimi-code) já é coberto por 'Atualizar npm global'; standalone => RC_TODO.
 Atualizar Factory droid|manual|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
+Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
 Atualizar Snyk CLI|manual|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
 Atualizar add-ons do OWASP ZAP|manual|security,zap,update,network|mutating|600|zap|update_zap|Atualiza add-ons do OWASP ZAP via Marketplace headless (zap.sh -cmd -addonupdate); core é manual.
 Atualizar GitKraken CLI (gk)|manual|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.

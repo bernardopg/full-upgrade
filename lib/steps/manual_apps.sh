@@ -47,6 +47,37 @@ update_droid() {
   return 0
 }
 
+# ── CodeRabbit CLI ──────────────────────────────────────────────────────────────
+# Binário standalone em ~/.local/bin (sem pacote), com self-update nativo:
+# `coderabbit update` checa e instala a última versão no lugar. Sem sudo (destino
+# escrevível pelo usuário). Falha de rede vira RC_WARN.
+update_coderabbit() {
+  has coderabbit || { log "  coderabbit não encontrado."; return 0; }
+
+  local current
+  current="$(coderabbit --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  coderabbit versão atual: ${current:-desconhecida}"
+
+  log "  Verificando atualização do CodeRabbit CLI…"
+  local out rc
+  out="$(run_network_cmd coderabbit update 2>&1)"; rc=$?
+  printf '%s\n' "$out" >>"$LOG_FILE"
+  if (( rc != 0 )); then
+    log "  Falha ao atualizar o coderabbit."
+    return "$RC_WARN"
+  fi
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(coderabbit --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  if [[ -n "$newver" && "$newver" != "$current" ]]; then
+    log "  coderabbit atualizado: ${current:-?} → ${newver}."
+  else
+    log "  coderabbit já está na versão mais recente (${newver:-${current:-?}})."
+  fi
+  return 0
+}
+
 # ── Snyk CLI ────────────────────────────────────────────────────────────────────
 # Binário standalone distribuído pela própria Snyk (static.snyk.io), sem pacote e
 # sem subcomando de self-update. Estratégia: compara a versão local com
@@ -295,7 +326,7 @@ _manual_apps_has_step() {
   case "$marker" in
     droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|\
-    uv|copilot|kimi|gk|gitkraken)
+    uv|copilot|kimi|gk|gitkraken|coderabbit|cr)
       return 0 ;;
     *) return 1 ;;
   esac
