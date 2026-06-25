@@ -317,7 +317,17 @@ run_all_steps() {
     else
         step_skip "Atualizar OpenClaw" "openclaw não instalado"
     fi
-    
+
+    # ── Apps manuais (fora de qualquer gerenciador de pacotes) ───────────────────
+    # Cada programa instalado por instalador próprio/binário avulso tem seu step
+    # dedicado; rodam por presença e usam o self-update nativo de cada um.
+
+    if has droid; then
+        run_step "Atualizar Factory droid" update_droid
+    else
+        step_skip "Atualizar Factory droid" "droid não instalado"
+    fi
+
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
     
     if has claude; then

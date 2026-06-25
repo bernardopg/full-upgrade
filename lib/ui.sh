@@ -152,6 +152,7 @@ Firmware / Boot|firmware
 Shell / Editor|editor shell
 Hyprland|hyprland
 IA|ai
+Apps manuais|manual
 Rede|network
 Limpeza|cleanup
 Verificação final|final
@@ -199,6 +200,7 @@ _category_label() {
     editor|shell) printf 'Shell / Editor' ;;
     hyprland) printf 'Hyprland' ;;
     ai)       printf 'IA' ;;
+    manual)   printf 'Apps manuais' ;;
     network)  printf 'Rede' ;;
     cleanup)  printf 'Limpeza' ;;
     final)    printf 'Verificação final' ;;

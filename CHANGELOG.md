@@ -6,6 +6,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Nova família de steps "Apps manuais"** para programas instalados fora de
+  qualquer gerenciador de pacotes (sem pacman/AUR/flatpak/snap). Arquivo
+  `lib/steps/manual_apps.sh`, categoria `manual` e grupo de resumo próprio.
+  Primeiro step: **Atualizar Factory droid** (`update_droid`) — usa o self-update
+  nativo `droid update`, verifica antes com `--check` e converte falha de rede
+  em `RC_WARN`.
 - **Cabeçalhos de seção no output ao vivo.** A execução agora é dividida em
   blocos visuais (`── linha ──` + `▶▶ Grupo`) sempre que o grupo do step muda,
   reaproveitando o mesmo agrupamento do resumo final (`summary_group_specs`).

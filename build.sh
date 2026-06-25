@@ -17,6 +17,7 @@ ORDER=(
 
   lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh lib/steps/doctor.sh
   lib/steps/backup.sh lib/steps/self_update.sh lib/steps/audit.sh lib/steps/mcp.sh
+  lib/steps/manual_apps.sh
   lib/main.sh
 )
 
