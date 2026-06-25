@@ -47,6 +47,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   O print fica organizado e alinhado, com a execução espelhando os blocos do
   resumo. Novo helper puro `_group_label_for_category` (com testes bats).
 
+### Corrigido
+
+- **`Atualizar add-ons do OWASP ZAP` não dá mais warn falso.** Em run real, o
+  `zap.sh -cmd -addonupdate` baixava todos os add-ons com sucesso mas o ZAP ainda
+  inicializava o proxy ao final e, com a porta 8080 ocupada por outra instância,
+  encerrava com `BindException` e rc≠0 → `RC_WARN` enganoso. Fix: porta efêmera
+  (`-port 0`) evita o conflito e o step passa a tratar como sucesso quando a saída
+  mostra que a atualização de add-ons concluiu, ignorando falha tardia do proxy.
+
 ### Alterado
 
 - **Burp Suite e Wireshark agora são steps independentes.** O antigo step único

@@ -242,7 +242,21 @@ update_zap() {
   log "  OWASP ZAP core: ${core:-desconhecido} (${zap_home})"
 
   log "  Atualizando add-ons do ZAP via Marketplace (headless)…"
-  if ! run_network_cmd "$zap_cmd" -cmd -addonupdate; then
+  # `-port 0` pega uma porta efêmera livre: mesmo em `-cmd -addonupdate`, o ZAP
+  # ainda inicializa o proxy ao final e, se a porta padrão (8080) estiver ocupada
+  # por outra instância do ZAP, encerra com BindException e rc≠0 — mascarando uma
+  # atualização de add-ons que JÁ tinha concluído. A porta efêmera evita o
+  # conflito; e, defensivamente, tratamos como sucesso quando a saída mostra que
+  # a verificação/baixa de add-ons completou, ignorando uma falha tardia do proxy.
+  local out rc
+  out="$(run_network_cmd "$zap_cmd" -cmd -port 0 -addonupdate 2>&1)"; rc=$?
+  printf '%s\n' "$out" >>"$LOG_FILE"
+
+  if printf '%s' "$out" | grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza'; then
+    log "  Add-ons do ZAP atualizados (core ${core:-?} é atualizado manualmente)."
+    return 0
+  fi
+  if (( rc != 0 )); then
     log "  Falha ao atualizar add-ons do ZAP."
     return "$RC_WARN"
   fi
