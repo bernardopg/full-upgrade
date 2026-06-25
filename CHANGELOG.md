@@ -4,6 +4,27 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.3] - 2026-06-25
+
+### Corrigido
+
+- **Cabeçalhos de seção monotônicos no output ao vivo.** Os cabeçalhos `▶▶`
+  saltavam para trás durante a execução (ex.: `Linguagens → Doctor →
+  Linguagens`, `Doctor → Reparos → Doctor`), dando a impressão de output
+  sobreposto e desconexo. A causa era um desalinhamento entre a categoria de
+  alguns steps no catálogo e a posição onde rodam no `run_all_steps`, somado a
+  uma ordem de execução que não seguia a ordem canônica do `summary_group_specs`.
+  Corrigido em três frentes: recategorização de 4 steps no catálogo (categoria ↔
+  posição real), reordenação dos steps no `run_all_steps` (sem mudar
+  dependências de ordem) e reordenação do `summary_group_specs` para casar com
+  a nova ordem de execução. Resultado: 14 cabeçalhos em ordem monotônica (antes:
+  27 com 13 repetições).
+- **Log de auditoria sem escapes ANSI (Lazy/Mason).** `update_nvim_lazy` e
+  `update_nvim_mason` redirecionavam o output do nvim headless direto para
+  `$LOG_FILE` com `>> ... 2>&1`, burlando o `_strip_ansi`. O log ficava com
+  códigos de cor crus (`\033[35m`, `\033[0m`...) em ~300 linhas, ilegível.
+  Corrigido canalizando pelo `_strip_ansi` e capturando o rc via `PIPESTATUS[0]`.
+
 ## [3.17.2] - 2026-06-25
 
 ### Alterado
