@@ -173,6 +173,114 @@ update_zap() {
   return 0
 }
 
+# ── GitKraken CLI (gk) ──────────────────────────────────────────────────────────
+# Binário standalone instalado fora de pacote, sem subcomando de self-update. Tem
+# releases públicos no GitHub (gitkraken/gk-cli) com assets .zip + gk_checksums.txt.
+# Estratégia idêntica ao rtk: descobre a última tag pelo redirect 302, compara
+# versão, baixa o zip do alvo, VERIFICA o sha256 publicado e substitui o binário
+# (sudo só quando o destino é protegido).
+update_gk() {
+  has gk || { log "  gk (GitKraken CLI) não encontrado."; return 0; }
+  if ! has curl || ! has unzip; then
+    log "  curl e unzip são necessários para atualizar o gk."
+    return 0
+  fi
+
+  local gk_bin
+  gk_bin="$(command -v gk 2>/dev/null || true)"
+
+  local arch asset_arch
+  case "$(uname -m)" in
+    x86_64)        asset_arch="amd64" ;;
+    aarch64|arm64) asset_arch="arm64" ;;
+    i?86)          asset_arch="386" ;;
+    *) log "  Arquitetura $(uname -m) não suportada pelo atualizador do gk; pulando."; return 0 ;;
+  esac
+
+  local current
+  current="$(gk version 2>/dev/null | awk '/Core/{print $NF; exit}' | tr -d '[:space:]' || true)"
+  log "  gk em: ${gk_bin} (versão atual: ${current:-desconhecida})"
+
+  local effective tag latest
+  effective="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+                 "https://github.com/gitkraken/gk-cli/releases/latest" 2>/dev/null || true)"
+  tag="${effective##*/}"          # ex.: v3.1.68
+  latest="${tag#v}"
+  if [[ -z "$latest" ]]; then
+    log "  Não foi possível determinar a última versão do gk (rede/GitHub indisponível)."
+    return "$RC_WARN"
+  fi
+  if [[ -n "$current" ]] && ! version_is_outdated "$current" "$latest"; then
+    log "  gk já está na versão mais recente (${current})."
+    return 0
+  fi
+
+  local dir; dir="$(dirname "$gk_bin")"
+  local -a sudo_pfx=()
+  if [[ ! -w "$gk_bin" || ! -w "$dir" ]]; then
+    if has sudo && sudo -n true 2>/dev/null; then
+      sudo_pfx=(sudo)
+    else
+      log "  ${gk_bin} exige privilégios para escrita e sudo não está pronto."
+      STEP_REASON="atualize o gk com sudo disponível (binário em ${dir})"
+      return "$RC_TODO"
+    fi
+  fi
+
+  log "  Atualizando gk: ${current:-?} → ${latest}"
+
+  local tmp
+  tmp="$(mktemp -d 2>/dev/null || true)"
+  if [[ -z "$tmp" || ! -d "$tmp" ]]; then
+    log "  mktemp falhou; não é possível atualizar o gk."
+    return "$RC_WARN"
+  fi
+
+  local base="https://github.com/gitkraken/gk-cli/releases/download/${tag}"
+  local asset="gk_${latest}_linux_${asset_arch}.zip"
+  if ! run_network_cmd curl -fsSL "${base}/${asset}" -o "${tmp}/${asset}" >/dev/null \
+     || ! run_network_cmd curl -fsSL "${base}/gk_checksums.txt" -o "${tmp}/gk_checksums.txt" >/dev/null; then
+    rm -rf "$tmp"
+    log "  Falha de rede ao baixar o release do gk."
+    return "$RC_WARN"
+  fi
+
+  # Verificação de integridade OBRIGATÓRIA contra o checksum publicado.
+  if ! ( cd "$tmp" && grep -F "$asset" gk_checksums.txt | sha256sum -c - ) >>"$LOG_FILE" 2>&1; then
+    rm -rf "$tmp"
+    log "  Checksum do gk não confere; abortando (binário não verificado)."
+    return 1
+  fi
+
+  if ! unzip -o -q "${tmp}/${asset}" -d "${tmp}/x" >>"$LOG_FILE" 2>&1; then
+    rm -rf "$tmp"
+    log "  Falha ao descompactar o release do gk."
+    return 1
+  fi
+  local new_bin
+  new_bin="$(find "${tmp}/x" -type f -name gk -perm -u+x 2>/dev/null | head -1)"
+  [[ -n "$new_bin" ]] || new_bin="$(find "${tmp}/x" -type f -name gk 2>/dev/null | head -1)"
+  if [[ -z "$new_bin" ]]; then
+    rm -rf "$tmp"
+    log "  Binário gk não encontrado dentro do zip."
+    return 1
+  fi
+  chmod +x "$new_bin" 2>/dev/null || true
+
+  if ! "${sudo_pfx[@]}" install -m755 "$new_bin" "$gk_bin" 2>>"$LOG_FILE"; then
+    rm -rf "$tmp"
+    log "  Falha ao instalar o binário gk em ${gk_bin}."
+    return 1
+  fi
+  rm -rf "$tmp"
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(gk version 2>/dev/null | awk '/Core/{print $NF; exit}' | tr -d '[:space:]' || true)"
+  log "  gk atualizado para ${newver:-$latest}."
+  return 0
+}
+
 # ── Doctor: inventário de apps manuais ──────────────────────────────────────────
 # Read-only. Mapeia programas instalados FORA de qualquer gerenciador de pacotes
 # (binários reais em /usr/local/bin e ~/.local/bin sem dono pacman, + diretórios
@@ -187,7 +295,7 @@ _manual_apps_has_step() {
   case "$marker" in
     droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|\
-    uv|copilot|kimi)
+    uv|copilot|kimi|gk|gitkraken)
       return 0 ;;
     *) return 1 ;;
   esac

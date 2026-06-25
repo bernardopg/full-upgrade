@@ -340,6 +340,12 @@ run_all_steps() {
         step_skip "Atualizar add-ons do OWASP ZAP" "zap não instalado"
     fi
 
+    if has gk; then
+        run_step "Atualizar GitKraken CLI (gk)" update_gk
+    else
+        step_skip "Atualizar GitKraken CLI (gk)" "gk não instalado"
+    fi
+
     # ── AI CLIs ──────────────────────────────────────────────────────────────────
     
     if has claude; then
