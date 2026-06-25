@@ -61,6 +61,7 @@ Opções:
                           --disable remover autostart
                           --status  mostrar estado atual (sem rede)
                           --check   computar estado agora (faz rede) e sair
+                          --restart reiniciar o applet (recarrega comportamento/ícones)
   --tray-launch [ARGS]
                    Executar full-upgrade num terminal (usado pelo applet).
                      ARGS são repassados (ex.: --mode doctor)
@@ -237,7 +238,7 @@ parse_args() {
             ;;
             --tray)
                 case "${2:-}" in
-                    --enable|--disable|--status|--check|enable|disable|status|check)
+                    --enable|--disable|--status|--check|--restart|enable|disable|status|check|restart)
                         case "$2" in --*) TRAY_MODE="${2#--}" ;; *) TRAY_MODE="$2" ;; esac
                         shift
                     ;;
@@ -297,6 +298,7 @@ apply_mode_and_early_exits() {
     fi
     case "$TRAY_MODE" in
         start)   tray_main ;;
+        restart) tray_restart ;;
         enable)  tray_enable_autostart; exit 0 ;;
         disable) tray_disable_autostart; exit 0 ;;
         status)  tray_print_status; exit 0 ;;

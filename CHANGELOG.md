@@ -4,6 +4,30 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Applet de bandeja (AppIndicator) repaginado.** No backend Wayland/Hyprland/
+  DankMaterialShell o systray ficou informativo e acabado:
+  - **Badge** no painel (`set_label`) com o nº de itens acionáveis do estado
+    (atualizações / `todo`s do Doctor / falhas); chave `TRAY_BADGE` (default 1).
+  - **Menu dinâmico** reconstruído a cada verificação, com cabeçalho que resume o
+    estado (glifo + linha de estado, `repo · AUR`, `todo`s, motivo de reboot e
+    “Verificado há X”) e mais ações: Atualizar tudo, Só pacotes (`--mode update`),
+    Doctor, Reparos, Verificar agora, Ver último log, Abrir pasta de logs, Sair.
+    Ações de execução desabilitadas enquanto um run está em andamento.
+  - Estados `error`/`attention` entram em `IndicatorStatus.ATTENTION` (hosts
+    realçam). Scroll sobre o ícone dispara “Verificar agora”.
+  - Novos helpers puros `tray_badge_text`/`tray_relative_time` (com testes bats);
+    `--tray --status` passa a mostrar tempo relativo da última verificação.
+- **`full-upgrade --tray --restart`** — encerra o applet em execução (graceful) e
+  sobe uma nova instância, para recarregar comportamento/ícones após atualizar.
+
+### Alterado
+
+- **Ícones de bandeja redesenhados** — estilo “moeda” coeso (gradiente sutil,
+  brilho superior, borda fina, glifo branco nítido), legíveis a 22px em painel
+  claro ou escuro.
+
 ## [3.15.0] - 2026-06-25
 
 ### Adicionado

@@ -948,6 +948,25 @@ _tray_cleanup() {
   rm -f "$TRAY_PID_FILE" 2>/dev/null || true
 }
 
+# Reinicia o daemon: encerra a instância antiga (graceful via USR2) e sobe uma
+# nova no lugar. Útil após atualizar o full-upgrade para carregar novo
+# comportamento/ícones. Bloqueante (a nova instância assume o primeiro plano).
+tray_restart() {
+  local old i
+  if [[ -r "$TRAY_PID_FILE" ]]; then
+    old=$(tr -dc '0-9' < "$TRAY_PID_FILE" 2>/dev/null | head -1)
+    if [[ -n "$old" ]] && kill -0 "$old" 2>/dev/null; then
+      echo "Encerrando applet antigo (pid ${old})…"
+      kill -USR2 "$old" 2>/dev/null || kill "$old" 2>/dev/null || true
+      for i in 1 2 3 4 5 6; do kill -0 "$old" 2>/dev/null || break; sleep 0.5; done
+      kill -0 "$old" 2>/dev/null && kill -9 "$old" 2>/dev/null || true
+    fi
+    rm -f "$TRAY_PID_FILE" 2>/dev/null || true
+  fi
+  echo "Iniciando applet…"
+  tray_main
+}
+
 # Ponto de entrada do daemon (--tray). Bloqueante.
 tray_main() {
   # Instância única.

@@ -203,14 +203,35 @@ full-upgrade --tray             # inicia o applet
 full-upgrade --tray --enable    # autostart via XDG
 ```
 
-O clique esquerdo roda `full-upgrade` em um terminal. O menu do clique direito
-inclui executar o fluxo completo, rodar `--mode doctor`, verificar agora, abrir o
-último log e sair. Se o terminal não for detectado, defina `TRAY_TERMINAL` no
-config; `xdg-terminal-exec` é a opção mais confiável quando disponível.
+No backend AppIndicator (Wayland/Hyprland/DankMaterialShell) o applet é
+informativo e reativo:
+
+- **Badge no painel** — um contador ao lado do ícone com o número de itens
+  acionáveis do estado atual (atualizações disponíveis, `todo`s do Doctor ou
+  falhas). Desligue com `TRAY_BADGE=0`.
+- **Realce de atenção** — estados `error`/`attention` entram em
+  `IndicatorStatus.ATTENTION`, que barras compatíveis destacam.
+- **Menu dinâmico** (reconstruído a cada verificação) com um cabeçalho que
+  resume o estado: linha de estado com glifo, detalhamento `repo · AUR`, `todo`s
+  do Doctor, motivo de reboot pendente e quando foi a última verificação
+  (“Verificado há X”). Abaixo, as ações: **Atualizar tudo**, **Só pacotes**
+  (`--mode update`), **Doctor**, **Reparos**, **Verificar agora**, **Ver último
+  log**, **Abrir pasta de logs** e **Sair**. As ações de execução ficam
+  desabilitadas enquanto um run está em andamento.
+- **Atalhos** — clique esquerdo roda `full-upgrade` em um terminal; o scroll
+  sobre o ícone dispara “Verificar agora” sem abrir o menu.
+
+Se o terminal não for detectado, defina `TRAY_TERMINAL` no config;
+`xdg-terminal-exec` é a opção mais confiável quando disponível. (No backend X11
+`yad` o menu é equivalente, sem badge/realce/cabeçalho dinâmico.)
 
 Hyprland/DankMaterialShell usa StatusNotifier e exibe o backend AppIndicator.
 GNOME Shell não expõe systray/AppIndicator nativamente; use uma extensão como
 “AppIndicator and KStatusNotifierItem Support” para o ícone aparecer.
+
+> Após atualizar o full-upgrade, reinicie o applet para carregar o novo
+> comportamento e ícones: `full-upgrade --tray --restart` (ou mate o daemon
+> antigo e rode `full-upgrade --tray` de novo).
 
 ## Modos e Filtros
 
