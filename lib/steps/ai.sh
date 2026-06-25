@@ -130,3 +130,36 @@ update_kimi() {
 }
 
 
+
+# Atualiza as "agent skills" globais via o CLI `skills` (rodado por npx). As
+# skills ficam em ~/.agents/skills e são compartilhadas entre agentes (Claude
+# Code, Codex, Cline, Amp…); inclui caveman/cavecrew, 9router-*, last30days e
+# quaisquer outras adicionadas pelo usuário. Roda por presença de npx + do
+# diretório de skills; é idempotente (reporta "up to date" quando nada muda).
+# Cobre o pedido "atualizar o caveman" num único passo. Falha de rede => RC_WARN.
+update_agent_skills() {
+  has npx || { log "  npx não encontrado; pulando update de agent skills."; return 0; }
+  if [[ ! -d "${HOME}/.agents/skills" ]]; then
+    log "  Nenhuma agent skill global instalada (~/.agents/skills ausente)."
+    return 0
+  fi
+
+  log "  Atualizando agent skills globais (caveman, cavecrew, 9router-*…) via 'npx skills update --global'…"
+  local output rc
+  output="$(npx --yes skills update --global 2>&1)"
+  rc=$?
+  printf '%s\n' "$output" | _strip_ansi >> "$LOG_FILE"
+
+  # Resumo limpo no terminal: descarta ruído ("Checking…") e linhas vazias.
+  local clean
+  clean="$(printf '%s\n' "$output" | _strip_ansi | grep -ivE '^[[:space:]]*$|Checking skills from source|Checking for skill updates' | tail -6)"
+  if [[ -n "${clean//[[:space:]]/}" ]]; then
+    while IFS= read -r _l; do [[ -n "${_l//[[:space:]]/}" ]] && log "  ${_l}"; done <<< "$clean"
+  fi
+
+  if (( rc != 0 )); then
+    log "  Falha ao atualizar agent skills (rede/registro indisponível)."
+    return "$RC_WARN"
+  fi
+  return 0
+}

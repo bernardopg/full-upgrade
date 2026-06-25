@@ -311,7 +311,7 @@ Status possíveis no resumo:
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
 | Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 

@@ -384,6 +384,12 @@ run_all_steps() {
         step_skip "Atualizar Ollama" "ollama não instalado"
     fi
 
+    if has npx && [[ -d "${HOME}/.agents/skills" ]]; then
+        run_step "Atualizar agent skills (skills CLI)" update_agent_skills
+    else
+        step_skip "Atualizar agent skills (skills CLI)" "npx ou ~/.agents/skills ausente"
+    fi
+
     if (( ${MCP_AUTO_UPDATE:-0} == 1 )) \
        && { [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]]; }; then
         run_step "Atualizar servidores MCP" mcp_update_servers

@@ -6,6 +6,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Step Atualizar agent skills (skills CLI)** (`update_agent_skills`) — atualiza
+  as agent skills globais em `~/.agents/skills` via `npx skills update --global`,
+  cobrindo **caveman**/cavecrew, `9router-*`, last30days e demais skills num único
+  passo. Roda por presença de `npx` + do diretório de skills; idempotente
+  (reporta “up to date”); falha de rede vira `RC_WARN`. (Tools instalados por
+  outros gerenciadores continuam nos seus steps próprios: `codex`/`9router` via
+  npm global, `headroom` via uv tools, `node`/`bottles`/`metasploit` via
+  pacman/AUR, imagens Docker via o step de Docker.)
 - **Applet de bandeja (AppIndicator) repaginado.** No backend Wayland/Hyprland/
   DankMaterialShell o systray ficou informativo e acabado:
   - **Badge** no painel (`set_label`) com o nº de itens acionáveis do estado
