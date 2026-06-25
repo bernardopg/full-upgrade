@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-06-25
+
 ### Adicionado
 
 - **Step Atualizar agent skills (skills CLI)** (`update_agent_skills`) — atualiza
