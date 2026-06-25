@@ -229,6 +229,7 @@ Filtros:
 full-upgrade --only doctor
 full-upgrade --only docker
 full-upgrade --only network
+full-upgrade --only manual                       # só os apps fora de gestor de pacote
 full-upgrade --only "Atualizar Ollama"          # nome exato de step
 full-upgrade --only "lang,Doctor: saúde de rede" # categoria/tag + nome, em lista
 full-upgrade --resume                            # só os steps não-ok do último run
