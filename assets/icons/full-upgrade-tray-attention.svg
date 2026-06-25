@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- full-upgrade tray — ATTENTION (doctor com pendência/todo). Âmbar. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <circle cx="24" cy="24" r="20" fill="#e66100"/>
-  <path d="M24 13l13 23H11z" fill="none" stroke="#ffffff" stroke-width="4"
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6b73c"/>
+      <stop offset="1" stop-color="#e5a50a"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="20" fill="url(#g)"/>
+  <ellipse cx="24" cy="16" rx="14" ry="8" fill="#ffffff" fill-opacity="0.18"/>
+  <circle cx="24" cy="24" r="19.25" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="1.5"/>
+  <path d="M24 13l13.5 23.5h-27z" fill="none" stroke="#ffffff" stroke-width="4"
         stroke-linejoin="round"/>
-  <path d="M24 21v6" fill="none" stroke="#ffffff" stroke-width="4.5"
-        stroke-linecap="round"/>
-  <circle cx="24" cy="32" r="2.6" fill="#ffffff"/>
+  <path d="M24 21.5v6.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="24" cy="32.5" r="2.6" fill="#ffffff"/>
 </svg>

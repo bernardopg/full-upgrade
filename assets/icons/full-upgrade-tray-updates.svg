@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- full-upgrade tray — UPDATES (atualizações disponíveis). Azul. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <circle cx="24" cy="24" r="20" fill="#3584e4"/>
-  <path d="M24 12v18m0 0l-8-8m8 8l8-8" fill="none" stroke="#ffffff" stroke-width="5"
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a93f0"/>
+      <stop offset="1" stop-color="#1c71d8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="20" fill="url(#g)"/>
+  <ellipse cx="24" cy="16" rx="14" ry="8" fill="#ffffff" fill-opacity="0.16"/>
+  <circle cx="24" cy="24" r="19.25" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="1.5"/>
+  <path d="M24 11v17m0 0l-7.5-7.5M24 28l7.5-7.5" fill="none" stroke="#ffffff" stroke-width="5"
         stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M14 36h20" fill="none" stroke="#ffffff" stroke-width="5"
-        stroke-linecap="round"/>
+  <path d="M15 35h18" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
 </svg>

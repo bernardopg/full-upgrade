@@ -1,13 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- full-upgrade tray — RUNNING (full-upgrade em execução). Cinza com setas de reload. -->
+<!-- full-upgrade tray — RUNNING (full-upgrade em execução). Azul-ardósia com setas de reload. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <circle cx="24" cy="24" r="20" fill="#888a8d"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6f7891"/>
+      <stop offset="1" stop-color="#4a5167"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="20" fill="url(#g)"/>
+  <ellipse cx="24" cy="16" rx="14" ry="8" fill="#ffffff" fill-opacity="0.15"/>
+  <circle cx="24" cy="24" r="19.25" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="1.5"/>
   <path d="M16 21a9 9 0 0 1 16-3" fill="none" stroke="#ffffff" stroke-width="4.5"
         stroke-linecap="round"/>
-  <path d="M32 15v6h-6" fill="none" stroke="#ffffff" stroke-width="4.5"
+  <path d="M32 14.5v6h-6" fill="none" stroke="#ffffff" stroke-width="4.5"
         stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M32 27a9 9 0 0 1-16 3" fill="none" stroke="#ffffff" stroke-width="4.5"
         stroke-linecap="round"/>
-  <path d="M16 33v-6h6" fill="none" stroke="#ffffff" stroke-width="4.5"
+  <path d="M16 33.5v-6h6" fill="none" stroke="#ffffff" stroke-width="4.5"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
