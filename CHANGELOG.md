@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.2] - 2026-06-25
+
+### Alterado
+
+- **`Atualizar Hermes` pula o update pesado quando já está atual.** O
+  `hermes update` completo (git pull + deps Node + sync de skills) levava ~20s
+  sempre. Agora um `hermes update --check` (rápido: só fetch + compara) decide se
+  há update; se não houver, pula (~20s → ~4s no caso comum). Helper puro
+  `hermes_is_current` com testes. Fecha o trio de updaters self-install que agora
+  checam antes de reinstalar (Ollama, OpenClaw, Hermes).
+
 ## [3.17.1] - 2026-06-25
 
 ### Alterado
