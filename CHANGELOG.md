@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.15.0] - 2026-06-25
+
 ### Adicionado
 
 - **Durações alinhadas em coluna no resumo e no output ao vivo.** Os nomes dos
