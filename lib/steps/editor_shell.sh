@@ -114,6 +114,37 @@ update_omz_custom_plugins() {
 }
 
 
+update_yazi_plugins() {
+  local pkg_toml="${XDG_CONFIG_HOME:-$HOME/.config}/yazi/package.toml"
+
+  if [[ ! -f "$pkg_toml" ]]; then
+    log "  Sem plugins gerenciados (${pkg_toml} ausente)."
+    return 0
+  fi
+
+  local count
+  count="$(grep -c '^use = ' "$pkg_toml" 2>/dev/null || echo 0)"
+  log "  Atualizando ${count} plugin(s) Yazi via ya pkg upgrade..."
+
+  local output rc
+  output="$(ya pkg upgrade 2>&1)"
+  rc=$?
+  log_raw "$output"
+
+  if (( rc != 0 )); then
+    if printf '%s\n' "$output" | grep -q 'modified the contents'; then
+      log "  Plugin(s) com modificações locais — rode 'ya pkg upgrade --discard' manualmente."
+      return "$RC_TODO"
+    fi
+    log "  Aviso: ya pkg upgrade retornou ${rc}."
+    return "$RC_WARN"
+  fi
+
+  log "  Plugins Yazi: upgrade concluído."
+  return 0
+}
+
+
 update_hyprpm() {
   local store_dir="${XDG_DATA_HOME:-$HOME/.local/share}/hyprpm"
 

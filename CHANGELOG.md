@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.4] - 2026-06-25
+
+### Adicionado
+
+- **Step `Atualizar plugins Yazi`.** Roda `ya pkg upgrade` para atualizar todos
+  os plugins gerenciados pelo `ya pkg` (`package.toml`). Pula sem erro se
+  `package.toml` estiver ausente. Retorna `RC_TODO` quando algum plugin tem
+  modificações locais (ao invés de falhar silenciosamente), orientando o
+  usuário a rodar `ya pkg upgrade --discard` manualmente. Requer `ya` e `yazi`
+  instalados; categoria `shell`, timeout 120 s.
+
 ## [3.17.3] - 2026-06-25
 
 ### Corrigido

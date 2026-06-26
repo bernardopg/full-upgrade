@@ -75,6 +75,7 @@ Atualizar GitKraken CLI (gk)|manual|git,gk,update,network|mutating|180|gk,curl,u
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.
+Atualizar plugins Yazi|shell|yazi,plugins,update,network|mutating|120|ya|update_yazi_plugins|Atualiza plugins do Yazi via ya pkg upgrade.
 Atualizar plugins Neovim (Lazy)|editor|nvim,lazy,update,network,slow|mutating|300|nvim|update_nvim_lazy|Sincroniza plugins Lazy.nvim.
 Atualizar LSPs Neovim (Mason)|editor|nvim,mason,update,network|mutating|300|nvim|update_nvim_mason|Atualiza registros e ferramentas Mason.nvim.
 Atualizar extensões de IDE (VSCode/Cursor)|editor|vscode,cursor,extensions,update,network,slow|mutating|600||update_ide_extensions|Atualiza extensões instaladas de IDEs da família VSCode (code/cursor/codium) via --update-extensions.

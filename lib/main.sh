@@ -424,7 +424,13 @@ run_all_steps() {
     else
         step_skip "Atualizar plugins DankMaterialShell" "DankMaterialShell não encontrado"
     fi
-    
+
+    if has ya && has yazi; then
+        run_step "Atualizar plugins Yazi" update_yazi_plugins
+    else
+        step_skip "Atualizar plugins Yazi" "ya/yazi não instalado"
+    fi
+
     # ── Editor ────────────────────────────────────────────────────────────────────
     
     if has nvim; then
