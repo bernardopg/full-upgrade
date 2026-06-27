@@ -73,11 +73,17 @@ jobs:
             --title "chore(release): bump VERSION para ${VERSION}" \
             --body "Bump automático de VERSION para ${VERSION} (workflow de release).")
           pr_num=$(gh pr view "$pr_num" --json number -q .number)
-          echo "PR #$pr_num aberto; aguardando checks obrigatórios (Lint & Test + Analyze)..."
-
-          # Espera os checks terminarem (tolera falha em checks NÃO-obrigatórios;
+          echo "PR #$pr_num aberto; aguardando checks serem registrados..."
+          # Os checks levam alguns segundos para aparecer após abrir o PR.
+          # `gh pr checks --watch` sai imediatamente se ainda não há checks,
+          # então primeiro esperamos pelo menos um check existir.
+          for _ in $(seq 1 60); do
+            if [ -n "$(gh pr checks "$pr_num" 2>/dev/null || true)" ]; then break; fi
+            sleep 5
+          done
+          # Aguarda todos os checks terminarem (tolera falha em NÃO-obrigatórios;
           # se um obrigatório falhar, o merge a seguir recusa e falha o job).
-          gh pr checks "$pr_num" --watch --interval 20 || true
+          gh pr checks "$pr_num" --watch --interval 15 || true
 
           # Mescla via squash — respeita os required status checks da proteção.
           gh pr merge "$pr_num" --squash --delete-branch \
