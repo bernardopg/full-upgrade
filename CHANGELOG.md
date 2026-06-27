@@ -13,6 +13,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Integração Travis CI.** Adicionado `.travis.yml` com sintaxe, ShellCheck,
   smoke tests, Bats, cobertura kcov, build standalone e upload Codecov via
   `codecov-cli` quando `CODECOV_TOKEN` estiver configurado no Travis.
+- **Instalação reproduzível de Bats na CI.** `scripts/install-bats.sh` instala
+  Bats 1.13.0 em `.ci/bats`, evitando diferenças entre pacotes antigos de
+  distro e o ambiente local.
 
 ## [3.17.5] - 2026-06-27
 

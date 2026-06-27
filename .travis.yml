@@ -10,10 +10,13 @@ addons:
   apt:
     update: true
     packages:
-      - bats
       - kcov
       - python3-pip
       - shellcheck
+
+before_script:
+  - scripts/install-bats.sh
+  - export PATH="$TRAVIS_BUILD_DIR/.ci/bats/bin:$PATH"
 
 script:
   - |
