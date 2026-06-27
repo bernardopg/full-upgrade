@@ -1,0 +1,4 @@
+# shellcheck shell=bash
+# Compatibility shim for older Bats versions that do not append .bash in load.
+# shellcheck source=test_helper.bash
+source "$(dirname "${BASH_SOURCE[0]}")/test_helper.bash"
