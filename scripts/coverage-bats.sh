@@ -19,8 +19,9 @@ include_pattern+=",${ROOT}/steps.d/"
 
 KCOV_ROOT="$ROOT" kcov \
   --include-pattern="$include_pattern" \
+  --bash-parse-files-in-dir="$ROOT" \
   "$OUT" \
-  bash -lc 'cd "$KCOV_ROOT" && bats tests/'
+  "${ROOT}/scripts/run-bats.sh" tests/
 
 coverage_xml="$(find "$OUT" -mindepth 2 -name cobertura.xml -print -quit)"
 test -n "$coverage_xml"

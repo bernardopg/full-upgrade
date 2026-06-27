@@ -18,6 +18,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   distro e o ambiente local.
 - **Compatibilidade TOML no Python 3.10.** O parser MCP usa `tomli` como
   fallback quando `tomllib` não existe, cobrindo Ubuntu 22.04/Jammy.
+- **Codecov com relatório não-vazio.** A cobertura kcov agora executa um
+  wrapper Bash real (`scripts/run-bats.sh`), gerando Cobertura XML com linhas
+  do projeto, e o upload usa `CODECOV_TOKEN` via secret.
 
 ## [3.17.5] - 2026-06-27
 
