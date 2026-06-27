@@ -1,0 +1,49 @@
+name: Semgrep
+
+# SAST para Bash — preenche a lacuna do CodeQL, que NÃO suporta Bash.
+# Achados aparecem em Security > Code scanning alerts. Hoje consultivo
+# (continue-on-error): triagem primeiro, promover a bloqueante depois.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"   # segunda 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semgrep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST (Bash)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF p/ code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1d1d1991bb908d89e4e9ddd3e0 # v7.0.0
+
+      # Consultivo: não quebra o CI em achados; eles viram alerts no GitHub.
+      # Remova `continue-on-error` após triar os findings para bloquear PRs.
+      - name: Semgrep scan
+        id: semgrep
+        continue-on-error: true
+        uses: semgrep/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+        with:
+          config: p/default
+          generate-sarif: true
+
+      - name: Upload SARIF to GitHub code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep

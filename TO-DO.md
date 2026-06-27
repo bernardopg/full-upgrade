@@ -48,7 +48,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** sem `opencode` → `skip` (cmd_dep); com → roda upgrade e reporta;
   smoke `--dry-run`.
 
-#### H2 — 🟡 M ☐ Atualizar Ollama (instalador próprio)
+#### H2 — 🟡 M ☑ Atualizar Ollama (instalador próprio) — v3.8.0
 > `ollama` em `/usr/local/bin/ollama` (script de install upstream), fora do
 > pacman e do npm → sem cobertura hoje.
 - **Arquivos:** `lib/steps/ai.sh`, `lib/catalog.sh`, `lib/main.sh`, config
@@ -73,7 +73,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** sem nenhum CLI → `skip`; com → atualiza extensões e reporta
   contagem; respeita `--dry-run`; parser coberto por bats.
 
-#### H4 — 🟡 M ☐ Doctor: versões de CLIs de IA
+#### H4 — 🟡 M ☑ Doctor: versões de CLIs de IA — v3.8.0
 > Visão única das versões instaladas vs. últimas — sem mutar.
 - **Arquivos:** `lib/steps/doctor.sh` (ou `ai.sh`), `lib/catalog.sh`
 - **O quê:** step read-only "Doctor: CLIs de IA" que lista versão de cada CLI
@@ -113,7 +113,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 > Removido intencionalmente neste branch. Mantido aqui só como histórico do que
 > já existiu no fluxo anterior.
 
-#### I2 — 🟡 M ☐ Processar pacnew/pacsave (pacdiff)
+#### I2 — 🟡 M ☑ Processar pacnew/pacsave (pacdiff) — v3.8.0
 > `arch-update` trata `.pacnew`/`.pacsave`. Configs órfãs/novas acumulam e
 > divergem silenciosamente.
 - **Arquivos:** `lib/steps/repair.sh` ou novo `lib/steps/pacfiles.sh`, catálogo
@@ -133,7 +133,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 - **Aceite:** com só `yay` instalado, o fluxo AUR usa `yay`; com `doas`, a
   elevação usa `doas`; defaults atuais preservados; cobertura bats da detecção.
 
-#### I4 — 🟢 P ☐ Notificação desktop ao fim do run
+#### I4 — 🟢 P ☑ Notificação desktop ao fim do run — v3.8.0
 > `arch-update` notifica via libnotify. Útil para runs longos/agendados.
 - **Arquivos:** `lib/main.sh` (`finalize`), `lib/config.sh`
 - **O quê:** `NOTIFY_ON_FINISH=0` default; quando `1` e `notify-send` presente,
@@ -285,7 +285,7 @@ instaladores próprios, extensões de IDE, MCP e diagnóstico de versões.
 2. ~~**I1** (Arch News pré-upgrade)~~ — ✅ PR #43.
 3. ~~**H1** (opencode)~~ — ✅ PR #44.
 
-**Rodada 2:** ← em andamento
+**Rodada 2:** ✅ concluída (v3.8.0)
 4. ~~**H2** (Ollama)~~, ~~**H4** (doctor de versões IA)~~, ~~**I4** (notify)~~,
    ~~**I2** (pacnew/pacsave)~~, ~~**J1** (diagnóstico pip)~~.
 
@@ -313,10 +313,10 @@ fechada numa release (ex.: H-series → v3.8.0; K1 → v3.9.0).
   **Série N (achados run real):** N1 (fix parser arch-audit) #78 → **v3.11.1**;
   N2 (fix `todo` recorrente MCP) + N3 (doctor gems sombreando) #81 → **v3.12.0**;
   N4 (fix gem-user-update recriava shadowing) #84 → **v3.12.1**.
-- **Próximo:** série N concluída; backlog vazio. Run real v3.12.1 = **88 ok / 1
-  warn / 0 todo / 0 fail / 3 skip** (0 todo pela 1ª vez). Único warn = journal,
-  benigno (Bluetooth/a2dp transiente; `applications.menu` histórico deste boot,
-  já corrigido — some no reboot). Novos itens só de achados de run real.
+- **Próximo:** roadmap das séries H–N **100% concluído** (repo em v3.17.5); backlog
+  de features vazio. Este arquivo passa a valer como **arquivo histórico** — novos
+  itens surgem só de achados de run real (ou de auditoria de CI/segurança, fora do
+  escopo deste roadmap de steps).
 - **Restante:** nenhum item pendente no backlog.
 
 ---

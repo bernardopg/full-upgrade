@@ -1,0 +1,41 @@
+# Configuração do actions/labeler (v6). As labels precisam existir no repo.
+# gh label create <name> --color <hex>  (já criadas via setup de CI)
+
+ci:
+- changed-files:
+  - any-glob-to-any-file:
+    - '.github/**'
+    - build.sh
+    - install.sh
+
+lib:
+- changed-files:
+  - any-glob-to-any-file: 'lib/**'
+
+steps:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'lib/steps/**'
+    - 'steps.d/**'
+
+tests:
+- changed-files:
+  - any-glob-to-any-file: 'tests/**'
+
+scripts:
+- changed-files:
+  - any-glob-to-any-file: 'scripts/**'
+
+packaging:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'packaging/**'
+    - '.github/workflows/release.yml'
+
+documentation:
+- changed-files:
+  - any-glob-to-any-file:
+    - '*.md'
+    - 'CHANGELOG.md'
+    - 'CONTRIBUTING.md'
+    - 'config.example'

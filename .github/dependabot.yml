@@ -1,3 +1,7 @@
+# Dependabot — mantém as GitHub Actions pinadas por SHA atualizadas.
+# Projeto é Bash puro: sem package.json/go.mod/Cargo.toml/Dockerfile commitados,
+# então "github-actions" é o único ecossistema aplicável. (Se algum dia surgir
+# um manifesto, adicione uma nova entrada em "updates".)
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,11 +14,14 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: ci
+      include: scope
     labels:
       - dependencies
       - github-actions
+      - ci                 # PRs do Dependabot sempre tocam .github/workflows
     groups:
       actions-minor:
         update-types:
           - minor
           - patch
+        # majors continuam em PRs individuais (default) — maior risco de breaking.

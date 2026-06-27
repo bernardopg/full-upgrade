@@ -12,6 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Validation (run before any commit — mirrors CI)
 bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+shfmt -i 4 -d full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh   # advisory (consultivo)
 
 # Unit tests (bats — pure functions only; safe anywhere, no mutation)
 bats tests/
@@ -83,6 +84,23 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 `lib/tray.sh` implements the optional systray applet. On Wayland it uses AppIndicator via Python/GI when available; on X11 it falls back to `yad --notification --listen`. It is an early-exit CLI surface: `--tray` starts the daemon, `--tray --enable|--disable|--status|--check` manages/checks it, `--tray-launch` and `--tray-view-log` are internal menu actions. Pure helpers in `tray.sh` are covered by `tests/tray.bats`; GUI/runtime behavior is smoke-tested via `--tray --status` and `--tray --check` when network is acceptable. State priority is `running > error > attention > updates > idle`, persisted in `~/.cache/system-upgrade/tray-state.json`. Icons live in `assets/icons/` in dev, are copied to `${DEST_DIR}/icons`, and are also installed into hicolor by `install.sh`.
 
+## CI / Quality / Security
+
+GitHub Actions workflows in `.github/workflows/` (all pinned by SHA, least-privilege, `timeout-minutes`):
+
+- **CI** (`ci.yml`) — `bash -n` + `shellcheck` + `shfmt` (advisory) + smoke flags + `bats tests/` + kcov coverage → Codecov + standalone build verification. Mirrors the local validation above.
+- **CodeQL** (`codeql.yml`) — analyzes the workflow files themselves (`language: actions`); **CodeQL does not support Bash**, so Bash SAST is handled by Semgrep.
+- **Semgrep** (`semgrep.yml`) — SAST for Bash (`p/default`); uploads SARIF to Code Scanning. Advisory (`continue-on-error`) until findings are triaged — then drop `continue-on-error`.
+- **OpenSSF Scorecard** (`scorecard.yml`) — publishes the repo security score (feeds the README badge) + SARIF.
+- **Stale** (`stale.yml`) — marks/closes inactive issues & PRs (60 days → stale, +14 → close).
+- **Labeler** (`labeler.yml` + `.github/labeler.yml`) — auto-labels PRs by changed path (`ci`, `lib`, `tests`, `steps`, `scripts`, `packaging`, `documentation`). The labels must exist in the repo.
+- **Greeting** (`greeting.yml`) — welcomes first-time contributors.
+- **Commitlint** (`commitlint.yml` + `.commitlintrc.json`) — enforces **Conventional Commits** on PR commit messages (`feat:`, `fix:`, `ci:`, …); self-contained ruleset (no node deps).
+- **Dependabot** (`.github/dependabot.yml`) — `github-actions` ecosystem only (the project has no package manifests); groups minor/patch, opens majors individually, keeps the SHA-pinned actions current.
+- **Release** (`release.yml`) — on `v*` tag push (or `workflow_dispatch`): validates, builds standalone + sha256, publishes a GitHub Release with auto notes, and publishes to the AUR (`KSXGitHub/github-actions-deploy-aur`).
+
+Coverage (`codecov.yml`): kcov measures only what `bats` executes; orchestration/entrypoint files with side-effects (`install.sh`, `build.sh`, `full-upgrade.sh`, `lib/main.sh`, `lib/cli.sh`, `lib/sudo.sh`) are `ignore`d — they are not unit-testable by design (see `tests/test_helper.bash`). The `flags.bats` uses `carryforward`. `.editorconfig` pins the canonical `shfmt` style (`-i 4`, 4-space indent). Travis CI was removed (defunct free OSS tier; redundant with GitHub Actions).
+
 ## Conventions
 
 - All step functions return via the RC contract; never `exit` from inside a step.
@@ -90,3 +108,4 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 - `set -uo pipefail` is active (no `-e`) — check return codes explicitly.
 - Comments and user-facing strings are PT-BR; keep that voice when editing.
 - `build.sh` inlines all libs into one file — anything relying on separate file paths at runtime (beyond root resolution) will break the standalone build, so test `./build.sh && ./dist/full-upgrade-standalone.sh --list-steps` after structural changes. The systray can run from standalone, but icons are external assets; it falls back to hicolor/theme lookup if no `icons/` directory is beside the script.
+- Commits use **Conventional Commits** (`feat:`, `fix:`, `ci:`, …), enforced by commitlint on PRs (`.commitlintrc.json`). This keeps the auto-generated release notes clean.

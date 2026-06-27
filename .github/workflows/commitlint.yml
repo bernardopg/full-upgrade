@@ -1,0 +1,27 @@
+name: Commit Lint
+
+# Garante Conventional Commits nos PRs — melhora o changelog gerado
+# automaticamente pelo generate_release_notes nas releases.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint-commits:
+    name: Validar Conventional Commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1d1d1991bb908d89e4e9ddd3e0 # v7.0.0
+        with:
+          fetch-depth: 0   # histórico completo p/ ler os commits do PR
+
+      - uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6.2.1
+        with:
+          configFile: .commitlintrc.json

@@ -17,6 +17,7 @@ jobs:
   release:
     name: Build & Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write   # criar release + anexar assets
     outputs:
@@ -96,6 +97,7 @@ jobs:
     name: Publish to AUR
     needs: release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Publica tanto em push de tag v* quanto em workflow_dispatch manual, desde
     # que a tag informada exista no repositório. Requer os secrets AUR_* configurados.
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
