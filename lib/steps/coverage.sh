@@ -28,6 +28,7 @@ acquire_run_lock() {
     holder="$(cat "$FU_LOCK_FILE" 2>/dev/null || true)"
     holder="${holder//[^0-9]/}"
     log "  Outra instância de full-upgrade já está em execução${holder:+ (pid ${holder})}."
+    STEP_REASON="outra instância em execução${holder:+ (pid ${holder})}"
     return "$RC_TODO"
   fi
   FU_LOCK_HELD=1

@@ -60,7 +60,7 @@ full-upgrade
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
-| Observabilidade | Log completo em texto, eventos JSONL por step, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. |
+| Observabilidade | Log completo em texto sem escapes ANSI, eventos JSONL por step com `reason`, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. |
 
 ## Instalação
 
@@ -582,7 +582,8 @@ O padrão central é `run_step "Nome" funcao`. Ele:
 3. valida dependências declaradas no catálogo;
 4. aplica timeout por step;
 5. traduz códigos especiais em `warn` e `todo`;
-6. grava log humano e evento JSONL.
+6. preserva `STEP_REASON` como `reason` no JSONL;
+7. grava log humano e evento JSONL.
 
 ## Boas Práticas
 

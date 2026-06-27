@@ -45,10 +45,9 @@ update_openclaw() {
   rc=$?
 
   # Log completo no arquivo de log
-  {
-    printf '\n===== openclaw update (%s) =====\n' "$(date -Is)"
-    printf '%s\n' "$output"
-  } >> "$LOG_FILE"
+  log_raw "
+===== openclaw update ($(date -Is)) =====
+$output"
 
   # Tratar "já atualizado" — OpenClaw pode retornar 0 com mensagem específica
   if (( rc == 0 )); then

@@ -12,7 +12,7 @@ update_copilot_cli() {
   local output rc
   output="$("$copilot_bin" update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" >> "$LOG_FILE"
+  log_raw "$output"
   printf '%s\n' "$output" | grep -v '^$' || true
   return "$rc"
 }

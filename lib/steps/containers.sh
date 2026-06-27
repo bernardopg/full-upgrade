@@ -109,7 +109,7 @@ update_docker_images() {
   dangling="$(docker image ls --filter 'dangling=true' --format '{{.ID}}' 2>/dev/null | wc -l)"
   if (( dangling > 0 )); then
     log "  Removendo ${dangling} imagem(ns) dangling..."
-    docker image prune -f >> "$LOG_FILE" 2>&1 || true
+    docker image prune -f 2>&1 | _strip_ansi >> "$LOG_FILE" || true
   fi
 
   # Alertar containers usando imagem stale

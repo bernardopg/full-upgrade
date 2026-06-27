@@ -43,7 +43,7 @@ update_droid() {
   local check
   check="$(run_network_cmd droid update --check 2>&1)"
   local check_rc=$?
-  printf '%s\n' "$check" >>"$LOG_FILE"
+  log_raw "$check"
   if (( check_rc != 0 )); then
     log "  Não foi possível verificar atualização do droid (rede/Factory indisponível)."
     return "$RC_WARN"
@@ -80,7 +80,7 @@ update_coderabbit() {
   log "  Verificando atualização do CodeRabbit CLI…"
   local out rc
   out="$(run_network_cmd coderabbit update 2>&1)"; rc=$?
-  printf '%s\n' "$out" >>"$LOG_FILE"
+  log_raw "$out"
   if (( rc != 0 )); then
     log "  Falha ao atualizar o coderabbit."
     return "$RC_WARN"
@@ -111,7 +111,7 @@ update_kiro_cli() {
   log "  Atualizando Kiro CLI…"
   local out rc
   out="$(run_network_cmd kiro-cli update --non-interactive 2>&1)"; rc=$?
-  printf '%s\n' "$out" >>"$LOG_FILE"
+  log_raw "$out"
   if (( rc != 0 )); then
     log "  Falha ao atualizar o kiro-cli."
     return "$RC_WARN"
@@ -250,7 +250,7 @@ update_zap() {
   # a verificação/baixa de add-ons completou, ignorando uma falha tardia do proxy.
   local out rc
   out="$(run_network_cmd "$zap_cmd" -cmd -port 0 -addonupdate 2>&1)"; rc=$?
-  printf '%s\n' "$out" >>"$LOG_FILE"
+  log_raw "$out"
 
   if printf '%s' "$out" | grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza'; then
     log "  Add-ons do ZAP atualizados (core ${core:-?} é atualizado manualmente)."

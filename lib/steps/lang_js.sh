@@ -2,6 +2,7 @@
 # steps/lang_js.sh — npm, pnpm, corepack
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 npm_global_prefix() {
   npm config get prefix 2>/dev/null || true
@@ -313,12 +314,14 @@ for name in sorted(data.keys()):
     log "  Pacotes npm linkados (requerem atualização manual): ${skipped[*]}"
     remediation "npm install -g <pkg>@latest  # ou gerencie via workspace"
     todo_rc="$RC_TODO"
+    STEP_REASON="${#skipped[@]} pacote(s) linkado(s) + ${#script_blocked[@]} com script bloqueado"
   fi
 
   if (( ${#script_blocked[@]} > 0 )); then
     log "  npm bloqueou script(s) de install em: ${script_blocked[*]}"
     remediation "npm install -g --allow-scripts=<pkg> <pkg>@latest  # revise antes; executa scripts do pacote"
     todo_rc="$RC_TODO"
+    STEP_REASON="${#skipped[@]} pacote(s) linkado(s) + ${#script_blocked[@]} com script bloqueado"
   fi
 
   if (( ${#failed[@]} > 0 )); then

@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.17.5] - 2026-06-27
+
+### Corrigido
+
+- **Motivos (`reason`) mais completos em `todo`/Doctor.** Lock concorrente,
+  units systemd falhadas, reinício de serviços pendente/cancelado,
+  inconsistências do pacman, hooks ALPM, plugins Yazi com mudanças locais e
+  pacotes npm linkados/scripts bloqueados agora preenchem `STEP_REASON`,
+  melhorando o resumo JSONL e o `--resume`.
+- **Logs de comandos externos sem escapes ANSI.** Saídas cruas de Docker prune,
+  apps manuais (droid, CodeRabbit, Kiro CLI, ZAP) e integrações empacotadas
+  (AdGuard VPN, Copilot CLI, OpenClaw) passam por `log_raw`/`_strip_ansi`
+  antes de entrar no arquivo de log.
+- **Workflow de release grava `VERSION` com newline.** O caminho
+  `workflow_dispatch` agora escreve o valor resolvido com quebra de linha no
+  arquivo `VERSION`, mantendo o artefato publicado consistente com a tag.
+
 ## [3.17.4] - 2026-06-25
 
 ### Adicionado

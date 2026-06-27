@@ -147,11 +147,14 @@ doctor_failed_systemd_units() {
     return 0
   fi
 
+  local _sys_cnt=0 _usr_cnt=0
   if [[ -n "${failed_system//[[:space:]]/}" ]]; then
+    _sys_cnt="$(printf '%s\n' "$failed_system" | grep -c '[^[:space:]]' || true)"
     log "  Units systemd falhadas:"
     printf '%s\n' "$failed_system" | tee >(_strip_ansi >> "$LOG_FILE")
   fi
   if [[ -n "${failed_user//[[:space:]]/}" ]]; then
+    _usr_cnt="$(printf '%s\n' "$failed_user" | grep -c '[^[:space:]]' || true)"
     log "  Units systemd --user falhadas:"
     printf '%s\n' "$failed_user" | tee >(_strip_ansi >> "$LOG_FILE")
   elif [[ "$user_scope" != "available" ]]; then
@@ -161,6 +164,7 @@ doctor_failed_systemd_units() {
     esac
   fi
 
+  STEP_REASON="${_sys_cnt} unit(s) sistema + ${_usr_cnt} unit(s) usuário falhada(s)"
   return "$RC_TODO"
 }
 
@@ -764,10 +768,11 @@ restart_stale_services() {
       read -r answer
       case "$answer" in
         [sS][iI][mM]|[sS]) ;;
-        *) log "  Reinício de serviços cancelado pelo usuário."; return "$RC_TODO" ;;
+        *) log "  Reinício de serviços cancelado pelo usuário."; STEP_REASON="reinício cancelado pelo usuário"; return "$RC_TODO" ;;
       esac
     else
       log "  Execução não interativa sem --yes; pulando reinício de serviços."
+      STEP_REASON="--yes ausente; ${#restart_cmds[@]} serviço(s) pendente(s) de reinício"
       return "$RC_TODO"
     fi
   fi
@@ -855,6 +860,7 @@ doctor_pacman_health() {
   if (( count > 60 )); then
     log "  Saída completa registrada no log."
   fi
+  STEP_REASON="${count} arquivo(s)/pacote(s) com problema via ${check_cmd_label}${noise_note}"
   return "$RC_TODO"
 }
 
@@ -989,6 +995,7 @@ doctor_pacman_hooks() {
   log "  ${count} mensagem(ns) de erro em hooks ALPM no boot atual (mostrando até 20):"
   printf '%s\n' "$failed_hooks" | head -n 20 | tee >(_strip_ansi >> "$LOG_FILE")
   (( count > 20 )) && log "  Saída completa registrada no log."
+  STEP_REASON="${count} erro(s) em hook(s) ALPM no boot atual"
   return "$RC_TODO"
 }
 

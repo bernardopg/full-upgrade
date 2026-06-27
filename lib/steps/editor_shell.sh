@@ -2,6 +2,7 @@
 # steps/editor_shell.sh — nvim, zsh/omz, hyprpm
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 update_nvim_lazy() {
   if ! nvim --version >/dev/null 2>&1; then
@@ -134,6 +135,7 @@ update_yazi_plugins() {
   if (( rc != 0 )); then
     if printf '%s\n' "$output" | grep -q 'modified the contents'; then
       log "  Plugin(s) com modificações locais — rode 'ya pkg upgrade --discard' manualmente."
+      STEP_REASON="plugin(s) Yazi com modificações locais (--discard para sobrescrever)"
       return "$RC_TODO"
     fi
     log "  Aviso: ya pkg upgrade retornou ${rc}."
