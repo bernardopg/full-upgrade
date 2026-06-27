@@ -40,8 +40,10 @@ jobs:
 
       - name: Resolver versão
         id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          v="${{ inputs.tag }}"
+          v="${INPUT_TAG}"
           echo "tag=${v}" >> "$GITHUB_OUTPUT"
           echo "version=${v#v}" >> "$GITHUB_OUTPUT"
 
@@ -85,9 +87,10 @@ jobs:
         id: sha
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           sleep 3
-          sha=$(gh api "repos/${{ github.repository }}/git/refs/heads/main" --jq '.object.sha')
+          sha=$(gh api "repos/${REPO}/git/refs/heads/main" --jq '.object.sha')
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
   release:
@@ -131,9 +134,12 @@ jobs:
 
       - name: Resolve tag
         id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            name="${{ inputs.tag }}"
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            name="${INPUT_TAG}"
           else
             name="${GITHUB_REF_NAME}"
           fi
@@ -204,10 +210,12 @@ jobs:
       - name: Calcular checksum real do tarball da tag
         env:
           VERSION: ${{ needs.release.outputs.version }}
+          WORKDIR: ${{ steps.pkg.outputs.workdir }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          workdir="${{ steps.pkg.outputs.workdir }}"
-          url="https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz"
+          workdir="${WORKDIR}"
+          url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
           # Aguarda o tarball da tag ficar disponível e baixa.
           for i in 1 2 3 4 5; do
             if curl -fsSL -o "$workdir/src.tar.gz" "$url"; then break; fi
