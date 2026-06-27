@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,8 +22,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install shellcheck + bats
-        run: sudo apt-get update && sudo apt-get install -y shellcheck bats
+      - name: Install shellcheck + bats + kcov
+        run: sudo apt-get update && sudo apt-get install -y shellcheck bats kcov
 
       - name: Syntax check (bash -n)
         run: |
@@ -45,6 +46,19 @@ jobs:
 
       - name: Unit tests (bats)
         run: bats tests/
+
+      - name: Coverage (kcov + bats)
+        run: scripts/coverage-bats.sh
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: coverage/bats/cobertura.xml
+          flags: bats
+          name: full-upgrade-bats
+          disable_search: true
+          fail_ci_if_error: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
       - name: Build standalone
         run: ./build.sh

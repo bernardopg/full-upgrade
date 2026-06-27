@@ -8,6 +8,8 @@
 
 <a href="https://github.com/bernardopg/full-upgrade/releases/latest"><img src="https://img.shields.io/github/v/release/bernardopg/full-upgrade?style=for-the-badge&logo=github&color=1793D1&label=release" alt="release"></a>
 <a href="https://github.com/bernardopg/full-upgrade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/bernardopg/full-upgrade/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+<a href="https://app.travis-ci.com/github/bernardopg/full-upgrade"><img src="https://img.shields.io/travis/com/bernardopg/full-upgrade/main?style=for-the-badge&logo=travisci&logoColor=white&label=Travis" alt="Travis CI"></a>
+<a href="https://codecov.io/gh/bernardopg/full-upgrade"><img src="https://img.shields.io/codecov/c/github/bernardopg/full-upgrade?style=for-the-badge&logo=codecov&logoColor=white&label=coverage" alt="coverage"></a>
 <img src="https://img.shields.io/badge/shell-bash%204%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="bash">
 <img src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white" alt="Arch Linux">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="license"></a>

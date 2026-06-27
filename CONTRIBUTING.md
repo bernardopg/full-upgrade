@@ -56,6 +56,10 @@ Veja [`CLAUDE.md`](CLAUDE.md) para a arquitetura completa.
 - Comentários e textos ao usuário em **PT-BR**.
 - Para gravar saída crua de comando no log, use `log_raw` (remove ANSI), não
   `printf ... >> "$LOG_FILE"`.
+- A CI coleta cobertura dos testes Bats com `scripts/coverage-bats.sh`
+  (`kcov`) e publica `coverage/bats/cobertura.xml` no Codecov.
+- Travis CI roda a mesma suíte e também publica no Codecov quando o secret
+  `CODECOV_TOKEN` estiver configurado nas variáveis do projeto no Travis.
 
 ## Pull requests
 

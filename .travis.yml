@@ -1,0 +1,51 @@
+language: shell
+dist: jammy
+
+branches:
+  only:
+    - main
+    - /^v[0-9]+\.[0-9]+\.[0-9]+$/
+
+addons:
+  apt:
+    update: true
+    packages:
+      - bats
+      - kcov
+      - python3-pip
+      - shellcheck
+
+script:
+  - |
+    shopt -s nullglob
+    for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
+      echo "bash -n $f"
+      bash -n "$f"
+    done
+  - shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+  - bash full-upgrade.sh --help
+  - bash full-upgrade.sh --list-steps
+  - XDG_CONFIG_HOME="$TRAVIS_BUILD_DIR/.travis-nocfg" bash full-upgrade.sh --dry-run --mode full
+  - bats tests/
+  - scripts/coverage-bats.sh
+  - ./build.sh
+  - bash -n dist/full-upgrade-standalone.sh
+  - ./dist/full-upgrade-standalone.sh --list-steps >/dev/null
+  - XDG_CONFIG_HOME="$TRAVIS_BUILD_DIR/.travis-nocfg2" ./dist/full-upgrade-standalone.sh --dry-run --mode full >/dev/null
+
+after_success:
+  - |
+    if [ -n "${CODECOV_TOKEN:-}" ]; then
+      python3 -m pip install --user codecov-cli
+      export PATH="$HOME/.local/bin:$PATH"
+      codecovcli --verbose \
+        --auto-load-params-from travis \
+        upload-process \
+        --disable-search \
+        --fail-on-error \
+        -n "full-upgrade-bats-${TRAVIS_JOB_NUMBER}" \
+        -F bats \
+        -f coverage/bats/cobertura.xml
+    else
+      echo "CODECOV_TOKEN is not set; skipping Travis Codecov upload."
+    fi

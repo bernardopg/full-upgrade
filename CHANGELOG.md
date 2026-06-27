@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Integração Codecov na CI.** O workflow passa instalar `kcov`, gerar
+  cobertura Cobertura XML dos testes Bats via `scripts/coverage-bats.sh` e
+  publicar o relatório pelo `codecov/codecov-action` v7 autenticado por OIDC
+  nos runs confiáveis.
+- **Integração Travis CI.** Adicionado `.travis.yml` com sintaxe, ShellCheck,
+  smoke tests, Bats, cobertura kcov, build standalone e upload Codecov via
+  `codecov-cli` quando `CODECOV_TOKEN` estiver configurado no Travis.
+
 ## [3.17.5] - 2026-06-27
 
 ### Corrigido
