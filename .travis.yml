@@ -12,6 +12,7 @@ addons:
     packages:
       - kcov
       - python3-pip
+      - python3-tomli
       - shellcheck
 
 before_script:

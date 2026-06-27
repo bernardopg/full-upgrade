@@ -16,6 +16,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Instalação reproduzível de Bats na CI.** `scripts/install-bats.sh` instala
   Bats 1.13.0 em `.ci/bats`, evitando diferenças entre pacotes antigos de
   distro e o ambiente local.
+- **Compatibilidade TOML no Python 3.10.** O parser MCP usa `tomli` como
+  fallback quando `tomllib` não existe, cobrindo Ubuntu 22.04/Jammy.
 
 ## [3.17.5] - 2026-06-27
 

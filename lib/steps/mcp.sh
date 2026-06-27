@@ -48,7 +48,11 @@ parse_mcp_codex_names() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
-import sys, tomllib
+import sys
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 try:
     with open(sys.argv[1], "rb") as fh:
         data = tomllib.load(fh)
@@ -145,7 +149,11 @@ mcp_update_plan() {
   local kind="$1" f="$2"
   [[ -r "$f" ]] || return 1
   python3 -c '
-import sys, os, re, json, tomllib
+import sys, os, re, json
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 kind, path = sys.argv[1], sys.argv[2]
 
 NPX = {"npx", "bunx", "pnpx", "npm", "pnpm", "yarn"}
