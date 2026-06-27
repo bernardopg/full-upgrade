@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,12 +17,13 @@ jobs:
   lint:
     name: Lint & Test
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install shellcheck + kcov
-        run: sudo apt-get update && sudo apt-get install -y shellcheck kcov python3-tomli
+      - name: Install shellcheck + shfmt + kcov
+        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt kcov python3-tomli
 
       - name: Install bats
         run: |
@@ -42,6 +42,15 @@ jobs:
         run: |
           shellcheck -S warning -x \
             full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+
+      # Consultivo: o código ainda não está 100% no formato do shfmt (~18k
+      # linhas de diff). NÃO bloqueia o CI hoje; remova `continue-on-error`
+      # após rodar `shfmt -i 4 -w <arquivos>` para torná-lo obrigatório.
+      - name: shfmt (formatação Bash — consultivo)
+        continue-on-error: true
+        run: |
+          shfmt -i 4 -d \
+            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
       - name: Smoke test
         run: |

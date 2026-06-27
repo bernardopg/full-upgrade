@@ -6,21 +6,44 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
-- **Integração Codecov na CI.** O workflow passa instalar `kcov`, gerar
-  cobertura Cobertura XML dos testes Bats via `scripts/coverage-bats.sh` e
-  publicar o relatório pelo `codecov/codecov-action` v7 autenticado por OIDC
-  nos runs confiáveis.
-- **Integração Travis CI.** Adicionado `.travis.yml` com sintaxe, ShellCheck,
-  smoke tests, Bats, cobertura kcov, build standalone e upload Codecov via
-  `codecov-cli` quando `CODECOV_TOKEN` estiver configurado no Travis.
+- **Workflows de CI/qualidade/segurança.** Novos workflows gratuitos em
+  `.github/workflows/`: `semgrep.yml` (SAST para Bash — preenche a lacuna do
+  CodeQL, que não suporta Bash; resultados em Code Scanning, consultivo),
+  `scorecard.yml` (OpenSSF Scorecard com publish de score público), `stale.yml`
+  (fecha issues/PRs inativos), `labeler.yml` + `.github/labeler.yml` (rotula
+  PRs por caminho), `greeting.yml` (boas-vindas a contribuidores novos) e
+  `commitlint.yml` + `.commitlintrc.json` (garante Conventional Commits nos
+  PRs). Todos pinados por SHA, least-privilege e com `timeout-minutes`.
+- **shfmt consultivo no CI.** Verificação de formatação Bash com `shfmt -i 4
+  -d` (não bloqueante) + `.editorconfig` canonizando o estilo (4 espaços).
+- **Badge do OpenSSF Scorecard** no README (substitui o badge do Travis).
+- **Integração Codecov na CI.** Instala `kcov`, gera cobertura Cobertura XML
+  dos testes Bats via `scripts/coverage-bats.sh` (wrapper `scripts/run-bats.sh`)
+  e publica pelo `codecov/codecov-action` v7 com `CODECOV_TOKEN`.
 - **Instalação reproduzível de Bats na CI.** `scripts/install-bats.sh` instala
-  Bats 1.13.0 em `.ci/bats`, evitando diferenças entre pacotes antigos de
-  distro e o ambiente local.
+  Bats 1.13.0 em `.ci/bats`.
 - **Compatibilidade TOML no Python 3.10.** O parser MCP usa `tomli` como
   fallback quando `tomllib` não existe, cobrindo Ubuntu 22.04/Jammy.
-- **Codecov com relatório não-vazio.** A cobertura kcov agora executa um
-  wrapper Bash real (`scripts/run-bats.sh`), gerando Cobertura XML com linhas
-  do projeto, e o upload usa `CODECOV_TOKEN` via secret.
+
+### Alterado
+
+- **CI (`ci.yml`) modernizado.** Removida a permissão `id-token: write`
+  desnecessária; adicionados `timeout-minutes` por job; novo passo shfmt.
+- **CodeQL e Release** ganharam `timeout-minutes` em todos os jobs.
+- **`codecov.yml`: `ignore` de orquestração/entrypoint.** Arquivos com
+  side-effects não-testáveis por design (`install.sh`, `build.sh`,
+  `full-upgrade.sh`, `lib/main.sh`, `lib/cli.sh`, `lib/sudo.sh`) saem do
+  escopo — a cobertura passa a refletir a lógica testável (~22,7%). Flag
+  `bats` com `carryforward`; comentário de PR com `files`/critical files.
+- **`dependabot.yml`:** `commit-message.include: scope` e label `ci`.
+- **Labels do repositório:** criadas `ci`, `lib`, `tests`, `steps`, `scripts`,
+  `packaging`, `dependencies`, `github-actions` (referenciadas pelo Labeler e
+  pelo Dependabot).
+
+### Removido
+
+- **Travis CI.** `.travis.yml` removido (tier grátis para OSS indisponível e
+  100% redundante com o GitHub Actions); badge do README trocado pelo Scorecard.
 
 ## [3.17.5] - 2026-06-27
 

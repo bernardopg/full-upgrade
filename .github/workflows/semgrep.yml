@@ -1,0 +1,50 @@
+name: Semgrep
+
+# SAST para Bash — preenche a lacuna do CodeQL, que NÃO suporta Bash.
+# Achados aparecem em Security > Code scanning alerts. Hoje consultivo
+# (continue-on-error): triagem primeiro, promover a bloqueante depois.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"   # segunda 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semgrep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST (Bash)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write   # upload SARIF p/ code scanning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Consultivo: não quebra o CI em achados; eles viram alerts no GitHub
+      # (Security > Code scanning). Rodamos a CLI direto (não a action Docker)
+      # para garantir a geração do SARIF em semgrep.sarif.
+      # Remova `continue-on-error` (+ adicione --error) após triar os findings.
+      - name: Semgrep scan
+        id: semgrep
+        continue-on-error: true
+        run: |
+          python3 -m pip install --user semgrep
+          semgrep scan --config p/default --sarif --output semgrep.sarif
+
+      - name: Upload SARIF to GitHub code scanning
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep

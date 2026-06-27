@@ -57,13 +57,34 @@ Veja [`CLAUDE.md`](CLAUDE.md) para a arquitetura completa.
 - Para gravar saída crua de comando no log, use `log_raw` (remove ANSI), não
   `printf ... >> "$LOG_FILE"`.
 - A CI instala Bats via `scripts/install-bats.sh`, coleta cobertura dos testes
-  com `scripts/coverage-bats.sh` (`kcov`) e publica
-  `coverage/bats/cobertura.xml` no Codecov.
-- Travis CI roda a mesma suíte e também publica no Codecov quando o secret
-  `CODECOV_TOKEN` estiver configurado nas variáveis do projeto no Travis.
+  com `scripts/coverage-bats.sh` (`kcov`) e publica `coverage/bats/cobertura.xml`
+  no Codecov. O estilo Bash é checado por **shfmt** (consultivo hoje; rode
+  `shfmt -i 4 -w <arquivos>` para alinhar ao `.editorconfig`).
+
+## Commits — Conventional Commits
+
+O PR é validado por `commitlint` (`.commitlintrc.json`). Mensagens devem seguir
+`tipo(escopo): descrição`, com `tipo` ∈
+`feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert`.
+Exemplos: `feat(ai): atualiza Ollama`, `fix(ui): cabeçalho duplicado`,
+`ci: adiciona Semgrep`. Isso melhora o changelog gerado automaticamente nas
+releases (`generate_release_notes`).
 
 ## Pull requests
 
 - Branch a partir de `main`; um PR por mudança lógica.
-- Garanta que validação (sintaxe + shellcheck + dry-run) passa localmente.
-- Atualize `CHANGELOG.md` quando o comportamento mudar.
+- Garanta que a validação passa localmente (sintaxe + shellcheck + bats +
+  dry-run + build).
+- Commits em **Conventional Commits** (acima).
+- Atualize `CHANGELOG.md` em `[Unreleased]` quando o comportamento mudar.
+- O **Labeler** rotula o PR automaticamente por caminho (`.github/labeler.yml`).
+
+## CI / Segurança (automático no GitHub Actions)
+
+- **CI** — sintaxe, shellcheck, shfmt, bats, cobertura (Codecov) e build
+  standalone.
+- **CodeQL** — análise dos próprios workflows (Bash não é suportado pelo CodeQL).
+- **Semgrep** — SAST para Bash; achados em *Security > Code scanning* (consultivo).
+- **OpenSSF Scorecard** — postura de segurança do repo (badge no README).
+- **Stale / Greeting** — fechamento de inativos e boas-vindas a novos contribuidores.
+- **Dependabot** — mantém as GitHub Actions atualizadas (pinadas por SHA).

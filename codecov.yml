@@ -1,25 +1,42 @@
+# Cobertura medida por kcov + bats (scripts/coverage-bats.sh) e enviada pelo CI
+# (codecov-action, flag "bats").
+#
+# Arquivos de orquestração/entrypoint têm side-effects (sudo, fork, dispatch,
+# I/O de máquina) e por design NÃO são unit-testáveis — o próprio
+# tests/test_helper.bash os exclui do carregamento. Ignorá-los faz o número
+# refletir a lógica de fato testável e evita que o check "target: auto" quebre
+# em refactors desses arquivos. Não é maquiar o número: é isolar o testável.
+
 coverage:
+  precision: 2
   status:
     project:
       default:
-        target: auto
-        threshold: 2%
+        target: auto       # compara com a cobertura do commit base
+        threshold: 2%      # tolera queda de até 2 pp (ruído de relatório)
         if_ci_failed: error
     patch:
       default:
-        target: 0%
+        target: 0%         # não bloqueia PR por linhas novas não cobertas (Bash)
         if_ci_failed: error
+
+ignore:
+  - install.sh             # instalador (roda na máquina do usuário)
+  - build.sh               # builder do standalone
+  - full-upgrade.sh        # entrypoint (source das libs + dispatch)
+  - lib/main.sh            # orquestrador de steps (side-effects)
+  - lib/cli.sh             # parsing de args + early exits (side-effects)
+  - lib/sudo.sh            # elevação de privilégio (requer sudo real)
 
 flags:
   bats:
     paths:
-      - full-upgrade.sh
-      - build.sh
-      - install.sh
       - lib/
       - steps.d/
+    carryforward: true     # preserva a última cobertura se um run não enviar o flag
 
 comment:
-  layout: "reach,diff,flags,tree"
+  layout: "reach,diff,flags,files,tree"
   behavior: default
-  require_changes: false
+  require_changes: false   # posta comentário de cobertura em todo PR
+  show_critical_files: true

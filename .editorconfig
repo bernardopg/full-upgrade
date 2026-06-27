@@ -1,0 +1,21 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{sh,bash}]
+indent_style = space
+indent_size = 4
+# shfmt (>=3.7) lê estas diretivas; o CI usa as flags equivalentes (-i 4).
+shell_variant = bash
+switch_case_indent = true
+space_redirects = true
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
