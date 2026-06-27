@@ -13,21 +13,102 @@ on:
 permissions:
   contents: read
 
+# A proteção de branch do `main` exige `Lint & Test` + `Analyze (actions)` e
+# bloqueia commits diretos do github-actions[bot]. Por isso, no caminho
+# workflow_dispatch, o bump de VERSION entra no `main` via PR de ciclo curto
+# (auto-merge após os checks obrigatórios) — só assim o bot consegue atualizar
+# o `main`. O caminho de tag-push (manual) não toca no `main`.
+
 jobs:
-  release:
-    name: Build & Publish
+  bump:
+    name: Bump VERSION via PR (workflow_dispatch)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
-      contents: write   # criar release + anexar assets
+      contents: write      # push do branch release/*
+      pull-requests: write # abrir e mesclar o PR
     outputs:
-      tag: ${{ steps.tag.outputs.name }}
-      version: ${{ steps.tag.outputs.version }}
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      sha: ${{ steps.sha.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+
+      - name: Resolver versão
+        id: ver
+        run: |
+          v="${{ inputs.tag }}"
+          echo "tag=${v}" >> "$GITHUB_OUTPUT"
+          echo "version=${v#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Bump de VERSION + fallbacks, abrir PR e mesclar
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="release/${TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          printf '%s\n' "${VERSION}" > VERSION
+          # Atualiza só a linha de fallback literal (valor começa com dígito);
+          # as linhas que resolvem via git describe / arquivo VERSION usam
+          # variáveis ($_git_ver/$_file_ver) e não devem ser sobrescritas.
+          sed -i -E "s/SCRIPT_VERSION=\"[0-9][^\"]*\"/SCRIPT_VERSION=\"${VERSION}\"/" full-upgrade.sh
+          sed -i -E "s/_build_ver=\"[0-9][^\"]*\"/_build_ver=\"${VERSION}\"/" build.sh
+          bash -n full-upgrade.sh build.sh
+          git add VERSION full-upgrade.sh build.sh
+          git commit -m "chore(release): bump VERSION para ${VERSION}"
+          git push origin "$branch"
+
+          pr_num=$(gh pr create --base main --head "$branch" \
+            --title "chore(release): bump VERSION para ${VERSION}" \
+            --body "Bump automático de VERSION para ${VERSION} (workflow de release).")
+          pr_num=$(gh pr view "$pr_num" --json number -q .number)
+          echo "PR #$pr_num aberto; aguardando checks obrigatórios (Lint & Test + Analyze)..."
+
+          # Espera os checks terminarem (tolera falha em checks NÃO-obrigatórios;
+          # se um obrigatório falhar, o merge a seguir recusa e falha o job).
+          gh pr checks "$pr_num" --watch --interval 20 || true
+
+          # Mescla via squash — respeita os required status checks da proteção.
+          gh pr merge "$pr_num" --squash --delete-branch \
+            --subject "chore(release): bump VERSION para ${VERSION} (#${pr_num})"
+
+      - name: Capturar SHA do commit mesclado em main
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 3
+          sha=$(gh api "repos/${{ github.repository }}/git/refs/heads/main" --jq '.object.sha')
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Build & Publish
+    needs: bump
+    # Roda após o bump (dispatch) ou diretamente em push de tag (bump é skipped).
+    if: always() && (needs.bump.result == 'success' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write   # criar release + push da tag
+    outputs:
+      tag: ${{ steps.tag.outputs.name }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - name: Checkout
+        # dispatch: checkout exato do commit mesclado pelo bump; push: a tag.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ (github.event_name == 'workflow_dispatch' && needs.bump.outputs.sha) || github.ref }}
 
       - name: Install shellcheck + bats
         run: sudo apt-get update && sudo apt-get install -y shellcheck bats
@@ -59,27 +140,15 @@ jobs:
           echo "name=${name}" >> "$GITHUB_OUTPUT"
           echo "version=${name#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Atualizar VERSION + fallbacks e criar tag (apenas workflow_dispatch)
+      # No workflow_dispatch a tag ainda não existe (foi criada só no main);
+      # cria e empurra. No push de tag a tag já existe (criada por quem disparou).
+      - name: Criar e empurrar tag (apenas workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         env:
-          VERSION: ${{ steps.tag.outputs.version }}
           TAG: ${{ steps.tag.outputs.name }}
         run: |
-          set -euo pipefail
-          test -n "${VERSION}"
-          test -n "${TAG}"
-          printf '%s\n' "${VERSION}" > VERSION
-          # Atualiza só a linha de fallback literal (valor começa com dígito);
-          # as linhas que resolvem via git describe / arquivo VERSION usam
-          # variáveis ($_git_ver/$_file_ver) e não devem ser sobrescritas.
-          sed -i -E "s/SCRIPT_VERSION=\"[0-9][^\"]*\"/SCRIPT_VERSION=\"${VERSION}\"/" full-upgrade.sh
-          sed -i -E "s/_build_ver=\"[0-9][^\"]*\"/_build_ver=\"${VERSION}\"/" build.sh
-          bash -n full-upgrade.sh build.sh
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION full-upgrade.sh build.sh
-          git commit -m "chore(release): bump VERSION para ${VERSION}"
-          git push
           git tag "${TAG}"
           git push origin "${TAG}"
 
@@ -100,7 +169,7 @@ jobs:
     timeout-minutes: 15
     # Publica tanto em push de tag v* quanto em workflow_dispatch manual, desde
     # que a tag informada exista no repositório. Requer os secrets AUR_* configurados.
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
+    if: always() && needs.release.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v')))
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

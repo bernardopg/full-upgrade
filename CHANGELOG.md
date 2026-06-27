@@ -30,6 +30,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **CI (`ci.yml`) modernizado.** Removida a permissão `id-token: write`
   desnecessária; adicionados `timeout-minutes` por job; novo passo shfmt.
 - **CodeQL e Release** ganharam `timeout-minutes` em todos os jobs.
+- **`release.yml`: bump de VERSION via PR auto-merge.** Como o `main` tem proteção
+  de branch (required status checks), o caminho `workflow_dispatch` não consegue
+  commitar direto em `main`. Refatorado: o bump agora entra num PR de ciclo curto
+  que passa nos checks obrigatórios (`Lint & Test` + `Analyze`) e faz auto-merge;
+  depois o workflow tagueia o commit mesclado, builda, publica a release e o AUR.
+  O caminho de tag-push (manual) segue sem tocar no `main`.
 - **`codecov.yml`: `ignore` de orquestração/entrypoint.** Arquivos com
   side-effects não-testáveis por design (`install.sh`, `build.sh`,
   `full-upgrade.sh`, `lib/main.sh`, `lib/cli.sh`, `lib/sudo.sh`) saem do
