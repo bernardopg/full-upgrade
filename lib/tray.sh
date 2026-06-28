@@ -176,10 +176,28 @@ tray_relative_time() {
 # Camada 2 — I/O leve (sem yad)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Última linha "summary" do JSONL mais recente (rc 1 se indisponível).
+# JSONL completo mais recente de um run REAL. Ignora dry-runs e o run atual
+# enquanto ele ainda não escreveu summary, para o tray não "esquecer" pendências
+# do último Doctor/upgrade durante a execução de outro comando.
+tray_latest_completed_real_jsonl() {
+  local f
+  while IFS= read -r f; do
+    [[ -r "$f" ]] || continue
+    grep -m1 '"event":"run_start"' "$f" 2>/dev/null | grep -q '"dry_run":false' || continue
+    grep -q '"event":"summary"' "$f" 2>/dev/null || continue
+    printf '%s\n' "$f"
+    return 0
+  done < <(
+    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
+      | sort -rn | cut -d' ' -f2-
+  )
+  return 1
+}
+
+# Última linha "summary" do JSONL real completo mais recente (rc 1 se indisponível).
 tray_last_summary_line() {
-  local jsonl="${LATEST_JSONL_LINK:-${LOG_DIR}/latest.jsonl}"
-  [[ -r "$jsonl" ]] || return 1
+  local jsonl
+  jsonl=$(tray_latest_completed_real_jsonl 2>/dev/null) || return 1
   grep '"event":"summary"' "$jsonl" 2>/dev/null | tail -1
 }
 
@@ -188,6 +206,38 @@ tray_last_summary_counts() {
   local line
   line=$(tray_last_summary_line 2>/dev/null) || { printf '0 0 0'; return 0; }
   tray_summary_counts "$line"
+}
+
+# Itens Doctor pendentes (warn/todo/fail) do último run real completo.
+# Formato por linha: "status: Nome do step — motivo".
+tray_last_doctor_pending_items() {
+  local jsonl line step status reason
+  jsonl=$(tray_latest_completed_real_jsonl 2>/dev/null) || return 0
+  while IFS= read -r line; do
+    [[ "$line" == *'"event":"step"'* && "$line" == *'"category":"doctor"'* ]] || continue
+    status=$(tray_extract_json_field "$line" status 2>/dev/null || true)
+    case "$status" in warn|todo|fail) ;; *) continue ;; esac
+    step=$(tray_extract_json_field "$line" step 2>/dev/null || true)
+    reason=$(tray_extract_json_field "$line" reason 2>/dev/null || true)
+    [[ -n "$step" ]] || continue
+    if [[ -n "${reason//[[:space:]]/}" ]]; then
+      printf '%s: %s — %s\n' "$status" "$step" "$reason"
+    else
+      printf '%s: %s\n' "$status" "$step"
+    fi
+  done < "$jsonl"
+}
+
+# Array JSON de strings a partir de stdin (linhas vazias são ignoradas).
+tray_json_array_from_lines() {
+  local line sep=""
+  printf '['
+  while IFS= read -r line; do
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    printf '%s%s' "$sep" "$(json_escape "$line")"
+    sep=','
+  done
+  printf ']'
 }
 
 # 1 (true) se uma instância de full-upgrade está em execução (lock ativo).
@@ -247,28 +297,47 @@ tray_self_bin() {
 # Camada 3 — coleta de updates, estado, notificações, daemon yad
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Coleta contagens de updates (repo + AUR; flatpak best-effort). Faz rede.
+# Coleta listas de updates (repo + AUR; flatpak best-effort). Faz rede.
+# Uso: tray_gather_updates_detail <repo_file> <aur_file> <flatpak_file>
 # Emite "repo aur flatpak". Não muta o sistema.
-tray_gather_updates() {
-  local repo=0 aur=0 flatpak=0 out h
+tray_gather_updates_detail() {
+  local repo_file="$1" aur_file="$2" flatpak_file="$3" repo=0 aur=0 flatpak=0 h
+  : > "$repo_file"
+  : > "$aur_file"
+  : > "$flatpak_file"
+
   if has checkupdates; then
-    out=$(checkupdates 2>/dev/null) && repo=$(tray_count_list <<< "$out")
+    checkupdates > "$repo_file" 2>/dev/null || true
+    repo=$(tray_count_list < "$repo_file")
   fi
   if h=$(detect_aur_helper 2>/dev/null); then
-    [[ -n "$h" ]] && { out=$("$h" -Qua 2>/dev/null) && aur=$(tray_count_list <<< "$out") || true; }
+    [[ -n "$h" ]] && "$h" -Qua > "$aur_file" 2>/dev/null || true
+    aur=$(tray_count_list < "$aur_file")
   fi
-  # Flatpak: sem modo --dry-run não-mutante confiável; mantém 0 por ora
+  # Flatpak: sem modo --dry-run não-mutante confiável; mantém lista vazia por ora
   # (as atualizações flatpak ocorrem no run normal do full-upgrade).
+  flatpak=$(tray_count_list < "$flatpak_file")
   printf '%s %s %s' "$repo" "$aur" "$flatpak"
 }
 
+# Compatibilidade para chamadores/testes antigos: só devolve contagens.
+tray_gather_updates() {
+  local repo_file aur_file flatpak_file
+  repo_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-repo.$$" )
+  aur_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-aur.$$" )
+  flatpak_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-flatpak.$$" )
+  tray_gather_updates_detail "$repo_file" "$aur_file" "$flatpak_file"
+  rm -f "$repo_file" "$aur_file" "$flatpak_file" 2>/dev/null || true
+}
+
 # Escreve o JSON de estado do tray.
-# Uso: tray_write_state <state> <prev> <repo> <aur> <flatpak> <todo> <fail> <reboot> <checked_at>
+# Uso: tray_write_state <state> <prev> <repo> <aur> <flatpak> <todo> <fail> <reboot> <checked_at> <last_run_at> <log_file> <jsonl_file> <repo_json> <aur_json> <doctor_json>
 tray_write_state() {
   mkdir -p "${LOG_DIR}" 2>/dev/null || true
-  printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s}\n' \
+  printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s}\n' \
     "$(json_escape "$1")" "$(json_escape "$2")" "$3" "$4" "$5" "$6" "$7" \
-    "$(json_escape "$8")" "$(json_escape "$9")" > "${TRAY_STATE_FILE}.tmp" \
+    "$(json_escape "$8")" "$(json_escape "$9")" "$(json_escape "${10}")" \
+    "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" > "${TRAY_STATE_FILE}.tmp" \
     && mv -f "${TRAY_STATE_FILE}.tmp" "${TRAY_STATE_FILE}" 2>/dev/null
 }
 
@@ -330,22 +399,37 @@ tray_check_now() {
   local todo=0 fail=0 reboot=0
   read -r todo fail reboot <<< "$(tray_last_summary_counts)"
 
-  local reboot_reason=""
+  local reboot_reason="" last_run_at="" last_log="" last_jsonl=""
   local sumline
   if sumline=$(tray_last_summary_line 2>/dev/null); then
     reboot_reason=$(tray_summary_reboot_reason "$sumline")
+    last_run_at=$(tray_extract_json_field "$sumline" timestamp 2>/dev/null || true)
+    last_log=$(tray_extract_json_field "$sumline" log_file 2>/dev/null || true)
+    last_jsonl=$(tray_extract_json_field "$sumline" jsonl_file 2>/dev/null || true)
   fi
 
   local repo=0 aur=0 flatpak=0 updates=0
+  local repo_file aur_file flatpak_file doctor_file repo_json='[]' aur_json='[]' doctor_json='[]'
+  repo_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-repo.$$" )
+  aur_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-aur.$$" )
+  flatpak_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-flatpak.$$" )
+  doctor_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-doctor.$$" )
   if (( ! running )); then
-    read -r repo aur flatpak <<< "$(tray_gather_updates)"
+    read -r repo aur flatpak <<< "$(tray_gather_updates_detail "$repo_file" "$aur_file" "$flatpak_file")"
     updates=$(tray_total_updates "$repo" "$aur" "$flatpak")
   fi
+  tray_last_doctor_pending_items > "$doctor_file"
+  todo=$(tray_count_list < "$doctor_file")
+  repo_json=$(tray_json_array_from_lines < "$repo_file")
+  aur_json=$(tray_json_array_from_lines < "$aur_file")
+  doctor_json=$(tray_json_array_from_lines < "$doctor_file")
+  rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" 2>/dev/null || true
 
   local state
   state=$(tray_compute_state "$running" "$fail" "$todo" "$updates")
 
-  tray_write_state "$state" "$prev" "$repo" "$aur" "$flatpak" "$todo" "$fail" "$reboot_reason" "$(date -Is)"
+  tray_write_state "$state" "$prev" "$repo" "$aur" "$flatpak" "$todo" "$fail" "$reboot_reason" \
+    "$(date -Is)" "$last_run_at" "$last_log" "$last_jsonl" "$repo_json" "$aur_json" "$doctor_json"
 
   if (( do_notify )) && [[ -n "$prev" && "$prev" != "$state" && "$state" != "running" ]]; then
     _tray_notify_transition "$prev" "$state" "$updates" "$todo" "$fail" "$reboot_reason"
@@ -451,7 +535,7 @@ tray_print_status() {
     echo "Sem estado ainda. Rode 'full-upgrade --tray-check' para computar." >&2
     return 0
   fi
-  local state repo aur todo fail checked reboot
+  local state repo aur todo fail checked reboot last_run log_file
   state=$(tray_read_state_field "$TRAY_STATE_FILE" state 2>/dev/null || echo "?")
   repo=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
@@ -459,8 +543,12 @@ tray_print_status() {
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   reboot=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || echo "")
   checked=$(tray_read_state_field "$TRAY_STATE_FILE" checked_at 2>/dev/null || echo "?")
+  last_run=$(tray_read_state_field "$TRAY_STATE_FILE" last_run_at 2>/dev/null || echo "")
+  log_file=$(tray_read_state_field "$TRAY_STATE_FILE" log_file 2>/dev/null || echo "")
   local rel; rel=$(tray_relative_time "$checked")
   [[ -n "$rel" ]] && checked="${checked} (${rel})"
+  local last_rel; last_rel=$(tray_relative_time "$last_run")
+  [[ -n "$last_rel" ]] && last_run="${last_run} (${last_rel})"
   cat <<EOF
 Estado      : ${state}
 Updates     : ${repo} repo + ${aur} AUR
@@ -468,6 +556,8 @@ Doctor todo : ${todo}
 Falhas      : ${fail}
 Reboot      : ${reboot:-não}
 Verificado  : ${checked}
+Último run  : ${last_run:-desconhecido}
+Log fonte   : ${log_file:-desconhecido}
 Daemon      : $(tray_daemon_status)
 EOF
 }
@@ -538,12 +628,14 @@ tray_appindicator_main() {
   FU_TRAY_ROOT="${FU_ROOT:-}" \
   FU_TRAY_LOG_DIR="${LOG_DIR:-}" \
   FU_TRAY_BADGE="${TRAY_BADGE:-1}" \
+  FU_TRAY_NOTIFICATIONS="${TRAY_NOTIFICATIONS:-1}" \
     exec "$py" - <<'PY'
 import atexit
 import datetime
 import json
 import os
 import signal
+import shutil
 import subprocess
 import threading
 
@@ -565,7 +657,8 @@ STATE_FILE = os.environ.get("FU_TRAY_STATE_FILE", "")
 PID_FILE = os.environ.get("FU_TRAY_PID_FILE", "")
 FU_ROOT = os.environ.get("FU_TRAY_ROOT", "")
 LOG_DIR = os.environ.get("FU_TRAY_LOG_DIR", "")
-BADGE_ENABLED = os.environ.get("FU_TRAY_BADGE", "1") != "0"
+BADGE_ENABLED = os.environ.get("FU_TRAY_BADGE", "1") == "1"
+NOTIFICATIONS_ENABLED = os.environ.get("FU_TRAY_NOTIFICATIONS", "1") == "1"
 INTERVAL = max(int(os.environ.get("FU_TRAY_INTERVAL", "1800") or "1800"), 60)
 
 # Glifo + rótulo curto por estado, usado no cabeçalho do menu.
@@ -630,7 +723,17 @@ def load_state():
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
-        return {"state": "idle", "repo": 0, "aur": 0, "todo": 0, "fail": 0, "reboot": ""}
+        return {
+            "state": "idle",
+            "repo": 0,
+            "aur": 0,
+            "todo": 0,
+            "fail": 0,
+            "reboot": "",
+            "repo_updates": [],
+            "aur_updates": [],
+            "doctor_pending": [],
+        }
 
 
 def _ints(data):
@@ -696,6 +799,25 @@ def relative_time(iso):
     return f"há {delta // 86400} d"
 
 
+def as_list(data, key):
+    value = data.get(key) or []
+    if isinstance(value, list):
+        return [str(v) for v in value if str(v).strip()]
+    return []
+
+
+def desktop_notify(title, body="", urgency="normal"):
+    if not NOTIFICATIONS_ENABLED:
+        return
+    notify = shutil.which("notify-send")
+    if not notify:
+        return
+    args = [notify, "-a", "full-upgrade", "-u", urgency, title]
+    if body:
+        args.append(body)
+    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def state_headline(data):
     state, repo, aur, todo, fail, reboot = _ints(data)
     updates = repo + aur
@@ -711,6 +833,32 @@ def state_headline(data):
             return f"{glyph}  Atenção: {todo} item(ns) do Doctor"
         return f"{glyph}  Atenção necessária"
     return f"{glyph}  Sistema atualizado"
+
+
+def launch_and_refresh(args):
+    launch(args)
+    desktop_notify("full-upgrade iniciado", "O status do tray será atualizado durante e após a execução.", "normal")
+    GLib.timeout_add_seconds(2, refresh, True)
+    schedule_post_launch_refresh()
+
+
+def schedule_post_launch_refresh():
+    # Após iniciar pelo menu, o intervalo normal do tray pode ser longo demais
+    # para refletir a transição running → idle/attention/error. Faz polling curto
+    # até observar o run terminar, com limite defensivo de ~30 min.
+    tracker = {"seen_running": False, "ticks_left": 180}
+
+    def tick():
+        data = load_state()
+        if data.get("state") == "running":
+            tracker["seen_running"] = True
+        refresh(True)
+        tracker["ticks_left"] -= 1
+        if tracker["seen_running"] and data.get("state") != "running":
+            return False
+        return tracker["ticks_left"] > 0
+
+    GLib.timeout_add_seconds(10, tick)
 
 
 # ── Indicador + menu ────────────────────────────────────────────────────────────
@@ -755,14 +903,39 @@ def apply_state(data):
     return False
 
 
-def refresh(run_probe=True):
+def finish_refresh(data, user_initiated=False):
+    global checking
+    checking = False
+    apply_state(data)
+    if user_initiated:
+        state, repo, aur, todo, fail, _reboot = _ints(data)
+        updates = repo + aur
+        if state == "running":
+            body = "full-upgrade está em execução. Mantendo o estado atual."
+        elif fail > 0:
+            body = f"Último run com {fail} falha(s)."
+        elif todo > 0:
+            body = f"{todo} pendência(s) do Doctor."
+        elif updates > 0:
+            body = f"{updates} atualização(ões): {repo} repo, {aur} AUR."
+        else:
+            body = "Nenhuma atualização ou pendência detectada."
+        desktop_notify("Verificação concluída", body, "normal")
+    return False
+
+
+def refresh(run_probe=True, user_initiated=False):
     global checking
     if checking:
+        if user_initiated:
+            desktop_notify("Verificação já em andamento", "Aguarde a conclusão da checagem atual.", "low")
         return False
     checking = True
+    if user_initiated:
+        desktop_notify("Verificando agora…", "Consultando atualizações e o último log real completo.", "low")
+    rebuild_menu(load_state())
 
     def worker():
-        global checking
         if run_probe:
             subprocess.run(
                 [SELF, "--tray-check"],
@@ -772,8 +945,7 @@ def refresh(run_probe=True):
                 check=False,
             )
         data = load_state()
-        GLib.idle_add(apply_state, data)
-        checking = False
+        GLib.idle_add(finish_refresh, data, user_initiated)
 
     threading.Thread(target=worker, daemon=True).start()
     return False
@@ -810,6 +982,23 @@ def menu_item(label, callback, enabled=True):
     return item
 
 
+def submenu_item(label, entries, empty_label="Nenhum item", limit=30):
+    item = Gtk.MenuItem(label=label)
+    submenu = Gtk.Menu()
+    shown = entries[:limit]
+    if shown:
+        for entry in shown:
+            text = entry if len(entry) <= 96 else entry[:93] + "…"
+            submenu.append(info_item("  " + text))
+        if len(entries) > limit:
+            submenu.append(info_item(f"  … mais {len(entries) - limit} item(ns)"))
+    else:
+        submenu.append(info_item("  " + empty_label))
+    item.set_submenu(submenu)
+    item.show_all()
+    return item
+
+
 def separator():
     sep = Gtk.SeparatorMenuItem()
     sep.show()
@@ -821,6 +1010,9 @@ def rebuild_menu(data):
     state, repo, aur, todo, fail, reboot = _ints(data)
     updates = repo + aur
     can_run = not running_now
+    repo_updates = as_list(data, "repo_updates")
+    aur_updates = as_list(data, "aur_updates")
+    doctor_pending = as_list(data, "doctor_pending")
 
     menu = Gtk.Menu()
 
@@ -834,38 +1026,56 @@ def rebuild_menu(data):
         menu.append(info_item(f"     Reboot: {reboot[:48]}"))
     rel = relative_time(str(data.get("checked_at") or ""))
     if rel:
-        menu.append(info_item(f"     Verificado {rel}"))
+        menu.append(info_item(f"     Última verificação: {rel}"))
+    run_rel = relative_time(str(data.get("last_run_at") or ""))
+    if run_rel:
+        menu.append(info_item(f"     Último run: {run_rel}"))
+    if data.get("log_file"):
+        menu.append(info_item("     Fonte: último run real completo"))
+    if repo_updates:
+        menu.append(submenu_item(f"     Pacotes repo pendentes ({len(repo_updates)})", repo_updates))
+    if aur_updates:
+        menu.append(submenu_item(f"     Pacotes AUR pendentes ({len(aur_updates)})", aur_updates))
+    if doctor_pending:
+        menu.append(submenu_item(f"     Pendências do Doctor ({len(doctor_pending)})", doctor_pending))
     menu.append(separator())
 
     # Ações de execução (desabilitadas enquanto um run está em andamento).
     menu.append(menu_item(
-        "Atualizar tudo" if can_run else "Em execução…",
-        lambda: launch([SELF, "--tray-launch"]), enabled=can_run))
+        "Atualizar sistema completo" if can_run else "full-upgrade em execução…",
+        lambda: launch_and_refresh([SELF, "--tray-launch"]), enabled=can_run))
     menu.append(menu_item(
-        "Só pacotes (update)", lambda: launch([SELF, "--tray-launch", "--mode", "update"]),
+        "Atualizar pacotes",
+        lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "update"]),
         enabled=can_run))
     menu.append(menu_item(
-        "Doctor (auditorias)", lambda: launch([SELF, "--tray-launch", "--mode", "doctor"]),
+        "Executar Doctor",
+        lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "doctor"]),
         enabled=can_run))
     menu.append(menu_item(
-        "Reparos", lambda: launch([SELF, "--tray-launch", "--mode", "repair"]),
+        "Executar reparos",
+        lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "repair"]),
         enabled=can_run))
     menu.append(separator())
 
     # Utilitários.
-    menu.append(menu_item("Verificar agora", lambda: refresh(True)))
-    menu.append(menu_item("Ver último log", lambda: launch([SELF, "--tray-view-log"])))
+    if checking:
+        menu.append(menu_item("Verificando agora…", lambda: None, enabled=False))
+    else:
+        suffix = f" (última: {rel})" if rel else ""
+        menu.append(menu_item(f"Verificar agora{suffix}", lambda: refresh(True, True)))
+    menu.append(menu_item("Abrir último log", lambda: launch([SELF, "--tray-view-log"])))
     if LOG_DIR:
         menu.append(menu_item("Abrir pasta de logs", lambda: open_path(LOG_DIR)))
     menu.append(separator())
-    menu.append(menu_item("Sair", Gtk.main_quit))
+    menu.append(menu_item("Sair do tray", Gtk.main_quit))
 
     menu.show_all()
     indicator.set_menu(menu)
 
 
 def handle_usr1(_signum, _frame):
-    GLib.idle_add(refresh, True)
+    GLib.idle_add(refresh, True, True)
 
 
 def handle_usr2(_signum, _frame):
@@ -886,7 +1096,7 @@ indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
 indicator.set_title("full-upgrade")
 # Scroll sobre o ícone => verifica agora (atalho sem abrir o menu).
 try:
-    indicator.connect("scroll-event", lambda *_: refresh(True))
+    indicator.connect("scroll-event", lambda *_: refresh(True, True))
 except Exception:
     pass
 # Menu inicial a partir do estado em cache (rebuild_menu já faz set_menu).
@@ -915,12 +1125,14 @@ tray_yad_pid_alive() {
 tray_build_menu() {
   local self="$1" pid="$2"
   printf '%s' \
-    "Executar full-upgrade!${self} --tray-launch" \
-    "|Doctor (auditorias)!${self} --tray-launch --mode doctor" \
+    "Atualizar sistema completo!${self} --tray-launch" \
+    "|Atualizar pacotes!${self} --tray-launch --mode update" \
+    "|Executar Doctor!${self} --tray-launch --mode doctor" \
+    "|Executar reparos!${self} --tray-launch --mode repair" \
     "|Verificar agora!kill -USR1 ${pid}" \
-    "|Ver último log!${self} --tray-view-log" \
+    "|Abrir último log!${self} --tray-view-log" \
     "|" \
-    "|Sair!kill -USR2 ${pid}"
+    "|Sair do tray!kill -USR2 ${pid}"
 }
 
 _tray_yad_apply() {

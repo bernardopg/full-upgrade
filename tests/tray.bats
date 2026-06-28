@@ -211,3 +211,48 @@ EOF
   run tray_relative_time "not-a-date" 1000
   [ -z "$output" ]
 }
+
+@test "json_array_from_lines: serializa linhas não-vazias" {
+  run bash -c 'source "$1"/globals.sh; source "$1"/json.sh; source "$1"/tray.sh; printf "pkg 1 -> 2\n\nfoo\n" | tray_json_array_from_lines' _ "$FU_LIB"
+  [ "$status" -eq 0 ]
+  [ "$output" = '["pkg 1 -> 2","foo"]' ]
+}
+
+@test "latest_completed_real_jsonl: ignora dry-run e run real incompleto" {
+  LOG_DIR="$(mktemp -d)"
+  local old incomplete dry latest
+  old="${LOG_DIR}/full-upgrade-20260625-100000-1.jsonl"
+  incomplete="${LOG_DIR}/full-upgrade-20260625-110000-2.jsonl"
+  dry="${LOG_DIR}/full-upgrade-20260625-120000-3.jsonl"
+  printf '%s\n%s\n' \
+    '{"event":"run_start","dry_run":false}' \
+    '{"event":"summary","timestamp":"2026-06-25T10:00:00","todo":1,"fail":0,"reboot_recommendation":"","log_file":"/tmp/old.log","jsonl_file":"/tmp/old.jsonl"}' > "$old"
+  printf '%s\n' '{"event":"run_start","dry_run":false}' > "$incomplete"
+  printf '%s\n%s\n' \
+    '{"event":"run_start","dry_run":true}' \
+    '{"event":"summary","timestamp":"2026-06-25T12:00:00","todo":0,"fail":0,"reboot_recommendation":""}' > "$dry"
+  touch -d '2026-06-25 10:00:00' "$old"
+  touch -d '2026-06-25 11:00:00' "$incomplete"
+  touch -d '2026-06-25 12:00:00' "$dry"
+
+  latest="$(tray_latest_completed_real_jsonl)"
+  [ "$latest" = "$old" ]
+  [ "$(tray_last_summary_counts)" = "1 0 0" ]
+}
+
+@test "last_doctor_pending_items: lista Doctor warn/todo/fail do último run real" {
+  LOG_DIR="$(mktemp -d)"
+  local f out
+  f="${LOG_DIR}/full-upgrade-20260625-100000-1.jsonl"
+  cat > "$f" <<'EOF'
+{"event":"run_start","dry_run":false}
+{"event":"step","step":"Doctor: reboot pendente","status":"todo","reason":"Kernel atualizado","category":"doctor"}
+{"event":"step","step":"Doctor: units systemd falhadas","status":"warn","reason":"foo.service","category":"doctor"}
+{"event":"step","step":"Atualizar pacotes do sistema e AUR","status":"todo","reason":"x","category":"pacman"}
+{"event":"summary","timestamp":"2026-06-25T10:00:00","todo":2,"fail":0,"reboot_recommendation":"Kernel atualizado"}
+EOF
+  out="$(tray_last_doctor_pending_items)"
+  echo "$out" | grep -q 'todo: Doctor: reboot pendente — Kernel atualizado'
+  echo "$out" | grep -q 'warn: Doctor: units systemd falhadas — foo.service'
+  ! echo "$out" | grep -q 'Atualizar pacotes do sistema e AUR'
+}

@@ -27,6 +27,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Alterado
 
+- **Tray usa o último run real completo como fonte de status.** O status da
+  bandeja agora ignora dry-runs e JSONL incompletos de runs ainda em andamento,
+  preservando a leitura correta do último `summary` real. O menu ganhou nomes
+  mais consistentes, submenus com pacotes repo/AUR pendentes e pendências do
+  Doctor, além de feedback/notificação para “Verificar agora” e polling curto
+  após ações iniciadas pelo tray.
 - **CI (`ci.yml`) modernizado.** Removida a permissão `id-token: write`
   desnecessária; adicionados `timeout-minutes` por job; novo passo shfmt.
 - **CodeQL e Release** ganharam `timeout-minutes` em todos os jobs.
