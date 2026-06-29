@@ -13,25 +13,32 @@ snapshot_keep_count() {
 # snapper_full_upgrade_ids_to_delete — IDs de snapshots full-upgrade antigos a remover (mantém os N mais recentes)
 snapper_full_upgrade_ids_to_delete() {
   local keep="$1"
-  awk -F'|' -v keep="$keep" '
-    /full-upgrade pré-upgrade/ && $1 ~ /^[0-9]+$/ { ids[++n] = $1 }
-    END {
-      limit = n - keep
-      for (i = 1; i <= limit; i++) print ids[i]
-    }
-  '
+  local -a ids=()
+  local id rest
+  while IFS='|' read -r id rest; do
+    [[ "$id" =~ ^[0-9]+$ ]] || continue
+    [[ "$rest" == *"full-upgrade pré-upgrade"* ]] || continue
+    ids+=("$id")
+  done
+  local n=${#ids[@]} limit
+  limit=$(( n - keep ))
+  (( limit > 0 )) || return 0
+  printf '%s\n' "${ids[@]:0:$limit}"
 }
 
 # timeshift_full_upgrade_names_to_delete — nomes de snapshots timeshift full-upgrade antigos a remover
 timeshift_full_upgrade_names_to_delete() {
   local keep="$1"
-  awk -v keep="$keep" '
-    /full-upgrade pré-upgrade/ { names[++n] = $1 }
-    END {
-      limit = n - keep
-      for (i = 1; i <= limit; i++) print names[i]
-    }
-  '
+  local -a names=()
+  local line
+  while IFS= read -r line; do
+    [[ "$line" == *"full-upgrade pré-upgrade"* ]] || continue
+    names+=("${line%% *}")
+  done
+  local n=${#names[@]} limit
+  limit=$(( n - keep ))
+  (( limit > 0 )) || return 0
+  printf '%s\n' "${names[@]:0:$limit}"
 }
 
 # pending_is_held_cluster — verifica se pacote faz parte de cluster de rebuild upstream (Haskell/GHC)

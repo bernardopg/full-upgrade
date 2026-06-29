@@ -5,12 +5,11 @@
 
 # repair_command_shadowing — lógica de detecção de shadowing (sem I/O real)
 # Retorna: 0 = sem shadowing / já gerenciado / ok, 1 = erro, 2 = moveria binário
-# Parâmetros: $1=name, $2=managed_path
-# Para teste: sobrescreva pacman -Q, log, run_logged, mv
+# Parâmetros: $1=name, $2=managed_path, $3=local_path (default /usr/local/bin/$name; override em testes)
 repair_command_shadowing() {
   local name="$1"
   local managed_path="$2"
-  local local_path="/usr/local/bin/${name}"
+  local local_path="${3:-/usr/local/bin/${name}}"
 
   if [[ ! -e "$local_path" ]]; then
     return 0

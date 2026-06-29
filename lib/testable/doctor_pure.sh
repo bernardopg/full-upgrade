@@ -31,23 +31,31 @@ _ai_cli_first_version() {
 
 # unique_btrfs_mountpoints — dedup de mountpoints Btrfs do mesmo device (findmnt CSV)
 unique_btrfs_mountpoints() {
-  awk -F, '
-    NR==1 { next }  # pula header
-    NF >= 2 && $2 != "" {
-      gsub(/"/, "", $1); gsub(/"/, "", $2)
-      if (!seen[$2]++) print $1
-    }
-  '
+  local -A seen=()
+  local target source header=1
+  while IFS=',' read -r target source; do
+    if (( header )); then header=0; continue; fi
+    source="${source//\"/}"
+    target="${target//\"/}"
+    [[ -z "$source" ]] && continue
+    [[ "${seen[$source]+x}" ]] && continue
+    seen["$source"]=1
+    printf '%s\n' "$target"
+  done
 }
 
 # btrfs_scrub_state — parser puro de 'btrfs scrub status' para mountpoint
 # Retorna: "running|finished|error|none" via stdout
 btrfs_scrub_state() {
-  local output="$1"
-  local state
-  state=$(printf '%s\n' "$output" | awk -F': ' '
-    /Status:/ { split($2, a, " "); print a[1]; exit }
-  ')
+  local output="$1" line state=""
+  while IFS= read -r line; do
+    if [[ "$line" == *"Status:"* ]]; then
+      state="${line#*Status:}"
+      state="${state# }"
+      state="${state%% *}"
+      break
+    fi
+  done <<< "$output"
   case "$state" in
     running|started) printf 'running\n' ;;
     finished|done)   printf 'finished\n' ;;
