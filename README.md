@@ -519,7 +519,8 @@ aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
 
 | Arquivo | Hook |
 | --- | --- |
-| `steps.d/50-burp-wireshark.sh` | `ensure_wireshark`, `ensure_burpsuite`, permissões do Wireshark, atalhos do Burp |
+| `steps.d/50-wireshark.sh` | `ensure_wireshark`, permissões de captura do Wireshark |
+| `steps.d/51-burp-suite.sh` | `ensure_burpsuite`, fallback PortSwigger, atalhos antigos do Burp |
 
 **Plugins do usuário:** com `ENABLE_CUSTOM_TOOLS=1`, arquivos `.sh` em
 `~/.config/full-upgrade/steps.d/` também são carregados — a última definição de

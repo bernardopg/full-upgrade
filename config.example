@@ -66,6 +66,8 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"
+# ANTIGRAVITY_BIN="/usr/bin/antigravity"
+# ANTIGRAVITY_IDE_BIN="/usr/bin/antigravity-ide"
 # RTK_BIN="$HOME/.local/bin/rtk"
 # BURPSUITE_JAVA_BIN="/usr/lib/jvm/java-21-openjdk/bin/java"  # Java p/ o fallback do Burp
 
