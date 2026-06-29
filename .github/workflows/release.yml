@@ -107,7 +107,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
-      contents: write   # criar release + push da tag
+      contents: write       # criar release + push da tag
+      id-token: write       # para gerar atestações de build
+      attestations: write   # para persistir atestações de build
     outputs:
       tag: ${{ steps.tag.outputs.name }}
       version: ${{ steps.tag.outputs.version }}
@@ -137,6 +139,13 @@ jobs:
           ./build.sh
           sha256sum dist/full-upgrade-standalone.sh > dist/full-upgrade-standalone.sh.sha256
           cat dist/full-upgrade-standalone.sh.sha256
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@52ab4b80f1350a41d99cb3325c83b8b09337ff4f # v2.2.0
+        with:
+          subject-path: |
+            dist/full-upgrade-standalone.sh
+            dist/full-upgrade-standalone.sh.sha256
 
       - name: Resolve tag
         id: tag

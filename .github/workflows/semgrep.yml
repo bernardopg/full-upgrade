@@ -39,7 +39,7 @@ jobs:
         id: semgrep
         continue-on-error: true
         run: |
-          python3 -m pip install --user semgrep
+          python3 -m pip install --user semgrep==1.168.0
           semgrep scan --config p/default --sarif --output semgrep.sarif
 
       - name: Upload SARIF to GitHub code scanning
