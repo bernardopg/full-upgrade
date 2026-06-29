@@ -54,6 +54,20 @@ setup() {
   [ "$(printf '%s\n' "$output" | wc -l)" -eq 1 ]
 }
 
+@test "snapper_full_upgrade_ids_to_delete: nada a deletar quando keep >= n" {
+  input=$'1|full-upgrade pré-upgrade 2026-01-01\n2|full-upgrade pré-upgrade 2026-01-02'
+  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; snapper_full_upgrade_ids_to_delete 5 <<< "$1"' _ "$input"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "timeshift_full_upgrade_names_to_delete: nada a deletar quando keep >= n" {
+  input=$'full-upgrade pré-upgrade 2026-01-01\nfull-upgrade pré-upgrade 2026-01-02'
+  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; timeshift_full_upgrade_names_to_delete 5 <<< "$1"' _ "$input"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "pending_is_held_cluster: haskell-* é cluster" {
   run pending_is_held_cluster "haskell-lens"
   [ "$status" -eq 0 ]

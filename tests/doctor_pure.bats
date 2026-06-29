@@ -96,3 +96,47 @@ setup() {
   run bootctl_update_already_applied "Updated successfully"
   [ "$status" -ne 0 ]
 }
+
+@test "arch_audit_affected_count: conta formato moderno" {
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "pkg1 is affected by CVE-2024-1234" "pkg2 is affected by CVE-2024-5678" | arch_audit_affected_count'
+  [ "$output" = "2" ]
+}
+
+@test "arch_audit_affected_count: conta formato Package prefix" {
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "Package pkg1 is affected by CVE-2024-1234" | arch_audit_affected_count'
+  [ "$output" = "1" ]
+}
+
+@test "arch_audit_affected_count: ignora linhas irrelevantes" {
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "nenhum aviso" "everything ok" | arch_audit_affected_count'
+  [ "$output" = "0" ]
+}
+
+@test "_ai_cli_first_version: retorna primeira linha com dígito" {
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "banner sem versão" "v1.2.3 (abc)" "outra linha" | _ai_cli_first_version'
+  [ "$output" = "v1.2.3 (abc)" ]
+}
+
+@test "_ai_cli_first_version: falha quando sem dígito" {
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "sem versao aqui" | _ai_cli_first_version'
+  [ "$status" -ne 0 ]
+}
+
+@test "unique_btrfs_mountpoints: dedup por device idêntico (CSV)" {
+  input=$'TARGET,SOURCE\n"/","/dev/sda2"\n"/home","/dev/sda2"'
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "$1" | unique_btrfs_mountpoints' _ "$input"
+  [ "$output" = "/" ]
+}
+
+@test "unique_btrfs_mountpoints: dois devices distintos retornam dois mountpoints" {
+  input=$'TARGET,SOURCE\n"/","/dev/sda2"\n"/mnt/data","/dev/sdb1"'
+  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
+printf "%s\n" "$1" | unique_btrfs_mountpoints' _ "$input"
+  [ "$(printf '%s\n' "$output" | wc -l)" -eq 2 ]
+}
