@@ -17,11 +17,6 @@ aur_ignore_args() {
   done
 }
 
-# _purge_aur_partial_sources_patterns — lista de padrões de arquivos a limpar (para teste)
-_purge_aur_partial_sources_patterns() {
-  printf '*.part\n*.tar.*\n*.tgz\n*.zip\n*.deb\n*.rpm\n*.AppImage\n*.appimage\n*.gz\n*.xz\n*.bz2\n*.zst\n'
-}
-
 # pending_is_held_cluster — pacotes segurados por rebuild upstream (Haskell/GHC)
 pending_is_held_cluster() {
   local name="$1"

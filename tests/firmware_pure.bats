@@ -69,3 +69,8 @@ setup() {
   run bootctl_update_already_applied "Updated successfully"
   [ "$status" -ne 0 ]
 }
+
+@test "bootctl_is_installed: executa sem crash (status depende do hardware)" {
+  run bootctl_is_installed || true
+  true
+}

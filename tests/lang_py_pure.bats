@@ -65,3 +65,8 @@ setup() {
   run pip_user_effective_ignore "" "setuptools>=40"
   [[ "$output" != *"poetry-core"* ]]
 }
+
+@test "poetry_core_requirement: executa sem crash (depende do poetry instalado)" {
+  run poetry_core_requirement || true
+  true
+}

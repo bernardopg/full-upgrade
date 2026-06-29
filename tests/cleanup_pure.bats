@@ -35,35 +35,35 @@ setup() {
 
 @test "snapper_full_upgrade_ids_to_delete: mantém N mais recentes" {
   input=$'1|manual\n2|full-upgrade pré-upgrade 2026-01-01\n3|full-upgrade pré-upgrade 2026-01-02\n4|full-upgrade pré-upgrade 2026-01-03\n5|full-upgrade pré-upgrade 2026-01-04'
-  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; snapper_full_upgrade_ids_to_delete 2 <<< "$1"' _ "$input"
+  run snapper_full_upgrade_ids_to_delete 2 <<< "$input"
   [ "$status" -eq 0 ]
   [ "$output" = "2"$'\n'"3" ]
 }
 
 @test "snapper_full_upgrade_ids_to_delete: ignora linhas não-full-upgrade" {
   input=$'1|manual snapshot\n2|full-upgrade pré-upgrade 2026-01-01\n3|outro\n4|full-upgrade pré-upgrade 2026-01-02'
-  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; snapper_full_upgrade_ids_to_delete 1 <<< "$1"' _ "$input"
+  run snapper_full_upgrade_ids_to_delete 1 <<< "$input"
   [ "$status" -eq 0 ]
   [ "$output" = "2" ]
 }
 
 @test "timeshift_full_upgrade_names_to_delete: mantém N mais recentes" {
   input=$'snap1 2026-01-01\nfull-upgrade pré-upgrade 2026-01-02\nfull-upgrade pré-upgrade 2026-01-03\nfull-upgrade pré-upgrade 2026-01-04'
-  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; timeshift_full_upgrade_names_to_delete 2 <<< "$1"' _ "$input"
+  run timeshift_full_upgrade_names_to_delete 2 <<< "$input"
   [ "$status" -eq 0 ]
   [ "$(printf '%s\n' "$output" | wc -l)" -eq 1 ]
 }
 
 @test "snapper_full_upgrade_ids_to_delete: nada a deletar quando keep >= n" {
   input=$'1|full-upgrade pré-upgrade 2026-01-01\n2|full-upgrade pré-upgrade 2026-01-02'
-  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; snapper_full_upgrade_ids_to_delete 5 <<< "$1"' _ "$input"
+  run snapper_full_upgrade_ids_to_delete 5 <<< "$input"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
 
 @test "timeshift_full_upgrade_names_to_delete: nada a deletar quando keep >= n" {
   input=$'full-upgrade pré-upgrade 2026-01-01\nfull-upgrade pré-upgrade 2026-01-02'
-  run bash -c 'source '"${FU_LIB}"'/testable/cleanup_pure.sh; timeshift_full_upgrade_names_to_delete 5 <<< "$1"' _ "$input"
+  run timeshift_full_upgrade_names_to_delete 5 <<< "$input"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }

@@ -98,45 +98,42 @@ setup() {
 }
 
 @test "arch_audit_affected_count: conta formato moderno" {
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "pkg1 is affected by CVE-2024-1234" "pkg2 is affected by CVE-2024-5678" | arch_audit_affected_count'
+  run arch_audit_affected_count <<< $'pkg1 is affected by CVE-2024-1234\npkg2 is affected by CVE-2024-5678'
   [ "$output" = "2" ]
 }
 
 @test "arch_audit_affected_count: conta formato Package prefix" {
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "Package pkg1 is affected by CVE-2024-1234" | arch_audit_affected_count'
+  run arch_audit_affected_count <<< "Package pkg1 is affected by CVE-2024-1234"
   [ "$output" = "1" ]
 }
 
 @test "arch_audit_affected_count: ignora linhas irrelevantes" {
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "nenhum aviso" "everything ok" | arch_audit_affected_count'
+  run arch_audit_affected_count <<< $'nenhum aviso\neverything ok'
   [ "$output" = "0" ]
 }
 
 @test "_ai_cli_first_version: retorna primeira linha com dígito" {
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "banner sem versão" "v1.2.3 (abc)" "outra linha" | _ai_cli_first_version'
+  run _ai_cli_first_version <<< $'banner sem versão\nv1.2.3 (abc)\noutra linha'
   [ "$output" = "v1.2.3 (abc)" ]
 }
 
 @test "_ai_cli_first_version: falha quando sem dígito" {
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "sem versao aqui" | _ai_cli_first_version'
+  run _ai_cli_first_version <<< "sem versao aqui"
   [ "$status" -ne 0 ]
 }
 
 @test "unique_btrfs_mountpoints: dedup por device idêntico (CSV)" {
-  input=$'TARGET,SOURCE\n"/","/dev/sda2"\n"/home","/dev/sda2"'
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "$1" | unique_btrfs_mountpoints' _ "$input"
+  run unique_btrfs_mountpoints <<< $'TARGET,SOURCE\n"/","/dev/sda2"\n"/home","/dev/sda2"'
   [ "$output" = "/" ]
 }
 
 @test "unique_btrfs_mountpoints: dois devices distintos retornam dois mountpoints" {
-  input=$'TARGET,SOURCE\n"/","/dev/sda2"\n"/mnt/data","/dev/sdb1"'
-  run bash -c 'source '"${FU_LIB}"'/testable/doctor_pure.sh
-printf "%s\n" "$1" | unique_btrfs_mountpoints' _ "$input"
+  run unique_btrfs_mountpoints <<< $'TARGET,SOURCE\n"/","/dev/sda2"\n"/mnt/data","/dev/sdb1"'
   [ "$(printf '%s\n' "$output" | wc -l)" -eq 2 ]
+}
+
+@test "days_since_epoch: retorna inteiro para data válida" {
+  run days_since_epoch "2026-01-01"
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^[0-9]+$ ]]
 }

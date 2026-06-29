@@ -18,3 +18,8 @@ setup() {
   run repair_command_shadowing "_ferramenta2_inexistente_xyz_" "/usr/bin/dumpcap"
   [ "$status" -eq 0 ]
 }
+
+@test "repair_known_command_shadowing: executa sem crash (wireshark/dumpcap não em /usr/local/bin)" {
+  run repair_known_command_shadowing
+  [ "$status" -eq 0 ]
+}
