@@ -55,9 +55,8 @@ run_all_steps() {
                 # Shadowing é reparo genérico, útil p/ todos e deve acontecer
                 # antes do update principal.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
-                # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: ensure_burpsuite
-                # INSTALA o pacote burpsuite se ausente, então não deve rodar por padrão
-                # (instalaria Burp na máquina de quem nunca pediu). Opt-in explícito.
+                # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: instalam pacotes
+                # se ausentes, então não devem rodar por padrão. Opt-in explícito.
                 custom_step_or_skip "Garantir Wireshark"                ensure_wireshark
                 custom_step_or_skip "Garantir Burp Suite"               ensure_burpsuite
                 custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
@@ -353,6 +352,14 @@ run_all_steps() {
         run_step "Garantir Orca IDE" ensure_orca_ide
     else
         step_skip "Garantir Orca IDE" "orca não instalado e ENABLE_CUSTOM_TOOLS=0"
+    fi
+
+    if declare -F antigravity_installed >/dev/null 2>&1 && antigravity_installed; then
+        run_step "Garantir Antigravity" ensure_antigravity
+    elif (( ${ENABLE_CUSTOM_TOOLS:-0} == 1 )); then
+        run_step "Garantir Antigravity" ensure_antigravity
+    else
+        step_skip "Garantir Antigravity" "antigravity não instalado e ENABLE_CUSTOM_TOOLS=0"
     fi
 
     if has kimi; then

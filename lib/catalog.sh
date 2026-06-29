@@ -65,6 +65,7 @@ Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copi
 Atualizar agent skills (skills CLI)|ai|skills,caveman,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza agent skills globais em ~/.agents/skills via 'npx skills update --global' (caveman, cavecrew, 9router-*, etc).
 Atualizar servidores MCP|ai|mcp,update|mutating|180||mcp_update_servers|Sob MCP_AUTO_UPDATE=1 refresca o cache uv dos servers MCP uvx (rebuild da última no próximo launch); npx/pinned/externo/remoto são reportados.
 Garantir Orca IDE|ai|orca,ide,desktop,aur,network,mutating|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
+Garantir Antigravity|ai|antigravity,ide,desktop,aur,network,mutating|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
 Atualizar Kimi CLI|ai|kimi,update,network|mutating|30|kimi|update_kimi|Kimi (Moonshot) via npm global (@moonshot-ai/kimi-code) já é coberto por 'Atualizar npm global'; standalone => RC_TODO.
 Atualizar Factory droid|manual|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
 Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
