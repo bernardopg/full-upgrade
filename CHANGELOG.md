@@ -6,6 +6,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Branch protection real na `main` (ruleset).** PR obrigatório antes de
+  merge, status checks obrigatórios (`Lint & Test`, `Analyze (actions)`,
+  `Validar Conventional Commits`), bloqueio de force-push e de deleção da
+  branch, sem bypass para ninguém (incluindo o owner). Resolve a causa raiz do
+  achado `Code-Review` do OpenSSF Scorecard (commits iam direto pra `main` sem
+  passar por PR); `CI-Tests` e `SAST` também sobem com o tempo conforme PRs
+  futuros passam 100% pelos checks.
+- **`requirements-semgrep.txt`/`.in` (`.github/`).** Lockfile gerado via
+  `pip-compile --generate-hashes` para o `pip install` do Semgrep no CI —
+  `semgrep.yml` passa a instalar com `--require-hashes`, resolvendo o achado
+  `Pinned-Dependencies` do Scorecard. Dependabot ganhou um ecossistema `pip`
+  apontando pra `.github/` para manter versão e hashes atualizados.
+- **Seção "Riscos aceitos" no `SECURITY.md`.** Documenta por que os achados
+  `Fuzzing` e `Pinned-Dependencies` (em `lib/steps/lang_js.sh`, nos `npm
+  install -g` de self-update) do Scorecard foram dispensados (`dismissed`) em
+  vez de corrigidos — corrigi-los contradiria o propósito das features.
 - **Workflows de CI/qualidade/segurança.** Novos workflows gratuitos em
   `.github/workflows/`: `semgrep.yml` (SAST para Bash — preenche a lacuna do
   CodeQL, que não suporta Bash; resultados em Code Scanning, consultivo),
