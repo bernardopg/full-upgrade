@@ -1,7 +1,8 @@
-# Dependabot — mantém as GitHub Actions pinadas por SHA atualizadas.
+# Dependabot — mantém as GitHub Actions pinadas por SHA e o lockfile do
+# Semgrep (.github/requirements-semgrep.txt, hash-pinned) atualizados.
 # Projeto é Bash puro: sem package.json/go.mod/Cargo.toml/Dockerfile commitados,
-# então "github-actions" é o único ecossistema aplicável. (Se algum dia surgir
-# um manifesto, adicione uma nova entrada em "updates".)
+# então só esses dois ecossistemas se aplicam. (Se algum dia surgir outro
+# manifesto, adicione uma nova entrada em "updates".)
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -25,3 +26,18 @@ updates:
           - minor
           - patch
         # majors continuam em PRs individuais (default) — maior risco de breaking.
+
+  - package-ecosystem: pip
+    directory: "/.github"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+      - ci
