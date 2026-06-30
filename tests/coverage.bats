@@ -39,3 +39,42 @@ setup() {
   run mirror_is_fresh "$mtime" "$now" 7
   [ "$status" -ne 0 ]
 }
+
+# ── update_archlinux_keyring ──────────────────────────────────────────────────
+
+@test "keyring: pacman ausente => 0 sem chamar sudo" {
+  has() { return 1; }
+  QUIET=0
+  run update_archlinux_keyring
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pacman ausente"* ]]
+}
+
+@test "keyring: sudo indisponível (SUDO_READY=0) => 0 com aviso" {
+  has() { [[ "$1" == pacman ]]; }
+  SUDO_READY=0
+  QUIET=0
+  run update_archlinux_keyring
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sudo indisponível"* ]]
+}
+
+@test "keyring: sudo ok e pacman ok => 0 e mensagem de atualizado" {
+  has() { [[ "$1" == pacman ]]; }
+  SUDO_READY=1
+  run_logged() { return 0; }
+  QUIET=0
+  run update_archlinux_keyring
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"atualizado"* ]]
+}
+
+@test "keyring: falha do pacman => RC_WARN" {
+  has() { [[ "$1" == pacman ]]; }
+  SUDO_READY=1
+  run_logged() { return 1; }
+  QUIET=0
+  run update_archlinux_keyring
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"Aviso"* ]]
+}
