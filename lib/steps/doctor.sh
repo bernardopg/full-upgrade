@@ -418,6 +418,23 @@ doctor_flatpak_repair_dry_run() {
 }
 
 
+# ── Helpers puros (testáveis isoladamente; sem side-effects) ──────────────────
+# Classifica uso percentual de disco/inodes em severidade textual.
+# >=95 => "todo"; >=90 => "warn"; senão "ok". Não-numérico => "ok".
+usage_pct_severity() {
+  local pct="${1%%%}"
+  [[ "$pct" =~ ^[0-9]+$ ]] || { printf "ok"; return 0; }
+  if   (( pct >= 95 )); then printf "todo"
+  elif (( pct >= 90 )); then printf "warn"
+  else                       printf "ok"
+  fi
+}
+
+# Classifica código HTTP: 2xx/3xx => "ok"; resto/vazio => "fail".
+http_code_class() {
+  [[ "$1" =~ ^[23] ]] && printf "ok" || printf "fail"
+}
+
 doctor_disk_health() {
   if ! has df; then
     log "  df não encontrado."
@@ -453,26 +470,32 @@ doctor_disk_health() {
     mount="$(awk '{print $6}' <<<"$line")"
     used_pct="$(awk '{gsub(/%/,"",$5); print $5}' <<<"$line")"
     [[ "$used_pct" =~ ^[0-9]+$ ]] || continue
-    if (( used_pct >= 95 )); then
-      log "  Ação necessária: ${mount} está com ${used_pct}% de uso."
-      status=$RC_TODO
-    elif (( used_pct >= 90 && status != RC_TODO )); then
-      log "  Aviso: ${mount} está com ${used_pct}% de uso."
-      status=$RC_WARN
-    fi
+    case "$(usage_pct_severity "$used_pct")" in
+      todo)
+        log "  Ação necessária: ${mount} está com ${used_pct}% de uso."
+        status=$RC_TODO ;;
+      warn)
+        if (( status != RC_TODO )); then
+          log "  Aviso: ${mount} está com ${used_pct}% de uso."
+          status=$RC_WARN
+        fi ;;
+    esac
   done < <(df -P -- "${paths[@]}" | tail -n +2)
 
   while IFS= read -r line; do
     mount="$(awk '{print $6}' <<<"$line")"
     inode_pct="$(awk '{gsub(/%/,"",$5); print $5}' <<<"$line")"
     [[ "$inode_pct" =~ ^[0-9]+$ ]] || continue
-    if (( inode_pct >= 95 )); then
-      log "  Ação necessária: ${mount} está com ${inode_pct}% de inodes usados."
-      status=$RC_TODO
-    elif (( inode_pct >= 90 && status != RC_TODO )); then
-      log "  Aviso: ${mount} está com ${inode_pct}% de inodes usados."
-      status=$RC_WARN
-    fi
+    case "$(usage_pct_severity "$inode_pct")" in
+      todo)
+        log "  Ação necessária: ${mount} está com ${inode_pct}% de inodes usados."
+        status=$RC_TODO ;;
+      warn)
+        if (( status != RC_TODO )); then
+          log "  Aviso: ${mount} está com ${inode_pct}% de inodes usados."
+          status=$RC_WARN
+        fi ;;
+    esac
   done < <(df -Pi -- "${paths[@]}" | tail -n +2)
 
   if (( status == 0 )); then
@@ -611,7 +634,7 @@ doctor_network_health() {
 
   for url in "${check_urls[@]}"; do
     http_code="$(curl -sS --max-time 6 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)"
-    if [[ "$http_code" =~ ^[23] ]]; then
+    if [[ "$(http_code_class "$http_code")" == "ok" ]]; then
       log "  HTTPS OK: ${url} (${http_code})"
     else
       log "  HTTPS FALHOU: ${url} (código ${http_code:-timeout})"

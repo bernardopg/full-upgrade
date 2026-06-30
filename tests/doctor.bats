@@ -37,3 +37,39 @@ setup() {
   installed="261-1"
   [ "$running" = "$installed" ]
 }
+
+# ── usage_pct_severity (classificação de uso disco/inodes) ────────────────────
+@test "usage_pct_severity: >=95 => todo" {
+  run usage_pct_severity 95;  [ "$output" = "todo" ]
+  run usage_pct_severity 99;  [ "$output" = "todo" ]
+  run usage_pct_severity 100; [ "$output" = "todo" ]
+}
+
+@test "usage_pct_severity: 90..94 => warn" {
+  run usage_pct_severity 90; [ "$output" = "warn" ]
+  run usage_pct_severity 94; [ "$output" = "warn" ]
+}
+
+@test "usage_pct_severity: <90 => ok" {
+  run usage_pct_severity 0;  [ "$output" = "ok" ]
+  run usage_pct_severity 89; [ "$output" = "ok" ]
+}
+
+@test "usage_pct_severity: aceita sufixo % e ignora não-numérico" {
+  run usage_pct_severity "96%"; [ "$output" = "todo" ]
+  run usage_pct_severity "-";   [ "$output" = "ok" ]
+  run usage_pct_severity "";    [ "$output" = "ok" ]
+}
+
+# ── http_code_class (classificação de status HTTP) ────────────────────────────
+@test "http_code_class: 2xx/3xx => ok" {
+  run http_code_class 200; [ "$output" = "ok" ]
+  run http_code_class 204; [ "$output" = "ok" ]
+  run http_code_class 301; [ "$output" = "ok" ]
+}
+
+@test "http_code_class: 4xx/5xx/vazio => fail" {
+  run http_code_class 404; [ "$output" = "fail" ]
+  run http_code_class 500; [ "$output" = "fail" ]
+  run http_code_class "";  [ "$output" = "fail" ]
+}

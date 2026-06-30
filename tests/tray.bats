@@ -425,3 +425,50 @@ EOF
   run tray_relative_time "" 1000
   [ -z "$output" ]
 }
+
+# ── tray_detect_terminal (seleção de emulador) ────────────────────────────────
+@test "detect_terminal: respeita TRAY_TERMINAL quando disponível" {
+  has() { [[ "$1" == "myterm" ]]; }
+  TRAY_TERMINAL=myterm run tray_detect_terminal
+  [ "$status" -eq 0 ]
+  [ "$output" = "myterm" ]
+}
+
+@test "detect_terminal: ignora TRAY_TERMINAL inexistente e cai no fallback" {
+  has() { [[ "$1" == "kitty" ]]; }
+  TRAY_TERMINAL=naoexiste run tray_detect_terminal
+  [ "$status" -eq 0 ]
+  [ "$output" = "kitty" ]
+}
+
+@test "detect_terminal: prefere xdg-terminal-exec quando presente" {
+  has() { [[ "$1" == "xdg-terminal-exec" ]]; }
+  run tray_detect_terminal
+  [ "$output" = "xdg-terminal-exec" ]
+}
+
+@test "detect_terminal: nenhum terminal => rc 1" {
+  has() { return 1; }
+  run tray_detect_terminal
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+# ── tray_python_bin ───────────────────────────────────────────────────────────
+@test "python_bin: prefere python3" {
+  has() { [[ "$1" == "python3" || "$1" == "python" ]]; }
+  run tray_python_bin
+  [ "$output" = "python3" ]
+}
+
+@test "python_bin: cai para python quando só ele existe" {
+  has() { [[ "$1" == "python" ]]; }
+  run tray_python_bin
+  [ "$output" = "python" ]
+}
+
+@test "python_bin: nenhum => rc 1" {
+  has() { return 1; }
+  run tray_python_bin
+  [ "$status" -ne 0 ]
+}

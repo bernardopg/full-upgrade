@@ -17,8 +17,7 @@ coverage:
         if_ci_failed: error
     patch:
       default:
-        target: 0%         # não bloqueia PR por linhas novas não cobertas (Bash)
-        if_ci_failed: error
+        informational: true  # reporta cobertura das linhas novas, mas não bloqueia o PR
 
 ignore:
   - install.sh             # instalador (roda na máquina do usuário)
