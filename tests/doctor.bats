@@ -139,3 +139,25 @@ setup() {
   run pacman_qk_filter_noise '^intel-ucode /boot/intel-ucode.img$' <<<"$out"
   [ -z "$output" ]
 }
+
+# ── journal_strip_prefix (normaliza linhas do journal) ────────────────────────
+@test "journal_strip_prefix: remove timestamp/host/unit deixando a mensagem" {
+  line="2026-06-30T10:00:00+0000 host kernel: ACPI BIOS Error (bug): algo"
+  run journal_strip_prefix <<<"$line"
+  [ "$output" = "ACPI BIOS Error (bug): algo" ]
+}
+
+@test "journal_strip_prefix: descarta linhas vazias e frames de stack" {
+  in=$'2026-06-30T10:00:00+0000 host app: msg real\n   #3 0xdeadbeef foo()\nStack trace of thread 123'
+  run journal_strip_prefix <<<"$in"
+  [ "$output" = "msg real" ]
+}
+
+# ── journal_group_signatures (agrupa por frequência) ──────────────────────────
+@test "journal_group_signatures: conta e ordena por frequência decrescente" {
+  in=$'erro A\nerro B\nerro A\nerro A'
+  run journal_group_signatures <<<"$in"
+  # primeira linha é a mais frequente (erro A, 3x)
+  [[ "${lines[0]}" =~ 3.*erro\ A ]]
+  [[ "${lines[1]}" =~ 1.*erro\ B ]]
+}

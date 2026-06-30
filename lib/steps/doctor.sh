@@ -295,12 +295,7 @@ doctor_journal_errors() {
       filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
     done
   fi
-  filtered="$(
-    printf '%s\n' "$filtered" \
-      | sed -E 's/^[0-9T:+.-]+[[:space:]]+[^[:space:]]+[[:space:]]+[^:]+:[[:space:]]*//' \
-      | grep -Ev '^[[:space:]]*$|^[[:space:]]*#[0-9]+[[:space:]]+0x|^[[:space:]]*ELF object binary architecture:|^[[:space:]]*Stack trace of thread ' \
-      || true
-  )"
+  filtered="$(printf '%s\n' "$filtered" | journal_strip_prefix)"
   filtered_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
   noise_count=$(( line_count - filtered_count ))
 
@@ -309,13 +304,7 @@ doctor_journal_errors() {
     return 0
   fi
 
-  grouped="$(
-    printf '%s\n' "$filtered" \
-      | sort \
-      | uniq -c \
-      | sort -nr \
-      | head -n 20
-  )"
+  grouped="$(printf '%s\n' "$filtered" | journal_group_signatures)"
   unique_count="$(printf '%s\n' "$grouped" | grep -c '[^[:space:]]' || true)"
 
   local noise_note=""
@@ -476,6 +465,20 @@ pacman_qk_filter_noise() {
     filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
   done
   printf '%s\n' "$filtered" | grep '[^[:space:]]' || true
+}
+
+# Normaliza linhas do journal: remove prefixo "timestamp host unit:" e descarta
+# linhas vazias / frames de stack-trace, deixando só a mensagem (assinatura).
+journal_strip_prefix() {
+  sed -E 's/^[0-9T:+.-]+[[:space:]]+[^[:space:]]+[[:space:]]+[^:]+:[[:space:]]*//' \
+    | grep -Ev '^[[:space:]]*$|^[[:space:]]*#[0-9]+[[:space:]]+0x|^[[:space:]]*ELF object binary architecture:|^[[:space:]]*Stack trace of thread ' \
+    || true
+}
+
+# Agrupa assinaturas idênticas (stdin) por frequência decrescente, top 20.
+# Saída: "<contagem> <assinatura>" por linha (formato de `uniq -c`).
+journal_group_signatures() {
+  sort | uniq -c | sort -nr | head -n 20
 }
 
 doctor_disk_health() {
