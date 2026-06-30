@@ -107,3 +107,66 @@ setup() {
   run self_version_compare "3.0" "3.0.1"
   [ "$output" = "2" ]
 }
+
+# ── self_update_notice ────────────────────────────────────────────────────────
+
+@test "notice: curl ausente => 0 sem RC_TODO" {
+  has() { return 1; }
+  SCRIPT_VERSION="3.0.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"curl ausente"* ]]
+}
+
+@test "notice: versão nova disponível => RC_TODO" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { printf '3.1.0'; }
+  SCRIPT_VERSION="3.0.0"
+  STEP_REASON=""
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"Nova versão disponível"* ]]
+  [[ "$output" == *"3.0.0"* ]]
+  [[ "$output" == *"3.1.0"* ]]
+}
+
+@test "notice: já está na versão mais recente => 0" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { printf '3.0.0'; }
+  SCRIPT_VERSION="3.0.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"atualizado"* ]]
+}
+
+@test "notice: versão local mais nova que latest => 0 (pré-release)" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { printf '3.0.0'; }
+  SCRIPT_VERSION="3.1.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+}
+
+@test "notice: API indisponível (latest vazio) => 0 sem RC_TODO" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { return 1; }
+  SCRIPT_VERSION="3.0.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"possível consultar"* ]]
+}
+
+@test "notice: canal main => 0 sem RC_TODO" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { printf 'main'; }
+  SCRIPT_VERSION="3.0.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Canal 'main'"* ]]
+}

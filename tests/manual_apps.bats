@@ -53,3 +53,20 @@ setup() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "_manual_write_prefix: destino não escrevível + sudo disponível => imprime sudo" {
+  # Diretório inexistente => não escrevível para qualquer uid (inclui root no CI)
+  local tmp="$BATS_TEST_TMPDIR/nao-existe/app"
+  has() { [[ "$1" == sudo ]]; }
+  sudo() { [[ "$*" == "-n true" ]]; }
+  run _manual_write_prefix "$tmp"
+  [ "$status" -eq 0 ]
+  [ "$output" = "sudo" ]
+}
+
+@test "_manual_write_prefix: destino não escrevível + sem sudo => retorna 1" {
+  local tmp="$BATS_TEST_TMPDIR/nao-existe/app"
+  has() { return 1; }
+  run _manual_write_prefix "$tmp"
+  [ "$status" -ne 0 ]
+}

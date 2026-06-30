@@ -62,3 +62,41 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+# ── backup_dir ─────────────────────────────────────────────────────────────────
+
+@test "backup_dir: retorna path dentro de XDG_CACHE_HOME quando definido" {
+  XDG_CACHE_HOME="$BATS_TEST_TMPDIR/cache"
+  run backup_dir
+  [ "$status" -eq 0 ]
+  [ "$output" = "$BATS_TEST_TMPDIR/cache/system-upgrade/backups" ]
+}
+
+# ── backup_critical_configs ────────────────────────────────────────────────────
+
+@test "backup_critical_configs: BACKUP_CONFIGS=0 retorna 0 sem fazer nada" {
+  BACKUP_CONFIGS=0
+  QUIET=0
+  run backup_critical_configs
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"desabilitado"* ]]
+}
+
+@test "backup_critical_configs: tar ausente retorna 0 com aviso" {
+  BACKUP_CONFIGS=1
+  has() { return 1; }
+  QUIET=0
+  run backup_critical_configs
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"tar não encontrado"* ]]
+}
+
+@test "backup_critical_configs: nenhum path configurado existe => 0 sem arquivar" {
+  BACKUP_CONFIGS=1
+  has() { [[ "$1" == tar ]]; }
+  BACKUP_PATHS="/nao/existe/x /nao/existe/y"
+  QUIET=0
+  run backup_critical_configs
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhum dos paths"* ]]
+}
