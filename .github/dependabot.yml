@@ -12,6 +12,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 7   # espera releases novos "assentarem" antes de propor bump
     open-pull-requests-limit: 5
     commit-message:
       prefix: ci
@@ -34,6 +36,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: America/Sao_Paulo
+    cooldown:
+      default-days: 7   # espera releases novos "assentarem" antes de propor bump
     open-pull-requests-limit: 5
     commit-message:
       prefix: ci
