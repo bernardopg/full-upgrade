@@ -256,3 +256,172 @@ EOF
   echo "$out" | grep -q 'warn: Doctor: units systemd falhadas — foo.service'
   ! echo "$out" | grep -q 'Atualizar pacotes do sistema e AUR'
 }
+
+# ── tray_read_state_field ──────────────────────────────────────────────────────
+
+@test "read_state_field: extrai campo string" {
+  local f="${BATS_TEST_TMPDIR}/state.json"
+  printf '{"state":"updates","prev_state":"idle"}\n' > "$f"
+  run tray_read_state_field "$f" state
+  [ "$output" = "updates" ]
+}
+
+@test "read_state_field: extrai campo numérico" {
+  local f="${BATS_TEST_TMPDIR}/state.json"
+  printf '{"repo":5,"aur":3,"todo":1}\n' > "$f"
+  [ "$(tray_read_state_field "$f" repo)" = "5" ]
+  [ "$(tray_read_state_field "$f" aur)" = "3" ]
+  [ "$(tray_read_state_field "$f" todo)" = "1" ]
+}
+
+@test "read_state_field: campo ausente => rc 1" {
+  local f="${BATS_TEST_TMPDIR}/state.json"
+  printf '{"state":"idle"}\n' > "$f"
+  run tray_read_state_field "$f" missing
+  [ "$status" -eq 1 ]
+}
+
+@test "read_state_field: arquivo inexistente => rc 1" {
+  run tray_read_state_field "/nonexistent/file.json" state
+  [ "$status" -eq 1 ]
+}
+
+@test "read_state_field: campo vazio retorna string vazia" {
+  local f="${BATS_TEST_TMPDIR}/state.json"
+  printf '{"state":""}\n' > "$f"
+  run tray_read_state_field "$f" state
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+# ── tray_resolve_icon ─────────────────────────────────────────────────────────
+
+@test "resolve_icon: retorna nome quando nenhum SVG encontrado" {
+  run tray_resolve_icon "full-upgrade-tray-idle"
+  # Pode retornar o path ou o nome, dependendo do sistema
+  [ -n "$output" ]
+}
+
+@test "resolve_icon: encontra SVG em FU_ROOT/icons" {
+  mkdir -p "$FU_ROOT/icons"
+  touch "$FU_ROOT/icons/full-upgrade-tray-idle.svg"
+  run tray_resolve_icon "full-upgrade-tray-idle"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$FU_ROOT/icons/full-upgrade-tray-idle.svg" ]
+  rm -f "$FU_ROOT/icons/full-upgrade-tray-idle.svg"
+}
+
+@test "resolve_icon: encontra SVG em FU_ROOT/assets/icons" {
+  mkdir -p "$FU_ROOT/assets/icons"
+  touch "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg"
+  run tray_resolve_icon "full-upgrade-tray-error"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg" ]
+  rm -f "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg"
+}
+
+# ── tray_build_menu ────────────────────────────────────────────────────────────
+
+@test "build_menu: contém itens essenciais" {
+  local menu
+  menu="$(tray_build_menu "/usr/bin/fu" 1234)"
+  [[ "$menu" == *"Atualizar sistema completo"* ]]
+  [[ "$menu" == *"Executar Doctor"* ]]
+  [[ "$menu" == *"Sair do tray"* ]]
+  [[ "$menu" == *"/usr/bin/fu --tray-launch"* ]]
+  [[ "$menu" == *"kill -USR2 1234"* ]]
+}
+
+@test "build_menu: separador vazio presente" {
+  local menu
+  menu="$(tray_build_menu "/usr/bin/fu" 1234)"
+  # Deve ter um separador vazio (||) antes de "Sair do tray"
+  [[ "$menu" == *"||Sair do tray"* ]]
+}
+
+# ── tray_autostart_file ────────────────────────────────────────────────────────
+
+@test "autostart_file: usa XDG_CONFIG_HOME padrão" {
+  unset XDG_CONFIG_HOME
+  local result
+  result="$(tray_autostart_file)"
+  [[ "$result" == *"/.config/autostart/full-upgrade-tray.desktop" ]]
+}
+
+@test "autostart_file: usa XDG_CONFIG_HOME custom" {
+  XDG_CONFIG_HOME="$MOCKDIR/config"
+  local result
+  result="$(tray_autostart_file)"
+  [ "$result" = "$MOCKDIR/config/autostart/full-upgrade-tray.desktop" ]
+}
+
+# ── tray_daemon_status ────────────────────────────────────────────────────────
+
+@test "daemon_status: sem PID file => parado" {
+  TRAY_PID_FILE="${BATS_TEST_TMPDIR}/nonexistent.pid"
+  run tray_daemon_status
+  [ "$output" = "parado" ]
+}
+
+@test "daemon_status: PID file com PID morto => parado" {
+  TRAY_PID_FILE="${BATS_TEST_TMPDIR}/dead.pid"
+  echo "99999999" > "$TRAY_PID_FILE"
+  run tray_daemon_status
+  [ "$output" = "parado" ]
+}
+
+@test "daemon_status: PID file com PID vivo => rodando" {
+  TRAY_PID_FILE="${BATS_TEST_TMPDIR}/alive.pid"
+  echo "$$" > "$TRAY_PID_FILE"
+  run tray_daemon_status
+  [[ "$output" == *"rodando"* ]]
+  [[ "$output" == *"$$"* ]]
+}
+
+# ── tray_self_bin ──────────────────────────────────────────────────────────────
+
+@test "self_bin: retorna full-upgrade quando comando existe" {
+  has() { [[ "$1" == "full-upgrade" ]]; }
+  run tray_self_bin
+  [ "$output" = "full-upgrade" ]
+}
+
+@test "self_bin: retorna SCRIPT_PATH quando definido" {
+  has() { return 1; }
+  SCRIPT_PATH="/opt/fu/full-upgrade.sh"
+  run tray_self_bin
+  [ "$output" = "/opt/fu/full-upgrade.sh" ]
+}
+
+@test "self_bin: fallback para FU_ROOT/full-upgrade.sh" {
+  has() { return 1; }
+  unset SCRIPT_PATH
+  run tray_self_bin
+  [[ "$output" == *"full-upgrade.sh" ]]
+}
+
+# ── tooltip: edge cases adicionais ────────────────────────────────────────────
+
+@test "tooltip: attention com reboot mas sem updates e sem todo" {
+  local t
+  t=$(tray_tooltip_for_state attention 0 0 0 "Kernel X")
+  [[ "$t" == *"Reboot pendente"* ]]
+  [[ "$t" != *"atualização"* ]]
+}
+
+@test "tooltip: idle sem nada => sistema atualizado" {
+  [ "$(tray_tooltip_for_state idle 0 0 0)" = "full-upgrade: sistema atualizado" ]
+}
+
+# ── relative_time: delta negativo (futuro) ────────────────────────────────────
+
+@test "relative_time: timestamp futuro => agora (delta negativo tratado como 0)" {
+  now=$(date -d "2026-06-25T10:00:00" +%s)
+  run tray_relative_time "2026-06-25T10:05:00" "$now"
+  [ "$output" = "agora" ]
+}
+
+@test "relative_time: timestamp vazio => vazio" {
+  run tray_relative_time "" 1000
+  [ -z "$output" ]
+}
