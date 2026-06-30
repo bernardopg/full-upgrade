@@ -73,3 +73,69 @@ setup() {
   run http_code_class 500; [ "$output" = "fail" ]
   run http_code_class "";  [ "$output" = "fail" ]
 }
+
+# ── smart_health_class ────────────────────────────────────────────────────────
+@test "smart_health_class: PASSED/OK => ok" {
+  run smart_health_class PASSED; [ "$output" = "ok" ]
+  run smart_health_class OK;     [ "$output" = "ok" ]
+}
+
+@test "smart_health_class: vazio => unknown; outro => todo" {
+  run smart_health_class "";       [ "$output" = "unknown" ]
+  run smart_health_class FAILING;  [ "$output" = "todo" ]
+  run smart_health_class FAILED;   [ "$output" = "todo" ]
+}
+
+# ── smart_counter_severity ────────────────────────────────────────────────────
+@test "smart_counter_severity: >0 => warn" {
+  run smart_counter_severity 1;   [ "$output" = "warn" ]
+  run smart_counter_severity 42;  [ "$output" = "warn" ]
+}
+
+@test "smart_counter_severity: 0/vazio/não-numérico => ok" {
+  run smart_counter_severity 0;   [ "$output" = "ok" ]
+  run smart_counter_severity "";  [ "$output" = "ok" ]
+  run smart_counter_severity "-"; [ "$output" = "ok" ]
+}
+
+# ── bootctl_status_field ──────────────────────────────────────────────────────
+@test "bootctl_status_field: extrai linux e initrd" {
+  out=$'Default Boot Loader Entry:\n        title: Arch Linux\n        linux: /vmlinuz-linux\n        initrd: /initramfs-linux.img'
+  run bootctl_status_field "$out" linux
+  [ "$output" = "/vmlinuz-linux" ]
+  run bootctl_status_field "$out" initrd
+  [ "$output" = "/initramfs-linux.img" ]
+}
+
+@test "bootctl_status_field: extrai title da entrada padrão" {
+  out=$'Default Boot Loader Entry:\n        title: Arch Linux'
+  run bootctl_status_field "$out" title
+  [ "$output" = "Arch Linux " ]
+}
+
+@test "bootctl_status_field: campo ausente => vazio" {
+  out=$'Default Boot Loader Entry:\n        title: Arch'
+  run bootctl_status_field "$out" linux
+  [ -z "$output" ]
+}
+
+# ── pacman_qk_filter_noise (filtra falsos-positivos do pacman -Qkq) ────────────
+@test "pacman_qk_filter_noise: remove linhas que casam padrões de ruído" {
+  out=$'hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/x.png\nfoo /usr/bin/foo: arquivo modificado\nbar /usr/lib/__pycache__/m.pyc'
+  run pacman_qk_filter_noise '^hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/' '/__pycache__/[^ ]*\.py[co]$' <<<"$out"
+  [ "$output" = "foo /usr/bin/foo: arquivo modificado" ]
+}
+
+@test "pacman_qk_filter_noise: sem padrões => mantém linhas não-vazias" {
+  out=$'a\n\nb'
+  run pacman_qk_filter_noise <<<"$out"
+  [ "${lines[0]}" = "a" ]
+  [ "${lines[1]}" = "b" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "pacman_qk_filter_noise: tudo ruído => vazio" {
+  out=$'intel-ucode /boot/intel-ucode.img'
+  run pacman_qk_filter_noise '^intel-ucode /boot/intel-ucode.img$' <<<"$out"
+  [ -z "$output" ]
+}
