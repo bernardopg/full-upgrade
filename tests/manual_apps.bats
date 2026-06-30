@@ -70,3 +70,98 @@ setup() {
   run _manual_write_prefix "$tmp"
   [ "$status" -ne 0 ]
 }
+
+# ── update_* (self-updaters; mocks de comandos externos) ──────────────────────
+# Helpers comuns: neutraliza I/O e rede por padrão.
+_ma_silence() { log() { :; }; log_raw() { :; }; }
+
+@test "update_droid: ausente => return 0 (skip)" {
+  _ma_silence; has() { return 1; }
+  run update_droid
+  [ "$status" -eq 0 ]
+}
+
+@test "update_droid: já atualizado => return 0" {
+  _ma_silence
+  has() { [[ "$1" == droid ]]; }
+  droid() { echo "droid 1.2.3"; }
+  run_network_cmd() { echo "already up-to-date"; return 0; }
+  run update_droid
+  [ "$status" -eq 0 ]
+}
+
+@test "update_droid: falha no --check => RC_WARN" {
+  _ma_silence
+  has() { [[ "$1" == droid ]]; }
+  droid() { echo "droid 1.2.3"; }
+  run_network_cmd() { return 1; }
+  run update_droid
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "update_droid: update real bem-sucedido => return 0" {
+  _ma_silence
+  has() { [[ "$1" == droid ]]; }
+  droid() { echo "droid 2.0.0"; }
+  run_network_cmd() { echo "downloading update"; return 0; }
+  run update_droid
+  [ "$status" -eq 0 ]
+}
+
+@test "update_coderabbit: ausente => 0; falha => RC_WARN; sucesso => 0" {
+  _ma_silence
+  has() { return 1; }
+  run update_coderabbit; [ "$status" -eq 0 ]
+
+  has() { [[ "$1" == coderabbit ]]; }
+  coderabbit() { echo "coderabbit 1.0"; }
+  run_network_cmd() { return 1; }
+  run update_coderabbit; [ "$status" -eq "$RC_WARN" ]
+
+  run_network_cmd() { echo ok; return 0; }
+  run update_coderabbit; [ "$status" -eq 0 ]
+}
+
+@test "update_kiro_cli: ausente => 0; falha => RC_WARN; sucesso => 0" {
+  _ma_silence
+  has() { return 1; }
+  run update_kiro_cli; [ "$status" -eq 0 ]
+
+  has() { [[ "$1" == kiro-cli ]]; }
+  kiro-cli() { echo "kiro-cli 0.1"; }
+  run_network_cmd() { return 1; }
+  run update_kiro_cli; [ "$status" -eq "$RC_WARN" ]
+
+  run_network_cmd() { echo ok; return 0; }
+  run update_kiro_cli; [ "$status" -eq 0 ]
+}
+
+@test "update_snyk: ausente => 0" {
+  _ma_silence; has() { return 1; }
+  run update_snyk; [ "$status" -eq 0 ]
+}
+
+@test "update_snyk: gerenciado por npm => 0 (skip)" {
+  _ma_silence
+  has() { [[ "$1" == snyk || "$1" == curl ]]; }
+  command() { if [[ "$1" == -v && "$2" == snyk ]]; then echo /usr/lib/node_modules/snyk/bin/snyk; else builtin command "$@"; fi; }
+  readlink() { echo /usr/lib/node_modules/snyk/bin/snyk; }
+  run update_snyk
+  [ "$status" -eq 0 ]
+}
+
+@test "update_zap: ausente => 0 (skip)" {
+  _ma_silence
+  command() { if [[ "$1" == -v ]]; then return 1; else builtin command "$@"; fi; }
+  run update_zap
+  [ "$status" -eq 0 ]
+}
+
+@test "update_gk: ausente => 0; sem curl/unzip => 0" {
+  _ma_silence
+  has() { return 1; }
+  run update_gk; [ "$status" -eq 0 ]
+
+  has() { [[ "$1" == gk ]]; }   # gk existe mas curl/unzip não
+  run update_gk; [ "$status" -eq 0 ]
+}
