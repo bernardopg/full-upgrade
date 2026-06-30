@@ -31,3 +31,45 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "chardet" ]
 }
+
+# ── update_* (caminhos com mocks) ─────────────────────────────────────────────
+@test "update_pipx: nada a atualizar => propaga rc" {
+  log() { :; }; log_raw() { :; }
+  pipx() { echo "No packages upgraded"; return 0; }
+  run update_pipx
+  [ "$status" -eq 0 ]
+}
+
+@test "update_pipx: pacotes atualizados => rc 0" {
+  log() { :; }; log_raw() { :; }; remediation() { :; }
+  pipx() { printf 'upgrading foo...\nfoo 1.0 -> 2.0\n'; return 0; }
+  run update_pipx
+  [ "$status" -eq 0 ]
+}
+
+@test "update_uv_self: propaga rc do uv" {
+  uv() { echo "updated"; return 0; }
+  run update_uv_self
+  [ "$status" -eq 0 ]
+}
+
+@test "update_uv_python: sem versões gerenciadas => 0" {
+  log() { :; }
+  uv() { :; }   # lista vazia
+  run update_uv_python
+  [ "$status" -eq 0 ]
+}
+
+@test "update_uv_tools: nenhuma tool instalada => 0" {
+  log() { :; }
+  uv() { echo "No tools installed"; return 1; }
+  run update_uv_tools
+  [ "$status" -eq 0 ]
+}
+
+@test "update_uv_tools: sucesso => 0" {
+  log() { :; }
+  uv() { echo "upgraded"; return 0; }
+  run update_uv_tools
+  [ "$status" -eq 0 ]
+}

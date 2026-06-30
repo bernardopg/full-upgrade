@@ -71,3 +71,74 @@ setup() {
   [[ "$out" == *"better-sqlite3"* ]]
   [[ "$out" == *"@scope/native-addon"* ]]
 }
+
+# ── npm_audit_prefix (decisão de severidade por prefixo) ──────────────────────
+@test "npm_audit_prefix: prefixo / => recusa (rc 1)" {
+  log() { :; }; remediation() { :; }
+  npm_global_prefix() { echo "/"; }
+  run npm_audit_prefix
+  [ "$status" -eq 1 ]
+}
+
+@test "npm_audit_prefix: /usr ou /usr/local => RC_WARN" {
+  log() { :; }; remediation() { :; }
+  npm_global_prefix() { echo "/usr"; }
+  run npm_audit_prefix; [ "$status" -eq "$RC_WARN" ]
+  npm_global_prefix() { echo "/usr/local"; }
+  run npm_audit_prefix; [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "npm_audit_prefix: prefixo no HOME => 0" {
+  log() { :; }; remediation() { :; }
+  npm_global_prefix() { echo "$HOME/.local"; }
+  run npm_audit_prefix
+  [ "$status" -eq 0 ]
+}
+
+@test "npm_audit_prefix: caminho incomum => RC_WARN" {
+  log() { :; }; remediation() { :; }
+  npm_global_prefix() { echo "/opt/weird"; }
+  run npm_audit_prefix
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "npm_audit_prefix: prefixo vazio => 0 (não detectado)" {
+  log() { :; }; remediation() { :; }
+  npm_global_prefix() { echo ""; }
+  run npm_audit_prefix
+  [ "$status" -eq 0 ]
+}
+
+# ── npm_allow_scripts_packages (parser de warnings) ───────────────────────────
+@test "npm_allow_scripts_packages: extrai nomes sem versão, dedup e ordena" {
+  in=$'npm warn allow-scripts better-sqlite3@11.0.0\nnpm warn allow-scripts esbuild@0.20.0\nnpm warn allow-scripts better-sqlite3@11.0.0\noutra linha irrelevante'
+  run npm_allow_scripts_packages <<<"$in"
+  [ "${lines[0]}" = "better-sqlite3" ]
+  [ "${lines[1]}" = "esbuild" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "npm_allow_scripts_packages: scoped package preserva escopo" {
+  in='npm warn allow-scripts @org/native@2.1.0'
+  run npm_allow_scripts_packages <<<"$in"
+  [ "$output" = "@org/native" ]
+}
+
+@test "npm_allow_scripts_packages: sem warnings => vazio" {
+  run npm_allow_scripts_packages <<<"tudo ok aqui"
+  [ -z "$output" ]
+}
+
+# ── npm_global_writable ───────────────────────────────────────────────────────
+@test "npm_global_writable: prefixo desconhecido => 0 (não bloqueia)" {
+  npm_global_prefix() { echo ""; }
+  run npm_global_writable
+  [ "$status" -eq 0 ]
+}
+
+@test "npm_global_writable: diretório gravável => 0" {
+  local d="$BATS_TEST_TMPDIR/npmpfx"; mkdir -p "$d/lib/node_modules"
+  npm_global_prefix() { echo "$d"; }
+  run npm_global_writable
+  [ "$status" -eq 0 ]
+}

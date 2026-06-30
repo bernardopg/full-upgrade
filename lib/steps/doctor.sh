@@ -295,12 +295,7 @@ doctor_journal_errors() {
       filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
     done
   fi
-  filtered="$(
-    printf '%s\n' "$filtered" \
-      | sed -E 's/^[0-9T:+.-]+[[:space:]]+[^[:space:]]+[[:space:]]+[^:]+:[[:space:]]*//' \
-      | grep -Ev '^[[:space:]]*$|^[[:space:]]*#[0-9]+[[:space:]]+0x|^[[:space:]]*ELF object binary architecture:|^[[:space:]]*Stack trace of thread ' \
-      || true
-  )"
+  filtered="$(printf '%s\n' "$filtered" | journal_strip_prefix)"
   filtered_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
   noise_count=$(( line_count - filtered_count ))
 
@@ -309,13 +304,7 @@ doctor_journal_errors() {
     return 0
   fi
 
-  grouped="$(
-    printf '%s\n' "$filtered" \
-      | sort \
-      | uniq -c \
-      | sort -nr \
-      | head -n 20
-  )"
+  grouped="$(printf '%s\n' "$filtered" | journal_group_signatures)"
   unique_count="$(printf '%s\n' "$grouped" | grep -c '[^[:space:]]' || true)"
 
   local noise_note=""
@@ -418,6 +407,80 @@ doctor_flatpak_repair_dry_run() {
 }
 
 
+# ── Helpers puros (testáveis isoladamente; sem side-effects) ──────────────────
+# Classifica uso percentual de disco/inodes em severidade textual.
+# >=95 => "todo"; >=90 => "warn"; senão "ok". Não-numérico => "ok".
+usage_pct_severity() {
+  local pct="${1%%%}"
+  [[ "$pct" =~ ^[0-9]+$ ]] || { printf "ok"; return 0; }
+  if   (( pct >= 95 )); then printf "todo"
+  elif (( pct >= 90 )); then printf "warn"
+  else                       printf "ok"
+  fi
+}
+
+# Classifica código HTTP: 2xx/3xx => "ok"; resto/vazio => "fail".
+http_code_class() {
+  [[ "$1" =~ ^[23] ]] && printf "ok" || printf "fail"
+}
+
+# Classifica o resultado de saúde SMART (campo de "overall-health").
+# "PASSED"/"OK" => "ok"; vazio => "unknown"; qualquer outro => "todo".
+smart_health_class() {
+  case "$1" in
+    PASSED|OK) printf "ok" ;;
+    "")        printf "unknown" ;;
+    *)         printf "todo" ;;
+  esac
+}
+
+# Severidade de um contador SMART (setores realocados / não corrigíveis).
+# Inteiro > 0 => "warn"; 0/vazio/não-numérico => "ok".
+smart_counter_severity() {
+  local n="$1"
+  [[ "$n" =~ ^[0-9]+$ ]] || { printf "ok"; return 0; }
+  (( n > 0 )) && printf "warn" || printf "ok"
+}
+
+# Extrai um campo do output de `bootctl status` (recebido em $1).
+# campo "linux" / "initrd" => primeiro caminho; "title" => título da entrada padrão.
+bootctl_status_field() {
+  local out="$1" field="$2"
+  case "$field" in
+    linux)  printf '%s
+' "$out" | awk '/^[[:space:]]+linux:/{print $2; exit}' ;;
+    initrd) printf '%s
+' "$out" | awk '/^[[:space:]]+initrd:/{print $2; exit}' ;;
+    title)  printf '%s
+' "$out" | awk '/Default Boot Loader Entry:/{f=1} f && /^[[:space:]]+title:/{print $2" "$3" "$4; exit}' ;;
+  esac
+}
+
+# Remove de um relatório `pacman -Qkq` (stdin) as linhas que casam padrões de
+# falso-positivo (passados como argumentos). Emite só as linhas "reais".
+pacman_qk_filter_noise() {
+  local filtered; filtered="$(cat)"
+  local pat
+  for pat in "$@"; do
+    filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
+  done
+  printf '%s\n' "$filtered" | grep '[^[:space:]]' || true
+}
+
+# Normaliza linhas do journal: remove prefixo "timestamp host unit:" e descarta
+# linhas vazias / frames de stack-trace, deixando só a mensagem (assinatura).
+journal_strip_prefix() {
+  sed -E 's/^[0-9T:+.-]+[[:space:]]+[^[:space:]]+[[:space:]]+[^:]+:[[:space:]]*//' \
+    | grep -Ev '^[[:space:]]*$|^[[:space:]]*#[0-9]+[[:space:]]+0x|^[[:space:]]*ELF object binary architecture:|^[[:space:]]*Stack trace of thread ' \
+    || true
+}
+
+# Agrupa assinaturas idênticas (stdin) por frequência decrescente, top 20.
+# Saída: "<contagem> <assinatura>" por linha (formato de `uniq -c`).
+journal_group_signatures() {
+  sort | uniq -c | sort -nr | head -n 20
+}
+
 doctor_disk_health() {
   if ! has df; then
     log "  df não encontrado."
@@ -453,26 +516,32 @@ doctor_disk_health() {
     mount="$(awk '{print $6}' <<<"$line")"
     used_pct="$(awk '{gsub(/%/,"",$5); print $5}' <<<"$line")"
     [[ "$used_pct" =~ ^[0-9]+$ ]] || continue
-    if (( used_pct >= 95 )); then
-      log "  Ação necessária: ${mount} está com ${used_pct}% de uso."
-      status=$RC_TODO
-    elif (( used_pct >= 90 && status != RC_TODO )); then
-      log "  Aviso: ${mount} está com ${used_pct}% de uso."
-      status=$RC_WARN
-    fi
+    case "$(usage_pct_severity "$used_pct")" in
+      todo)
+        log "  Ação necessária: ${mount} está com ${used_pct}% de uso."
+        status=$RC_TODO ;;
+      warn)
+        if (( status != RC_TODO )); then
+          log "  Aviso: ${mount} está com ${used_pct}% de uso."
+          status=$RC_WARN
+        fi ;;
+    esac
   done < <(df -P -- "${paths[@]}" | tail -n +2)
 
   while IFS= read -r line; do
     mount="$(awk '{print $6}' <<<"$line")"
     inode_pct="$(awk '{gsub(/%/,"",$5); print $5}' <<<"$line")"
     [[ "$inode_pct" =~ ^[0-9]+$ ]] || continue
-    if (( inode_pct >= 95 )); then
-      log "  Ação necessária: ${mount} está com ${inode_pct}% de inodes usados."
-      status=$RC_TODO
-    elif (( inode_pct >= 90 && status != RC_TODO )); then
-      log "  Aviso: ${mount} está com ${inode_pct}% de inodes usados."
-      status=$RC_WARN
-    fi
+    case "$(usage_pct_severity "$inode_pct")" in
+      todo)
+        log "  Ação necessária: ${mount} está com ${inode_pct}% de inodes usados."
+        status=$RC_TODO ;;
+      warn)
+        if (( status != RC_TODO )); then
+          log "  Aviso: ${mount} está com ${inode_pct}% de inodes usados."
+          status=$RC_WARN
+        fi ;;
+    esac
   done < <(df -Pi -- "${paths[@]}" | tail -n +2)
 
   if (( status == 0 )); then
@@ -510,9 +579,9 @@ doctor_boot_health() {
 
   # Entrada padrão e kernel/initrd
   local default_entry linux_path initrd_path
-  default_entry="$(printf '%s\n' "$output" | awk '/Default Boot Loader Entry:/{found=1} found && /^\s+title:/{print $2" "$3" "$4; exit}')"
-  linux_path="$(printf '%s\n' "$output" | awk '/^\s+linux:/{print $2; exit}')"
-  initrd_path="$(printf '%s\n' "$output" | awk '/^\s+initrd:/{print $2; exit}')"
+  default_entry="$(bootctl_status_field "$output" title)"
+  linux_path="$(bootctl_status_field "$output" linux)"
+  initrd_path="$(bootctl_status_field "$output" initrd)"
 
   log "  systemd-boot instalado. Entrada padrão: ${default_entry:-desconhecida}"
 
@@ -611,7 +680,7 @@ doctor_network_health() {
 
   for url in "${check_urls[@]}"; do
     http_code="$(curl -sS --max-time 6 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)"
-    if [[ "$http_code" =~ ^[23] ]]; then
+    if [[ "$(http_code_class "$http_code")" == "ok" ]]; then
       log "  HTTPS OK: ${url} (${http_code})"
     else
       log "  HTTPS FALHOU: ${url} (código ${http_code:-timeout})"
@@ -841,11 +910,8 @@ doctor_pacman_health() {
   fi
 
   # Filtrar falsos positivos
-  filtered="$output"
-  for pat in "${_pacman_health_noise[@]}"; do
-    filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
-  done
-  noise_count=$(( $(printf '%s\n' "$output" | wc -l) - $(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true) ))
+  filtered="$(printf '%s\n' "$output" | pacman_qk_filter_noise "${_pacman_health_noise[@]}")"
+  noise_count=$(( $(printf '%s\n' "$output" | grep -c '[^[:space:]]' || true) - $(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true) ))
 
   if [[ -z "${filtered//[[:space:]]/}" ]]; then
     log "  ${check_cmd_label}: apenas falsos positivos conhecidos (${noise_count} ignorados)."
@@ -1022,17 +1088,16 @@ doctor_smart_health() {
         local reallocated uncorrectable
         reallocated="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Reallocated_Sector_Ct/{print $10}' | head -1 || true)"
         uncorrectable="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Offline_Uncorrectable/{print $10}' | head -1 || true)"
-        if [[ "$health" == "PASSED" || "$health" == "OK" ]]; then
-          log "  ${drive}: saúde SMART OK (${health})"
-        elif [[ -n "$health" ]]; then
-          log "  ${drive}: saúde SMART ${health} — verificar imediatamente."
-          status="$RC_TODO"
-        fi
-        if [[ -n "$reallocated" && "$reallocated" -gt 0 ]] 2>/dev/null; then
+        case "$(smart_health_class "$health")" in
+          ok)   log "  ${drive}: saúde SMART OK (${health})" ;;
+          todo) log "  ${drive}: saúde SMART ${health} — verificar imediatamente."
+                status="$RC_TODO" ;;
+        esac
+        if [[ "$(smart_counter_severity "$reallocated")" == "warn" ]]; then
           log "  ${drive}: setores realocados = ${reallocated} — disco com defeitos físicos."
           (( status == 0 )) && status="$RC_WARN"
         fi
-        if [[ -n "$uncorrectable" && "$uncorrectable" -gt 0 ]] 2>/dev/null; then
+        if [[ "$(smart_counter_severity "$uncorrectable")" == "warn" ]]; then
           log "  ${drive}: erros não corrigíveis = ${uncorrectable} — risco de perda de dados."
           (( status == 0 )) && status="$RC_WARN"
         fi

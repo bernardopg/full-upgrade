@@ -37,3 +37,127 @@ setup() {
   installed="261-1"
   [ "$running" = "$installed" ]
 }
+
+# ── usage_pct_severity (classificação de uso disco/inodes) ────────────────────
+@test "usage_pct_severity: >=95 => todo" {
+  run usage_pct_severity 95;  [ "$output" = "todo" ]
+  run usage_pct_severity 99;  [ "$output" = "todo" ]
+  run usage_pct_severity 100; [ "$output" = "todo" ]
+}
+
+@test "usage_pct_severity: 90..94 => warn" {
+  run usage_pct_severity 90; [ "$output" = "warn" ]
+  run usage_pct_severity 94; [ "$output" = "warn" ]
+}
+
+@test "usage_pct_severity: <90 => ok" {
+  run usage_pct_severity 0;  [ "$output" = "ok" ]
+  run usage_pct_severity 89; [ "$output" = "ok" ]
+}
+
+@test "usage_pct_severity: aceita sufixo % e ignora não-numérico" {
+  run usage_pct_severity "96%"; [ "$output" = "todo" ]
+  run usage_pct_severity "-";   [ "$output" = "ok" ]
+  run usage_pct_severity "";    [ "$output" = "ok" ]
+}
+
+# ── http_code_class (classificação de status HTTP) ────────────────────────────
+@test "http_code_class: 2xx/3xx => ok" {
+  run http_code_class 200; [ "$output" = "ok" ]
+  run http_code_class 204; [ "$output" = "ok" ]
+  run http_code_class 301; [ "$output" = "ok" ]
+}
+
+@test "http_code_class: 4xx/5xx/vazio => fail" {
+  run http_code_class 404; [ "$output" = "fail" ]
+  run http_code_class 500; [ "$output" = "fail" ]
+  run http_code_class "";  [ "$output" = "fail" ]
+}
+
+# ── smart_health_class ────────────────────────────────────────────────────────
+@test "smart_health_class: PASSED/OK => ok" {
+  run smart_health_class PASSED; [ "$output" = "ok" ]
+  run smart_health_class OK;     [ "$output" = "ok" ]
+}
+
+@test "smart_health_class: vazio => unknown; outro => todo" {
+  run smart_health_class "";       [ "$output" = "unknown" ]
+  run smart_health_class FAILING;  [ "$output" = "todo" ]
+  run smart_health_class FAILED;   [ "$output" = "todo" ]
+}
+
+# ── smart_counter_severity ────────────────────────────────────────────────────
+@test "smart_counter_severity: >0 => warn" {
+  run smart_counter_severity 1;   [ "$output" = "warn" ]
+  run smart_counter_severity 42;  [ "$output" = "warn" ]
+}
+
+@test "smart_counter_severity: 0/vazio/não-numérico => ok" {
+  run smart_counter_severity 0;   [ "$output" = "ok" ]
+  run smart_counter_severity "";  [ "$output" = "ok" ]
+  run smart_counter_severity "-"; [ "$output" = "ok" ]
+}
+
+# ── bootctl_status_field ──────────────────────────────────────────────────────
+@test "bootctl_status_field: extrai linux e initrd" {
+  out=$'Default Boot Loader Entry:\n        title: Arch Linux\n        linux: /vmlinuz-linux\n        initrd: /initramfs-linux.img'
+  run bootctl_status_field "$out" linux
+  [ "$output" = "/vmlinuz-linux" ]
+  run bootctl_status_field "$out" initrd
+  [ "$output" = "/initramfs-linux.img" ]
+}
+
+@test "bootctl_status_field: extrai title da entrada padrão" {
+  out=$'Default Boot Loader Entry:\n        title: Arch Linux'
+  run bootctl_status_field "$out" title
+  [ "$output" = "Arch Linux " ]
+}
+
+@test "bootctl_status_field: campo ausente => vazio" {
+  out=$'Default Boot Loader Entry:\n        title: Arch'
+  run bootctl_status_field "$out" linux
+  [ -z "$output" ]
+}
+
+# ── pacman_qk_filter_noise (filtra falsos-positivos do pacman -Qkq) ────────────
+@test "pacman_qk_filter_noise: remove linhas que casam padrões de ruído" {
+  out=$'hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/x.png\nfoo /usr/bin/foo: arquivo modificado\nbar /usr/lib/__pycache__/m.pyc'
+  run pacman_qk_filter_noise '^hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/' '/__pycache__/[^ ]*\.py[co]$' <<<"$out"
+  [ "$output" = "foo /usr/bin/foo: arquivo modificado" ]
+}
+
+@test "pacman_qk_filter_noise: sem padrões => mantém linhas não-vazias" {
+  out=$'a\n\nb'
+  run pacman_qk_filter_noise <<<"$out"
+  [ "${lines[0]}" = "a" ]
+  [ "${lines[1]}" = "b" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "pacman_qk_filter_noise: tudo ruído => vazio" {
+  out=$'intel-ucode /boot/intel-ucode.img'
+  run pacman_qk_filter_noise '^intel-ucode /boot/intel-ucode.img$' <<<"$out"
+  [ -z "$output" ]
+}
+
+# ── journal_strip_prefix (normaliza linhas do journal) ────────────────────────
+@test "journal_strip_prefix: remove timestamp/host/unit deixando a mensagem" {
+  line="2026-06-30T10:00:00+0000 host kernel: ACPI BIOS Error (bug): algo"
+  run journal_strip_prefix <<<"$line"
+  [ "$output" = "ACPI BIOS Error (bug): algo" ]
+}
+
+@test "journal_strip_prefix: descarta linhas vazias e frames de stack" {
+  in=$'2026-06-30T10:00:00+0000 host app: msg real\n   #3 0xdeadbeef foo()\nStack trace of thread 123'
+  run journal_strip_prefix <<<"$in"
+  [ "$output" = "msg real" ]
+}
+
+# ── journal_group_signatures (agrupa por frequência) ──────────────────────────
+@test "journal_group_signatures: conta e ordena por frequência decrescente" {
+  in=$'erro A\nerro B\nerro A\nerro A'
+  run journal_group_signatures <<<"$in"
+  # primeira linha é a mais frequente (erro A, 3x)
+  [[ "${lines[0]}" =~ 3.*erro\ A ]]
+  [[ "${lines[1]}" =~ 1.*erro\ B ]]
+}
