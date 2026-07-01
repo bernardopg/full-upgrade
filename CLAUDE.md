@@ -88,16 +88,17 @@ Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blo
 
 GitHub Actions workflows in `.github/workflows/` (all pinned by SHA, least-privilege, `timeout-minutes`):
 
-- **CI** (`ci.yml`) — `bash -n` + `shellcheck` + `shfmt` (advisory) + smoke flags + `bats tests/` + kcov coverage → Codecov + standalone build verification. Mirrors the local validation above.
-- **CodeQL** (`codeql.yml`) — analyzes the workflow files themselves (`language: actions`); **CodeQL does not support Bash**, so Bash SAST is handled by Semgrep.
-- **Semgrep** (`semgrep.yml`) — SAST for Bash (`p/default`); uploads SARIF to Code Scanning. Advisory (`continue-on-error`) until findings are triaged — then drop `continue-on-error`.
+- **CI** (`ci.yml`) — `bash -n` + `shellcheck` + `shfmt` (advisory) + smoke flags + `bats tests/` + standalone build verification. On PRs the bats suite runs plain (fast feedback); kcov coverage → Codecov and the standalone artifact upload run only on push/dispatch (the suite would otherwise run twice). Mirrors the local validation above.
+- **CodeQL** (`codeql.yml`) — analyzes the workflow files themselves (`language: actions`); **CodeQL does not support Bash**, so Bash SAST is handled by Semgrep. Path-filtered to `.github/workflows/**` + weekly schedule; NOT a required check (PRs that don't touch workflows never produce it).
+- **Semgrep** (`semgrep.yml`) — SAST for Bash (`p/default`); uploads SARIF to Code Scanning. Advisory (`continue-on-error`) until findings are triaged — then drop `continue-on-error`. Path-filtered to `**.sh`/`**.bash` + its own setup files + weekly schedule.
 - **OpenSSF Scorecard** (`scorecard.yml`) — publishes the repo security score (feeds the README badge) + SARIF.
-- **Stale** (`stale.yml`) — marks/closes inactive issues & PRs (60 days → stale, +14 → close).
+- **Stale** (`stale.yml`) — marks/closes inactive issues & PRs (60 days → stale, +14 → close); weekly cron.
 - **Labeler** (`labeler.yml` + `.github/labeler.yml`) — auto-labels PRs by changed path (`ci`, `lib`, `tests`, `steps`, `scripts`, `packaging`, `documentation`). The labels must exist in the repo.
-- **Greeting** (`greeting.yml`) — welcomes first-time contributors.
 - **Commitlint** (`commitlint.yml` + `.commitlintrc.json`) — enforces **Conventional Commits** on PR commit messages (`feat:`, `fix:`, `ci:`, …); self-contained ruleset (no node deps).
 - **Dependabot** (`.github/dependabot.yml`) — `github-actions` ecosystem only (the project has no package manifests); groups minor/patch, opens majors individually, keeps the SHA-pinned actions current.
 - **Release** (`release.yml`) — on `v*` tag push (or `workflow_dispatch`): validates, builds standalone + sha256, publishes a GitHub Release with auto notes, and publishes to the AUR (`KSXGitHub/github-actions-deploy-aur`).
+
+Branch protection (`main-protection` ruleset): PR required; required checks are `Lint & Test` + `Validar Conventional Commits` only; no forced branch-up-to-date, no thread-resolution requirement, no bot reviewers.
 
 Coverage (`codecov.yml`): kcov measures only what `bats` executes; orchestration/entrypoint files with side-effects (`install.sh`, `build.sh`, `full-upgrade.sh`, `lib/main.sh`, `lib/cli.sh`, `lib/sudo.sh`) are `ignore`d — they are not unit-testable by design (see `tests/test_helper.bash`). The `flags.bats` uses `carryforward`. `.editorconfig` pins the canonical `shfmt` style (`-i 4`, 4-space indent). Travis CI was removed (defunct free OSS tier; redundant with GitHub Actions).
 

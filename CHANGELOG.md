@@ -4,6 +4,38 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Alterado
+
+- **Workflows do GitHub otimizados para latência de PR.** CI: coverage kcov e
+  upload de artifact só em push/dispatch (em PR a suíte bats roda uma única
+  vez, sem a repetição integral sob kcov); shellcheck usa o binário da imagem
+  do runner; `bash -n` antes de qualquer instalação (falha barata primeiro);
+  runner `ubuntu-24.04`. CodeQL (só analisa `language: actions`) agora é
+  path-filtered para `.github/workflows/**` + agenda semanal, e deixou de ser
+  required check. Semgrep path-filtered para `**.sh`/`**.bash` + setup próprio.
+  Stale passa a cron semanal (com stale=60d, diário era inócuo).
+  `greeting.yml` removido (ruído: um runner por issue/PR para saudação).
+- **Ruleset `main-protection` simplificado.** Required checks: só
+  `Lint & Test` + `Validar Conventional Commits`; sem exigência de branch
+  up-to-date (`strict`) e sem exigência de resolução de threads — threads de
+  bots de review não bloqueiam mais merge.
+
+### Corrigido
+
+- **PATH mínimo em launchers não-interativos (tray/systemd).** Runs disparados
+  pelo applet systray (unit `systemd --user`) herdavam um PATH sem os
+  diretórios de tools do `$HOME` (`~/.npm-global/bin`, `~/google-cloud-sdk/bin`,
+  `~/.opencode/bin`, `~/.local/bin`, …), fazendo os gates `has <cmd>` gerarem
+  skip falso ("corepack não instalado", "cmd-ausente: gcloud") com tudo
+  instalado. Novo `augment_user_path` em `lib/globals.sh` prependa os
+  diretórios padrão existentes ao PATH na inicialização.
+- **Dep check do catálogo agora honra overrides `*_BIN`.** O `run_step` pulava
+  o step com `cmd-ausente: <dep>` mesmo quando o config definia um override
+  executável (ex.: `GCLOUD_BIN` fora do PATH), contradizendo o gate de
+  `run_all_steps` que já o aceitava. Novo helper `dep_satisfied` em
+  `lib/core.sh` aceita comando no PATH **ou** `<DEP>_BIN` executável
+  (hífens viram `_`).
+
 ### Adicionado
 
 - **Notas operacionais no relatório Markdown.** Steps concluídos como `ok` que

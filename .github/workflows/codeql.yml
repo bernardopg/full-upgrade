@@ -3,8 +3,10 @@ name: CodeQL
 on:
   push:
     branches: [main]
+    paths: [".github/workflows/**"]
   pull_request:
     branches: [main]
+    paths: [".github/workflows/**"]
   schedule:
     - cron: "27 4 * * 1"   # segunda 04:27 UTC
   workflow_dispatch:
@@ -29,6 +31,9 @@ jobs:
       fail-fast: false
       matrix:
         # CodeQL não suporta Bash; analisamos os próprios workflows (GitHub Actions).
+        # Por isso o gatilho é path-filtered: só roda quando os workflows mudam
+        # (+ varredura semanal). NÃO é required check — um PR que não toca em
+        # .github/workflows/ não gera este check.
         language: [actions]
     steps:
       - name: Checkout

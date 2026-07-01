@@ -16,20 +16,18 @@ concurrency:
 jobs:
   lint:
     name: Lint & Test
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      # Coverage (kcov) roda só fora de PR: PRs ganham feedback rápido e a
+      # suíte roda uma vez só (sob kcov ela roda de novo inteira); o Codecov
+      # continua atualizado a cada merge na main.
+      RUN_COVERAGE: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install shellcheck + shfmt + kcov
-        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt kcov python3-tomli
-
-      - name: Install bats
-        run: |
-          scripts/install-bats.sh
-          echo "$PWD/.ci/bats/bin" >> "$GITHUB_PATH"
-
+      # Falhas baratas primeiro: bash -n não precisa de dependência nenhuma.
       - name: Syntax check (bash -n)
         run: |
           shopt -s nullglob
@@ -37,6 +35,16 @@ jobs:
             echo "bash -n $f"
             bash -n "$f"
           done
+
+      # shellcheck já vem na imagem do runner; instala só o que falta.
+      # kcov/python3-tomli só quando coverage roda (push/dispatch).
+      - name: Install shfmt (+ kcov p/ coverage)
+        run: |
+          pkgs=(shfmt)
+          command -v shellcheck >/dev/null || pkgs+=(shellcheck)
+          if [ "$RUN_COVERAGE" = "true" ]; then pkgs+=(kcov python3-tomli); fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${pkgs[@]}"
 
       - name: ShellCheck
         run: |
@@ -52,20 +60,29 @@ jobs:
           shfmt -i 4 -d \
             full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
+      - name: Install bats
+        run: |
+          scripts/install-bats.sh
+          echo "$PWD/.ci/bats/bin" >> "$GITHUB_PATH"
+
       - name: Smoke test
         run: |
           bash full-upgrade.sh --help
           bash full-upgrade.sh --list-steps
           XDG_CONFIG_HOME="$RUNNER_TEMP/nocfg" bash full-upgrade.sh --dry-run --mode full
 
+      # PR: suíte pura (rápida). Push/dispatch: a suíte roda sob kcov no step
+      # de coverage — rodar as duas seria executar tudo em dobro.
       - name: Unit tests (bats)
+        if: env.RUN_COVERAGE != 'true'
         run: bats tests/
 
       - name: Coverage (kcov + bats)
+        if: env.RUN_COVERAGE == 'true'
         run: scripts/coverage-bats.sh
 
       - name: Upload coverage to Codecov
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: env.RUN_COVERAGE == 'true'
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -85,6 +102,7 @@ jobs:
           XDG_CONFIG_HOME="$RUNNER_TEMP/nocfg2" ./dist/full-upgrade-standalone.sh --dry-run --mode full >/dev/null
 
       - name: Upload standalone artifact
+        if: env.RUN_COVERAGE == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: full-upgrade-standalone
