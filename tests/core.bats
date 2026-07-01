@@ -356,3 +356,72 @@ setup() {
   run pkg_diff "/nao/existe1" "/nao/existe2"
   [ "$status" -eq 1 ]
 }
+
+# ── dep_satisfied (override *_BIN no dep check do catálogo) ───────────────────
+
+@test "dep_satisfied: comando no PATH satisfaz" {
+  run dep_satisfied bash
+  [ "$status" -eq 0 ]
+}
+
+@test "dep_satisfied: comando ausente sem override falha" {
+  run dep_satisfied cmd-que-nao-existe-xyz
+  [ "$status" -ne 0 ]
+}
+
+@test "dep_satisfied: override <CMD>_BIN executável satisfaz" {
+  local fake="${BATS_TEST_TMPDIR}/fake-tool"
+  printf '#!/bin/sh\n' > "$fake"
+  chmod +x "$fake"
+  # nome inexistente no PATH: só o override pode satisfazer
+  TOOLFAKE_BIN="$fake"
+  dep_satisfied toolfake
+}
+
+@test "dep_satisfied: hífen no nome vira _ no override (xyz-cli => XYZ_CLI_BIN)" {
+  local fake="${BATS_TEST_TMPDIR}/fake-xyz"
+  printf '#!/bin/sh\n' > "$fake"
+  chmod +x "$fake"
+  XYZ_CLI_INEXISTENTE_BIN="$fake"
+  dep_satisfied xyz-cli-inexistente
+}
+
+@test "dep_satisfied: override apontando para não-executável falha" {
+  local fake="${BATS_TEST_TMPDIR}/fake-nx"
+  printf '#!/bin/sh\n' > "$fake"   # sem chmod +x
+  FERRAMENTA_INEXISTENTE_XYZ_BIN="$fake"
+  run dep_satisfied ferramenta-inexistente-xyz
+  [ "$status" -ne 0 ]
+}
+
+# ── augment_user_path (PATH mínimo de launchers systemd/tray) ─────────────────
+
+@test "augment_user_path: prependa dir existente ausente do PATH" {
+  HOME="${BATS_TEST_TMPDIR}/home"
+  mkdir -p "$HOME/.local/bin"
+  unset NPM_CONFIG_PREFIX
+  PATH="/usr/bin"
+  augment_user_path
+  [[ ":$PATH:" == *":$HOME/.local/bin:"* ]]
+}
+
+@test "augment_user_path: não duplica dir já presente" {
+  HOME="${BATS_TEST_TMPDIR}/home2"
+  mkdir -p "$HOME/.local/bin"
+  unset NPM_CONFIG_PREFIX
+  PATH="$HOME/.local/bin:/usr/bin"
+  augment_user_path
+  local antes="$PATH"
+  augment_user_path
+  [ "$PATH" = "$antes" ]
+  [[ "$PATH" != "$HOME/.local/bin:$HOME/.local/bin:"* ]]
+}
+
+@test "augment_user_path: ignora dir inexistente" {
+  HOME="${BATS_TEST_TMPDIR}/home3"
+  mkdir -p "$HOME"
+  unset NPM_CONFIG_PREFIX
+  PATH="/usr/bin"
+  augment_user_path
+  [[ ":$PATH:" != *":$HOME/.npm-global/bin:"* ]]
+}
