@@ -22,6 +22,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **CI: kcov no ubuntu-24.04.** O runner `ubuntu-24.04` (introduzido na
+  otimização de workflows) não tem `kcov` no apt (apenas no universe do
+  22.04), fazendo `apt-get install kcov` falhar com `Unable to locate
+  package kcov` no push pós-merge (em PR a coverage não roda, por isso o
+  erro só apareceu no merge). Novo `scripts/install-kcov.sh` compila o
+  kcov `v43` do fonte (deps de build via apt) e instala em `.ci/kcov`;
+  o workflow o chama e adiciona o binário ao `GITHUB_PATH`. Espelha
+  `scripts/install-bats.sh` (versão pinada, `.ci/` gitignored).
 - **PATH mínimo em launchers não-interativos (tray/systemd).** Runs disparados
   pelo applet systray (unit `systemd --user`) herdavam um PATH sem os
   diretórios de tools do `$HOME` (`~/.npm-global/bin`, `~/google-cloud-sdk/bin`,
