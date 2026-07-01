@@ -141,7 +141,7 @@ jobs:
           cat dist/full-upgrade-standalone.sh.sha256
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@52ab4b80f1350a41d99cb3325c83b8b09337ff4f # v2.2.0
+        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # v2.2.0
         with:
           subject-path: |
             dist/full-upgrade-standalone.sh
