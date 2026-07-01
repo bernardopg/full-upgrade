@@ -8,6 +8,19 @@ has() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Dependência de comando do catálogo satisfeita?
+# Aceita o comando no PATH ou um override <CMD>_BIN apontando para executável
+# (ex.: GCLOUD_BIN p/ gcloud, OPENCLAW_BIN p/ openclaw) — o mesmo contrato que
+# os gates de run_all_steps já honram; sem isso o dep check do catálogo pulava
+# o step com "cmd-ausente" mesmo com o override configurado.
+dep_satisfied() {
+  local dep="$1"
+  has "$dep" && return 0
+  local ovr="${dep//[^a-zA-Z0-9]/_}"
+  ovr="${ovr^^}_BIN"
+  [[ -n "${!ovr:-}" && -x "${!ovr}" ]]
+}
+
 # Remove sequências de escape ANSI (cores/estilo) de stdin.
 # Usado para manter o arquivo de log legível mesmo quando comandos externos
 # (ex.: fwupdmgr) emitem escapes crus.
@@ -528,7 +541,7 @@ run_step() {
     for dep in "${_deps_arr[@]}"; do
       dep="${dep#"${dep%%[![:space:]]*}"}"
       dep="${dep%"${dep##*[![:space:]]}"}"
-      if [[ -n "$dep" ]] && ! has "$dep"; then
+      if [[ -n "$dep" ]] && ! dep_satisfied "$dep"; then
         step_skip "$name" "cmd-ausente: $dep"
         return 0
       fi

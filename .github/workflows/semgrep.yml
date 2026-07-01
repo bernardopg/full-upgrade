@@ -3,11 +3,23 @@ name: Semgrep
 # SAST para Bash — preenche a lacuna do CodeQL, que NÃO suporta Bash.
 # Achados aparecem em Security > Code scanning alerts. Hoje consultivo
 # (continue-on-error): triagem primeiro, promover a bloqueante depois.
+# Path-filtered: só roda quando código Bash (ou o próprio setup do Semgrep)
+# muda; a varredura semanal cobre regressões de regras novas.
 
 on:
   push:
     branches: [main]
+    paths:
+      - "**.sh"
+      - "**.bash"
+      - ".github/workflows/semgrep.yml"
+      - ".github/requirements-semgrep.txt"
   pull_request:
+    paths:
+      - "**.sh"
+      - "**.bash"
+      - ".github/workflows/semgrep.yml"
+      - ".github/requirements-semgrep.txt"
   schedule:
     - cron: "17 3 * * 1"   # segunda 03:17 UTC
   workflow_dispatch:

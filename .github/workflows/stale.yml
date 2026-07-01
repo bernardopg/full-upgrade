@@ -1,10 +1,11 @@
 name: Stale
 
 # Marca e fecha issues/PRs inativos. Mantém o tracker limpo.
+# Semanal basta: com days-before-stale=60, granularidade diária não muda nada.
 
 on:
   schedule:
-    - cron: "30 2 * * *"   # diário 02:30 UTC
+    - cron: "30 2 * * 1"   # segunda 02:30 UTC
   workflow_dispatch:
 
 permissions:

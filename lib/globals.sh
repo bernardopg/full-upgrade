@@ -68,6 +68,31 @@ PNPM_BIN_HOME="${PNPM_BIN_HOME:-$PNPM_HOME/bin}"
 [[ ":$PATH:" == *":$PNPM_HOME:"* ]] || PATH="$PNPM_HOME:$PATH"
 export PNPM_HOME PNPM_BIN_HOME PATH FULL_UPGRADE_PIP_USER_IGNORE
 
+# ── PATH de usuário (launchers não-interativos) ──
+# Runs disparados pelo applet systray (unit systemd --user) ou por cron herdam
+# um PATH mínimo, sem os diretórios de tools instaladas no $HOME. Sem isso, os
+# gates `has <cmd>` viram skip falso ("corepack não instalado", "cmd-ausente:
+# gcloud") mesmo com tudo instalado. Prependa os diretórios padrão que existirem.
+augment_user_path() {
+    local d
+    for d in \
+        "$HOME/.dotnet/tools" \
+        "$HOME/.ghcup/bin" \
+        "$HOME/go/bin" \
+        "$HOME/.cargo/bin" \
+        "$HOME/.deno/bin" \
+        "$HOME/.bun/bin" \
+        "$HOME/google-cloud-sdk/bin" \
+        "$HOME/.opencode/bin" \
+        "${NPM_CONFIG_PREFIX:-$HOME/.npm-global}/bin" \
+        "$HOME/.local/bin"; do
+        [[ -d "$d" && ":$PATH:" != *":$d:"* ]] && PATH="$d:$PATH"
+    done
+    export PATH
+    return 0
+}
+augment_user_path
+
 # ── Log run-scoped (RUN_ID etc definidos após parse, em setup_logging) ──
 RUN_ID=""
 LOG_FILE=""
