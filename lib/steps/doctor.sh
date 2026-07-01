@@ -340,7 +340,7 @@ doctor_journal_errors() {
 
   local noise_note=""
   (( noise_count > 0 )) && noise_note=", ${noise_count} de ruído filtrado"
-  log "  Journal: ${filtered_count} erro(s) crítico(s) reais neste boot (${unique_count} assinatura(s)${noise_note}):"
+  log "  Journal: ${filtered_count} erro(s) pós-filtro neste boot (${unique_count} assinatura(s)${noise_note}):"
   printf '%s\n' "$grouped" | tee >(_strip_ansi >> "$LOG_FILE")
 
   # K4 — dicas acionáveis para assinaturas conhecidas (dedup por dica).

@@ -69,7 +69,7 @@ _audit_probe_cargo() {
     local rustup_out rustup_rc
     rustup_out="$(run_network_cmd rustup check 2>/dev/null)"
     rustup_rc=$?
-    if (( rustup_rc != RC_WARN )) && ! _audit_rustup_check_has_update "$rustup_out"; then
+    if (( rustup_rc == 0 )) && ! _audit_rustup_check_has_update "$rustup_out"; then
       _audit_add info cargo "CVEs em toolchain Rust sem correção local" \
         "${#toolchain[@]} binário(s): ${toolchain[*]}; rustup já está na última versão, CVEs vivem em crates vendorizadas upstream" \
         "Sem ação local; aguarde rebuild upstream do rustup/toolchain"

@@ -376,6 +376,25 @@ setup() {
   [[ "${AUDIT_FINDINGS[0]}" == *"CVEs em toolchain Rust"* ]]
 }
 
+@test "probe cargo: rustup vulnerável com rustup check em erro => high" {
+  has() { [[ "$1" == cargo-audit || "$1" == cargo || "$1" == rustup ]]; }
+  CARGO_HOME="$BATS_TEST_TMPDIR/cargo-rustup-check-error"
+  mkdir -p "$CARGO_HOME/bin"
+  touch "$CARGO_HOME/bin/rustup"
+  chmod +x "$CARGO_HOME/bin/rustup"
+  cargo() {
+    printf 'error: 7 vulnerabilities found in /home/user/.cargo/bin/rustup\n'
+    return 1
+  }
+  run_network_cmd() { printf 'erro inesperado ao consultar rustup\n'; return 1; }
+  set +e
+  _audit_probe_cargo
+  set -e
+  [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
+  [[ "${AUDIT_FINDINGS[0]}" == "high|cargo|"* ]]
+  [[ "${AUDIT_FINDINGS[0]}" == *"CVEs em toolchain Rust"* ]]
+}
+
 @test "probe cargo: sem binários em CARGO_HOME/bin => sem achado" {
   has() { [[ "$1" == cargo-audit || "$1" == cargo ]]; }
   CARGO_HOME="$BATS_TEST_TMPDIR/cargo-empty"
