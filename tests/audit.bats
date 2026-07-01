@@ -15,6 +15,7 @@ setup() {
   source "${FU_LIB}/steps/audit.sh"
   AUDIT_FINDINGS=()
   JSON_SUMMARY=0
+  SECURE_BOOT_STRICT=0
 }
 
 @test "audit: relatório vazio diz 'nenhum achado'" {
@@ -196,9 +197,18 @@ setup() {
   [ "${#AUDIT_FINDINGS[@]}" -eq 0 ]
 }
 
-@test "probe secure-boot: mokutil disabled => medium" {
+@test "probe secure-boot: mokutil disabled => info por default" {
   has() { [[ "$1" == mokutil ]]; }
   mokutil() { printf 'SecureBoot disabled\n'; }
+  _audit_probe_secure_boot
+  [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
+  [[ "${AUDIT_FINDINGS[0]}" == "info|secureboot|"* ]]
+}
+
+@test "probe secure-boot: disabled + SECURE_BOOT_STRICT=1 => medium" {
+  has() { [[ "$1" == mokutil ]]; }
+  mokutil() { printf 'SecureBoot disabled\n'; }
+  SECURE_BOOT_STRICT=1
   _audit_probe_secure_boot
   [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
   [[ "${AUDIT_FINDINGS[0]}" == "medium|secureboot|"* ]]
@@ -221,6 +231,7 @@ setup() {
 @test "probe secure-boot: fallback para bootctl quando mokutil ausente" {
   has() { [[ "$1" == bootctl ]]; }
   bootctl() { printf 'Secure Boot: disabled (setup mode)\n'; }
+  SECURE_BOOT_STRICT=1
   _audit_probe_secure_boot
   [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
   [[ "${AUDIT_FINDINGS[0]}" == "medium|secureboot|"* ]]
@@ -325,6 +336,63 @@ setup() {
   _audit_probe_cargo
   [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
   [[ "${AUDIT_FINDINGS[0]}" == "high|cargo|"* ]]
+}
+
+@test "probe cargo: rustup vulnerável mas atualizado => info" {
+  has() { [[ "$1" == cargo-audit || "$1" == cargo || "$1" == rustup ]]; }
+  CARGO_HOME="$BATS_TEST_TMPDIR/cargo-rustup-current"
+  mkdir -p "$CARGO_HOME/bin"
+  touch "$CARGO_HOME/bin/rustup"
+  chmod +x "$CARGO_HOME/bin/rustup"
+  cargo() {
+    printf 'error: 7 vulnerabilities found in /home/user/.cargo/bin/rustup\n'
+    return 1
+  }
+  run_network_cmd() { printf 'rustup - up to date : 1.29.0\n'; return 0; }
+  set +e
+  _audit_probe_cargo
+  set -e
+  [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
+  [[ "${AUDIT_FINDINGS[0]}" == "info|cargo|"* ]]
+  [[ "${AUDIT_FINDINGS[0]}" == *"sem correção local"* ]]
+}
+
+@test "probe cargo: rustup vulnerável com update disponível => high" {
+  has() { [[ "$1" == cargo-audit || "$1" == cargo || "$1" == rustup ]]; }
+  CARGO_HOME="$BATS_TEST_TMPDIR/cargo-rustup-update"
+  mkdir -p "$CARGO_HOME/bin"
+  touch "$CARGO_HOME/bin/rustup"
+  chmod +x "$CARGO_HOME/bin/rustup"
+  cargo() {
+    printf 'error: 7 vulnerabilities found in /home/user/.cargo/bin/rustup\n'
+    return 1
+  }
+  run_network_cmd() { printf 'stable - update available : 1.96.0 -> 1.97.0\n'; return 0; }
+  set +e
+  _audit_probe_cargo
+  set -e
+  [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
+  [[ "${AUDIT_FINDINGS[0]}" == "high|cargo|"* ]]
+  [[ "${AUDIT_FINDINGS[0]}" == *"CVEs em toolchain Rust"* ]]
+}
+
+@test "probe cargo: rustup vulnerável com rustup check em erro => high" {
+  has() { [[ "$1" == cargo-audit || "$1" == cargo || "$1" == rustup ]]; }
+  CARGO_HOME="$BATS_TEST_TMPDIR/cargo-rustup-check-error"
+  mkdir -p "$CARGO_HOME/bin"
+  touch "$CARGO_HOME/bin/rustup"
+  chmod +x "$CARGO_HOME/bin/rustup"
+  cargo() {
+    printf 'error: 7 vulnerabilities found in /home/user/.cargo/bin/rustup\n'
+    return 1
+  }
+  run_network_cmd() { printf 'erro inesperado ao consultar rustup\n'; return 1; }
+  set +e
+  _audit_probe_cargo
+  set -e
+  [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
+  [[ "${AUDIT_FINDINGS[0]}" == "high|cargo|"* ]]
+  [[ "${AUDIT_FINDINGS[0]}" == *"CVEs em toolchain Rust"* ]]
 }
 
 @test "probe cargo: sem binários em CARGO_HOME/bin => sem achado" {

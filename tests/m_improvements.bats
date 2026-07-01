@@ -146,6 +146,16 @@ E fail" ]
   [[ "$out" == *"Bluetooth"* ]]
 }
 
+@test "journal_hint_for: ZapZap/ThemeContext dá dica de app" {
+  out="$(journal_hint_for '[ZapZap WAWeb Theme Controller] Unable to find WhatsApp Web ThemeContext')"
+  [[ "$out" == *"ZapZap"* ]]
+}
+
+@test "journal_hint_for: ftdi_sio dá dica de USB serial" {
+  out="$(journal_hint_for 'ftdi_sio ttyUSB0: error from flowcontrol urb')"
+  [[ "$out" == *"USB serial"* ]]
+}
+
 @test "journal_hint_for: falha de auth sudo dá dica de PAM" {
   out="$(journal_hint_for 'pam_unix(sudo:auth): authentication failure; logname=bitter')"
   [[ "$out" == *"sudo/PAM"* ]]

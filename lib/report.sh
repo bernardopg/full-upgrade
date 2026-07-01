@@ -104,6 +104,7 @@ report_markdown_from_jsonl() {
     END {
       # Contagens de fallback a partir dos próprios steps (run sem evento summary).
       c_ok = c_warn = c_todo = c_fail = c_skip = 0
+      c_note = 0
       for (i = 1; i <= n; i++) {
         s = st_status[i]
         if (s == "ok") c_ok++
@@ -111,6 +112,7 @@ report_markdown_from_jsonl() {
         else if (s == "todo") c_todo++
         else if (s == "fail") c_fail++
         else if (s == "skip") c_skip++
+        if (s == "ok" && st_reason[i] != "") c_note++
       }
       if (!has_summary) {
         s_ok = c_ok; s_warn = c_warn; s_todo = c_todo; s_fail = c_fail; s_skip = c_skip
@@ -155,6 +157,13 @@ report_markdown_from_jsonl() {
         print ""
         for (i = 1; i <= n; i++) if (st_status[i] == "warn")
           print "- **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
+        print ""
+      }
+      if (c_note > 0) {
+        print "## Notas operacionais"
+        print ""
+        for (i = 1; i <= n; i++) if (st_status[i] == "ok" && st_reason[i] != "")
+          print "- **" md_cell(st_name[i]) "**: " st_reason[i]
         print ""
       }
     }

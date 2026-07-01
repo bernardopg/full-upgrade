@@ -26,6 +26,10 @@ _audit_add() {
 # ── Probes (cada uma guardada por presença de ferramenta; 0+ achados) ──────────
 
 # CVEs em binários cargo do usuário (reusa o parser de core.sh).
+_audit_rustup_check_has_update() {
+  printf '%s\n' "$1" | grep -qiE 'update available|atualiza(c|ç)[aã]o dispon[ií]vel'
+}
+
 _audit_probe_cargo() {
   has cargo-audit && has cargo || return 0
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
@@ -41,8 +45,40 @@ _audit_probe_cargo() {
   fi
   local -a vb=()
   mapfile -t vb < <(printf '%s\n' "$out" | parse_cargo_vuln_bins)
-  (( ${#vb[@]} )) && _audit_add high cargo "CVEs em binários cargo" \
-    "${#vb[@]} binário(s): ${vb[*]}" "rustup self update && rustup update; cargo install-update -a"
+  (( ${#vb[@]} )) || return 0
+
+  local -a toolchain=() cargobins=()
+  local b
+  for b in "${vb[@]}"; do
+    if [[ "$(classify_cargo_bin "$b")" == "toolchain" ]]; then
+      toolchain+=("$b")
+    else
+      cargobins+=("$b")
+    fi
+  done
+
+  if (( ${#cargobins[@]} > 0 )); then
+    local detail="${#cargobins[@]} cargo-installed: ${cargobins[*]}"
+    (( ${#toolchain[@]} > 0 )) && detail+="; ${#toolchain[@]} toolchain: ${toolchain[*]}"
+    _audit_add high cargo "CVEs em binários cargo" \
+      "$detail" "cargo install-update -a; rustup self update && rustup update (se toolchain também afetada)"
+    return 0
+  fi
+
+  if (( ${#toolchain[@]} > 0 )) && has rustup; then
+    local rustup_out rustup_rc
+    rustup_out="$(run_network_cmd rustup check 2>/dev/null)"
+    rustup_rc=$?
+    if (( rustup_rc == 0 )) && ! _audit_rustup_check_has_update "$rustup_out"; then
+      _audit_add info cargo "CVEs em toolchain Rust sem correção local" \
+        "${#toolchain[@]} binário(s): ${toolchain[*]}; rustup já está na última versão, CVEs vivem em crates vendorizadas upstream" \
+        "Sem ação local; aguarde rebuild upstream do rustup/toolchain"
+      return 0
+    fi
+  fi
+
+  _audit_add high cargo "CVEs em toolchain Rust" \
+    "${#toolchain[@]} binário(s): ${toolchain[*]}" "rustup self update && rustup update"
   return 0
 }
 
@@ -95,8 +131,10 @@ _audit_probe_secure_boot() {
   fi
   [[ -n "$state" ]] || return 0
   if printf '%s' "$state" | grep -qiE 'disabled|desabilit|inativ'; then
-    _audit_add medium secureboot "Secure Boot desabilitado" "$state" \
-      "Habilite Secure Boot na UEFI se a máquina suportar"
+    local sev="info"
+    (( ${SECURE_BOOT_STRICT:-0} == 1 )) && sev="medium"
+    _audit_add "$sev" secureboot "Secure Boot desabilitado" "$state; postura/política de segurança, não falha operacional" \
+      "Opcional: habilite Secure Boot na UEFI se a máquina suportar; use SECURE_BOOT_STRICT=1 para tratar como severidade média"
   elif printf '%s' "$state" | grep -qiE 'enabled|ativ'; then
     _audit_add info secureboot "Secure Boot habilitado" "$state" ""
   fi

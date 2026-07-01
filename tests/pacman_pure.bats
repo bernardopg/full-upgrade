@@ -41,6 +41,27 @@ setup() {
   [ "${lines[2]}" = "--ignore=baz" ]
 }
 
+@test "aur_out_of_date_pkgs: extrai saída PT-BR do paru" {
+  out=$':: marcado como desatualizado: apple-fonts  github-desktop  quickshell-git\nRepositorio (1) tmux'
+  run aur_out_of_date_pkgs <<<"$out"
+  [ "${lines[0]}" = "apple-fonts" ]
+  [ "${lines[1]}" = "github-desktop" ]
+  [ "${lines[2]}" = "quickshell-git" ]
+}
+
+@test "aur_out_of_date_pkgs: extrai formatos em inglês" {
+  out=$':: marked out-of-date: foo bar\n:: flagged out-of-date: baz'
+  run aur_out_of_date_pkgs <<<"$out"
+  [ "${lines[0]}" = "bar" ]
+  [ "${lines[1]}" = "baz" ]
+  [ "${lines[2]}" = "foo" ]
+}
+
+@test "aur_out_of_date_pkgs: sem marcador não emite nada" {
+  run aur_out_of_date_pkgs <<<"nada para fazer"
+  [ -z "$output" ]
+}
+
 @test "pending_is_held_cluster: haskell-* é cluster" {
   run pending_is_held_cluster "haskell-lens"
   [ "$status" -eq 0 ]

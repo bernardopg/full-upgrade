@@ -158,6 +158,19 @@ aur_ignore_args() {
   done
 }
 
+# Extrai pacotes AUR marcados pelo mantenedor como out-of-date da saída de
+# helpers (paru/yay). Isso não significa update aplicável; é sinal informativo.
+aur_out_of_date_pkgs() {
+  sed -nE \
+    -e 's/^.*marcado(s)? como desatualizado(s)?:[[:space:]]*//Ip' \
+    -e 's/^.*marked (as )?out[- ]of[- ]date:[[:space:]]*//Ip' \
+    -e 's/^.*flagged out[- ]of[- ]date:[[:space:]]*//Ip' \
+    | tr '[:space:]' '\n' \
+    | sed -E 's/^[[:punct:]]+//; s/[[:punct:]]+$//' \
+    | grep -E '^[A-Za-z0-9@._+-]+$' \
+    | sort -u
+}
+
 # ── Parsers puros (sem I/O; testáveis via bats) ────────────────────────────────
 
 # Normaliza uma versão "vX.Y.Z" ou "X.Y.Z[-N-gHASH]" para "X.Y.Z".

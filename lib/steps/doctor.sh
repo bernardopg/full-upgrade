@@ -198,12 +198,43 @@ journal_hint_for() {
   case "$l" in
     *applications.menu*not\ found*|*'"applications.menu"'*)
       printf 'menu XDG ausente: instale "archlinux-xdg-menu" e rode "XDG_MENU_PREFIX=arch- kbuildsycoca6" (KDE) para regenerar o cache de menus' ;;
-    *Bluetooth:\ hci0*|*a2dp-sink*|*btd_service_connect*|*bluetoothd*)
+    *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*)
+      printf 'ZapZap/WhatsApp Web: falha transitória ao detectar tema; atualize/reinicie o app se persistir' ;;
+    *Uncaught\ \(in\ promise\)\ DisconnectedError*|*Uncaught\ \(in\ promise\)\ cancel*|*Uncaught\ \(in\ promise\)\ CustomError:\ fh*)
+      printf 'erro de promise em app Electron/Chromium sem serviço falhado; normalmente benigno se não houver crash visível' ;;
+    *Bluetooth:\ hci0*|*a2dp-sink*|*btd_service_connect*|*bluetoothd*|*profiles/audio/avdtp.c*|*bluez_output*)
       printf 'Bluetooth/áudio transitório (normalmente benigno): verifique firmware do adaptador e reconexão do dispositivo; se recorrente, "systemctl restart bluetooth"' ;;
+    *ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
+      printf 'USB serial FTDI: erro transitório de flow control; verifique cabo/dispositivo ttyUSB0 se houver falha prática' ;;
     *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*)
       printf 'falha de autenticação sudo/PAM registrada: confirme se não há script/serviço tentando sudo com senha incorreta' ;;
     *)
       : ;;
+  esac
+}
+
+# Classifica uma assinatura agrupada do journal (com ou sem prefixo de contagem
+# do `uniq -c`). Saída: benign/actionable/unknown. Usada para evitar warn
+# recorrente quando só restam erros ambientais conhecidos de sessão gráfica,
+# Bluetooth/áudio ou USB serial.
+journal_signature_class() {
+  local l="$1"
+  l="${l#${l%%[![:space:]]*}}"
+  l="$(printf '%s\n' "$l" | sed -E 's/^[0-9]+[[:space:]]+//')"
+  case "$l" in
+    *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*|\
+    *Uncaught\ \(in\ promise\)\ DisconnectedError*|\
+    *Uncaught\ \(in\ promise\)\ cancel*|\
+    *Uncaught\ \(in\ promise\)\ CustomError:\ fh*|\
+    *profiles/audio/avdtp.c*|*bluez_output*|\
+    *ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
+      printf 'benign' ;;
+    *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*|\
+    *I/O\ error*|*Buffer\ I/O*|*EXT4-fs\ error*|*BTRFS:\ error*|\
+    *kernel\ panic*|*Oops:*|*segfault*)
+      printf 'actionable' ;;
+    *)
+      printf 'unknown' ;;
   esac
 }
 
@@ -309,7 +340,7 @@ doctor_journal_errors() {
 
   local noise_note=""
   (( noise_count > 0 )) && noise_note=", ${noise_count} de ruído filtrado"
-  log "  Journal: ${filtered_count} erro(s) crítico(s) reais neste boot (${unique_count} assinatura(s)${noise_note}):"
+  log "  Journal: ${filtered_count} erro(s) pós-filtro neste boot (${unique_count} assinatura(s)${noise_note}):"
   printf '%s\n' "$grouped" | tee >(_strip_ansi >> "$LOG_FILE")
 
   # K4 — dicas acionáveis para assinaturas conhecidas (dedup por dica).
@@ -330,6 +361,23 @@ doctor_journal_errors() {
     printf '\n--- journalctl -p 3 -b últimas 80 linhas filtradas ---\n'
     printf '%s\n' "$filtered" | tail -n 80
   } >> "$LOG_FILE"
+
+  local _all_benign=1 _class
+  while IFS= read -r _g; do
+    [[ -n "${_g//[[:space:]]/}" ]] || continue
+    _class="$(journal_signature_class "$_g")"
+    if [[ "$_class" != "benign" ]]; then
+      _all_benign=0
+      break
+    fi
+  done <<< "$grouped"
+
+  if (( _all_benign )); then
+    log "  Todas as assinaturas remanescentes são ruído conhecido/benigno de sessão, Bluetooth/áudio ou USB serial — informativo."
+    STEP_REASON="journal: ${filtered_count} erro(s) benigno(s) conhecido(s) (${unique_count} assinatura(s))"
+    return 0
+  fi
+
   STEP_REASON="${filtered_count} erro(s) crítico(s) reais (${unique_count} assinatura(s))"
   return "$RC_WARN"
 }

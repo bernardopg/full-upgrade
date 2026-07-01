@@ -161,3 +161,31 @@ setup() {
   [[ "${lines[0]}" =~ 3.*erro\ A ]]
   [[ "${lines[1]}" =~ 1.*erro\ B ]]
 }
+
+# ── journal_signature_class (classificação de ruído pós-filtro) ───────────────
+@test "journal_signature_class: ZapZap/ThemeContext é benigno" {
+  run journal_signature_class '5 [ZapZap WAWeb Theme Controller] Unable to find WhatsApp Web ThemeContext after 60000 milliseconds.'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_signature_class: promise DisconnectedError é benigno" {
+  run journal_signature_class '7 Uncaught (in promise) DisconnectedError: DisconnectedError, EndCause = 72'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_signature_class: Bluetooth AVDTP/PipeWire é benigno" {
+  run journal_signature_class '1 profiles/audio/avdtp.c:handle_unanswered_req() No reply to Start request'
+  [ "$output" = "benign" ]
+  run journal_signature_class '1 pw.node: (bluez_output.XX) running -> error (Received error event)'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_signature_class: I/O error é acionável" {
+  run journal_signature_class '1 kernel: Buffer I/O error on dev nvme0n1'
+  [ "$output" = "actionable" ]
+}
+
+@test "journal_signature_class: desconhecido permanece unknown" {
+  run journal_signature_class '1 app: some brand new failure'
+  [ "$output" = "unknown" ]
+}

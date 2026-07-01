@@ -142,6 +142,11 @@ update_system_aur() {
       _paru_out="$("${cmd[@]}" 2>&1)"
       _paru_rc=$?
       printf '%s\n' "$_paru_out" | tee >(_strip_ansi >> "$LOG_FILE")
+      if [[ -n "${RUN_ID:-}" ]]; then
+        local _aur_ood_file="${LOG_DIR}/full-upgrade-${RUN_ID}.aur-out-of-date"
+        printf '%s\n' "$_paru_out" | aur_out_of_date_pkgs > "$_aur_ood_file"
+        [[ -s "$_aur_ood_file" ]] || rm -f "$_aur_ood_file"
+      fi
       (( _paru_rc == 0 )) && break
       # Só vale repetir se a falha for de rede OU de integridade de fonte
       # (checksum/download), que a limpeza pode curar. Erro de PKGBUILD,
@@ -303,5 +308,4 @@ check_pacnew_files() {
   STEP_REASON="${#pacnew[@]} arquivo(s) .pacnew/.pacsave pendente(s) de merge"
   return "$RC_TODO"
 }
-
 

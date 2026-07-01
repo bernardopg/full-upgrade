@@ -62,6 +62,19 @@ teardown() {
   [[ "$output" != *"## Falhas"* ]]
 }
 
+@test "report: ok com reason aparece em notas operacionais" {
+  local notes; notes="$(mktemp)"
+  cat > "$notes" <<'JSONL'
+{"event":"run_start","run_id":"notes","timestamp":"2026-07-01T10:00:00Z","script_version":"1.0"}
+{"event":"step","step":"Atualizar servidores MCP","status":"ok","duration_seconds":15,"reason":"cache uv em uso (server ativo); refrescar ocioso: uv cache clean serena"}
+{"event":"summary","ok":1,"warn":0,"todo":0,"fail":0,"skip":0,"duration_seconds":15}
+JSONL
+  run report_markdown_from_jsonl "$notes"
+  rm -f "$notes"
+  [[ "$output" == *"## Notas operacionais"* ]]
+  [[ "$output" == *"uv cache clean serena"* ]]
+}
+
 @test "report: JSONL inexistente retorna erro" {
   run report_markdown_from_jsonl "/nao/existe.jsonl"
   [ "$status" -eq 1 ]

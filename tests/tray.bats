@@ -303,21 +303,21 @@ EOF
 }
 
 @test "resolve_icon: encontra SVG em FU_ROOT/icons" {
+  FU_ROOT="${BATS_TEST_TMPDIR}/fu-root-icons"
   mkdir -p "$FU_ROOT/icons"
   touch "$FU_ROOT/icons/full-upgrade-tray-idle.svg"
   run tray_resolve_icon "full-upgrade-tray-idle"
   [ "$status" -eq 0 ]
   [ "$output" = "$FU_ROOT/icons/full-upgrade-tray-idle.svg" ]
-  rm -f "$FU_ROOT/icons/full-upgrade-tray-idle.svg"
 }
 
 @test "resolve_icon: encontra SVG em FU_ROOT/assets/icons" {
+  FU_ROOT="${BATS_TEST_TMPDIR}/fu-root-assets"
   mkdir -p "$FU_ROOT/assets/icons"
   touch "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg"
   run tray_resolve_icon "full-upgrade-tray-error"
   [ "$status" -eq 0 ]
   [ "$output" = "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg" ]
-  rm -f "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg"
 }
 
 # ── tray_build_menu ────────────────────────────────────────────────────────────

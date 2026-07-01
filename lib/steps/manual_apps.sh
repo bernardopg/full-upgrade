@@ -389,11 +389,30 @@ _manual_apps_has_step() {
   esac
 }
 
+_manual_apps_kind() {
+  local name="$1"
+  [[ -n "$name" ]] || { printf 'ignored'; return 0; }
+
+  if _manual_apps_has_step "$name"; then
+    printf 'covered'
+    return 0
+  fi
+
+  case "$name" in
+    *.manual.*|*.manual-backup-*|*.manual_backup_*|*-original|*.orig|*.bak)
+      printf 'backup' ;;
+    sharkd|tshark)
+      printf 'auxiliary' ;;
+    *)
+      printf 'candidate' ;;
+  esac
+}
+
 doctor_manual_apps() {
   has pacman || { log "  pacman ausente; inventário de apps manuais indisponível."; return 0; }
 
-  local total=0 covered=0 f d name probe
-  local -a uncovered=()
+  local total=0 covered=0 backups=0 auxiliary=0 f d name probe kind
+  local -a uncovered=() backup_items=() auxiliary_items=()
 
   # 1) Binários reais (regular files, não symlinks) em /usr/local/bin e ~/.local/bin
   #    sem dono pacman. pacman -Qo sobre um arquivo é confiável. Filtra por tamanho
@@ -410,11 +429,13 @@ doctor_manual_apps() {
       pacman -Qo "$f" >/dev/null 2>&1 && continue
       name="${f##*/}"
       total=$((total + 1))
-      if _manual_apps_has_step "$name"; then
-        covered=$((covered + 1))
-      else
-        uncovered+=("${name}  (${bindir})")
-      fi
+      kind="$(_manual_apps_kind "$name")"
+      case "$kind" in
+        covered) covered=$((covered + 1)) ;;
+        backup) backups=$((backups + 1)); backup_items+=("${name}  (${bindir})") ;;
+        auxiliary) auxiliary=$((auxiliary + 1)); auxiliary_items+=("${name}  (${bindir})") ;;
+        *) uncovered+=("${name}  (${bindir})") ;;
+      esac
     done
   done
 
@@ -431,11 +452,13 @@ doctor_manual_apps() {
       [[ -n "$probe" ]] || continue
       pacman -Qo "$probe" >/dev/null 2>&1 && continue
       total=$((total + 1))
-      if _manual_apps_has_step "$name"; then
-        covered=$((covered + 1))
-      else
-        uncovered+=("${name}  (/opt)")
-      fi
+      kind="$(_manual_apps_kind "$name")"
+      case "$kind" in
+        covered) covered=$((covered + 1)) ;;
+        backup) backups=$((backups + 1)); backup_items+=("${name}  (/opt)") ;;
+        auxiliary) auxiliary=$((auxiliary + 1)); auxiliary_items+=("${name}  (/opt)") ;;
+        *) uncovered+=("${name}  (/opt)") ;;
+      esac
     done
   fi
 
@@ -444,7 +467,7 @@ doctor_manual_apps() {
     return 0
   fi
 
-  log "  Apps fora de gerenciador de pacotes: ${total} (com step de atualização: ${covered}, sem step: ${#uncovered[@]})."
+  log "  Apps fora de gerenciador de pacotes: ${total} (com step: ${covered}, candidatos sem step: ${#uncovered[@]}, backups/remanescentes: ${backups}, auxiliares: ${auxiliary})."
   local u shown=0
   for u in "${uncovered[@]}"; do
     if (( shown >= 25 )); then
@@ -456,7 +479,15 @@ doctor_manual_apps() {
   done
 
   if (( ${#uncovered[@]} > 0 )); then
-    log "  Itens 'sem step' atualizam-se sozinhos (GUIs/Electron) ou exigem reinstalação manual."
+    log "  Candidatos sem step atualizam-se sozinhos (GUIs/Electron) ou exigem reinstalação manual."
+  fi
+  if (( backups > 0 )); then
+    log "  Backups/remanescentes detectados (${backups}) foram excluídos da contagem de candidatos; revise/remova manualmente quando tiver certeza."
+    for u in "${backup_items[@]}"; do log_raw "manual-app-backup: ${u}"; done
+  fi
+  if (( auxiliary > 0 )); then
+    log "  Binários auxiliares conhecidos (${auxiliary}) foram excluídos da contagem de candidatos."
+    for u in "${auxiliary_items[@]}"; do log_raw "manual-app-auxiliar: ${u}"; done
   fi
   return 0
 }
