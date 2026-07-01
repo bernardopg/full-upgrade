@@ -37,14 +37,19 @@ jobs:
           done
 
       # shellcheck já vem na imagem do runner; instala só o que falta.
-      # kcov/python3-tomli só quando coverage roda (push/dispatch).
+      # kcov não está no apt do ubuntu-24.04: compilado do fonte pelo
+      # scripts/install-kcov.sh (ver INSTALL.md do kcov) só em push/dispatch.
       - name: Install shfmt (+ kcov p/ coverage)
         run: |
           pkgs=(shfmt)
           command -v shellcheck >/dev/null || pkgs+=(shellcheck)
-          if [ "$RUN_COVERAGE" = "true" ]; then pkgs+=(kcov python3-tomli); fi
+          if [ "$RUN_COVERAGE" = "true" ]; then pkgs+=(python3-tomli); fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends "${pkgs[@]}"
+          if [ "$RUN_COVERAGE" = "true" ]; then
+            scripts/install-kcov.sh
+            echo "$PWD/.ci/kcov/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: ShellCheck
         run: |
