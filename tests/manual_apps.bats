@@ -31,6 +31,34 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "_manual_apps_kind: app coberto vira covered" {
+  run _manual_apps_kind droid
+  [ "$output" = "covered" ]
+}
+
+@test "_manual_apps_kind: backups manuais viram backup" {
+  run _manual_apps_kind dumpcap.manual.20260628-215302
+  [ "$output" = "backup" ]
+  run _manual_apps_kind antigravity.manual-backup-20260628213513
+  [ "$output" = "backup" ]
+  run _manual_apps_kind nomacs-original
+  [ "$output" = "backup" ]
+}
+
+@test "_manual_apps_kind: tshark/sharkd viram auxiliares" {
+  run _manual_apps_kind tshark
+  [ "$output" = "auxiliary" ]
+  run _manual_apps_kind sharkd
+  [ "$output" = "auxiliary" ]
+}
+
+@test "_manual_apps_kind: app real sem step vira candidate" {
+  run _manual_apps_kind codexbar
+  [ "$output" = "candidate" ]
+  run _manual_apps_kind idea-2026.1.3
+  [ "$output" = "candidate" ]
+}
+
 @test "catálogo: steps de apps manuais presentes e bem-formados" {
   run step_catalog
   [ "$status" -eq 0 ]

@@ -282,6 +282,19 @@ final_check_pending() {
     fi
   fi
 
+  local _aur_ood_file=""
+  if [[ -n "${RUN_ID:-}" ]]; then
+    _aur_ood_file="${LOG_DIR}/full-upgrade-${RUN_ID}.aur-out-of-date"
+  fi
+  if [[ -n "$_aur_ood_file" && -s "$_aur_ood_file" ]]; then
+    local _aur_ood_count
+    _aur_ood_count="$(grep -c '[^[:space:]]' "$_aur_ood_file" 2>/dev/null || true)"
+    if (( _aur_ood_count > 0 )); then
+      log "  ${_aur_ood_count} pacote(s) AUR marcados como out-of-date pelo mantenedor (informativo; não implica update aplicável):"
+      sort -u "$_aur_ood_file" | tee >(_strip_ansi >> "$LOG_FILE")
+    fi
+  fi
+
   if (( pending == 0 )); then
     if (( ${#held_official[@]} > 0 )); then
       log "  Sem pendências acionáveis: só restam pacotes segurados por rebuild upstream (aguarde o cluster publicar)."
@@ -297,5 +310,4 @@ final_check_pending() {
   STEP_REASON="$(final_pending_reason "$official_count" "$aur_count")"
   return "$RC_TODO"
 }
-
 

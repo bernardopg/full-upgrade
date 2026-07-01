@@ -6,6 +6,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Notas operacionais no relatório Markdown.** Steps concluídos como `ok` que
+  ainda registram um `reason` informativo agora aparecem em uma seção própria,
+  preservando ações adiadas/não-fatais sem elevar o status para `warn`/`todo`.
+- **`SECURE_BOOT_STRICT`.** Nova chave de config para tratar Secure Boot
+  desabilitado como severidade média no `--audit` apenas em ambientes com
+  política rígida; o default passa a ser informativo.
 - **Branch protection real na `main` (ruleset).** PR obrigatório antes de
   merge, status checks obrigatórios (`Lint & Test`, `Analyze (actions)`,
   `Validar Conventional Commits`), bloqueio de force-push e de deleção da
@@ -43,6 +49,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Alterado
 
+- **`--audit` diferencia toolchain Rust de binários `cargo install`.** CVEs em
+  `rustup`/toolchain já atualizados deixam de aparecer como alta severidade e
+  viram informação sem correção local; bins instalados via Cargo continuam
+  acionáveis.
+- **Doctor de journal com menos ruído recorrente.** Assinaturas conhecidas e
+  benignas de sessão gráfica, Bluetooth/PipeWire e USB serial agora ficam como
+  informativas quando são os únicos achados remanescentes.
+- **Inventário de apps manuais mais preciso.** Backups/remanescentes e binários
+  auxiliares conhecidos deixam de inflar a lista de candidatos sem step.
+- **AUR out-of-date é informativo.** Pacotes marcados pelo mantenedor como
+  desatualizados são registrados ao fim do run sem virar pendência acionável.
+- **Saída Ruby mais concisa.** Quando todas as gems desatualizadas do usuário são
+  gerenciadas pelo Arch, o terminal mostra só resumo e mantém a lista completa no
+  log.
 - **Tray usa o último run real completo como fonte de status.** O status da
   bandeja agora ignora dry-runs e JSONL incompletos de runs ainda em andamento,
   preservando a leitura correta do último `summary` real. O menu ganhou nomes

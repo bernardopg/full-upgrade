@@ -160,11 +160,15 @@ update_gem_user() {
         mapfile -t updatable < <(gem_user_updatable "$upf" "$sysf")
         rm -f "$sysf" "$upf"
 
-        log "  Gems do usuário desatualizadas:"
-        printf '%s\n' "$outdated_user" | tee >(_strip_ansi >> "$LOG_FILE")
         if (( ${#updatable[@]} == 0 )); then
-          log "  Todas as desatualizadas são gerenciadas pelo Arch — pulando p/ não sombrear o sistema (atualize via pacman)."
+          local outdated_count
+          outdated_count="$(printf '%s\n' "$outdated_user" | grep -c '[^[:space:]]' || true)"
+          log "  Gems do usuário desatualizadas: ${outdated_count} — todas gerenciadas pelo Arch; pulando p/ não sombrear o sistema (lista completa no log)."
+          log_raw "--- gem outdated (GEM_USER_HOME, Arch-managed; terminal resumido) ---"
+          log_raw "$outdated_user"
         else
+          log "  Gems do usuário desatualizadas:"
+          printf '%s\n' "$outdated_user" | tee >(_strip_ansi >> "$LOG_FILE")
           log "  Atualizando ${#updatable[@]} gem(s) próprias do usuário (excluídas as do Arch): ${updatable[*]}"
           GEM_HOME="$gem_user_dir" run_logged gem update "${updatable[@]}"
         fi
@@ -316,5 +320,4 @@ update_arduino() {
 
   return 0
 }
-
 

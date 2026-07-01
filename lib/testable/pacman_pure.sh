@@ -17,6 +17,17 @@ aur_ignore_args() {
   done
 }
 
+aur_out_of_date_pkgs() {
+  sed -nE \
+    -e 's/^.*marcado(s)? como desatualizado(s)?:[[:space:]]*//Ip' \
+    -e 's/^.*marked (as )?out[- ]of[- ]date:[[:space:]]*//Ip' \
+    -e 's/^.*flagged out[- ]of[- ]date:[[:space:]]*//Ip' \
+    | tr '[:space:]' '\n' \
+    | sed -E 's/^[[:punct:]]+//; s/[[:punct:]]+$//' \
+    | grep -E '^[A-Za-z0-9@._+-]+$' \
+    | sort -u
+}
+
 # pending_is_held_cluster — pacotes segurados por rebuild upstream (Haskell/GHC)
 pending_is_held_cluster() {
   local name="$1"
