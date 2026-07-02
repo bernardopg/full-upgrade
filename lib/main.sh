@@ -65,6 +65,7 @@ run_all_steps() {
             
             run_step "Backup de configs críticas" backup_critical_configs
             run_step "Snapshot pré-upgrade" preupgrade_snapshot
+            run_step "Checar notícias do Arch Linux" check_arch_news
             run_step "Atualizar mirrors" refresh_mirrors
             capture_installed_pkgs "$PKG_SNAP_BEFORE"   # L3: estado pré-upgrade
             run_step "Atualizar pacotes do sistema e AUR" update_system_aur
@@ -73,6 +74,7 @@ run_all_steps() {
             "Limpar lock stale do pacman" \
             "Reparar ambiente GnuPG/AUR" \
             "Backup de configs críticas" \
+            "Checar notícias do Arch Linux" \
             "Atualizar pacotes do sistema e AUR" \
             "Garantir Wireshark" \
             "Garantir Burp Suite" \
@@ -85,6 +87,7 @@ run_all_steps() {
     else
         for _s in \
         "Backup de configs críticas" \
+        "Checar notícias do Arch Linux" \
         "Atualizar pacotes do sistema e AUR" \
         "Garantir Wireshark" \
         "Garantir Burp Suite" \

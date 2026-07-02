@@ -28,6 +28,39 @@ Esforço: P/M/G.
 
 ---
 
+## Série Q — Ampliações pós-v3.20.0
+
+Objetivo: fechar lacunas clássicas de manutenção Arch que nenhum step cobria.
+
+### Q1 — 🔴 M ☑ Checar notícias do Arch Linux antes do upgrade
+
+Prática nº 1 pré-`pacman -Syu`: news de intervenção manual avisam de passos
+que um update às cegas quebraria. Novo step read/network "Checar notícias do
+Arch Linux" (`lib/steps/news.sh`) antes de "Atualizar mirrors": parser RSS puro
+(awk, sem xmllint), estado em `~/.cache/system-upgrade/arch-news-last-seen`,
+título com `manual intervention|action required|breaking change|...` => `todo`
+com link; demais novidades = informativas; rede fora = warn. Testes em
+`tests/news.bats` (validado contra o feed real).
+
+### Backlog Q — próximos itens
+
+#### Q2 — 🟡 M ☐ Doctor journal: incluir erros do journal de usuário
+
+`doctor_journal_errors` cobre `journalctl -p 3 -b` (sistema); erros de units
+`systemd --user` (ex.: serviços de sessão Wayland/DMS) não aparecem. Adicionar
+passada `--user` com os mesmos filtros/classificação.
+
+#### Q3 — 🟢 P ☐ Notícias: fonte informativa no relatório .md
+
+Anexar as notícias novas exibidas ao relatório `REPORT_ON_FINISH` para
+histórico auditável (hoje só saem no terminal/log).
+
+#### Q4 — 🟢 P ☐ Acompanhar upstream ZapZap (ex-P10)
+
+rafatosta/zapzap#767; remover patch local do launcher quando corrigido.
+
+---
+
 ## Série P — Resiliência de rede e auto-remediação (Run 2026-07-02)
 
 Objetivo: nenhum soluço transitório de rede pode derrubar o run ou bloquear os
