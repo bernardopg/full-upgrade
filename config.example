@@ -50,6 +50,15 @@ BOOT_TIME_WARN_S=60      # alerta se o boot (systemd-analyze) exceder N segundos
 DOCKER_INFO_TIMEOUT_S=5  # timeout para detectar daemon Docker inacessível
 ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 
+# ── Auto-remediações / Auto-remediation (opt-in; nunca sob doctor/dry-run) ─────
+# AUTO_FIX_RUST_CVES      1 = rustup self/update p/ CVEs de toolchain Rust
+# AUTO_BTRFS_SCRUB        1 = inicia btrfs scrub quando vencido/ausente
+# AUTO_FIX_FINAL_PENDING  1 = pacman -Syu (e retry paru -Sua) quando a
+#                         verificação final achar pendências acionáveis
+AUTO_FIX_RUST_CVES=0
+AUTO_BTRFS_SCRUB=0
+AUTO_FIX_FINAL_PENDING=0
+
 # ── Política de segurança / Security policy ───────────────────────────────────
 # 0 = Secure Boot desabilitado no --audit é informativo (default; postura/política)
 # 1 = classifica Secure Boot desabilitado como severidade média em ambientes rígidos

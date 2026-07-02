@@ -425,3 +425,21 @@ setup() {
   augment_user_path
   [[ ":$PATH:" != *":$HOME/.npm-global/bin:"* ]]
 }
+
+# ── NETWORK_TRANSIENT_RE (regressão: paru/reqwest "channel closed") ──────────
+
+@test "NETWORK_TRANSIENT_RE: casa erro reqwest do paru contra o RPC do AUR" {
+  local msg='erro: error sending request for url (https://aur.archlinux.org/rpc): channel closed'
+  printf '%s\n' "$msg" | grep -qiE "$NETWORK_TRANSIENT_RE"
+}
+
+@test "NETWORK_TRANSIENT_RE: casa erros clássicos de DNS/conectividade" {
+  printf '%s\n' 'curl: (6) Could not resolve host: example.com' | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'connect: Network is unreachable' | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'Connection timed out' | grep -qiE "$NETWORK_TRANSIENT_RE"
+}
+
+@test "NETWORK_TRANSIENT_RE: não casa erro de compilação/PKGBUILD" {
+  run bash -c "printf '%s\n' 'error: os pacotes foo falharam na compilação' | grep -qiE \"\$1\"" _ "$NETWORK_TRANSIENT_RE"
+  [ "$status" -ne 0 ]
+}

@@ -61,6 +61,13 @@ HAS_FAIL=0
 RC_WARN=10
 RC_TODO=11
 
+# ── Regex compartilhado de erros de rede transitórios (grep -E -i) ──
+# Fonte única para run_network_cmd/_retry (core.sh) e o retry AUR (pacman.sh).
+# Cobre libcurl/wget e também os erros do reqwest (paru/yay em Rust), que
+# reportam "error sending request ... channel closed" quando o RPC do AUR
+# corta a conexão — visto em runs reais contra https://aur.archlinux.org/rpc.
+NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado'
+
 # ── PNPM no PATH (se usado) ──
 PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
 PNPM_BIN_HOME="${PNPM_BIN_HOME:-$PNPM_HOME/bin}"

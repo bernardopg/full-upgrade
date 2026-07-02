@@ -162,3 +162,40 @@ create_repo_with_remote() {
   run update_dms_plugins
   [ "$status" -eq 0 ]
 }
+
+# ── monorepos do registry (.repos) ─────────────────────────────────────────────
+
+@test "update_dms_plugins: symlink para .repos vira repo_managed, não skipped" {
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  mkdir -p "$DMS_PLUGINS_DIR/.repos/abc123/SubPlugin"
+  ln -s "$DMS_PLUGINS_DIR/.repos/abc123/SubPlugin" "$DMS_PLUGINS_DIR/myLinked"
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"via registry (.repos"* ]]
+  [[ "$output" == *"myLinked"* ]]
+  [[ "$output" != *"sem git (ignorados): myLinked"* ]]
+}
+
+@test "update_dms_plugins: monorepo .repos atrasado é atualizado via ff-only" {
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+
+  # clone como monorepo .repos e avança o remoto
+  mkdir -p "$DMS_PLUGINS_DIR/.repos"
+  git clone --quiet "$bare" "$DMS_PLUGINS_DIR/.repos/deadbeef"
+  echo "v2" >> "$work/file.txt"
+  git -C "$work" commit -am "update" --quiet
+  git -C "$work" push origin main --quiet
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [[ "$output" == *".repos/deadbeef"* ]]
+  [ "$(git -C "$DMS_PLUGINS_DIR/.repos/deadbeef" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
+}

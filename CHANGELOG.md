@@ -4,6 +4,41 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.20.0] - 2026-07-02
+
+### Adicionado
+
+- **Auto-remediação de pendências finais** (`AUTO_FIX_FINAL_PENDING=1`, default
+  0): novo step mutating "Auto-remediar pendências finais" aplica
+  `pacman -Syu` (e retry `paru -Sua`/`yay -Sua`) quando há pendências
+  acionáveis no fim do run. Roda antes da "Verificação final de pendências"
+  para o resumo confirmar o estado limpo, sem `todo` obsoleto. Nunca roda sob
+  `--mode doctor`/`--dry-run`/`--no-repair`.
+- **Steps de OBS Studio** (`steps.d/85-obs.sh`): "Atualizar OBS (plugins e
+  extensões)" atualiza plugins user-scope (`~/.config/obs-studio/plugins`)
+  via git e inventaria os manuais; "Doctor: módulos OBS" lê o log da última
+  sessão e aponta módulos falhando o load (todo) e crashes recentes (warn).
+  Suporta instalação nativa e Flatpak (config dir resolvido por tipo;
+  `OBS_CONFIG_DIR` tem precedência).
+- **Monorepos do registry DMS**: plugins instalados via `dms plugins install`
+  (symlinks para `plugins/.repos/<hash>/`) agora são atualizados via
+  fetch+pull ff-only dos monorepos — antes eram ignorados como "sem git".
+
+### Corrigido
+
+- **Falha transitória do RPC do AUR não derruba mais o run.** Regex central
+  `NETWORK_TRANSIENT_RE` (lib/globals.sh) passa a cobrir os erros do reqwest
+  do paru ("error sending request ... channel closed"); `update_system_aur`
+  ganha 3 tentativas com backoff e fallback `pacman -Syu` — um soluço do
+  aur.archlinux.org não bloqueia mais os repos oficiais (vira warn com
+  motivo). Caminhos yay/pikaur ganham o mesmo retry+fallback via helper
+  compartilhado.
+- **Contrato RC em steps git sob rede fora:** "Atualizar Oh My Zsh",
+  "Atualizar plugins customizados do Zsh" e "Atualizar plugins
+  DankMaterialShell" classificam GitHub inacessível como warn, não fail.
+- **Doctor journal**: coredumps ("dumped core") classificam como acionáveis
+  com hint apontando `coredumpctl list`/`coredumpctl info <PID>`.
+
 ### Alterado
 
 - **Workflows do GitHub otimizados para latência de PR.** CI: coverage kcov e

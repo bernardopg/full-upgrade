@@ -68,6 +68,7 @@ Garantir Orca IDE|ai|orca,ide,desktop,aur,network,mutating|mutating|300||ensure_
 Garantir Antigravity|ai|antigravity,ide,desktop,aur,network,mutating|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
 Atualizar Kimi CLI|ai|kimi,update,network|mutating|30|kimi|update_kimi|Kimi (Moonshot) via npm global (@moonshot-ai/kimi-code) já é coberto por 'Atualizar npm global'; standalone => RC_TODO.
 Atualizar Factory droid|manual|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
+Atualizar OBS (plugins e extensões)|manual|obs,git,update,network|mutating|120|git|update_obs_plugins|Atualiza plugins user-scope do OBS (~/.config/obs-studio/plugins) via git e inventaria os manuais; pacotes obs-* do repo/AUR atualizam no step do sistema.
 Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
 Atualizar Kiro CLI (Amazon)|manual|ai,kiro,update,network|mutating|300|kiro-cli|update_kiro_cli|Atualiza a Kiro CLI (Amazon, fora de pacote) via self-update nativo (kiro-cli update --non-interactive).
 Atualizar Snyk CLI|manual|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
@@ -89,6 +90,7 @@ Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
 Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
+Auto-remediar pendências finais|final|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
 Checar atualização do full-upgrade|final|self-update,read,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
 Doctor: reboot pendente|doctor|kernel,read|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
 Doctor: units systemd falhadas|doctor|systemd,read|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
@@ -108,6 +110,7 @@ Doctor: hooks ALPM com falha|doctor|pacman,journal,read|read|15||doctor_pacman_h
 Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
 Doctor: apps manuais (fora de pacote)|doctor|manual,inventory,read|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
+Doctor: módulos OBS|doctor|obs,read|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
 Doctor: AI CLIs|doctor|ai,read|read|30||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
 Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.

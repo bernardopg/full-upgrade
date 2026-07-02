@@ -189,3 +189,13 @@ setup() {
   run journal_signature_class '1 app: some brand new failure'
   [ "$output" = "unknown" ]
 }
+
+@test "journal_signature_class: coredump é acionável" {
+  run journal_signature_class '2 Process 841215 (antigravity-ide) of user 1000 dumped core.'
+  [ "$output" = "actionable" ]
+}
+
+@test "journal_hint_for: coredump aponta coredumpctl" {
+  run journal_hint_for 'Process 841215 (antigravity-ide) of user 1000 dumped core.'
+  [[ "$output" == *"coredumpctl"* ]]
+}
