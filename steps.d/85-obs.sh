@@ -4,8 +4,24 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
-# Diretório de config do OBS (Linux nativo). Flatpak usa outro prefixo.
-OBS_CONFIG_DIR="${OBS_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/obs-studio}"
+# Diretório de config do OBS. Nativo: ~/.config/obs-studio; Flatpak:
+# ~/.var/app/com.obsproject.Studio/config/obs-studio. OBS_CONFIG_DIR no config
+# do usuário tem precedência; sem override, resolve pelo tipo de instalação.
+_obs_config_dir() {
+  if [[ -n "${OBS_CONFIG_DIR:-}" ]]; then
+    printf '%s' "$OBS_CONFIG_DIR"
+    return 0
+  fi
+  local native="${XDG_CONFIG_HOME:-$HOME/.config}/obs-studio"
+  local flatpak_dir="$HOME/.var/app/com.obsproject.Studio/config/obs-studio"
+  if pacman -Q obs-studio >/dev/null 2>&1 || [[ -d "$native" ]]; then
+    printf '%s' "$native"
+  elif [[ -d "$flatpak_dir" ]]; then
+    printf '%s' "$flatpak_dir"
+  else
+    printf '%s' "$native"
+  fi
+}
 
 # Detecta a instalação do OBS: pacote oficial/AUR (binário obs) ou Flatpak.
 # Emite "pacman <ver>" | "flatpak <ver>" | nada (rc 1).
@@ -41,7 +57,8 @@ update_obs_plugins() {
   pkg_plugins="$(pacman -Qq 2>/dev/null | grep -E '^(obs-|ffmpeg-obs)' | grep -v '^obs-studio$' | paste -sd' ' -)"
   [[ -n "$pkg_plugins" ]] && log "  Plugins via pacman/AUR (cobertos pelo update do sistema): ${pkg_plugins}"
 
-  local plugins_dir="${OBS_CONFIG_DIR}/plugins"
+  local plugins_dir
+  plugins_dir="$(_obs_config_dir)/plugins"
   if [[ ! -d "$plugins_dir" ]]; then
     log "  Sem plugins user-scope em ${plugins_dir}."
     return 0
@@ -110,7 +127,8 @@ doctor_obs_modules() {
     return 0
   fi
 
-  local logs_dir="${OBS_CONFIG_DIR}/logs"
+  local logs_dir
+  logs_dir="$(_obs_config_dir)/logs"
   if [[ ! -d "$logs_dir" ]]; then
     log "  Sem logs do OBS em ${logs_dir} (OBS nunca rodou?)."
     return 0
@@ -143,7 +161,8 @@ doctor_obs_modules() {
   fi
 
   # Crashes recentes também merecem atenção (últimos 7 dias).
-  local crashes_dir="${OBS_CONFIG_DIR}/crashes" recent_crash=""
+  local crashes_dir recent_crash=""
+  crashes_dir="$(_obs_config_dir)/crashes"
   if [[ -d "$crashes_dir" ]]; then
     recent_crash="$(find "$crashes_dir" -maxdepth 1 -type f -mtime -7 2>/dev/null | head -1)"
   fi

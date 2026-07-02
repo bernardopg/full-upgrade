@@ -208,6 +208,8 @@ journal_hint_for() {
       printf 'USB serial FTDI: erro transitório de flow control; verifique cabo/dispositivo ttyUSB0 se houver falha prática' ;;
     *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*)
       printf 'falha de autenticação sudo/PAM registrada: confirme se não há script/serviço tentando sudo com senha incorreta' ;;
+    *dumped\ core*)
+      printf 'coredump de app: "coredumpctl list" e "coredumpctl info <PID>" identificam o processo; crash de app de usuário (Electron/IDE) costuma ser bug do app, não do sistema' ;;
     *)
       : ;;
   esac
@@ -231,7 +233,7 @@ journal_signature_class() {
       printf 'benign' ;;
     *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*|\
     *I/O\ error*|*Buffer\ I/O*|*EXT4-fs\ error*|*BTRFS:\ error*|\
-    *kernel\ panic*|*Oops:*|*segfault*)
+    *kernel\ panic*|*Oops:*|*segfault*|*dumped\ core*)
       printf 'actionable' ;;
     *)
       printf 'unknown' ;;

@@ -120,6 +120,38 @@ _purge_aur_partial_sources() {
     \) -delete 2>/dev/null || true
 }
 
+# Roda `<helper> -Syu ...` com retry (backoff) para falha de rede transitória
+# e, se o AUR seguir fora, fallback `pacman -Syu` para os repos oficiais.
+# Mesma resiliência do caminho paru, para yay/pikaur. Uso:
+#   _aur_syu_with_retry_and_fallback yay -Syu --noconfirm ...
+_aur_syu_with_retry_and_fallback() {
+  local -a cmd=("$@")
+  local out rc=1 attempt max=3
+  for (( attempt=1; attempt<=max; attempt++ )); do
+    (( attempt > 1 )) && {
+      log "  ${cmd[0]}: tentativa ${attempt}/${max} após falha de rede..."
+      sleep $(( 5 * (attempt - 1) ))
+    }
+    out="$("${cmd[@]}" 2>&1)"
+    rc=$?
+    printf '%s\n' "$out" | tee >(_strip_ansi >> "$LOG_FILE")
+    (( rc == 0 )) && return 0
+    printf '%s\n' "$out" | grep -qiE "$_AUR_NETWORK_RE" || break
+  done
+
+  if printf '%s\n' "$out" | grep -qiE "$_AUR_NETWORK_RE"; then
+    log "  ${cmd[0]}: falha de rede transitória após tentativas."
+    log "  Fallback: aplicando upgrade dos repositórios oficiais via pacman (AUR fica para o próximo run)..."
+    if run_logged sudo pacman -Syu --noconfirm; then
+      STEP_REASON="AUR indisponível (rede); repos oficiais atualizados via fallback pacman"
+    else
+      STEP_REASON="AUR indisponível (rede); fallback pacman também falhou"
+    fi
+    return "$RC_WARN"
+  fi
+  return "$rc"
+}
+
 update_system_aur() {
   local -a ignore_args=()
   mapfile -t ignore_args < <(aur_ignore_args)
@@ -215,14 +247,12 @@ update_system_aur() {
   fi
 
   if [[ "${AUR_HELPER:-}" == yay ]] && has yay; then
-    local -a cmd=(yay -Syu --noconfirm --answerclean None --answerdiff None --answeredit None --answerupgrade None "${ignore_args[@]}")
-    run_logged "${cmd[@]}"
+    _aur_syu_with_retry_and_fallback yay -Syu --noconfirm --answerclean None --answerdiff None --answeredit None --answerupgrade None "${ignore_args[@]}"
     return $?
   fi
 
   if [[ "${AUR_HELPER:-}" == pikaur ]] && has pikaur; then
-    local -a cmd=(pikaur -Syu --noconfirm --noedit "${ignore_args[@]}")
-    run_logged "${cmd[@]}"
+    _aur_syu_with_retry_and_fallback pikaur -Syu --noconfirm --noedit "${ignore_args[@]}"
     return $?
   fi
 

@@ -98,3 +98,24 @@ teardown() {
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"Crash do OBS"* ]]
 }
+
+@test "_obs_config_dir: OBS_CONFIG_DIR tem precedência" {
+  OBS_CONFIG_DIR="/tmp/custom-obs"
+  run _obs_config_dir
+  [ "$output" = "/tmp/custom-obs" ]
+}
+
+@test "_obs_config_dir: sem override e sem nativo, cai no dir Flatpak existente" {
+  unset OBS_CONFIG_DIR
+  HOME="$MOCKDIR/home"
+  XDG_CONFIG_HOME="$HOME/.config"
+  mkdir -p "$HOME/.var/app/com.obsproject.Studio/config/obs-studio"
+  # stub pacman sem obs-studio
+  cat > "$MOCKDIR/bin/pacman" <<'STUB'
+#!/usr/bin/env bash
+exit 1
+STUB
+  chmod +x "$MOCKDIR/bin/pacman"
+  run _obs_config_dir
+  [ "$output" = "$HOME/.var/app/com.obsproject.Studio/config/obs-studio" ]
+}

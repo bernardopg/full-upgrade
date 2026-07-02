@@ -34,7 +34,7 @@ Objetivo: nenhum soluço transitório de rede pode derrubar o run ou bloquear os
 repos oficiais; pendências detectáveis no fim do run se resolvem sozinhas
 quando o usuário optar por isso.
 
-Status do ciclo: P1–P6 implementados na branch `fix/network-transient-resilience`.
+Status do ciclo: P1–P9 implementados na branch `fix/network-transient-resilience` (v3.20.0).
 
 ### P1 — 🔴 P ☑ Regex central de rede transitória + erro reqwest do paru
 
@@ -74,20 +74,20 @@ OBS" (log da última sessão → módulo com load falho = `todo`; crash recente 
 
 ### Backlog P — próximos itens
 
-#### P7 — 🟡 P ☐ Paridade de retry/fallback para yay/pikaur no update principal
+#### P7 — 🟡 P ☑ Paridade de retry/fallback para yay/pikaur no update principal
 
 `update_system_aur` só tem retry+fallback no caminho paru; os caminhos
 yay/pikaur ainda são `run_logged` direto. Extrair o loop para helper e reusar.
 Arquivos: `lib/steps/pacman.sh`, `tests/pacman_pure.bats`.
 
-#### P8 — 🟡 M ☐ Doctor journal: classificar coredumps com hint de coredumpctl
+#### P8 — 🟡 M ☑ Doctor journal: classificar coredumps com hint de coredumpctl
 
 Coredumps recorrentes (ex.: `antigravity-ide` NodeService) aparecem como
 assinatura crua. Adicionar hint com `coredumpctl info <pid>` e classificação
 `app-crash` (warn com hint apontando o app, não o sistema).
 Arquivos: `lib/steps/doctor.sh`, `tests/doctor*.bats`.
 
-#### P9 — 🟢 P ☐ Doctor módulos OBS: suporte a OBS Flatpak
+#### P9 — 🟢 P ☑ Doctor módulos OBS: suporte a OBS Flatpak
 
 `_obs_install_kind` já detecta Flatpak, mas `OBS_CONFIG_DIR` default só cobre o
 nativo; Flatpak usa `~/.var/app/com.obsproject.Studio/config/obs-studio`.
