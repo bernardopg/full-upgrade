@@ -245,14 +245,16 @@ tray_json_array_from_lines() {
 tray_is_full_upgrade_running() {
   local f="${FU_RUN_LOCK_FILE}"
   [[ -e "$f" ]] || return 1
-  if has flock; then
+  # Só usa o probe de flock se o lock puder ser aberto; um exec falhando
+  # (permissão) não pode virar falso "rodando" — cai no fallback por PID.
+  if has flock && { : <>"$f"; } 2>/dev/null; then
     # rc 0 = lock adquirido = NÃO rodando; rc≠0 = lock ocupado = rodando.
-    ( exec 9<>"$f" 2>/dev/null && flock -n 9 ) 2>/dev/null
-    local rc=$?
-    (( rc != 0 )) && return 0
-    return 1
+    if ( exec 9<>"$f" && flock -n 9 ) 2>/dev/null; then
+      return 1
+    fi
+    return 0
   fi
-  # Fallback sem flock: pid vivo no lockfile.
+  # Fallback sem flock (ou lock ilegível): pid vivo no lockfile.
   local pid
   pid=$(tr -dc '0-9' < "$f" 2>/dev/null | head -1)
   [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
@@ -314,8 +316,10 @@ tray_gather_updates_detail() {
     [[ -n "$h" ]] && "$h" -Qua > "$aur_file" 2>/dev/null || true
     aur=$(tray_count_list < "$aur_file")
   fi
-  # Flatpak: sem modo --dry-run não-mutante confiável; mantém lista vazia por ora
-  # (as atualizações flatpak ocorrem no run normal do full-upgrade).
+  # Flatpak: `remote-ls --updates` é read-only (só consulta os remotes).
+  if has flatpak; then
+    flatpak remote-ls --updates --app --columns=application > "$flatpak_file" 2>/dev/null || true
+  fi
   flatpak=$(tray_count_list < "$flatpak_file")
   printf '%s %s %s' "$repo" "$aur" "$flatpak"
 }
@@ -330,12 +334,20 @@ tray_gather_updates() {
   rm -f "$repo_file" "$aur_file" "$flatpak_file" 2>/dev/null || true
 }
 
+# Coerção defensiva: emite $1 se for inteiro não-negativo, senão 0. Puro.
+# Evita JSON inválido ("repo":,) se um coletor devolver vazio/lixo.
+tray_num_or_zero() {
+  if [[ "$1" =~ ^[0-9]+$ ]]; then printf '%s' "$1"; else printf '0'; fi
+}
+
 # Escreve o JSON de estado do tray.
 # Uso: tray_write_state <state> <prev> <repo> <aur> <flatpak> <todo> <fail> <reboot> <checked_at> <last_run_at> <log_file> <jsonl_file> <repo_json> <aur_json> <doctor_json>
 tray_write_state() {
   mkdir -p "${LOG_DIR}" 2>/dev/null || true
   printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s}\n' \
-    "$(json_escape "$1")" "$(json_escape "$2")" "$3" "$4" "$5" "$6" "$7" \
+    "$(json_escape "$1")" "$(json_escape "$2")" \
+    "$(tray_num_or_zero "$3")" "$(tray_num_or_zero "$4")" "$(tray_num_or_zero "$5")" \
+    "$(tray_num_or_zero "$6")" "$(tray_num_or_zero "$7")" \
     "$(json_escape "$8")" "$(json_escape "$9")" "$(json_escape "${10}")" \
     "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" > "${TRAY_STATE_FILE}.tmp" \
     && mv -f "${TRAY_STATE_FILE}.tmp" "${TRAY_STATE_FILE}" 2>/dev/null
@@ -638,6 +650,7 @@ import signal
 import shutil
 import subprocess
 import threading
+import time
 
 import gi
 
@@ -736,20 +749,31 @@ def load_state():
         }
 
 
+def _int(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _ints(data):
     return (
         str(data.get("state") or "idle"),
-        int(data.get("repo") or 0),
-        int(data.get("aur") or 0),
-        int(data.get("todo") or 0),
-        int(data.get("fail") or 0),
+        _int(data.get("repo")),
+        _int(data.get("aur")),
+        _int(data.get("todo")),
+        _int(data.get("fail")),
         str(data.get("reboot") or "").strip(),
     )
 
 
+def _updates_total(data):
+    return _int(data.get("repo")) + _int(data.get("aur")) + _int(data.get("flatpak"))
+
+
 def tooltip_for_state(data):
     state, repo, aur, todo, fail, reboot = _ints(data)
-    updates = repo + aur
+    updates = _updates_total(data)
     if state == "running":
         return "full-upgrade: executando..."
     if state == "error":
@@ -769,7 +793,7 @@ def badge_text(data):
     if not BADGE_ENABLED:
         return ""
     state, repo, aur, todo, fail, _reboot = _ints(data)
-    updates = repo + aur
+    updates = _updates_total(data)
     if state == "updates" and updates > 0:
         return str(updates)
     if state == "attention":
@@ -820,7 +844,7 @@ def desktop_notify(title, body="", urgency="normal"):
 
 def state_headline(data):
     state, repo, aur, todo, fail, reboot = _ints(data)
-    updates = repo + aur
+    updates = _updates_total(data)
     glyph = STATE_GLYPH.get(state, STATE_GLYPH["idle"])
     if state == "running":
         return f"{glyph}  Executando full-upgrade…"
@@ -903,13 +927,43 @@ def apply_state(data):
     return False
 
 
-def finish_refresh(data, user_initiated=False):
+def transition_notify(data):
+    """Notifica transições de estado no modo AppIndicator.
+
+    O probe (`--tray-check`) roda com no_notify no lado bash, então sem isto
+    o modo Wayland/AppIndicator nunca avisava de updates/erros — só o loop
+    yad (X11) notificava. Usa o prev_state gravado pelo próprio probe.
+    """
+    prev = str(data.get("prev_state") or "")
+    state, repo, aur, todo, fail, reboot = _ints(data)
+    if not prev or prev == state or state == "running":
+        return
+    updates = _updates_total(data)
+    if state == "updates" and updates > 0:
+        desktop_notify(
+            f"full-upgrade: {updates} atualização(ões) disponível(is)",
+            "Clique no ícone para executar o full-upgrade.",
+        )
+    elif state == "attention":
+        body = f"Reboot pendente: {reboot}" if reboot else f"{todo} item(ns) do Doctor precisam de ação manual."
+        desktop_notify("full-upgrade: atenção necessária", body)
+    elif state == "error":
+        desktop_notify(
+            "full-upgrade: último run com falha",
+            f"{fail} step(s) falharam. Veja o log: ~/.cache/system-upgrade/latest.log",
+            "critical",
+        )
+    elif state == "idle" and prev in ("updates", "attention"):
+        desktop_notify("full-upgrade: sistema atualizado", "Tudo em dia.", "low")
+
+
+def finish_refresh(data, user_initiated=False, probed=False):
     global checking
     checking = False
     apply_state(data)
     if user_initiated:
         state, repo, aur, todo, fail, _reboot = _ints(data)
-        updates = repo + aur
+        updates = _updates_total(data)
         if state == "running":
             body = "full-upgrade está em execução. Mantendo o estado atual."
         elif fail > 0:
@@ -921,6 +975,8 @@ def finish_refresh(data, user_initiated=False):
         else:
             body = "Nenhuma atualização ou pendência detectada."
         desktop_notify("Verificação concluída", body, "normal")
+    elif probed:
+        transition_notify(data)
     return False
 
 
@@ -936,16 +992,23 @@ def refresh(run_probe=True, user_initiated=False):
     rebuild_menu(load_state())
 
     def worker():
-        if run_probe:
-            subprocess.run(
-                [SELF, "--tray-check"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=300,
-                check=False,
-            )
-        data = load_state()
-        GLib.idle_add(finish_refresh, data, user_initiated)
+        # try/finally: sem isto, um TimeoutExpired matava a thread com
+        # `checking=True` para sempre — menu preso em "Verificando agora…"
+        # e nenhum refresh futuro.
+        try:
+            if run_probe:
+                subprocess.run(
+                    [SELF, "--tray-check"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=300,
+                    check=False,
+                )
+        except Exception:
+            pass
+        finally:
+            data = load_state()
+            GLib.idle_add(finish_refresh, data, user_initiated, run_probe)
 
     threading.Thread(target=worker, daemon=True).start()
     return False
@@ -1008,7 +1071,8 @@ def separator():
 def rebuild_menu(data):
     """Reconstrói o menu a cada refresh para refletir o estado atual."""
     state, repo, aur, todo, fail, reboot = _ints(data)
-    updates = repo + aur
+    flatpak = _int(data.get("flatpak"))
+    updates = _updates_total(data)
     can_run = not running_now
     repo_updates = as_list(data, "repo_updates")
     aur_updates = as_list(data, "aur_updates")
@@ -1019,7 +1083,10 @@ def rebuild_menu(data):
     # Cabeçalho informativo (estado + detalhamento).
     menu.append(info_item(state_headline(data)))
     if updates > 0:
-        menu.append(info_item(f"     {repo} repo · {aur} AUR"))
+        detail = f"     {repo} repo · {aur} AUR"
+        if flatpak > 0:
+            detail += f" · {flatpak} flatpak"
+        menu.append(info_item(detail))
     if todo > 0:
         menu.append(info_item(f"     {todo} item(ns) do Doctor"))
     if reboot:
@@ -1065,6 +1132,10 @@ def rebuild_menu(data):
         suffix = f" (última: {rel})" if rel else ""
         menu.append(menu_item(f"Verificar agora{suffix}", lambda: refresh(True, True)))
     menu.append(menu_item("Abrir último log", lambda: launch([SELF, "--tray-view-log"])))
+    log_file = str(data.get("log_file") or "")
+    report_md = log_file[:-4] + ".md" if log_file.endswith(".log") else ""
+    if report_md and os.path.exists(report_md):
+        menu.append(menu_item("Abrir último relatório", lambda: open_path(report_md)))
     if LOG_DIR:
         menu.append(menu_item("Abrir pasta de logs", lambda: open_path(LOG_DIR)))
     menu.append(separator())
@@ -1095,8 +1166,21 @@ indicator = AppIndicator.Indicator.new(
 indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
 indicator.set_title("full-upgrade")
 # Scroll sobre o ícone => verifica agora (atalho sem abrir o menu).
+# Debounce: um gesto de scroll emite vários eventos; sem isto cada "notch"
+# disparava um toast "Verificação já em andamento".
+_last_scroll = {"t": 0.0}
+
+
+def on_scroll(*_args):
+    now = time.monotonic()
+    if now - _last_scroll["t"] < 2.0:
+        return
+    _last_scroll["t"] = now
+    refresh(True, True)
+
+
 try:
-    indicator.connect("scroll-event", lambda *_: refresh(True, True))
+    indicator.connect("scroll-event", on_scroll)
 except Exception:
     pass
 # Menu inicial a partir do estado em cache (rebuild_menu já faz set_menu).
@@ -1142,9 +1226,10 @@ _tray_yad_apply() {
   icon=$(tray_resolve_icon "$(tray_icon_name_for_state "$state")")
   reboot_reason=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || true)
   updates=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
-  local aur
+  local aur fpk
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
-  updates=$(( updates + aur ))
+  fpk=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
+  updates=$(( $(tray_num_or_zero "$updates") + $(tray_num_or_zero "$aur") + $(tray_num_or_zero "$fpk") ))
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   tooltip=$(tray_tooltip_for_state "$state" "$updates" "$todo" "$fail" "$reboot_reason")
