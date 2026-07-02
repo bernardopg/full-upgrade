@@ -44,11 +44,12 @@ com link; demais novidades = informativas; rede fora = warn. Testes em
 
 ### Backlog Q — próximos itens
 
-#### Q2 — 🟡 M ☐ Doctor journal: incluir erros do journal de usuário
+#### Q2 — 🟡 M ☑ Doctor journal: erros do journal de usuário (verificado: já coberto)
 
-`doctor_journal_errors` cobre `journalctl -p 3 -b` (sistema); erros de units
-`systemd --user` (ex.: serviços de sessão Wayland/DMS) não aparecem. Adicionar
-passada `--user` com os mesmos filtros/classificação.
+Verificado em 2026-07-02: `journalctl -p 3 -b` sem `--su` roda como usuário
+(grupo `wheel`) e já mescla o journal da sessão (`user-1000.journal`) — as
+assinaturas de apps de sessão (ZapZap, antigravity-ide) aparecem no scan
+padrão do doctor. Passada `--user` separada duplicaria linhas. Nada a fazer.
 
 #### Q3 — 🟢 P ☐ Notícias: fonte informativa no relatório .md
 
