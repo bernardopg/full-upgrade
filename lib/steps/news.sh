@@ -54,14 +54,16 @@ arch_news_classify() {
 # passos manuais que um update às cegas quebraria. Mostra o que for mais novo
 # que a última checagem; título com cara de intervenção => RC_TODO.
 check_arch_news() {
-  local out
-  if ! out="$(run_network_cmd curl -fsSL --max-time 20 "$ARCH_NEWS_FEED_URL")"; then
-    local rc=$?
-    if (( rc == RC_WARN )); then
+  # curl direto (não run_network_cmd): o corpo do feed é XML de ~100 KB e o
+  # log_raw do helper despejava o feed inteiro no .log a cada run.
+  local out rc=0
+  out="$(curl -fsSL --max-time 20 "$ARCH_NEWS_FEED_URL" 2>&1)" || rc=$?
+  if (( rc != 0 )); then
+    if printf '%s\n' "$out" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
       log "  Feed de notícias inacessível (rede); seguindo sem checagem."
-      return "$RC_WARN"
+    else
+      log "  Falha ao baixar o feed de notícias do Arch (curl rc=${rc})."
     fi
-    log "  Falha ao baixar o feed de notícias do Arch."
     return "$RC_WARN"
   fi
 
