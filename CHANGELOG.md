@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-07-02
+
 ### Adicionado
 
 - **"Checar notícias do Arch Linux"** (novo step read/network antes de
