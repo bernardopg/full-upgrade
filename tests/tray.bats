@@ -472,3 +472,30 @@ EOF
   run tray_python_bin
   [ "$status" -ne 0 ]
 }
+
+# ── tray_num_or_zero (coerção defensiva do estado JSON) ───────────────────────
+
+@test "tray_num_or_zero: inteiro passa" {
+  [ "$(tray_num_or_zero 42)" = "42" ]
+}
+
+@test "tray_num_or_zero: vazio vira 0" {
+  [ "$(tray_num_or_zero "")" = "0" ]
+}
+
+@test "tray_num_or_zero: lixo vira 0" {
+  [ "$(tray_num_or_zero "abc")" = "0" ]
+  [ "$(tray_num_or_zero "-3")" = "0" ]
+}
+
+@test "tray_write_state: campo numérico vazio não quebra o JSON" {
+  # json_escape vive em lib/json.sh (não carregado pelo helper); stub simples
+  # basta aqui (sem caracteres especiais nos campos deste teste).
+  json_escape() { printf '"%s"' "$1"; }
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  TRAY_STATE_FILE="$BATS_TEST_TMPDIR/state.json"
+  tray_write_state idle "" "" "x" 2 "" 1 "" "2026-07-02T12:00:00-03:00" "" "" "" '[]' '[]' '[]'
+  run python3 -c "import json,sys; d=json.load(open('$BATS_TEST_TMPDIR/state.json')); print(d['repo'], d['aur'], d['flatpak'], d['todo'], d['fail'])"
+  [ "$status" -eq 0 ]
+  [ "$output" = "0 0 2 0 1" ]
+}
