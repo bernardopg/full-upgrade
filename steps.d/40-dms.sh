@@ -12,13 +12,24 @@ update_dms_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=() stash_conflicts=()
+  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=()
   local plugin dir behind fetch_err net_fail=0
 
   for dir in "$plugins_dir"/*/; do
     [[ -d "$dir" ]] || continue
     plugin="$(basename "$dir")"
-    [[ -d "$dir/.git" ]] || { skipped+=("$plugin"); continue; }
+    [[ "$plugin" == ".repos" ]] && continue
+    if [[ ! -d "$dir/.git" ]]; then
+      # Plugins instalados pelo registry do DMS são symlinks para subpastas de
+      # monorepos clonados em .repos/<hash>/ — atualizados no loop de monorepos
+      # abaixo, não aqui. Só é "sem git" de verdade quem não aponta pra lá.
+      if [[ -L "${dir%/}" && "$(readlink -f "${dir%/}")" == "$plugins_dir/.repos/"* ]]; then
+        repo_managed+=("$plugin")
+      else
+        skipped+=("$plugin")
+      fi
+      continue
+    fi
 
     if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
       log_raw "$fetch_err"
@@ -78,11 +89,40 @@ update_dms_plugins() {
     fi
   done
 
+  # Monorepos do registry DMS (.repos/<hash>/): plugins como dankBatteryAlerts,
+  # dankKDEConnect, githubHeatmap e grimblast vivem como symlink -> subpasta
+  # destes clones. Atualizá-los aqui cobre o que o loop acima não vê.
+  local repo_dir repo_name
+  for repo_dir in "$plugins_dir"/.repos/*/; do
+    [[ -d "$repo_dir/.git" ]] || continue
+    repo_name="$(basename "$repo_dir")"
+
+    if ! fetch_err="$(git -C "$repo_dir" fetch --quiet origin 2>&1)"; then
+      log_raw "$fetch_err"
+      log "  Aviso: fetch falhou para monorepo DMS ${repo_name}"
+      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
+      failed+=(".repos/${repo_name}")
+      continue
+    fi
+
+    behind="$(git -C "$repo_dir" rev-list HEAD..origin/HEAD --count 2>/dev/null || echo 0)"
+    (( behind == 0 )) && continue
+
+    log "  monorepo ${repo_name} ($(git -C "$repo_dir" remote get-url origin 2>/dev/null)): ${behind} commit(s) atrás — atualizando..."
+    if git -C "$repo_dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
+      updated+=(".repos/${repo_name}")
+    else
+      log "  Aviso: pull falhou para monorepo DMS ${repo_name} (divergência local?)."
+      failed+=(".repos/${repo_name}")
+    fi
+  done
+
   if (( ${#updated[@]} > 0 )); then
     log "  DMS plugins atualizados: ${updated[*]}"
   else
     log "  DMS plugins: todos já atualizados."
   fi
+  (( ${#repo_managed[@]} > 0 )) && log "  DMS plugins via registry (.repos, atualizados como monorepo): ${repo_managed[*]}"
   (( ${#skipped[@]} > 0 )) && log "  DMS plugins sem git (ignorados): ${skipped[*]}"
   if (( ${#failed[@]} > 0 )); then
     log "  DMS plugins com falha: ${failed[*]}"

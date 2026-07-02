@@ -378,6 +378,12 @@ run_all_steps() {
         step_skip "Atualizar Factory droid" "droid não instalado"
     fi
 
+    if has obs || pacman -Q obs-studio >/dev/null 2>&1; then
+        run_step "Atualizar OBS (plugins e extensões)" update_obs_plugins
+    else
+        step_skip "Atualizar OBS (plugins e extensões)" "OBS Studio não instalado"
+    fi
+
     if has coderabbit; then
         run_step "Atualizar CodeRabbit CLI" update_coderabbit
     else
@@ -594,6 +600,12 @@ run_all_steps() {
     run_step "Doctor: SMART e NVMe" doctor_smart_health
     run_step "Doctor: saúde da sessão desktop" doctor_desktop_health
     run_step "Doctor: apps manuais (fora de pacote)" doctor_manual_apps
+
+    if has obs || pacman -Q obs-studio >/dev/null 2>&1; then
+        run_step "Doctor: módulos OBS" doctor_obs_modules
+    else
+        step_skip "Doctor: módulos OBS" "OBS Studio não instalado"
+    fi
     run_step "Doctor: AI CLIs" doctor_ai_clis
     if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
        || has claude || has codex || has opencode; then
