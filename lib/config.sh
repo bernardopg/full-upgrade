@@ -27,6 +27,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
+: "${AUTO_FIX_FINAL_PENDING:=0}"    # 1 = aplica pacman -Syu (e retry paru -Sua) quando a verificação final achar pendências acionáveis; 0 = só reporta
 : "${SECURE_BOOT_STRICT:=0}"        # 1 = --audit classifica Secure Boot desabilitado como média severidade; 0 = postura informativa
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
 
@@ -107,6 +108,7 @@ DOCKER_INFO_TIMEOUT_S
 ORPHAN_CLEANUP_MAX_ROUNDS
 AUTO_FIX_RUST_CVES
 AUTO_BTRFS_SCRUB
+AUTO_FIX_FINAL_PENDING
 SECURE_BOOT_STRICT
 REPORT_ON_FINISH
 NOTIFY_ON_FINISH
@@ -240,7 +242,7 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIRROR_MAX_AGE_DAYS MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
@@ -330,6 +332,13 @@ AUTO_FIX_RUST_CVES=0
 # último scrub em / estiver ausente ou mais antigo que BTRFS_SCRUB_MAX_DAYS.
 # Exige confirmação interativa ou --yes; nunca roda sob --mode doctor/--dry-run.
 AUTO_BTRFS_SCRUB=0
+
+# ── Auto-remediação de pendências finais ──
+# 0 = só reporta (default). 1 = quando a "Verificação final de pendências"
+# achar updates oficiais acionáveis (base sincronizada depois do upgrade) ou
+# pendências AUR, aplica pacman -Syu --noconfirm (e retry paru -Sua).
+# Nunca roda sob --mode doctor/--dry-run/--no-repair.
+AUTO_FIX_FINAL_PENDING=0
 
 # ── Política de Secure Boot no --audit ──
 # 0 = Secure Boot desabilitado é postura informativa (default; nem toda máquina
@@ -440,6 +449,7 @@ show_config() {
   _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
+  _cfg_kv "AUTO_FIX_FINAL_PENDING" "$AUTO_FIX_FINAL_PENDING"
   _cfg_kv "SECURE_BOOT_STRICT" "$SECURE_BOOT_STRICT"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
   _cfg_kv "NOTIFY_ON_FINISH" "$NOTIFY_ON_FINISH"

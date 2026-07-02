@@ -92,8 +92,10 @@ refresh_pacman_keys() {
 
 
 # Regex (grep -E, case-insensitive) de erros de rede transitórios.
-# Centralizado para reuso entre helpers de AUR/rede.
-_AUR_NETWORK_RE='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure'
+# Fonte única em lib/globals.sh (NETWORK_TRANSIENT_RE); inclui os erros do
+# reqwest do paru ("error sending request ... channel closed" contra o RPC
+# do AUR), que derrubavam o step inteiro sem retry nem fallback.
+_AUR_NETWORK_RE="${NETWORK_TRANSIENT_RE:-name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed}"
 
 # Regex de falhas de download/integridade de fontes AUR que geralmente são
 # transitórias (CDN cortou o stream, retomada de .part corrompida) e curam
@@ -132,12 +134,12 @@ update_system_aur() {
     local -a cmd=(paru -Syu --skipreview --noconfirm --combinedupgrade "${ignore_args[@]}")
     (( DEVEL_UPDATE )) && cmd+=(--devel)
     local _paru_out _paru_rc
-    local _paru_attempt
-    for _paru_attempt in 1 2; do
+    local _paru_attempt _paru_max=3
+    for (( _paru_attempt=1; _paru_attempt<=_paru_max; _paru_attempt++ )); do
       (( _paru_attempt > 1 )) && {
-        log "  paru: tentativa ${_paru_attempt}/2 — limpando downloads AUR parciais/corrompidos antes de retry..."
+        log "  paru: tentativa ${_paru_attempt}/${_paru_max} — limpando downloads AUR parciais/corrompidos antes de retry..."
         _purge_aur_partial_sources
-        sleep 5
+        sleep $(( 5 * (_paru_attempt - 1) ))
       }
       _paru_out="$("${cmd[@]}" 2>&1)"
       _paru_rc=$?
@@ -151,7 +153,7 @@ update_system_aur() {
       # Só vale repetir se a falha for de rede OU de integridade de fonte
       # (checksum/download), que a limpeza pode curar. Erro de PKGBUILD,
       # conflito ou compilação não cura com retry — aborta o loop.
-      if (( _paru_attempt < 2 )) \
+      if (( _paru_attempt < _paru_max )) \
          && ! printf '%s\n' "$_paru_out" | grep -qiE "${_AUR_NETWORK_RE}|${_AUR_TRANSIENT_SRC_RE}"; then
         break
       fi
@@ -159,7 +161,17 @@ update_system_aur() {
 
     if (( _paru_rc != 0 )); then
       if printf '%s\n' "$_paru_out" | grep -qiE "$_AUR_NETWORK_RE"; then
-        log "  paru: falha de rede transitória após 2 tentativas — aviso, não erro."
+        # O RPC do AUR caiu, mas os repos oficiais provavelmente estão de pé.
+        # Sem este fallback, um soluço no aur.archlinux.org bloqueava TODO o
+        # upgrade (nem core/extra atualizavam) e deixava pendências no final.
+        log "  paru: falha de rede transitória após ${_paru_max} tentativas."
+        log "  Fallback: aplicando upgrade dos repositórios oficiais via pacman (AUR fica para o próximo run)..."
+        if run_logged sudo pacman -Syu --noconfirm "${ignore_args[@]}"; then
+          log "  Repositórios oficiais atualizados; só o AUR ficou pendente por rede."
+          STEP_REASON="AUR indisponível (rede); repos oficiais atualizados via fallback pacman"
+        else
+          STEP_REASON="AUR indisponível (rede); fallback pacman também falhou"
+        fi
         return "$RC_WARN"
       fi
     fi

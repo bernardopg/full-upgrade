@@ -124,8 +124,7 @@ run_network_cmd() {
   printf '%s\n' "$_out"
   log_raw "$_out"
   if (( _rc != 0 )); then
-    if printf '%s\n' "$_out" | grep -qiE \
-        'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
+    if printf '%s\n' "$_out" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
       log "  Falha de rede transitória detectada (DNS/conectividade). Marcando como aviso."
       return "$RC_WARN"
     fi
@@ -139,7 +138,7 @@ run_network_cmd() {
 _retry() {
   local n="$1"; shift
   local attempt out rc last_rc=1
-  local _network_re='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
+  local _network_re="$NETWORK_TRANSIENT_RE"
   for (( attempt=1; attempt<=n; attempt++ )); do
     out="$("$@" 2>&1)"
     rc=$?

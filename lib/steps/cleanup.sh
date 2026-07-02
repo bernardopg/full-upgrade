@@ -311,3 +311,61 @@ final_check_pending() {
   return "$RC_TODO"
 }
 
+
+# Auto-remediação das pendências detectadas por final_check_pending: aplica
+# `pacman -Syu` para pendências oficiais acionáveis (e um retry de `paru -Syu`
+# para AUR, se houver). Step separado com efeito=mutating para preservar a
+# garantia read-only do --mode doctor — final_check_pending continua read.
+autofix_final_pending() {
+  if (( ${AUTO_FIX_FINAL_PENDING:-0} == 0 )); then
+    log "  AUTO_FIX_FINAL_PENDING desligado; nada a remediar."
+    return 0
+  fi
+
+  local out
+  local -a actionable=()
+  if has checkupdates; then
+    out="$(checkupdates 2>/dev/null || true)"
+    local _ln _nm
+    while IFS= read -r _ln; do
+      [[ -n "${_ln//[[:space:]]/}" ]] || continue
+      _nm="${_ln%%[[:space:]]*}"
+      pending_is_held_cluster "$_nm" || actionable+=("$_ln")
+    done <<< "$out"
+  fi
+
+  local aur_pending=""
+  if has paru; then
+    aur_pending="$(paru -Qua 2>/dev/null || true)"
+  elif has yay; then
+    aur_pending="$(yay -Qua 2>/dev/null || true)"
+  fi
+
+  if (( ${#actionable[@]} == 0 )) && [[ -z "${aur_pending//[[:space:]]/}" ]]; then
+    log "  Nenhuma pendência acionável para remediar."
+    return 0
+  fi
+
+  if (( ${#actionable[@]} > 0 )); then
+    log "  Remediando ${#actionable[@]} pendência(s) oficial(is): $(printf '%s\n' "${actionable[@]}" | awk '{print $1}' | paste -sd' ' -)"
+    if ! run_logged sudo pacman -Syu --noconfirm; then
+      STEP_REASON="pacman -Syu de remediação falhou"
+      return 1
+    fi
+  fi
+
+  if [[ -n "${aur_pending//[[:space:]]/}" ]] && [[ "${AUR_HELPER:-}" == paru ]] && has paru; then
+    local -a ignore_args=()
+    mapfile -t ignore_args < <(aur_ignore_args)
+    log "  Retry de pendências AUR via paru..."
+    if ! run_logged paru -Sua --skipreview --noconfirm "${ignore_args[@]}"; then
+      log "  Retry AUR falhou; fica para o próximo run."
+      STEP_REASON="pendências AUR persistem após retry"
+      return "$RC_WARN"
+    fi
+  fi
+
+  log "  Pendências remediadas."
+  return 0
+}
+

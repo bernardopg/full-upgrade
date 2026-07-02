@@ -65,6 +65,13 @@ update_omz() {
     | grep -v -E '(https?://|discord\.gg|commitgoods\.com|follow us|Join our|swag at|x\.com|twitter\.com)' \
     | grep -v '^$' \
     || true
+
+  # Rede fora (GitHub inacessível) é transitório — warn, não fail (contrato RC).
+  if (( rc != 0 )) && printf '%s\n' "$output" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+    log "  Falha de rede ao atualizar Oh My Zsh — aviso, não erro."
+    STEP_REASON="rede indisponível durante omz update"
+    return "$RC_WARN"
+  fi
   return "$rc"
 }
 
@@ -79,18 +86,20 @@ update_omz_custom_plugins() {
   fi
 
   local -a updated=() failed=() skipped=()
-  local plugin dir behind
+  local plugin dir behind fetch_err net_fail=0
 
   for dir in "$plugins_dir"/*/; do
     plugin="$(basename "$dir")"
     [[ "$plugin" == "example" ]] && continue
     [[ -d "$dir/.git" ]] || { skipped+=("$plugin"); continue; }
 
-    git -C "$dir" fetch --quiet --depth=1 origin 2>>"$LOG_FILE" || {
+    if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
+      log_raw "$fetch_err"
       log "  Aviso: fetch falhou para plugin ${plugin}"
+      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
       failed+=("$plugin")
       continue
-    }
+    fi
 
     behind="$(git -C "$dir" rev-list HEAD..origin/HEAD --count 2>/dev/null || echo 0)"
     if (( behind == 0 )); then
@@ -110,7 +119,15 @@ update_omz_custom_plugins() {
 
   (( ${#updated[@]} > 0 ))  && log "  Plugins atualizados: ${updated[*]}"
   (( ${#skipped[@]} > 0 ))  && log "  Não são repositórios git (ignorados): ${skipped[*]}"
-  (( ${#failed[@]} > 0 ))   && { log "  Falha em plugins: ${failed[*]}"; return 1; }
+  if (( ${#failed[@]} > 0 )); then
+    log "  Falha em plugins: ${failed[*]}"
+    # Se houve falha de rede (GitHub fora), é transitório: warn, não fail.
+    if (( net_fail )); then
+      STEP_REASON="rede indisponível ao buscar plugins (${#failed[@]} afetados)"
+      return "$RC_WARN"
+    fi
+    return 1
+  fi
   return 0
 }
 

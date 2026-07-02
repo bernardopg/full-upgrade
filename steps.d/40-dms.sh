@@ -13,18 +13,20 @@ update_dms_plugins() {
   fi
 
   local -a updated=() failed=() skipped=() stash_conflicts=()
-  local plugin dir behind
+  local plugin dir behind fetch_err net_fail=0
 
   for dir in "$plugins_dir"/*/; do
     [[ -d "$dir" ]] || continue
     plugin="$(basename "$dir")"
     [[ -d "$dir/.git" ]] || { skipped+=("$plugin"); continue; }
 
-    git -C "$dir" fetch --quiet --depth=1 origin 2>>"$LOG_FILE" || {
+    if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
+      log_raw "$fetch_err"
       log "  Aviso: fetch falhou para DMS plugin ${plugin}"
+      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
       failed+=("$plugin")
       continue
-    }
+    fi
 
     behind="$(git -C "$dir" rev-list HEAD..origin/HEAD --count 2>/dev/null || echo 0)"
     if (( behind == 0 )); then
@@ -82,7 +84,15 @@ update_dms_plugins() {
     log "  DMS plugins: todos já atualizados."
   fi
   (( ${#skipped[@]} > 0 )) && log "  DMS plugins sem git (ignorados): ${skipped[*]}"
-  (( ${#failed[@]} > 0 ))  && { log "  DMS plugins com falha: ${failed[*]}"; return 1; }
+  if (( ${#failed[@]} > 0 )); then
+    log "  DMS plugins com falha: ${failed[*]}"
+    # GitHub inacessível é transitório: warn (contrato RC), não fail.
+    if (( net_fail )); then
+      STEP_REASON="rede indisponível ao buscar plugins DMS (${#failed[@]} afetados)"
+      return "$RC_WARN"
+    fi
+    return 1
+  fi
   if (( ${#stash_conflicts[@]} > 0 )); then
     # Mudanças preservadas no stash mas exigem merge manual: ação do usuário,
     # não falha operacional — todo, não fail.
