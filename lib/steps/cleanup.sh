@@ -354,14 +354,20 @@ autofix_final_pending() {
     fi
   fi
 
-  if [[ -n "${aur_pending//[[:space:]]/}" ]] && [[ "${AUR_HELPER:-}" == paru ]] && has paru; then
-    local -a ignore_args=()
+  if [[ -n "${aur_pending//[[:space:]]/}" ]]; then
+    local -a ignore_args=() aur_cmd=()
     mapfile -t ignore_args < <(aur_ignore_args)
-    log "  Retry de pendências AUR via paru..."
-    if ! run_logged paru -Sua --skipreview --noconfirm "${ignore_args[@]}"; then
-      log "  Retry AUR falhou; fica para o próximo run."
-      STEP_REASON="pendências AUR persistem após retry"
-      return "$RC_WARN"
+    case "${AUR_HELPER:-}" in
+      paru) has paru && aur_cmd=(paru -Sua --skipreview --noconfirm) ;;
+      yay)  has yay  && aur_cmd=(yay -Sua --noconfirm --answerclean None --answerdiff None --answeredit None --answerupgrade None) ;;
+    esac
+    if (( ${#aur_cmd[@]} > 0 )); then
+      log "  Retry de pendências AUR via ${aur_cmd[0]}..."
+      if ! run_logged "${aur_cmd[@]}" "${ignore_args[@]}"; then
+        log "  Retry AUR falhou; fica para o próximo run."
+        STEP_REASON="pendências AUR persistem após retry"
+        return "$RC_WARN"
+      fi
     fi
   fi
 

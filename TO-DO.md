@@ -6,11 +6,12 @@ foram removidos daqui e ficam rastreáveis pelo `CHANGELOG.md`, tags e PRs.
 
 Base deste ciclo:
 
-- Run ativo: `20260701-163305-352866` (`./full-upgrade.sh --mode full`).
-- Resultado: `101 ok · 1 warn · 0 todo · 0 fail · 3 skip` em `6m14s`.
-- Relatório: `/home/bitter/.cache/system-upgrade/full-upgrade-20260701-163305-352866.md`.
-- Log: `/home/bitter/.cache/system-upgrade/full-upgrade-20260701-163305-352866.log`.
-- Audit complementar: `./full-upgrade.sh --audit`.
+- Run ativo: `20260702-145413-2524263` (`full-upgrade`, alias `update`).
+- Resultado: `102 ok · 1 warn · 1 todo · 1 fail · 0 skip` em `4m47s`.
+- Fail: `Atualizar pacotes do sistema e AUR` — RPC do AUR caiu
+  (`error sending request ... channel closed`) e bloqueou até os repos oficiais.
+- Log: `/home/bitter/.cache/system-upgrade/full-upgrade-20260702-145413-2524263.log`.
+- Série O (run 2026-07-01): mesclada na `main` via PR #107.
 
 Convenções obrigatórias em todos os itens:
 
@@ -24,6 +25,79 @@ Convenções obrigatórias em todos os itens:
 Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa.
 Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 Esforço: P/M/G.
+
+---
+
+## Série P — Resiliência de rede e auto-remediação (Run 2026-07-02)
+
+Objetivo: nenhum soluço transitório de rede pode derrubar o run ou bloquear os
+repos oficiais; pendências detectáveis no fim do run se resolvem sozinhas
+quando o usuário optar por isso.
+
+Status do ciclo: P1–P6 implementados na branch `fix/network-transient-resilience`.
+
+### P1 — 🔴 P ☑ Regex central de rede transitória + erro reqwest do paru
+
+`NETWORK_TRANSIENT_RE` em `lib/globals.sh` como fonte única para
+`run_network_cmd`/`_retry`/retry AUR; cobre `error sending request`/`channel
+closed` (reqwest do paru contra `https://aur.archlinux.org/rpc`), causa do fail
+do run-base. Regressão em `tests/core.bats`.
+
+### P2 — 🔴 M ☑ Retry + fallback pacman no step de sistema/AUR
+
+`update_system_aur`: 3 tentativas com backoff; AUR persistindo fora →
+`pacman -Syu` aplica os repos oficiais e o step vira `warn` com motivo.
+
+### P3 — 🔴 M ☑ Auto-remediação de pendências finais
+
+Novo step mutating "Auto-remediar pendências finais" (`AUTO_FIX_FINAL_PENDING`,
+default 0): aplica `pacman -Syu` (+ retry `paru -Sua`/`yay -Sua`) para
+pendências acionáveis. Roda ANTES da "Verificação final de pendências" para o
+resumo não registrar `todo` obsoleto após remediação bem-sucedida.
+
+### P4 — 🟡 P ☑ Contrato RC em Oh My Zsh / plugins Zsh / plugins DMS
+
+GitHub inacessível virava `fail` nesses 3 steps (run 2026-07-01 23:34); agora
+falha de rede classifica como `RC_WARN`.
+
+### P5 — 🟡 M ☑ Monorepos do registry DMS
+
+Plugins instalados via `dms plugins install` (symlinks para
+`plugins/.repos/<hash>/`) nunca eram atualizados; o step agora faz fetch+pull
+ff-only dos monorepos e reporta os plugins como gerenciados via registry.
+
+### P6 — 🟡 M ☑ Steps OBS (update de plugins user-scope + doctor de módulos)
+
+`steps.d/85-obs.sh`: "Atualizar OBS (plugins e extensões)" e "Doctor: módulos
+OBS" (log da última sessão → módulo com load falho = `todo`; crash recente =
+`warn`). Testes em `tests/obs.bats`.
+
+### Backlog P — próximos itens
+
+#### P7 — 🟡 P ☐ Paridade de retry/fallback para yay/pikaur no update principal
+
+`update_system_aur` só tem retry+fallback no caminho paru; os caminhos
+yay/pikaur ainda são `run_logged` direto. Extrair o loop para helper e reusar.
+Arquivos: `lib/steps/pacman.sh`, `tests/pacman_pure.bats`.
+
+#### P8 — 🟡 M ☐ Doctor journal: classificar coredumps com hint de coredumpctl
+
+Coredumps recorrentes (ex.: `antigravity-ide` NodeService) aparecem como
+assinatura crua. Adicionar hint com `coredumpctl info <pid>` e classificação
+`app-crash` (warn com hint apontando o app, não o sistema).
+Arquivos: `lib/steps/doctor.sh`, `tests/doctor*.bats`.
+
+#### P9 — 🟢 P ☐ Doctor módulos OBS: suporte a OBS Flatpak
+
+`_obs_install_kind` já detecta Flatpak, mas `OBS_CONFIG_DIR` default só cobre o
+nativo; Flatpak usa `~/.var/app/com.obsproject.Studio/config/obs-studio`.
+Arquivos: `steps.d/85-obs.sh`, `tests/obs.bats`.
+
+#### P10 — 🟢 P ☐ ZapZap upstream
+
+Bug reportado em rafatosta/zapzap#767 (ThemeContext + spam de console.error);
+mitigação local no launcher. Quando o upstream corrigir, remover o patch de
+`~/.local/share/zapzap-patch/launch.py`.
 
 ---
 

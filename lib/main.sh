@@ -557,10 +557,10 @@ run_all_steps() {
         step_skip "Verificar arquivos .pacnew/.pacsave" "pacdiff não instalado (pacman-contrib)"
     fi
     
-    run_step "Verificação final de pendências" final_check_pending
-
     # Auto-remediação opcional: só sob AUTO_FIX_FINAL_PENDING=1, nunca sob
     # --no-repair (efeito mutating; --mode doctor/--dry-run já a pulam).
+    # Roda ANTES da verificação final: o autofix detecta e corrige sozinho, e a
+    # verificação confirma o estado limpo — sem `todo` obsoleto no resumo.
     if (( ${AUTO_FIX_FINAL_PENDING:-0} == 0 )); then
         step_skip "Auto-remediar pendências finais" "AUTO_FIX_FINAL_PENDING=0"
     elif (( NO_REPAIR )); then
@@ -571,6 +571,7 @@ run_all_steps() {
         run_step "Auto-remediar pendências finais" autofix_final_pending
     fi
 
+    run_step "Verificação final de pendências" final_check_pending
     run_step "Checar atualização do full-upgrade" self_update_notice
     run_step "Doctor: reboot pendente" doctor_reboot_pending
     run_step "Doctor: units systemd falhadas" doctor_failed_systemd_units
