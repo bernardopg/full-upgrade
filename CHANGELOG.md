@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **"Checar notícias do Arch Linux"** (novo step read/network antes de
+  "Atualizar mirrors"): baixa o feed oficial de news, mostra o que for mais
+  novo que a última checagem e classifica títulos com cara de intervenção
+  manual (`manual intervention`, `action required`, `breaking change`, …)
+  como `todo` com link — a prática clássica pré-`pacman -Syu` que nenhum step
+  cobria. Parser RSS puro (awk, sem dependência de xmllint), estado em
+  `~/.cache/system-upgrade/arch-news-last-seen`, rede fora vira warn.
+
 ## [3.20.0] - 2026-07-02
 
 ### Adicionado
