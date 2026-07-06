@@ -283,6 +283,8 @@ doctor_journal_errors() {
     'gkr-pam: couldn.t unlock the login keyring'
     # ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
     'Original source was unlinked while parsing service file'
+    # ── Virtualização: host sem Intel TDX — informativo, não é falha ──
+    'virt/tdx: TDX not supported by the host platform'
   )
 
   # Padrões adicionais de ~/.config/full-upgrade/journal-noise.txt (um regex-E por linha)

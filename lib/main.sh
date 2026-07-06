@@ -405,6 +405,43 @@ run_all_steps() {
         step_skip "Atualizar Snyk CLI" "snyk não instalado"
     fi
 
+    # CLIs self-download (instalador próprio em ~/.<tool>): update nativo com check prévio.
+    if has grok; then
+        run_step "Atualizar grok (xAI CLI)" update_grok
+    else
+        step_skip "Atualizar grok (xAI CLI)" "grok não instalado"
+    fi
+
+    if has jcode; then
+        run_step "Atualizar jcode" update_jcode
+    else
+        step_skip "Atualizar jcode" "jcode não instalado"
+    fi
+
+    if has qodercli; then
+        run_step "Atualizar qodercli (Qoder)" update_qodercli
+    else
+        step_skip "Atualizar qodercli (Qoder)" "qodercli não instalado"
+    fi
+
+    if has qoderwake; then
+        run_step "Atualizar qoderwake" update_qoderwake
+    else
+        step_skip "Atualizar qoderwake" "qoderwake não instalado"
+    fi
+
+    if has kimchi; then
+        run_step "Atualizar kimchi" update_kimchi
+    else
+        step_skip "Atualizar kimchi" "kimchi não instalado"
+    fi
+
+    if has cua-driver; then
+        run_step "Atualizar cua-driver" update_cua_driver
+    else
+        step_skip "Atualizar cua-driver" "cua-driver não instalado"
+    fi
+
     if has zap || has zap.sh; then
         run_step "Atualizar add-ons do OWASP ZAP" update_zap
     else
