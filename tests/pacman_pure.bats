@@ -116,3 +116,12 @@ setup() {
   [[ "$output" == *"*.AppImage"* ]]
   [[ "$output" == *"*.zip"* ]]
 }
+
+@test "_aur_failed_count_or_one: zero/vazio viram 1 para STEP_REASON" {
+  run _aur_failed_count_or_one 0
+  [ "$output" = "1" ]
+  run _aur_failed_count_or_one ""
+  [ "$output" = "1" ]
+  run _aur_failed_count_or_one 3
+  [ "$output" = "3" ]
+}

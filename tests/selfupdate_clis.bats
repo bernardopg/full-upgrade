@@ -11,7 +11,7 @@ setup() { load_libs; }
 # Réplica do predicado usado em _selfupdate_check_apply: considera "atualizado"
 # quando o texto do --check casa o regex de "já na última versão".
 _is_uptodate_text() {
-  printf '%s' "$1" | grep -qiE 'up[- ]?to[- ]?date|already|latest|no update|nenhuma atualiza'
+  printf '%s' "$1" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'
 }
 
 # Predicado do cua-driver: JSON com update_available:true → precisa aplicar.
@@ -36,6 +36,11 @@ _json_update_available() {
 
 @test "check textual: anúncio de nova versão NÃO conta como atualizado" {
   run _is_uptodate_text "A new version of Grok Build is available: 0.1.218 -> 0.2.87"
+  [ "$status" -ne 0 ]
+}
+
+@test "check textual: campo 'latest' com versão diferente NÃO conta como atualizado" {
+  run _is_uptodate_text "Grok Build - v0.2.87 (latest: 0.2.88) [stable]"
   [ "$status" -ne 0 ]
 }
 

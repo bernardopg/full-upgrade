@@ -115,6 +115,27 @@ remediation() {
   printf '  Remediação: %s\n' "$*"
 }
 
+_pacfiles_todo_marker_file() {
+  [[ -n "${RUN_ID:-}" ]] || return 1
+  printf '%s/full-upgrade-%s.pacfiles-todo' "${LOG_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/system-upgrade}" "$RUN_ID"
+}
+
+mark_pacfiles_todo_reported() {
+  FULL_UPGRADE_PACFILES_TODO_REPORTED=1
+  local marker
+  marker="$(_pacfiles_todo_marker_file 2>/dev/null || true)"
+  [[ -n "$marker" ]] || return 0
+  mkdir -p "$(dirname "$marker")" 2>/dev/null || return 0
+  : > "$marker" 2>/dev/null || true
+}
+
+pacfiles_todo_already_reported() {
+  (( ${FULL_UPGRADE_PACFILES_TODO_REPORTED:-0} )) && return 0
+  local marker
+  marker="$(_pacfiles_todo_marker_file 2>/dev/null || true)"
+  [[ -n "$marker" && -e "$marker" ]]
+}
+
 # Executa comando de rede; se falhar por DNS/conectividade retorna RC_WARN.
 # Uso: run_network_cmd curl -sf https://example.com
 run_network_cmd() {

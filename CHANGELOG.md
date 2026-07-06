@@ -10,8 +10,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   `~/.<tool>`, fora de pacman/AUR): `grok` (xAI), `jcode`, `qodercli` (Qoder),
   `qoderwake`, `kimchi` e `cua-driver` (trycua). Cada um roda por presença do
   binário e usa o update nativo com verificação prévia (`update --check`
-  textual, `kimchi update self --dry-run`, ou `cua-driver check-update --json`
-  → só aplica quando `update_available:true`; também atualiza as skills do
+  textual, comparação da última release GitHub para `jcode`,
+  `kimchi update self --dry-run`, ou `cua-driver check-update --json` → só
+  aplica quando `update_available:true`; também atualiza as skills do
   cua-driver). Falha de rede vira `RC_WARN`. Helper compartilhado
   `_selfupdate_check_apply` em `lib/steps/manual_apps.sh`.
 
@@ -20,6 +21,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Doctor: journal erros críticos** deixa de reportar
   `virt/tdx: TDX not supported by the host platform` como erro crítico —
   é informativo em CPUs sem Intel TDX (adicionado ao filtro de ruído).
+- **Doctor: arquivos .pacnew/.pacsave** não duplica mais o `todo` quando a
+  verificação final já reportou os mesmos pacfiles no run, inclusive no fluxo
+  real com timeout/subshell de `run_step`.
+- **Doctor: apps manuais** agora reconhece `grok`, `jcode`, `qodercli`,
+  `qoderwake`, `kimchi` e `cua-driver` como cobertos por steps dedicados.
+- **AUR: falha isolada de build/download** não dispara mais `bad substitution`
+  ao montar o `STEP_REASON` quando o nome do pacote não pôde ser extraído.
+- **jcode:** se a versão local não puder ser parseada, o step retorna `RC_WARN`
+  sem chamar `jcode update`, evitando mutação sem confirmar atraso.
 
 ## [3.21.0] - 2026-07-02
 

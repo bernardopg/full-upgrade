@@ -48,7 +48,7 @@ update_droid() {
     log "  Não foi possível verificar atualização do droid (rede/Factory indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already|latest|nenhuma atualiza'; then
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
     log "  droid já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -391,7 +391,7 @@ _selfupdate_check_apply() {
     log "  Não foi possível verificar atualização do ${label} (rede/upstream indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already|latest|no update|nenhuma atualiza'; then
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
     log "  ${label} já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -414,9 +414,52 @@ _selfupdate_check_apply() {
 update_grok() { _selfupdate_check_apply "grok" grok; }
 
 # ── jcode ───────────────────────────────────────────────────────────────────────
-# CLI de IA self-download em ~/.jcode/builds. `jcode update --check` verifica;
-# `jcode update` aplica (self-update do próprio binário). Falha de rede → RC_WARN.
-update_jcode() { _selfupdate_check_apply "jcode" jcode; }
+# CLI de IA self-download em ~/.jcode/builds. Diferente de grok/qoder, o `jcode
+# update` atual não possui `--check`; por isso fazemos o check read-only contra a
+# última release do GitHub e só chamamos `jcode update` quando a versão local está
+# atrasada. Falha de rede → RC_WARN.
+update_jcode() {
+  has jcode || { log "  jcode não encontrado."; return 0; }
+  has curl || { log "  curl ausente; não é possível verificar atualização do jcode."; return 0; }
+
+  local current latest meta
+  current="$(jcode version --json 2>/dev/null | sed -nE 's/.*"semver"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)"
+  [[ -n "$current" ]] || current="$(jcode --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+){2}' | head -1 || true)"
+  log "  jcode versão atual: ${current:-desconhecida}"
+
+  meta="$(run_network_cmd curl -fsSL https://api.github.com/repos/1jehuang/jcode/releases/latest 2>/dev/null)"
+  if [[ -z "$meta" ]]; then
+    log "  Não foi possível consultar a última release do jcode (rede/GitHub indisponível)."
+    return "$RC_WARN"
+  fi
+  latest="$(printf '%s\n' "$meta" | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v?([0-9][^"]*)".*/\1/p' | head -1)"
+  if [[ -z "$latest" ]]; then
+    log_raw "$meta"
+    log "  Não foi possível parsear a versão mais recente do jcode."
+    return "$RC_WARN"
+  fi
+
+  if [[ -z "$current" ]]; then
+    log "  Não foi possível determinar a versão local do jcode; não vou executar update mutante sem confirmação de atraso."
+    return "$RC_WARN"
+  fi
+
+  if ! version_is_outdated "$current" "$latest"; then
+    log "  jcode já está na versão mais recente (${current})."
+    return 0
+  fi
+
+  log "  Atualizando jcode: ${current:-?} → ${latest}…"
+  if ! run_network_cmd jcode update; then
+    log "  Falha ao atualizar o jcode."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(jcode version --json 2>/dev/null | sed -nE 's/.*"semver"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)"
+  log "  jcode atualizado para ${newver:-$latest}."
+  return 0
+}
 
 # ── qodercli (Qoder) ────────────────────────────────────────────────────────────
 # CLI self-download em ~/.qoder/bin. `qodercli update --check` verifica; sem flag
@@ -446,7 +489,7 @@ update_kimchi() {
     log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already|latest|no update|nenhuma atualiza'; then
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
     log "  kimchi já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -522,7 +565,8 @@ _manual_apps_has_step() {
     droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
-    kiro-cli|kiro-cli-chat|kiro-cli-term)
+    kiro-cli|kiro-cli-chat|kiro-cli-term|\
+    grok|jcode|qodercli|qoderwake|kimchi|cua-driver)
       return 0 ;;
     *) return 1 ;;
   esac

@@ -15,6 +15,16 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "_manual_apps_has_step: reconhece CLIs self-download cobertas" {
+  for app in grok jcode qodercli qoderwake kimchi cua-driver; do
+    run _manual_apps_has_step "$app"
+    [ "$status" -eq 0 ] || {
+      echo "app não coberto: $app"
+      return 1
+    }
+  done
+}
+
 @test "_manual_apps_has_step: reconhece marcador de diretório /opt (zaproxy)" {
   run _manual_apps_has_step zaproxy
   [ "$status" -eq 0 ]
@@ -63,6 +73,8 @@ setup() {
   run step_catalog
   [ "$status" -eq 0 ]
   [[ "$output" == *"Atualizar Factory droid|manual|"* ]]
+  [[ "$output" == *"Atualizar grok (xAI CLI)|manual|"* ]]
+  [[ "$output" == *"Atualizar cua-driver|manual|"* ]]
   [[ "$output" == *"Atualizar Snyk CLI|manual|"* ]]
   [[ "$output" == *"Atualizar add-ons do OWASP ZAP|manual|"* ]]
   [[ "$output" == *"Doctor: apps manuais (fora de pacote)|doctor|"* ]]
@@ -134,6 +146,62 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
   run_network_cmd() { echo "downloading update"; return 0; }
   run update_droid
   [ "$status" -eq 0 ]
+}
+
+@test "update_jcode: já atualizado pelo GitHub => não chama update mutante" {
+  _ma_silence
+  has() { [[ "$1" == jcode || "$1" == curl ]]; }
+  jcode() {
+    if [[ "$1" == version ]]; then
+      printf '{"semver":"1.2.3"}\n'
+    elif [[ "$1" == update ]]; then
+      return 99
+    fi
+  }
+  run_network_cmd() { printf '{"tag_name":"v1.2.3"}\n'; }
+  run update_jcode
+  [ "$status" -eq 0 ]
+}
+
+@test "update_jcode: release mais nova chama jcode update" {
+  _ma_silence
+  has() { [[ "$1" == jcode || "$1" == curl ]]; }
+  local updated_file="$BATS_TEST_TMPDIR/jcode-updated"
+  jcode() {
+    if [[ "$1" == version ]]; then
+      printf '{"semver":"1.2.3"}\n'
+    elif [[ "$1" == update ]]; then
+      : > "$updated_file"
+      return 0
+    fi
+  }
+  run_network_cmd() {
+    if [[ "$1" == curl ]]; then
+      printf '{"tag_name":"v1.2.4"}\n'
+    else
+      "$@"
+    fi
+  }
+  run update_jcode
+  [ "$status" -eq 0 ]
+  [ -e "$updated_file" ]
+}
+
+@test "update_jcode: versão local desconhecida não chama update mutante" {
+  _ma_silence
+  has() { [[ "$1" == jcode || "$1" == curl ]]; }
+  local updated_file="$BATS_TEST_TMPDIR/jcode-updated"
+  jcode() {
+    if [[ "$1" == update ]]; then
+      : > "$updated_file"
+      return 0
+    fi
+    return 0
+  }
+  run_network_cmd() { printf '{"tag_name":"v1.2.4"}\n'; }
+  run update_jcode
+  [ "$status" -eq "$RC_WARN" ]
+  [ ! -e "$updated_file" ]
 }
 
 @test "update_coderabbit: ausente => 0; falha => RC_WARN; sucesso => 0" {

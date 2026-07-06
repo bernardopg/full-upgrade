@@ -76,7 +76,7 @@ Atualizar Snyk CLI|manual|security,snyk,update,network|mutating|180|snyk,curl|up
 Atualizar add-ons do OWASP ZAP|manual|security,zap,update,network|mutating|600|zap|update_zap|Atualiza add-ons do OWASP ZAP via Marketplace headless (zap.sh -cmd -addonupdate); core é manual.
 Atualizar GitKraken CLI (gk)|manual|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.
 Atualizar grok (xAI CLI)|manual|ai,grok,update,network|mutating|300|grok|update_grok|Atualiza a CLI grok (xAI, self-download em ~/.grok) via update nativo com check prévio (grok update --check).
-Atualizar jcode|manual|ai,jcode,update,network|mutating|300|jcode|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo com check prévio (jcode update --check).
+Atualizar jcode|manual|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo após comparar com a release mais recente no GitHub.
 Atualizar qodercli (Qoder)|manual|ai,qoder,update,network|mutating|300|qodercli|update_qodercli|Atualiza a CLI qodercli (Qoder, self-download em ~/.qoder) via update nativo com check prévio (qodercli update --check).
 Atualizar qoderwake|manual|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
 Atualizar kimchi|manual|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
