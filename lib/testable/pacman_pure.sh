@@ -50,3 +50,10 @@ final_pending_reason() {
 _purge_aur_partial_sources_patterns() {
   printf '%s\n' '*.part' '*.tar.*' '*.tgz' '*.zip' '*.deb' '*.rpm' '*.AppImage' '*.appimage' '*.gz' '*.xz' '*.bz2' '*.zst'
 }
+
+_aur_failed_count_or_one() {
+  local count="$1"
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  (( count > 0 )) || count=1
+  printf '%s' "$count"
+}

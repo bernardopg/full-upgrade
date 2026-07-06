@@ -120,6 +120,13 @@ _purge_aur_partial_sources() {
     \) -delete 2>/dev/null || true
 }
 
+_aur_failed_count_or_one() {
+  local count="$1"
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  (( count > 0 )) || count=1
+  printf '%s' "$count"
+}
+
 # Roda `<helper> -Syu ...` com retry (backoff) para falha de rede transitória
 # e, se o AUR seguir fora, fallback `pacman -Syu` para os repos oficiais.
 # Mesma resiliência do caminho paru, para yay/pikaur. Uso:
@@ -238,7 +245,7 @@ update_system_aur() {
         fi
         log "  Sistema (repos oficiais) atualizado; falha restrita ao AUR — marcando como ação manual, não erro fatal."
         remediation "paru -S ${_failed_aur[*]:-<pacote>}  # ou aguarde o mantenedor corrigir o PKGBUILD"
-        STEP_REASON="${#_failed_aur[@]:-1} pacote(s) AUR falharam build/download (sistema OK)"
+        STEP_REASON="$(_aur_failed_count_or_one "${#_failed_aur[@]}") pacote(s) AUR falharam build/download (sistema OK)"
         return "$RC_TODO"
       fi
     fi
@@ -348,6 +355,7 @@ check_pacnew_files() {
   done
   remediation "sudo pacdiff  # ou DIFFPROG=meld sudo pacdiff"
   STEP_REASON="${#pacnew[@]} arquivo(s) .pacnew/.pacsave pendente(s) de merge"
+  mark_pacfiles_todo_reported
   return "$RC_TODO"
 }
 

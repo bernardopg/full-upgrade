@@ -1071,6 +1071,12 @@ doctor_pacfiles() {
     return 0
   fi
 
+  if pacfiles_todo_already_reported; then
+    log "  ${#pacf[@]} arquivo(s) .pacnew/.pacsave pendente(s) já reportado(s) na verificação final."
+    STEP_REASON="pacfiles já reportados pela verificação final"
+    return 0
+  fi
+
   log "  ${C_YELLOW}${#pacf[@]} arquivo(s) .pacnew/.pacsave pendente(s):${C_RESET}"
   local f shown=0
   for f in "${pacf[@]}"; do
