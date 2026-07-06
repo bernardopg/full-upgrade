@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Steps de atualização para CLIs self-download** (instalador próprio em
+  `~/.<tool>`, fora de pacman/AUR): `grok` (xAI), `jcode`, `qodercli` (Qoder),
+  `qoderwake`, `kimchi` e `cua-driver` (trycua). Cada um roda por presença do
+  binário e usa o update nativo com verificação prévia (`update --check`
+  textual, `kimchi update self --dry-run`, ou `cua-driver check-update --json`
+  → só aplica quando `update_available:true`; também atualiza as skills do
+  cua-driver). Falha de rede vira `RC_WARN`. Helper compartilhado
+  `_selfupdate_check_apply` em `lib/steps/manual_apps.sh`.
+
+### Corrigido
+
+- **Doctor: journal erros críticos** deixa de reportar
+  `virt/tdx: TDX not supported by the host platform` como erro crítico —
+  é informativo em CPUs sem Intel TDX (adicionado ao filtro de ruído).
+
 ## [3.21.0] - 2026-07-02
 
 ### Adicionado

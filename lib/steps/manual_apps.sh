@@ -368,6 +368,145 @@ update_gk() {
   return 0
 }
 
+# ── Helper genérico p/ CLIs self-download com "update --check" textual ───────────
+# Muitos CLIs de IA instalados por instalador próprio em ~/.<tool> seguem o mesmo
+# contrato: `<bin> update --check` (read-only) diz se há versão nova; `<bin> update`
+# aplica. Centraliza o fluxo check→apply e a conversão de falha de rede em RC_WARN.
+# Args: <label> <bin> [update_arg...]  — os update_arg extras (ex.: --force) vão só
+# no apply, nunca no --check. rc: 0 ok · RC_WARN rede/falha.
+_selfupdate_check_apply() {
+  local label="$1" bin="$2"
+  shift 2
+  has "$bin" || { log "  ${label} não encontrado."; return 0; }
+
+  local current
+  current="$("$bin" --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  ${label} versão atual: ${current:-desconhecida}"
+
+  local check check_rc
+  check="$(run_network_cmd "$bin" update --check 2>&1)"
+  check_rc=$?
+  log_raw "$check"
+  if ((check_rc != 0)); then
+    log "  Não foi possível verificar atualização do ${label} (rede/upstream indisponível)."
+    return "$RC_WARN"
+  fi
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already|latest|no update|nenhuma atualiza'; then
+    log "  ${label} já está na versão mais recente (${current:-?})."
+    return 0
+  fi
+
+  log "  Atualizando ${label}…"
+  if ! run_network_cmd "$bin" update "$@"; then
+    log "  Falha ao atualizar o ${label}."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$("$bin" --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  ${label} atualizado para ${newver:-?}."
+  return 0
+}
+
+# ── grok (xAI CLI) ──────────────────────────────────────────────────────────────
+# Instalada via instalador próprio em ~/.grok (self-download). `grok update --check`
+# é read-only; `grok update` aplica. Falha de rede vira RC_WARN.
+update_grok() { _selfupdate_check_apply "grok" grok; }
+
+# ── jcode ───────────────────────────────────────────────────────────────────────
+# CLI de IA self-download em ~/.jcode/builds. `jcode update --check` verifica;
+# `jcode update` aplica (self-update do próprio binário). Falha de rede → RC_WARN.
+update_jcode() { _selfupdate_check_apply "jcode" jcode; }
+
+# ── qodercli (Qoder) ────────────────────────────────────────────────────────────
+# CLI self-download em ~/.qoder/bin. `qodercli update --check` verifica; sem flag
+# aplica. Falha de rede → RC_WARN.
+update_qodercli() { _selfupdate_check_apply "qodercli" qodercli; }
+
+# ── qoderwake ───────────────────────────────────────────────────────────────────
+# Daemon/CLI companheiro do Qoder, self-download em ~/.qoderwake. Mesmo contrato:
+# `qoderwake update --check` verifica; `qoderwake update` aplica. Rede → RC_WARN.
+update_qoderwake() { _selfupdate_check_apply "qoderwake" qoderwake; }
+
+# ── kimchi ──────────────────────────────────────────────────────────────────────
+# CLI self-download em ~/.local/bin. Atualização do próprio binário: `kimchi update
+# self` (com `--dry-run` p/ checar e `--force` p/ pular confirmação). Usamos o
+# subcomando `self` (não mexe em extensões/pacotes do usuário). Rede → RC_WARN.
+update_kimchi() {
+  has kimchi || { log "  kimchi não encontrado."; return 0; }
+  local current
+  current="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kimchi versão atual: ${current:-desconhecida}"
+
+  local check check_rc
+  check="$(run_network_cmd kimchi update self --dry-run 2>&1)"
+  check_rc=$?
+  log_raw "$check"
+  if ((check_rc != 0)); then
+    log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
+    return "$RC_WARN"
+  fi
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already|latest|no update|nenhuma atualiza'; then
+    log "  kimchi já está na versão mais recente (${current:-?})."
+    return 0
+  fi
+
+  log "  Atualizando kimchi…"
+  if ! run_network_cmd kimchi update self --force; then
+    log "  Falha ao atualizar o kimchi."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kimchi atualizado para ${newver:-?}."
+  return 0
+}
+
+# ── cua-driver (trycua) ─────────────────────────────────────────────────────────
+# Driver de automação self-download em ~/.cua-driver. Tem check/apply com JSON:
+# `cua-driver check-update --json` → campo "update_available"; `cua-driver update
+# --apply` baixa+instala. Além disso `cua-driver skills update` atualiza as skills.
+# Só aplica quando update_available=true. Rede → RC_WARN.
+update_cua_driver() {
+  has cua-driver || { log "  cua-driver não encontrado."; return 0; }
+  local current
+  current="$(cua-driver --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  cua-driver versão atual: ${current:-desconhecida}"
+
+  local check check_rc
+  check="$(run_network_cmd cua-driver check-update --json 2>&1)"
+  check_rc=$?
+  log_raw "$check"
+  if ((check_rc != 0)); then
+    log "  Não foi possível verificar atualização do cua-driver (rede/GitHub indisponível)."
+    return "$RC_WARN"
+  fi
+
+  if printf '%s' "$check" | grep -qiE '"update_available"[[:space:]]*:[[:space:]]*true'; then
+    log "  Atualizando cua-driver…"
+    if ! run_network_cmd cua-driver update --apply; then
+      log "  Falha ao atualizar o cua-driver."
+      return "$RC_WARN"
+    fi
+    hash -r 2>/dev/null || true
+    local newver
+    newver="$(cua-driver --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+    log "  cua-driver atualizado para ${newver:-?}."
+  else
+    log "  cua-driver já está na versão mais recente (${current:-?})."
+  fi
+
+  # Skills do cua-driver (independente da versão do binário). Best-effort.
+  local sk
+  if sk="$(run_network_cmd cua-driver skills update 2>&1)"; then
+    log_raw "$sk"
+  else
+    log "  Aviso: não foi possível atualizar as skills do cua-driver (rede)."
+  fi
+  return 0
+}
+
 # ── Doctor: inventário de apps manuais ──────────────────────────────────────────
 # Read-only. Mapeia programas instalados FORA de qualquer gerenciador de pacotes
 # (binários reais em /usr/local/bin e ~/.local/bin sem dono pacman, + diretórios
