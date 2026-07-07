@@ -157,8 +157,11 @@ _rust_collect_vuln_bins() {
 # O gate de config (AUTO_FIX_RUST_CVES) é aplicado em main.sh; aqui também é
 # defensivo. Mede CVEs antes, aplica `rustup self update && rustup update`
 # (toolchain) e `cargo install-update -a` (cargo-installed) sob confirmação/
-# --yes, re-audita e reporta antes→depois. Sem rede → RC_WARN; recusa/não
-# interativo sem --yes → RC_TODO; CVEs remanescentes → RC_WARN.
+# --yes, re-audita e reporta antes→depois. Se um binário cargo-installed segue
+# vulnerável (já na última versão, CVE pinada no build), rebuilda com
+# `cargo install --force` (resolução fresca de deps) e re-audita de novo.
+# Sem rede → RC_WARN; recusa/não interativo sem --yes → RC_TODO; CVEs
+# remanescentes sem remediação possível → informativo; falha de rebuild → RC_WARN.
 autofix_rust_cves() {
   if (( ${AUTO_FIX_RUST_CVES:-0} == 0 )); then
     log "  AUTO_FIX_RUST_CVES desligado; nada a remediar."
@@ -271,7 +274,68 @@ autofix_rust_cves() {
     return 0
   fi
 
+  # Fase 2 — rebuild com resolução fresca. `cargo install-update` só age quando
+  # há versão nova no registry; se o binário já está na última versão mas foi
+  # buildado com uma crate vulnerável pinada (build --locked, prebuilt via
+  # binstall ou Cargo.lock empacotado do release), `cargo install --force`
+  # re-resolve as dependências para as versões compatíveis mais novas e remove
+  # a CVE sem depender de release novo do upstream.
+  local install_list crate rebuilt=0
+  local -a rebuild_failed=()
+  install_list="$(cargo install --list 2>/dev/null)"
+  for b in "${after_cargo[@]}"; do
+    crate="$(cargo_crate_for_bin "$b" "$install_list")"
+    if [[ -z "$crate" ]]; then
+      log "    ${b}: sem crate correspondente em 'cargo install --list'; rebuild indisponível."
+      rebuild_failed+=("$b")
+      continue
+    fi
+    log "  Rebuild com resolução fresca de dependências: cargo install --force ${crate}"
+    if run_logged cargo install --force "$crate"; then
+      rebuilt=1
+    else
+      rebuild_failed+=("$b")
+    fi
+  done
+
+  if (( rebuilt )); then
+    log "  Re-auditando após rebuild..."
+    after_list="$(_rust_collect_vuln_bins)"
+    after_rc=$?
+    if (( after_rc == RC_WARN )); then
+      log "  Re-auditoria (pós-rebuild) falhou por rede; resultado inconclusivo."
+      STEP_REASON="re-auditoria sem rede"
+      return "$RC_WARN"
+    fi
+    mapfile -t after < <(printf '%s\n' "$after_list" | grep -v '^[[:space:]]*$')
+    after_toolchain=() after_cargo=()
+    for b in "${after[@]}"; do
+      if [[ "$(classify_cargo_bin "$b")" == "toolchain" ]]; then
+        after_toolchain+=("$b")
+      else
+        after_cargo+=("$b")
+      fi
+    done
+    log "  CVEs após rebuild: ${#after[@]}."
+    if (( ${#after[@]} == 0 )); then
+      log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"
+      return 0
+    fi
+    if (( ${#after_cargo[@]} == 0 )); then
+      log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — não acionável localmente (informativo)."
+      return 0
+    fi
+  fi
+
+  # Rebuild aplicado e a CVE persiste: nem a resolução fresca tem versão
+  # corrigida compatível — nada acionável localmente até o upstream publicar.
+  if (( ${#rebuild_failed[@]} == 0 )); then
+    log "  CVEs persistem após rebuild com resolução fresca (${after_cargo[*]}): sem versão corrigida compatível publicada — aguarda upstream (informativo)."
+    return 0
+  fi
+
   log "  ${C_YELLOW}CVEs remanescentes acionáveis (${#after_cargo[@]}): ${after_cargo[*]}${C_RESET}"
+  log "    Rebuild indisponível/falhou para: ${rebuild_failed[*]}."
   log "    Podem exigir o gerenciador de pacotes (sudo pacman -Syu rust rustup) ou não ter fix upstream."
   (( ${#after_toolchain[@]} > 0 )) && log "    (${#after_toolchain[@]} CVE(s) de toolchain upstream ignoradas: não acionáveis localmente.)"
   STEP_REASON="${#after_cargo[@]} CVE(s) acionável(is) remanescente(s) após remediação"
