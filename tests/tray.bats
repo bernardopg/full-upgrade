@@ -499,3 +499,88 @@ EOF
   [ "$status" -eq 0 ]
   [ "$output" = "0 0 2 0 1" ]
 }
+
+# ── unit systemd user (XDG + Hyprland/sway) ───────────────────────────────────
+# Compositores Wayland não processam XDG autostart; a unit systemd garante o
+# daemon. Aqui testamos as funções puras de caminho/status sem tocar no D-Bus.
+
+@test "tray_systemd_unit_file: respeita XDG_CONFIG_HOME" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg"
+  [ "$(tray_systemd_unit_file)" = "$BATS_TEST_TMPDIR/xdg/systemd/user/full-upgrade-tray.service" ]
+}
+
+@test "tray_systemd_unit_file: fallback para ~/.config quando XDG ausente" {
+  unset XDG_CONFIG_HOME
+  HOME="$BATS_TEST_TMPDIR/fakehome"
+  [ "$(tray_systemd_unit_file)" = "$BATS_TEST_TMPDIR/fakehome/.config/systemd/user/full-upgrade-tray.service" ]
+}
+
+@test "tray_systemd_unit_status: unit não escrita => 'não instalada'" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-empty"
+  run tray_systemd_unit_status
+  [ "$status" -eq 0 ]
+  [ "$output" = "não instalada" ]
+}
+
+@test "tray_systemd_unit_status: unit escrita e serviço ativo => 'habilitada (ativa)'" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-active"
+  mkdir -p "$(tray_systemd_unit_file | xargs dirname)"
+  touch "$(tray_systemd_unit_file)"
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 0; }   # is-active sucesso
+  run tray_systemd_unit_status
+  [ "$status" -eq 0 ]
+  [ "$output" = "habilitada (ativa)" ]
+}
+
+@test "tray_systemd_unit_status: unit escrita e serviço parado => 'habilitada (inativa)'" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-inactive"
+  mkdir -p "$(tray_systemd_unit_file | xargs dirname)"
+  touch "$(tray_systemd_unit_file)"
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; }   # is-active falha (inativo)
+  run tray_systemd_unit_status
+  [ "$status" -eq 0 ]
+  [ "$output" = "habilitada (inativa)" ]
+}
+
+@test "tray_systemd_user_available: systemctl ausente => rc 1" {
+  has() { return 1; }
+  run tray_systemd_user_available
+  [ "$status" -eq 1 ]
+}
+
+@test "tray_enable_systemd_unit: systemd user indisponível => rc 1, sem escrever unit" {
+  has() { return 1; }   # systemctl ausente
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-no-systemd"
+  run tray_enable_systemd_unit
+  [ "$status" -eq 1 ]
+  [ ! -e "$(tray_systemd_unit_file)" ]
+}
+
+@test "tray_enable_systemd_unit: disponível => escreve a unit com ExecStart correto" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 0; }   # show-environment e enable --now ambos ok
+  tray_self_bin() { printf '/usr/bin/full-upgrade'; }
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-ok"
+  run tray_enable_systemd_unit
+  [ "$status" -eq 0 ]
+  local unit
+  unit="$(tray_systemd_unit_file)"
+  [ -f "$unit" ]
+  grep -q 'ExecStart=/usr/bin/full-upgrade --tray' "$unit"
+  grep -q 'WantedBy=graphical-session.target' "$unit"
+}
+
+@test "tray_disable_systemd_unit: remove unit escrita" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 0; }
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-rm"
+  mkdir -p "$(dirname "$(tray_systemd_unit_file)")"
+  touch "$(tray_systemd_unit_file)"
+  [ -f "$(tray_systemd_unit_file)" ]
+  run tray_disable_systemd_unit
+  [ "$status" -eq 0 ]
+  [ ! -e "$(tray_systemd_unit_file)" ]
+  [[ "$output" == *"removida"* ]]
+}
