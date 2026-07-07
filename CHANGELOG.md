@@ -32,6 +32,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   normalmente e o auto-merge funciona. O job também fecha o `[Unreleased]` do
   `CHANGELOG` sob a nova versão.
 
+### Manutenção
+
+- **`.gitignore` granularizado.** A entrada `.claude/` (que ignorava o
+  diretório inteiro) foi substituída por `.claude/settings.local.json` e
+  `.claude/worktrees/` apenas — assim `.claude/agents`, `.claude/commands` e
+  `.claude/skills` (config compartilhada do projeto) voltam a ser
+  rastreáveis. Adicionadas também coberturas para artefatos de SO/editor
+  (`.DS_Store`, `*.swp`, `*.bak`, `*.tmp`, `Thumbs.db`) e
+  `COMMIT_NOTES.md` (rascunho temporário de PR).
+
 ## [3.23.0] - 2026-07-07
 
 ### Adicionado
