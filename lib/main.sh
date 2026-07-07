@@ -47,6 +47,7 @@ run_all_steps() {
 
             if (( NO_REPAIR )); then
                 step_skip "Reparar comandos locais conflitantes"        "--no-repair"
+                step_skip "Reparar sombra local do full-upgrade"        "--no-repair"
                 step_skip "Garantir Wireshark"                         "--no-repair"
                 step_skip "Garantir Burp Suite"                        "--no-repair"
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
@@ -55,6 +56,7 @@ run_all_steps() {
                 # Shadowing é reparo genérico, útil p/ todos e deve acontecer
                 # antes do update principal.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
+                run_step "Reparar sombra local do full-upgrade"         repair_full_upgrade_shadow
                 # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: instalam pacotes
                 # se ausentes, então não devem rodar por padrão. Opt-in explícito.
                 custom_step_or_skip "Garantir Wireshark"                ensure_wireshark
@@ -689,6 +691,16 @@ finalize() {
     write_run_event_json "run_end"
     generate_report_on_finish
     notify_on_finish
+
+    # Sincroniza o systray com o resultado deste run — sem isso o applet segue
+    # exibindo o estado do run anterior até o próximo poll do daemon (que pode
+    # nem estar rodando). Só quando o tray já foi usado (state file existe) e
+    # fora de --dry-run.
+    if (( DRY_RUN == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] \
+        && type tray_check_now >/dev/null 2>&1; then
+        log "  Sincronizando estado do systray..."
+        tray_check_now no_notify >/dev/null 2>&1 || true
+    fi
 
     if (( HAS_FAIL )); then
         exit 2

@@ -59,6 +59,73 @@ self_latest_version() {
   printf '%s' "${tag#v}"
 }
 
+# Instalação gerenciada pelo pacman (pacote AUR)? Ecoa o caminho do binário
+# do sistema quando /usr/bin/full-upgrade pertence a um pacote.
+self_pacman_managed_bin() {
+  has pacman || return 1
+  local sysbin="/usr/bin/full-upgrade"
+  [[ -e "$sysbin" ]] || return 1
+  pacman -Qo "$sysbin" >/dev/null 2>&1 || return 1
+  printf '%s\n' "$sysbin"
+}
+
+# Classifica a cópia local (~/.local/bin/full-upgrade, que vem antes de
+# /usr/bin no PATH) frente a uma instalação pacman:
+#   dev  — symlink para dentro de um checkout git (setup de desenvolvimento,
+#          intencional; nunca remover)
+#   self — standalone auto-instalado (--update) ou install.sh (sombra que
+#          esconde a versão do pacman após 'pacman -Syu')
+#   none — não existe
+self_local_shadow_kind() {
+  local local_bin="${1:-${HOME}/.local/bin/full-upgrade}"
+  if [[ ! -e "$local_bin" && ! -L "$local_bin" ]]; then
+    printf 'none'
+    return 0
+  fi
+  if [[ -L "$local_bin" ]]; then
+    local target
+    target="$(readlink -f "$local_bin" 2>/dev/null || true)"
+    if [[ -n "$target" ]] && git -C "$(dirname "$target")" rev-parse --git-dir >/dev/null 2>&1; then
+      printf 'dev'
+      return 0
+    fi
+  fi
+  printf 'self'
+}
+
+# Reparo: remove a cópia local obsoleta quando a instalação é gerenciada pelo
+# pacman. Sem isso, ~/.local/bin sombreia /usr/bin e o usuário continua vendo
+# a versão antiga depois do 'pacman -Syu', precisando de 'full-upgrade -u'.
+repair_full_upgrade_shadow() {
+  local sysbin
+  sysbin="$(self_pacman_managed_bin 2>/dev/null || true)"
+  if [[ -z "$sysbin" ]]; then
+    log "  full-upgrade não é gerenciado pelo pacman; nada a reparar."
+    return 0
+  fi
+
+  local local_bin="${HOME}/.local/bin/full-upgrade"
+  case "$(self_local_shadow_kind "$local_bin")" in
+    none)
+      log "  Sem cópia local sombreando ${sysbin}."
+      ;;
+    dev)
+      log "  ${local_bin} é symlink de desenvolvimento (checkout git); mantendo."
+      ;;
+    self)
+      log "  Removendo sombra local obsoleta: ${local_bin} (instalação pacman: $(pacman -Q full-upgrade 2>/dev/null || echo "${sysbin}"))."
+      rm -f "$local_bin" "${local_bin}.bak" 2>/dev/null || true
+      local share_dir="${HOME}/.local/share/full-upgrade"
+      if [[ -d "$share_dir" && -f "${share_dir}/full-upgrade.sh" ]]; then
+        rm -rf "$share_dir"
+        log "  Removida instalação local antiga: ${share_dir}."
+      fi
+      log "  'full-upgrade' agora resolve para ${sysbin} (atualizado via pacman/AUR)."
+      ;;
+  esac
+  return 0
+}
+
 # Checagem passiva: só avisa se há versão nova. Não baixa nada.
 # RC_TODO quando há atualização disponível; 0 caso contrário ou indeterminado.
 self_update_notice() {
@@ -86,7 +153,11 @@ self_update_notice() {
   case "$cmp" in
     2)  # current < latest
       log "  ${C_YELLOW}Nova versão disponível: v${current} → v${latest}.${C_RESET}"
-      log "  Atualize com: full-upgrade --update"
+      if [[ -n "$(self_pacman_managed_bin 2>/dev/null || true)" ]]; then
+        log "  Instalação gerenciada pelo pacman: atualize via pacote AUR (ex.: paru/yay -Syu full-upgrade)."
+      else
+        log "  Atualize com: full-upgrade --update"
+      fi
       STEP_REASON="atualização disponível: v${current} → v${latest}"
       return "$RC_TODO"
       ;;
@@ -100,6 +171,18 @@ self_update_notice() {
 # Aplica a atualização: baixa o tarball da última tag (ou main), extrai e roda
 # o install.sh de lá. Pede confirmação salvo --yes. Falha de rede → RC_WARN.
 self_perform_update() {
+  # Instalação via pacote (AUR): o self-download em ~/.local/bin criaria uma
+  # sombra no PATH sobre /usr/bin e o usuário ficaria preso em versão antiga
+  # após 'pacman -Syu'. Redireciona para o gerenciador de pacotes.
+  local pac_bin
+  pac_bin="$(self_pacman_managed_bin 2>/dev/null || true)"
+  if [[ -n "$pac_bin" ]]; then
+    log_always "Instalação gerenciada pelo pacman ($(pacman -Q full-upgrade 2>/dev/null || echo "$pac_bin"))."
+    log_always "Atualize via pacote AUR: paru -Syu full-upgrade  (ou yay -Syu full-upgrade)"
+    repair_full_upgrade_shadow
+    return 0
+  fi
+
   if ! has curl; then
     log_always "curl é necessário para atualizar. Instale curl e tente novamente."
     return "$RC_WARN"

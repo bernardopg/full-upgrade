@@ -88,3 +88,30 @@ releases (`generate_release_notes`).
 - **OpenSSF Scorecard** — postura de segurança do repo (badge no README).
 - **Stale / Greeting** — fechamento de inativos e boas-vindas a novos contribuidores.
 - **Dependabot** — mantém as GitHub Actions atualizadas (pinadas por SHA).
+
+## Release
+
+A release é disparada por `push` de tag `v*` ou por `workflow_dispatch` (input
+`tag`). No caminho `workflow_dispatch`, o workflow `release.yml`:
+
+1. **Bump** — sobe `VERSION`, atualiza os fallbacks em `full-upgrade.sh`/`build.sh`
+   e fecha a seção `[Unreleased]` do `CHANGELOG`. O commit entra no `main` via PR
+   de ciclo curto aberto com o `FU_RELEASE_TOKEN` e mesclado automaticamente após
+   os required checks passarem.
+2. **Release** — valida (bash -n + shellcheck + bats), builda o standalone,
+   atesta proveniência, empurra a tag e cria a GitHub Release.
+3. **AUR** — recalcula o checksum do tarball da tag e publica o `PKGBUILD`.
+
+### Secrets necessários (Settings → Secrets and variables → Actions)
+
+| Secret | Uso |
+|---|---|
+| `FU_RELEASE_TOKEN` | **PAT fine-grained** do owner (escopo `Contents: Read and write` + `Pull requests: Read and write` no repo). Usado para abrir o PR do bump. **Indispensável**: o GitHub *não* dispara workflows `on: pull_request` em PRs criados pelo `GITHUB_TOKEN` embutido (anti-loop) — sem o PAT, os required checks ("Lint & Test", "Validar Conventional Commits") nunca reportam e o merge fica `BLOCKED`. |
+| `AUR_USERNAME` | Usuário AUR para publicar o pacote. |
+| `AUR_EMAIL` | E-mail do committer no AUR. |
+| `AUR_SSH_PRIVATE_KEY` | Chave SSH do AUR (par AUR). |
+
+Para criar o `FU_RELEASE_TOKEN`: GitHub → Settings → Developer settings →
+Personal access tokens → Fine-grained tokens → Generate new token → selecione
+apenas este repositório, permissões *Contents: Read and write* e *Pull requests:
+Read and write*. Adicione o valor como secret `FU_RELEASE_TOKEN`.

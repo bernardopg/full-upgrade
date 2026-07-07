@@ -170,3 +170,140 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Canal 'main'"* ]]
 }
+
+# ── self_pacman_managed_bin ───────────────────────────────────────────────────
+# Cobra que o auto-update do --update não crie sombra sobre uma instalação AUR.
+# /usr/bin/full-upgrade pertencente ao pacman => ecoa o caminho; caso contrário rc 1.
+
+@test "self_pacman_managed_bin: pacman ausente => rc 1" {
+  has() { return 1; }
+  run self_pacman_managed_bin
+  [ "$status" -eq 1 ]
+}
+
+@test "self_pacman_managed_bin: pacman presente, /usr/bin/full-upgrade inexistente => rc 1" {
+  has() { [[ "$1" == pacman ]]; }
+  # [[ -e ]] curto-circuita antes de pacman -Qo: o caminho fixo não existe.
+  [ -e /usr/bin/full-upgrade ] && skip "ambiente tem /usr/bin/full-upgrade; teste só válido sem ele"
+  run self_pacman_managed_bin
+  [ "$status" -eq 1 ]
+}
+
+@test "self_pacman_managed_bin: existe mas não é owned => rc 1" {
+  has() { [[ "$1" == pacman ]]; }
+  local sysbin="/usr/bin/full-upgrade"
+  [ -e "$sysbin" ] || skip "teste requer /usr/bin/full-upgrade neste ambiente"
+  pacman() { return 1; }   # -Qo nega a propriedade
+  run self_pacman_managed_bin
+  [ "$status" -eq 1 ]
+}
+
+@test "self_pacman_managed_bin: owned pelo pacman => ecoa /usr/bin/full-upgrade" {
+  has() { [[ "$1" == pacman ]]; }
+  pacman() { return 0; }   # simula -Qo sucesso
+  local sysbin="/usr/bin/full-upgrade"
+  [ -e "$sysbin" ] || skip "teste requer /usr/bin/full-upgrade neste ambiente"
+  run self_pacman_managed_bin
+  [ "$status" -eq 0 ]
+  [ "$output" = "$sysbin" ]
+}
+
+# ── self_local_shadow_kind (none | dev | self) ────────────────────────────────
+
+@test "shadow_kind: arquivo inexistente => none" {
+  run self_local_shadow_kind "/tmp/fu-shadow-nao-existe-$$"
+  [ "$status" -eq 0 ]
+  [ "$output" = "none" ]
+}
+
+@test "shadow_kind: symlink para checkout git => dev (preservar)" {
+  local repo
+  repo=$(mktemp -d)
+  git -C "$repo" init -q
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/full-upgrade.sh"
+  local link="/tmp/fu-shadow-dev-$$"
+  ln -sf "$repo/full-upgrade.sh" "$link"
+  run self_local_shadow_kind "$link"
+  local rc="$status"
+  rm -f "$link"; rm -rf "$repo"
+  [ "$rc" -eq 0 ]
+  [ "$output" = "dev" ]
+}
+
+@test "shadow_kind: arquivo comum (não symlink) => self" {
+  local plain
+  plain=$(mktemp)
+  run self_local_shadow_kind "$plain"
+  local rc="$status"
+  rm -f "$plain"
+  [ "$rc" -eq 0 ]
+  [ "$output" = "self" ]
+}
+
+@test "shadow_kind: symlink para fora de git => self" {
+  local target link
+  target=$(mktemp)
+  link="/tmp/fu-shadow-nogit-$$"
+  ln -sf "$target" "$link"
+  run self_local_shadow_kind "$link"
+  local rc="$status"
+  rm -f "$link" "$target"
+  [ "$rc" -eq 0 ]
+  [ "$output" = "self" ]
+}
+
+# ── repair_full_upgrade_shadow ────────────────────────────────────────────────
+# Reparo real: remove ~/.local/bin/full-upgrade (e ~/.local/share/full-upgrade)
+# quando a instalação é pacman-managed, preservando o symlink de desenvolvimento.
+
+@test "repair_shadow: não-pacman => rc 0, mensagem 'nada a reparar'" {
+  QUIET=0 LOG_FILE=/dev/null     # log() deve ir para stdout (capturado pelo run)
+  self_pacman_managed_bin() { return 1; }   # não gerenciado
+  run repair_full_upgrade_shadow
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nada a reparar"* ]]
+}
+
+@test "repair_shadow: pacman-managed, sem cópia local => rc 0, 'sem cópia'" {
+  QUIET=0 LOG_FILE=/dev/null
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  self_local_shadow_kind() { printf 'none'; }
+  run repair_full_upgrade_shadow
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Sem cópia local"* ]]
+}
+
+@test "repair_shadow: pacman-managed, symlink dev => rc 0, mantém" {
+  QUIET=0 LOG_FILE=/dev/null
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  self_local_shadow_kind() { printf 'dev'; }
+  run repair_full_upgrade_shadow
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mantendo"* ]]
+}
+
+@test "repair_shadow: pacman-managed, sombra self => remove bin, .bak e share" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home
+  fake_home=$(mktemp -d)
+  mkdir -p "$fake_home/.local/bin" "$fake_home/.local/share/full-upgrade"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$fake_home/.local/bin/full-upgrade"
+  printf 'old\n' > "$fake_home/.local/bin/full-upgrade.bak"
+  printf 'standalone\n' > "$fake_home/.local/share/full-upgrade/full-upgrade.sh"
+
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  pacman() { printf 'full-upgrade 3.22.0-1\n'; }
+  self_local_shadow_kind() { printf 'self'; }
+  HOME="$fake_home" run repair_full_upgrade_shadow
+
+  local rc="$status"
+  [ "$rc" -eq 0 ]
+  [[ "$output" == *"Removendo sombra local obsoleta"* ]]
+  # O binário sombra e o .bak foram removidos.
+  [ ! -e "$fake_home/.local/bin/full-upgrade" ]
+  [ ! -e "$fake_home/.local/bin/full-upgrade.bak" ]
+  # A instalação standalone antiga sob .local/share também sumiu.
+  [ ! -e "$fake_home/.local/share/full-upgrade/full-upgrade.sh" ]
+  [[ "$output" == *"resolve para /usr/bin/full-upgrade"* ]]
+  rm -rf "$fake_home"
+}

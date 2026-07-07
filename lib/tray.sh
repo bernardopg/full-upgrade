@@ -502,10 +502,66 @@ tray_view_log() {
   disown 2>/dev/null || true
 }
 
-# ── Autostart (XDG) ────────────────────────────────────────────────────────────
+# ── Autostart (XDG + systemd user) ─────────────────────────────────────────────
 
 tray_autostart_file() {
   printf '%s/full-upgrade-tray.desktop' "${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+}
+
+tray_systemd_unit_file() {
+  printf '%s/systemd/user/full-upgrade-tray.service' "${XDG_CONFIG_HOME:-$HOME/.config}"
+}
+
+# Systemd user-scope utilizável nesta sessão? Compositores como Hyprland/sway
+# não processam XDG autostart; a unit systemd garante o daemon em qualquer
+# sessão que ative graphical-session.target.
+tray_systemd_user_available() {
+  has systemctl || return 1
+  systemctl --user show-environment >/dev/null 2>&1
+}
+
+# Escreve e ativa a unit systemd user do tray. rc 1 se systemd user
+# indisponível (caller mantém só o autostart XDG).
+tray_enable_systemd_unit() {
+  tray_systemd_user_available || return 1
+  local self unit
+  self=$(tray_self_bin)
+  unit="$(tray_systemd_unit_file)"
+  mkdir -p "$(dirname "$unit")"
+  cat > "$unit" <<EOF
+[Unit]
+Description=full-upgrade systray applet
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${self} --tray
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+  systemctl --user daemon-reload 2>/dev/null || true
+  if systemctl --user enable --now full-upgrade-tray.service >/dev/null 2>&1; then
+    echo "Unit systemd habilitada e iniciada: ${unit}"
+  else
+    echo "Unit systemd escrita (${unit}); inicie com: systemctl --user start full-upgrade-tray"
+  fi
+  return 0
+}
+
+tray_disable_systemd_unit() {
+  local unit
+  unit="$(tray_systemd_unit_file)"
+  has systemctl && systemctl --user disable --now full-upgrade-tray.service >/dev/null 2>&1
+  if [[ -f "$unit" ]]; then
+    rm -f "$unit"
+    has systemctl && systemctl --user daemon-reload 2>/dev/null
+    echo "Unit systemd removida."
+  fi
+  return 0
 }
 
 tray_enable_autostart() {
@@ -571,7 +627,18 @@ Verificado  : ${checked}
 Último run  : ${last_run:-desconhecido}
 Log fonte   : ${log_file:-desconhecido}
 Daemon      : $(tray_daemon_status)
+Unit systemd: $(tray_systemd_unit_status)
 EOF
+}
+
+# "habilitada (ativa)" | "habilitada (inativa)" | "não instalada"
+tray_systemd_unit_status() {
+  [[ -f "$(tray_systemd_unit_file)" ]] || { printf 'não instalada'; return 0; }
+  if has systemctl && systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1; then
+    printf 'habilitada (ativa)'
+  else
+    printf 'habilitada (inativa)'
+  fi
 }
 
 # "rodando (pid N)" | "parado"
