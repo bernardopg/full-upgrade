@@ -4,6 +4,25 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.23.0] - 2026-07-07
+
+### Adicionado
+
+- **Auto-remediar CVEs de toolchain Rust: fase 2 de rebuild.** Binários
+  cargo-installed que seguem vulneráveis após o `cargo install-update` (já na
+  última versão do registry, mas com a CVE pinada no build — instalação com
+  `--locked`, prebuilt via binstall ou `Cargo.lock` empacotado do release —
+  caso real: cargo-audit 0.22.2 com crossbeam-epoch 0.9.18/RUSTSEC-2026-0204)
+  são rebuildados com `cargo install --force` (resolução fresca de
+  dependências) e re-auditados. Se nem a resolução fresca tiver versão
+  corrigida compatível, vira nota informativa (regra K3) em vez de warn
+  recorrente; falha de rebuild continua warn. Novo helper puro
+  `cargo_crate_for_bin` (mapeia binário → crate via `cargo install --list`,
+  cobrindo binários com nome diferente do crate e instalações git/path) com
+  testes bats; timeout do step 600s → 1800s.
+
+## [3.22.0] - 2026-07-06
+
 ### Adicionado
 
 - **Steps de atualização para CLIs self-download** (instalador próprio em
