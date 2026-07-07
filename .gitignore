@@ -1,7 +1,29 @@
+# Artefatos de build/teste (gerados, não versionados)
 dist/
 coverage/
 .ci/
+
+# Logs e eventos gerados em runtime pelo full-upgrade
 *.log
 *.jsonl
+
+# Ferramentas/agentes locais (estado por máquina)
 .serena/
 .mind/
+.tokensave/
+
+# Claude Code: apenas config local e worktrees são ignorados.
+# .claude/agents, .claude/commands e .claude/skills SÃO versionados
+# (config compartilhada do projeto) — não ignorar o diretório inteiro.
+.claude/settings.local.json
+.claude/worktrees/
+
+# Notas de trabalho temporárias (ex.: rascunho de PR já mergeado)
+COMMIT_NOTES.md
+
+# Artefatos de SO / editor
+.DS_Store
+*.swp
+*.bak
+*.tmp
+Thumbs.db
