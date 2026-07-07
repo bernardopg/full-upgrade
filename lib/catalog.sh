@@ -25,6 +25,7 @@ Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutatin
 Garantir Wireshark|repair|security,wireshark,network,mutating|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
 Garantir Burp Suite|repair|security,burp,aur,network,mutating|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
 Reparar comandos locais conflitantes|repair|shadowing,mutating|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
+Reparar sombra local do full-upgrade|repair|shadowing,self,pacman,mutating|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
 Reparar permissoes de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
 Reparar atalhos antigos do Burp|repair|desktop,mutating|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
 Atualizar Flatpak|flatpak|update,network,slow|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
