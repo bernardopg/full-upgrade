@@ -299,8 +299,15 @@ apply_mode_and_early_exits() {
     case "$TRAY_MODE" in
         start)   tray_main ;;
         restart) tray_restart ;;
-        enable)  tray_enable_autostart; exit 0 ;;
-        disable) tray_disable_autostart; exit 0 ;;
+        enable)
+            tray_enable_autostart
+            # Hyprland/sway não processam XDG autostart; a unit systemd cobre.
+            tray_enable_systemd_unit || echo "systemd user indisponível; apenas autostart XDG habilitado."
+            exit 0 ;;
+        disable)
+            tray_disable_autostart
+            tray_disable_systemd_unit
+            exit 0 ;;
         status)  tray_print_status; exit 0 ;;
         check)   tray_check_and_print; exit 0 ;;
     esac
