@@ -4,6 +4,34 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Reparar sombra local do full-upgrade sobre a instalação AUR.** Quando o
+  binário em `~/.local/bin/full-upgrade` (de `--update`/`install.sh`) sombreia
+  o `/usr/bin/full-upgrade` gerenciado pelo pacman, o usuário continuava vendo
+  a versão antiga após `pacman -Syu`, precisando de `full-upgrade -u`. Novo
+  step `repair_full_upgrade_shadow` remove a cópia obsoleta (preservando
+  symlinks de desenvolvimento); `--update` em instalação pacman-managed agora
+  redireciona para o gerenciador de pacotes em vez de criar nova sombra; a
+  checagem passiva avisa o canal correto (AUR vs `--update`).
+- **Daemon do systray via unit systemd user.** Compositores Wayland
+  (Hyprland/sway) não processam XDG autostart; `--tray enable` agora também
+  instala a unit `full-upgrade-tray.service` (`graphical-session.target`),
+  cobrindo sessões sem autostart XDG. `--tray status` mostra o estado da unit.
+- **Sincronização do systray ao fim do run.** `finalize()` chama
+  `tray_check_now` para o applet refletir o resultado imediatamente, sem
+  depender do próximo poll do daemon.
+
+### Corrigido
+
+- **Release destravado: bump de VERSION via PAT.** O PR do bump era aberto com
+  o `GITHUB_TOKEN` embutido, e o GitHub suprime workflows `on: pull_request`
+  em PRs criados por esse token (anti-loop) — os required checks nunca
+  reportavam e o merge ficava `BLOCKED` (travou o release 3.22.0). Agora o PR
+  é aberto com `FU_RELEASE_TOKEN` (PAT fine-grained), o CI dispara
+  normalmente e o auto-merge funciona. O job também fecha o `[Unreleased]` do
+  `CHANGELOG` sob a nova versão.
+
 ## [3.23.0] - 2026-07-07
 
 ### Adicionado
