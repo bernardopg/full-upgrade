@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.24.0] - 2026-07-07
 ### Adicionado
 
 - **Reparar sombra local do full-upgrade sobre a instalação AUR.** Quando o
