@@ -291,6 +291,20 @@ classify_cargo_bin() {
   esac
 }
 
+# Mapeia o basename de um binário de $CARGO_HOME/bin para o crate que o
+# instalou, lendo a saída de `cargo install --list` (passada como $2): linhas
+# "crate vX.Y.Z:" seguidas dos binários indentados. Um crate pode instalar
+# binários com nome diferente do seu (ex.: ripgrep → rg). Saída vazia se o
+# binário não pertence a nenhum crate cargo-installed.
+cargo_crate_for_bin() {
+  local bin="$1" list="$2"
+  printf '%s\n' "$list" | awk -v bin="$bin" '
+    /^[^[:space:]]/ { crate = $1 }
+    /^[[:space:]]/  { name = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+                      if (name == bin) { print crate; exit } }
+  '
+}
+
 # Espaço suficiente? Recebe KiB disponíveis (coluna do `df -k`) e o mínimo em
 # GiB. Retorna 0 (suficiente) se avail_kib >= min_gib*1048576, senão 1.
 # Aritmética inteira pura — sem I/O, testável. min_gib<=0 sempre suficiente.

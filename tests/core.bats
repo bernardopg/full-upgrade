@@ -183,6 +183,29 @@ setup() {
   [ "$(classify_cargo_bin bat)" = "cargo" ]
 }
 
+# ── cargo_crate_for_bin ─────────────────────────────────────────────────────────
+
+@test "cargo_crate_for_bin: mapeia binário homônimo ao crate" {
+  list=$'cargo-audit v0.22.2:\n    cargo-audit\nripgrep v14.1.0:\n    rg'
+  [ "$(cargo_crate_for_bin cargo-audit "$list")" = "cargo-audit" ]
+}
+
+@test "cargo_crate_for_bin: mapeia binário com nome diferente do crate" {
+  list=$'cargo-audit v0.22.2:\n    cargo-audit\nripgrep v14.1.0:\n    rg'
+  [ "$(cargo_crate_for_bin rg "$list")" = "ripgrep" ]
+}
+
+@test "cargo_crate_for_bin: crate instalado via git ou path mantém só o nome" {
+  list=$'cargo-audit v0.22.1 (https://github.com/RustSec/rustsec#a880538b):\n    cargo-audit\nfoo v1.0.0 (/home/u/src/foo):\n    foo-bin'
+  [ "$(cargo_crate_for_bin cargo-audit "$list")" = "cargo-audit" ]
+  [ "$(cargo_crate_for_bin foo-bin "$list")" = "foo" ]
+}
+
+@test "cargo_crate_for_bin: binário desconhecido produz vazio" {
+  list=$'ripgrep v14.1.0:\n    rg'
+  [ -z "$(cargo_crate_for_bin rustup "$list")" ]
+}
+
 # ── space_is_sufficient ─────────────────────────────────────────────────────────
 
 @test "space_is_sufficient: avail acima do mínimo retorna 0" {
