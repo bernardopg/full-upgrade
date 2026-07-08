@@ -378,6 +378,14 @@ EOF
   [[ "$output" == *"$$"* ]]
 }
 
+@test "daemon_status: sem PID vivo mas systemd ativo => rodando" {
+  TRAY_PID_FILE="${BATS_TEST_TMPDIR}/missing.pid"
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 0; }
+  run tray_daemon_status
+  [ "$output" = "rodando (systemd)" ]
+}
+
 # ── tray_self_bin ──────────────────────────────────────────────────────────────
 
 @test "self_bin: retorna full-upgrade quando comando existe" {
@@ -542,6 +550,20 @@ EOF
   run tray_systemd_unit_status
   [ "$status" -eq 0 ]
   [ "$output" = "habilitada (inativa)" ]
+}
+
+@test "tray_systemd_unit_status: bus inacessível => estado indisponível" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-bus"
+  mkdir -p "$(tray_systemd_unit_file | xargs dirname)"
+  touch "$(tray_systemd_unit_file)"
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() {
+    echo "Failed to connect to user scope bus via local transport: Operation not permitted" >&2
+    return 1
+  }
+  run tray_systemd_unit_status
+  [ "$status" -eq 0 ]
+  [ "$output" = "habilitada (estado indisponível)" ]
 }
 
 @test "tray_systemd_user_available: systemctl ausente => rc 1" {

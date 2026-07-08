@@ -633,9 +633,19 @@ EOF
 
 # "habilitada (ativa)" | "habilitada (inativa)" | "não instalada"
 tray_systemd_unit_status() {
-  [[ -f "$(tray_systemd_unit_file)" ]] || { printf 'não instalada'; return 0; }
-  if has systemctl && systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1; then
+  local unit status rc
+  unit="$(tray_systemd_unit_file)"
+  [[ -f "$unit" ]] || { printf 'não instalada'; return 0; }
+  if ! has systemctl; then
+    printf 'habilitada (estado indisponível)'
+    return 0
+  fi
+  status="$(systemctl --user is-active full-upgrade-tray.service 2>&1)"
+  rc=$?
+  if (( rc == 0 )); then
     printf 'habilitada (ativa)'
+  elif printf '%s\n' "$status" | grep -qiE 'failed to connect|operation not permitted|permission denied|no medium|no such file or directory'; then
+    printf 'habilitada (estado indisponível)'
   else
     printf 'habilitada (inativa)'
   fi
@@ -649,6 +659,10 @@ tray_daemon_status() {
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       printf 'rodando (pid %s)' "$pid"; return 0
     fi
+  fi
+  if has systemctl && systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1; then
+    printf 'rodando (systemd)'
+    return 0
   fi
   printf 'parado'
 }
