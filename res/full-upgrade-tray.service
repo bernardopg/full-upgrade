@@ -5,7 +5,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/full-upgrade --tray
+ExecStart=@FULL_UPGRADE_EXEC@ --tray
 Restart=on-failure
 RestartSec=10
 

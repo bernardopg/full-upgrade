@@ -78,8 +78,10 @@ paru -S full-upgrade
 ```
 
 O pacote AUR instala o executável único em `/usr/bin/full-upgrade`, o exemplo de
-configuração em `/usr/share/full-upgrade/config.example` e a licença/documentação
-em `/usr/share/{licenses,doc}/full-upgrade/`. Copie o exemplo para começar:
+configuração em `/usr/share/full-upgrade/config.example`, a unit systemd user do
+systray em `/usr/lib/systemd/user/full-upgrade-tray.service` e a
+licença/documentação em `/usr/share/{licenses,doc}/full-upgrade/`. Copie o
+exemplo para começar:
 
 ```bash
 mkdir -p ~/.config/full-upgrade
@@ -178,7 +180,7 @@ Comandos úteis no dia a dia:
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
 | `full-upgrade --tray` | Iniciar o systray daemon: ícone multi-estado, menu e notificações. Em Wayland usa AppIndicator; em X11 usa `yad --notification`. |
-| `full-upgrade --tray --enable` | Habilitar autostart XDG em `~/.config/autostart/full-upgrade-tray.desktop`. |
+| `full-upgrade --tray --enable` | Habilitar o systray no login: XDG autostart + unit systemd user em `graphical-session.target`. |
 | `full-upgrade --tray --status` | Mostrar o último estado cacheado do systray, sem rede. |
 | `full-upgrade --tray --check` | Recalcular o estado agora (usa `checkupdates`/AUR, faz rede) e sair. |
 
@@ -203,7 +205,7 @@ Uso:
 sudo pacman -S python-gobject libayatana-appindicator yad libnotify pacman-contrib
 full-upgrade --tray --check     # computa o primeiro estado
 full-upgrade --tray             # inicia o applet
-full-upgrade --tray --enable    # autostart via XDG
+full-upgrade --tray --enable    # autostart via XDG + systemd user
 ```
 
 No backend AppIndicator (Wayland/Hyprland/DankMaterialShell) o applet é
