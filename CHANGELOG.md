@@ -4,6 +4,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Doctor: units de app-autostart reclassificadas como informativas.** Units
+  `app-<nome>@autostart.service` (geradas pelo `systemd-xdg-autostart-generator`
+  a partir de `.desktop` em `~/.config/autostart`, com `Restart=no`) ficavam
+  "failed" sempre que o app de sessão gráfica era fechado/KILLado — artefato do
+  generator, não um serviço quebrado. Agora, se só há app-autostart em estado
+  failed, o passo vira nota informativa (✔) em vez de todo recorrente; a unit
+  ainda é listada (transparência), mas com a explicação. Uma unit de serviço
+  real falhada continua acionando o todo normalmente.
+- **Doctor: erros de enumeração USB filtrados como ruído.** Falhas de
+  enumeração de dispositivo/hub USB com problema de hardware (`device
+  descriptor read error -32/-71`, `unable to enumerate`, `attempt power
+  cycle`) são entre-device e não-acionáveis pelo full-upgrade (o kernel já faz
+  power-cycle e desiste). Passam a ser filtrados como ruído conhecido, como já
+  ocorria com bluetooth/ACPI/keyring. Mensagens de enumeração bem-sucedida
+  continuam preservadas.
+
 ## [3.24.0] - 2026-07-07
 ### Adicionado
 

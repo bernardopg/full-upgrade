@@ -199,3 +199,62 @@ setup() {
   run journal_hint_for 'Process 841215 (antigravity-ide) of user 1000 dumped core.'
   [[ "$output" == *"coredumpctl"* ]]
 }
+
+# ── doctor_journal_errors: filtro de ruído (incl. USB enum failures) ──────────
+# Erros de enumeração USB (device descriptor read error -32/-71, unable to
+# enumerate, power cycle) são hardware não-acionável — o kernel já desiste.
+# Devem ser filtrados como ruído, mas um erro real (ex.: I/O de disco) ainda
+# surfaced como warn.
+
+# Helper: mocka journalctl para devolver $1 (linhas) e has() p/ journalctl.
+_mock_journal() {
+  export _MOCK_JOURNAL_OUT="$1"
+  has() { [[ "$1" == journalctl ]]; }
+  journalctl() { printf '%s\n' "$_MOCK_JOURNAL_OUT"; }
+}
+
+@test "journal_errors: só erros USB de enumeração => filtrados (rc 0)" {
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_journal $'usb 3-9.3: device descriptor read/64, error -32\nusb 3-9-port3: unable to enumerate USB device\nusb 3-9.3: device not accepting address 9, error -71'
+  run doctor_journal_errors
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ruído conhecido filtrado"* ]]
+  [[ "$output" != *"unable to enumerate"* ]]
+}
+
+@test "journal_errors: erro real (I/O disco) => mantém RC_WARN" {
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_journal 'sd 0:0:0:0: [sda] tag#0 FAILED Result: hostbyte=DID_ERROR'
+  run doctor_journal_errors
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"FAILED Result"* ]]
+}
+
+@test "journal_errors: USB + erro real => só o real surfaced" {
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_journal $'usb 3-9.3: device descriptor read/64, error -32\nnvme0n1: I/O error dev=sda op=read'
+  run doctor_journal_errors
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"I/O error"* ]]
+  [[ "$output" != *"descriptor read"* ]]
+}
+
+@test "journal_errors: enumeração USB bem-sucedida NÃO é filtrada" {
+  # 'new high-speed USB device' / 'New USB device found' são info, não erro,
+  # mas confirmamos que os padrões de filtro NÃO os casam (não mascarar
+  # detecção de dispositivo novo). São priority<=3? Provavelmente não chegam
+  # ao doctor, mas garantimos que o regex é específico o bastante.
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_journal $'usb 3-9: new high-speed USB device number 4 using xhci_hcd'
+  run doctor_journal_errors
+  # Essa linha não casa nenhum padrão de ruído → surfaced (não filtrada).
+  [[ "$output" == *"new high-speed USB device"* ]]
+}
+
+@test "journal_errors: journal vazio => rc 0, sem erros" {
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_journal ''
+  run doctor_journal_errors
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhum erro crítico"* ]]
+}

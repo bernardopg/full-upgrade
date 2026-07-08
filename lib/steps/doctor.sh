@@ -153,15 +153,49 @@ doctor_failed_systemd_units() {
     log "  Units systemd falhadas:"
     printf '%s\n' "$failed_system" | tee >(_strip_ansi >> "$LOG_FILE")
   fi
+
+  # Units app-<nome>@autostart.service são geradas pelo
+  # systemd-xdg-autostart-generator a partir de .desktop em ~/.config/autostart.
+  # Têm Restart=no e ficam "failed" sempre que o app de sessão gráfica é
+  # fechado/KILLado — artefato do generator, não um serviço quebrado. Separamos
+  # essas das units --user reais: se só restarem app-autostart, vira nota
+  # informativa (✔) em vez de TODO.
+  local _usr_real="" _usr_autostart=""
   if [[ -n "${failed_user//[[:space:]]/}" ]]; then
-    _usr_cnt="$(printf '%s\n' "$failed_user" | grep -c '[^[:space:]]' || true)"
+    while IFS= read -r _line; do
+      [[ -z "${_line//[[:space:]]/}" ]] && continue
+      if [[ "$_line" =~ ^[[:space:]]*app-.*@autostart\.service[[:space:]] ]]; then
+        _usr_autostart+="${_line}"$'\n'
+      else
+        _usr_real+="${_line}"$'\n'
+      fi
+    done <<< "$failed_user"
+  fi
+
+  _usr_cnt="$(printf '%s' "$_usr_real" | grep -c '[^[:space:]]' || true)"
+
+  if [[ -n "${_usr_real//[[:space:]]/}" ]]; then
     log "  Units systemd --user falhadas:"
-    printf '%s\n' "$failed_user" | tee >(_strip_ansi >> "$LOG_FILE")
-  elif [[ "$user_scope" != "available" ]]; then
+    printf '%s' "$_usr_real" | sed '/^[[:space:]]*$/d' | tee >(_strip_ansi >> "$LOG_FILE")
+  fi
+  if [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
+    local _auto_cnt
+    _auto_cnt="$(printf '%s' "$_usr_autostart" | grep -c '[^[:space:]]' || true)"
+    log "  ${_auto_cnt} app(s) de autostart em estado failed (systemd-xdg-autostart-generator; Restart=no — fechado/KILLado pelo usuário, não é serviço quebrado):"
+    printf '%s' "$_usr_autostart" | sed '/^[[:space:]]*$/d' | tee >(_strip_ansi >> "$LOG_FILE")
+  fi
+  if [[ -z "${_usr_real}${_usr_autostart}" ]] && [[ "$user_scope" != "available" ]]; then
     case "$user_scope" in
       no-runtime) log "  Checagem systemd --user pulada (sem XDG_RUNTIME_DIR/sessão de usuário)." ;;
       no-bus) log "  Checagem systemd --user pulada (sem bus de sessão em XDG_RUNTIME_DIR)." ;;
     esac
+  fi
+
+  # Se só há app-autostart (generator) e nenhuma unit de sistema/usuário real
+  # falhada, é informativo — não aciona TODO.
+  if (( _sys_cnt == 0 )) && (( _usr_cnt == 0 )) && [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
+    log "  Nenhuma unit de serviço real falhada; só app(s) de autostart (artefato do generator)."
+    return 0
   fi
 
   STEP_REASON="${_sys_cnt} unit(s) sistema + ${_usr_cnt} unit(s) usuário falhada(s)"
@@ -285,6 +319,16 @@ doctor_journal_errors() {
     'Original source was unlinked while parsing service file'
     # ── Virtualização: host sem Intel TDX — informativo, não é falha ──
     'virt/tdx: TDX not supported by the host platform'
+    # ── USB: falha de enumeração de dispositivo/hub com problema de hardware
+    #    (mau contato, controlador do dispositivo falhando). O kernel já faz
+    #    power-cycle e desiste; não há ação do full-upgrade — é between-device.
+    #    Caso típico: Genesys Hub + dispositivo na porta debaixo que o kernel
+    #    não consegue ler o device descriptor (error -32 EPIPE / -71 EPROTO).
+    'usb [0-9].*: device descriptor read/(all|64),? error -(32|71|110)'
+    'usb [0-9].*-port[0-9]+: unable to enumerate USB device'
+    'usb [0-9].*-port[0-9]+: attempt power cycle'
+    'usb [0-9].*: device not accepting address [0-9]+, error -(32|71|110)'
+    'usb [0-9].*: device descriptor read/all, error'
   )
 
   # Padrões adicionais de ~/.config/full-upgrade/journal-noise.txt (um regex-E por linha)
