@@ -190,6 +190,20 @@ setup() {
   [ "$output" = "unknown" ]
 }
 
+@test "journal_effective_signature_class: erro antigo do tray ativo vira benigno" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 0; }
+  run journal_effective_signature_class '369 full-upgrade-tray.service: Failed at step EXEC spawning /home/user/.local/bin/full-upgrade: No such file or directory'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_effective_signature_class: erro do tray ainda quebrado permanece unknown" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; }
+  run journal_effective_signature_class '369 full-upgrade-tray.service: Failed at step EXEC spawning /home/user/.local/bin/full-upgrade: No such file or directory'
+  [ "$output" = "unknown" ]
+}
+
 @test "journal_signature_class: coredump é acionável" {
   run journal_signature_class '2 Process 841215 (antigravity-ide) of user 1000 dumped core.'
   [ "$output" = "actionable" ]

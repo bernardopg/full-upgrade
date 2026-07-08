@@ -240,6 +240,8 @@ journal_hint_for() {
       printf 'Bluetooth/áudio transitório (normalmente benigno): verifique firmware do adaptador e reconexão do dispositivo; se recorrente, "systemctl restart bluetooth"' ;;
     *ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
       printf 'USB serial FTDI: erro transitório de flow control; verifique cabo/dispositivo ttyUSB0 se houver falha prática' ;;
+    *full-upgrade-tray.service:\ Failed\ at\ step\ EXEC\ spawning\ */full-upgrade:*)
+      printf 'full-upgrade-tray: a unit tentou executar um caminho inexistente; atualize/reinstale o pacote e reinicie a unit com "systemctl --user daemon-reload && systemctl --user restart full-upgrade-tray.service"' ;;
     *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*)
       printf 'falha de autenticação sudo/PAM registrada: confirme se não há script/serviço tentando sudo com senha incorreta' ;;
     *dumped\ core*)
@@ -272,6 +274,27 @@ journal_signature_class() {
     *)
       printf 'unknown' ;;
   esac
+}
+
+# Um erro antigo do próprio full-upgrade-tray pode ficar no journal do boot
+# mesmo depois de o pacote atualizar a unit e o daemon voltar. Só rebaixa essa
+# assinatura quando o serviço atual está ativo; se a unit ainda estiver quebrada,
+# o Doctor continua avisando.
+journal_full_upgrade_tray_exec_self_healed() {
+  local l="$1"
+  [[ "$l" == *"full-upgrade-tray.service: Failed at step EXEC spawning "*"/full-upgrade:"* ]] || return 1
+  has systemctl || return 1
+  systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1
+}
+
+journal_effective_signature_class() {
+  local l="$1" class
+  class="$(journal_signature_class "$l")"
+  if [[ "$class" == "unknown" ]] && journal_full_upgrade_tray_exec_self_healed "$l"; then
+    printf 'benign'
+  else
+    printf '%s' "$class"
+  fi
 }
 
 
@@ -413,7 +436,7 @@ doctor_journal_errors() {
   local _all_benign=1 _class
   while IFS= read -r _g; do
     [[ -n "${_g//[[:space:]]/}" ]] || continue
-    _class="$(journal_signature_class "$_g")"
+    _class="$(journal_effective_signature_class "$_g")"
     if [[ "$_class" != "benign" ]]; then
       _all_benign=0
       break
