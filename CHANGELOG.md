@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.24.1] - 2026-07-08
 ### Corrigido
 
 - **Doctor: units de app-autostart reclassificadas como informativas.** Units
