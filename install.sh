@@ -103,7 +103,8 @@ fi
 if [[ -f "${SRC_DIR}/res/full-upgrade-tray.service" ]]; then
   SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
   mkdir -p "$SYSTEMD_USER_DIR"
-  cp -f "${SRC_DIR}/res/full-upgrade-tray.service" "${SYSTEMD_USER_DIR}/full-upgrade-tray.service" 2>/dev/null || true
+  sed "s|@FULL_UPGRADE_EXEC@|${BIN_DIR}/full-upgrade|g" \
+    "${SRC_DIR}/res/full-upgrade-tray.service" > "${SYSTEMD_USER_DIR}/full-upgrade-tray.service"
   echo "  systemd: ${SYSTEMD_USER_DIR}/full-upgrade-tray.service (enable: systemctl --user enable --now full-upgrade-tray.service)"
 fi
 

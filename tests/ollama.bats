@@ -37,6 +37,7 @@ setup() {
   OLLAMA_SELF_UPDATE=1
   has() { [[ "$1" == ollama || "$1" == curl ]]; }
   ollama() { [[ "$1" == --version ]] && printf 'ollama version is 0.23.0\n'; }
+  curl() { printf 'https://github.com/ollama/ollama/releases/tag/v0.24.0'; }
   run_network_cmd() { printf 'echo instalado\n'; return 0; }   # "script" é um echo inofensivo
   run update_ollama
   [ "$status" -eq 0 ]
@@ -47,6 +48,7 @@ setup() {
   OLLAMA_SELF_UPDATE=1
   has() { [[ "$1" == ollama || "$1" == curl ]]; }
   ollama() { [[ "$1" == --version ]] && printf 'ollama version is 0.22.0\n'; }
+  curl() { printf 'https://github.com/ollama/ollama/releases/tag/v0.23.0'; }
   run_network_cmd() { printf 'could not resolve host\n'; return "$RC_WARN"; }
   run update_ollama
   [ "$status" -eq "$RC_WARN" ]

@@ -97,8 +97,8 @@ self_local_shadow_kind() {
 # pacman. Sem isso, ~/.local/bin sombreia /usr/bin e o usuário continua vendo
 # a versão antiga depois do 'pacman -Syu', precisando de 'full-upgrade -u'.
 repair_full_upgrade_shadow() {
-  local sysbin
-  sysbin="$(self_pacman_managed_bin 2>/dev/null || true)"
+local sysbin
+sysbin="$(self_pacman_managed_bin 2>/dev/null || true)"
   if [[ -z "$sysbin" ]]; then
     log "  full-upgrade não é gerenciado pelo pacman; nada a reparar."
     return 0
@@ -123,7 +123,56 @@ repair_full_upgrade_shadow() {
       log "  'full-upgrade' agora resolve para ${sysbin} (atualizado via pacman/AUR)."
       ;;
   esac
-  return 0
+return 0
+}
+
+# Caminho da unit user do tray criada por install.sh/--tray --enable.
+self_user_tray_unit_file() {
+local config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+printf '%s/systemd/user/full-upgrade-tray.service' "$config_home"
+}
+
+# Reparo: instalações antigas do tray gravaram ExecStart=~/.local/bin/full-upgrade.
+# A partir da instalação pacman/AUR, esse caminho pode ser removido pelo reparo
+# de shadowing, então a unit local precisa apontar para o binário gerenciado.
+repair_full_upgrade_tray_unit() {
+local sysbin unit tmp
+sysbin="$(self_pacman_managed_bin 2>/dev/null || true)"
+if [[ -z "$sysbin" ]]; then
+log "  full-upgrade não é gerenciado pelo pacman; unit do tray preservada."
+return 0
+fi
+
+unit="$(self_user_tray_unit_file)"
+if [[ ! -f "$unit" ]]; then
+log "  Sem unit user local do full-upgrade tray para reparar."
+return 0
+fi
+
+if ! grep -Eq '^ExecStart=.*\.local/bin/full-upgrade[[:space:]]+--tray([[:space:]]|$)' "$unit"; then
+log "  Unit user do full-upgrade tray já não aponta para ~/.local/bin."
+return 0
+fi
+
+tmp="${unit}.tmp.$$"
+awk -v bin="$sysbin" '
+  /^ExecStart=.*\/\.local\/bin\/full-upgrade[[:space:]]+--tray([[:space:]]|$)/ {
+    print "ExecStart=" bin " --tray"
+    next
+  }
+  { print }
+' "$unit" > "$tmp" || {
+rm -f "$tmp"
+return 1
+}
+mv -f "$tmp" "$unit"
+log "  Unit user do full-upgrade tray reparada: ExecStart=${sysbin} --tray"
+
+if has systemctl && systemctl --user daemon-reload >/dev/null 2>&1; then
+log "  systemd --user recarregado."
+else
+log "  Rode 'systemctl --user daemon-reload' para o systemd reler a unit."
+fi
 }
 
 # Checagem passiva: só avisa se há versão nova. Não baixa nada.

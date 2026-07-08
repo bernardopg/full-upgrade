@@ -4,8 +4,9 @@ Este diretório contém o empacotamento do `full-upgrade` para o
 [AUR](https://aur.archlinux.org/) (Arch User Repository).
 
 - `PKGBUILD` — receita de build do pacote **source** `full-upgrade`. Baixa o
-  tarball da tag publicada no GitHub, roda `build.sh` e instala o executável
-  único (`dist/full-upgrade-standalone.sh`) em `/usr/bin/full-upgrade`.
+tarball da tag publicada no GitHub, roda `build.sh`, instala o executável
+único (`dist/full-upgrade-standalone.sh`) em `/usr/bin/full-upgrade` e
+materializa a unit do systray com `ExecStart=/usr/bin/full-upgrade --tray`.
 - `.SRCINFO` — metadados gerados a partir do `PKGBUILD`
   (`makepkg --printsrcinfo`). Mantido em sincronia.
 

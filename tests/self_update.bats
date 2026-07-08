@@ -307,3 +307,83 @@ setup() {
   [[ "$output" == *"resolve para /usr/bin/full-upgrade"* ]]
   rm -rf "$fake_home"
 }
+
+# ── repair_full_upgrade_tray_unit ─────────────────────────────────────────────
+
+@test "repair_tray_unit: não-pacman => preserva unit e rc 0" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home unit
+  fake_home=$(mktemp -d)
+  unit="$fake_home/.config/systemd/user/full-upgrade-tray.service"
+  mkdir -p "$(dirname "$unit")"
+  printf 'ExecStart=%%h/.local/bin/full-upgrade --tray\n' > "$unit"
+
+  self_pacman_managed_bin() { return 1; }
+  XDG_CONFIG_HOME="$fake_home/.config" HOME="$fake_home" run repair_full_upgrade_tray_unit
+
+  [ "$status" -eq 0 ]
+  grep -q 'ExecStart=%h/.local/bin/full-upgrade --tray' "$unit"
+  [[ "$output" == *"unit do tray preservada"* ]]
+  rm -rf "$fake_home"
+}
+
+@test "repair_tray_unit: pacman-managed sem unit local => rc 0" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home
+  fake_home=$(mktemp -d)
+
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  XDG_CONFIG_HOME="$fake_home/.config" HOME="$fake_home" run repair_full_upgrade_tray_unit
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Sem unit user local"* ]]
+  rm -rf "$fake_home"
+}
+
+@test "repair_tray_unit: pacman-managed reescreve ExecStart stale para /usr/bin" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home unit
+  fake_home=$(mktemp -d)
+  unit="$fake_home/.config/systemd/user/full-upgrade-tray.service"
+  mkdir -p "$(dirname "$unit")"
+  cat > "$unit" <<'EOF'
+[Unit]
+Description=full-upgrade systray applet
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/full-upgrade --tray
+Restart=on-failure
+EOF
+
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { [[ "$1 $2 $3" == "--user daemon-reload " ]]; }
+
+  XDG_CONFIG_HOME="$fake_home/.config" HOME="$fake_home" run repair_full_upgrade_tray_unit
+
+  [ "$status" -eq 0 ]
+  grep -q '^ExecStart=/usr/bin/full-upgrade --tray$' "$unit"
+  ! grep -q '\.local/bin/full-upgrade' "$unit"
+  [[ "$output" == *"Unit user do full-upgrade tray reparada"* ]]
+  [[ "$output" == *"systemd --user recarregado"* ]]
+  rm -rf "$fake_home"
+}
+
+@test "repair_tray_unit: unit já correta permanece inalterada" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home unit before
+  fake_home=$(mktemp -d)
+  unit="$fake_home/.config/systemd/user/full-upgrade-tray.service"
+  mkdir -p "$(dirname "$unit")"
+  printf 'ExecStart=/usr/bin/full-upgrade --tray\n' > "$unit"
+  before="$(cat "$unit")"
+
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade\n'; }
+  XDG_CONFIG_HOME="$fake_home/.config" HOME="$fake_home" run repair_full_upgrade_tray_unit
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$unit")" = "$before" ]
+  [[ "$output" == *"já não aponta para ~/.local/bin"* ]]
+  rm -rf "$fake_home"
+}

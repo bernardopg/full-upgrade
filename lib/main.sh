@@ -48,6 +48,7 @@ run_all_steps() {
             if (( NO_REPAIR )); then
                 step_skip "Reparar comandos locais conflitantes"        "--no-repair"
                 step_skip "Reparar sombra local do full-upgrade"        "--no-repair"
+                step_skip "Reparar unit stale do full-upgrade tray"     "--no-repair"
                 step_skip "Garantir Wireshark"                         "--no-repair"
                 step_skip "Garantir Burp Suite"                        "--no-repair"
                 step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
@@ -56,7 +57,8 @@ run_all_steps() {
                 # Shadowing é reparo genérico, útil p/ todos e deve acontecer
                 # antes do update principal.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
-                run_step "Reparar sombra local do full-upgrade"         repair_full_upgrade_shadow
+            run_step "Reparar sombra local do full-upgrade"         repair_full_upgrade_shadow
+            run_step "Reparar unit stale do full-upgrade tray"      repair_full_upgrade_tray_unit
                 # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: instalam pacotes
                 # se ausentes, então não devem rodar por padrão. Opt-in explícito.
                 custom_step_or_skip "Garantir Wireshark"                ensure_wireshark

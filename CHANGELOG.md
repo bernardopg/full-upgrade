@@ -7,6 +7,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ## [3.24.1] - 2026-07-08
 ### Corrigido
 
+- **Systray AUR não depende mais de `~/.local/bin/full-upgrade`.** A unit
+  systemd do tray agora é tratada como template: o pacote AUR materializa
+  `ExecStart=/usr/bin/full-upgrade --tray`, enquanto `install.sh` materializa
+  `~/.local/bin/full-upgrade --tray` para instalações locais. Isso evita o
+  loop `203/EXEC` em Hyprland/DankMaterialShell quando o reparo de sombra local
+  remove a cópia antiga de `~/.local/bin/full-upgrade`.
+- **Reparo automático de unit user stale do tray.** Novo step de repair
+  reescreve `~/.config/systemd/user/full-upgrade-tray.service` quando ela ainda
+  aponta para `~/.local/bin/full-upgrade` em uma instalação gerenciada pelo
+  pacman/AUR, e recarrega `systemd --user` quando possível.
+- **Empacotamento AUR base sincronizado.** `packaging/aur/PKGBUILD` volta a
+  refletir a release atual e ganhou cobertura para impedir que o arquivo de
+  serviço seja publicado com caminho de instalação hardcoded errado.
 - **Doctor: units de app-autostart reclassificadas como informativas.** Units
   `app-<nome>@autostart.service` (geradas pelo `systemd-xdg-autostart-generator`
   a partir de `.desktop` em `~/.config/autostart`, com `Restart=no`) ficavam

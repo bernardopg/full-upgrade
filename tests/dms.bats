@@ -15,12 +15,18 @@ teardown() {
 }
 
 # helper: cria um repo git dummy com 1 commit
+configure_test_git_repo() {
+  local dir="$1"
+  git -C "$dir" config user.email "test@test.com"
+  git -C "$dir" config user.name "Test"
+  git -C "$dir" config commit.gpgsign false
+}
+
 create_dummy_repo() {
   local dir="$1" branch="${2:-main}"
   mkdir -p "$dir"
   git -C "$dir" init -b "$branch" --quiet
-  git -C "$dir" config user.email "test@test.com"
-  git -C "$dir" config user.name "Test"
+  configure_test_git_repo "$dir"
   echo "initial" > "$dir/file.txt"
   git -C "$dir" add .
   git -C "$dir" commit -m "init" --quiet
@@ -101,8 +107,7 @@ create_repo_with_remote() {
   # Adicionar commit no remote via clone separado
   local clone="$MOCKDIR/remote-work"
   git clone "$bare" "$clone" --quiet 2>/dev/null
-  git -C "$clone" config user.email "test@test.com"
-  git -C "$clone" config user.name "Test"
+  configure_test_git_repo "$clone"
   echo "new" > "$clone/newfile.txt"
   git -C "$clone" add .
   git -C "$clone" commit -m "add newfile" --quiet 2>/dev/null
@@ -131,8 +136,7 @@ create_repo_with_remote() {
   # 2) Commit remoto conflitante (mesmo arquivo)
   local clone="$MOCKDIR/remote-work"
   git clone "$bare" "$clone" --quiet 2>/dev/null
-  git -C "$clone" config user.email "test@test.com"
-  git -C "$clone" config user.name "Test"
+  configure_test_git_repo "$clone"
   echo "remote-variant" > "$clone/file.txt"
   git -C "$clone" add .
   git -C "$clone" commit -m "remote change" --quiet 2>/dev/null
