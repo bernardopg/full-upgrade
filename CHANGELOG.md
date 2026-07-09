@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.25.0] - 2026-07-09
 ### Adicionado
 
 - **Step `Limpar logs/relatórios antigos` (cleanup).** `rotate_logs` já fazia
