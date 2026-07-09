@@ -11,6 +11,8 @@ coverage/
 .serena/
 .mind/
 .tokensave/
+.headroom/
+.claude/.headroom_wrap_marker.json
 
 # Claude Code: apenas config local e worktrees são ignorados.
 # .claude/agents, .claude/commands e .claude/skills SÃO versionados
