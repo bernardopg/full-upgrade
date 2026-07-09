@@ -31,10 +31,18 @@ _report_resolve_jsonl() {
 # Converte um JSONL de run (eventos run_start/step/summary/run_end) em Markdown.
 # Lê o arquivo passado em $1 e emite o relatório em stdout. Pura quanto a estado
 # do processo (só lê o arquivo); testável via bats com um JSONL de fixture.
+# Agrupa os steps pelas mesmas categorias/rótulos do resumo do terminal
+# (summary_group_specs, lib/ui.sh — fonte única de verdade) e usa os mesmos
+# símbolos de status (SYM_*, lib/ui.sh), para o relatório ficar visualmente
+# consistente com o output ao vivo em vez de uma tabela plana com texto cru.
 report_markdown_from_jsonl() {
   local jsonl="$1"
   [[ -r "$jsonl" ]] || return 1
-  awk '
+  local group_spec
+  group_spec="$(summary_group_specs | tr '\n' ';')"
+  awk -v groupspec="$group_spec" \
+    -v sym_ok="${SYM_OK:-ok}" -v sym_warn="${SYM_WARN:-!!}" -v sym_todo="${SYM_TODO:-->}" \
+    -v sym_fail="${SYM_FAIL:-XX}" -v sym_skip="${SYM_SKIP:---}" '
     function fmt_dur(s,   m) {
       s = s + 0
       if (s >= 60) { m = int(s / 60); return m "m " sprintf("%02d", s % 60) "s" }
@@ -77,6 +85,32 @@ report_markdown_from_jsonl() {
       return out
     }
     function md_cell(s) { gsub(/\|/, "\\|", s); return s }
+    function sym_for(status) {
+      if (status == "ok")   return sym_ok
+      if (status == "warn") return sym_warn
+      if (status == "todo") return sym_todo
+      if (status == "fail") return sym_fail
+      if (status == "skip") return sym_skip
+      return "?"
+    }
+    function in_group(cat) { return (cat in cat_to_group) }
+
+    BEGIN {
+      # Mesma ordem/rótulos/categorias de summary_group_specs (lib/ui.sh),
+      # recebida em "groupspec" como "Label1|cats1;Label2|cats2;...".
+      ngroups = 0
+      nrecs = split(groupspec, recs, ";")
+      for (r = 1; r <= nrecs; r++) {
+        rec = recs[r]
+        if (rec == "") continue
+        p = index(rec, "|")
+        if (p == 0) continue
+        ngroups++
+        grp_label[ngroups] = substr(rec, 1, p - 1)
+        ncats = split(substr(rec, p + 1), catarr, " ")
+        for (c = 1; c <= ncats; c++) cat_to_group[catarr[c]] = ngroups
+      }
+    }
 
     /"event":"run_start"/ {
       version  = json_str($0, "script_version")
@@ -92,6 +126,7 @@ report_markdown_from_jsonl() {
       st_status[n] = json_str($0, "status")
       st_dur[n]    = json_num($0, "duration_seconds")
       st_reason[n] = json_str($0, "reason")
+      st_cat[n]    = json_str($0, "category")
       next
     }
     /"event":"summary"/ {
@@ -129,41 +164,80 @@ report_markdown_from_jsonl() {
       if (log_file != "") print "- **Log:** `" log_file "`"
       print ""
 
+      # Steps agrupados na mesma ordem/rótulos do resumo do terminal — um
+      # header + tabela por grupo (só os que têm step não-pulado), depois
+      # "Outros" (categoria sem grupo conhecido, defensivo) e "Pulados" ao
+      # final, igual ao terminal (SEÇÃO summary_group_specs → skips juntos).
       print "## Steps"
       print ""
-      print "| Status | Step | Tempo | Motivo |"
-      print "|--------|------|-------|--------|"
-      for (i = 1; i <= n; i++) {
-        print "| " st_status[i] " | " md_cell(st_name[i]) " | " fmt_dur(st_dur[i]) " | " md_cell(st_reason[i]) " |"
+      for (g = 1; g <= ngroups; g++) {
+        gany = 0; gdur = 0
+        for (i = 1; i <= n; i++) {
+          if (st_status[i] == "skip" || cat_to_group[st_cat[i]] != g) continue
+          gany = 1; gdur += st_dur[i] + 0
+        }
+        if (!gany) continue
+        print "### " grp_label[g] " — " fmt_dur(gdur)
+        print ""
+        print "| | Step | Tempo | Motivo |"
+        print "|---|------|-------|--------|"
+        for (i = 1; i <= n; i++) {
+          if (st_status[i] == "skip" || cat_to_group[st_cat[i]] != g) continue
+          print "| " sym_for(st_status[i]) " | " md_cell(st_name[i]) " | " fmt_dur(st_dur[i]) " | " md_cell(st_reason[i]) " |"
+        }
+        print ""
       }
-      print ""
+
+      oany = 0
+      for (i = 1; i <= n; i++) if (st_status[i] != "skip" && !in_group(st_cat[i])) { oany = 1; break }
+      if (oany) {
+        print "### Outros"
+        print ""
+        print "| | Step | Tempo | Motivo |"
+        print "|---|------|-------|--------|"
+        for (i = 1; i <= n; i++) {
+          if (st_status[i] == "skip" || in_group(st_cat[i])) continue
+          print "| " sym_for(st_status[i]) " | " md_cell(st_name[i]) " | " fmt_dur(st_dur[i]) " | " md_cell(st_reason[i]) " |"
+        }
+        print ""
+      }
+
+      if (c_skip > 0) {
+        print "### Pulados"
+        print ""
+        print "| | Step | Motivo |"
+        print "|---|------|--------|"
+        for (i = 1; i <= n; i++) if (st_status[i] == "skip")
+          print "| " sym_for(st_status[i]) " | " md_cell(st_name[i]) " | " md_cell(st_reason[i]) " |"
+        print ""
+      }
 
       if (c_fail > 0) {
         print "## Falhas"
         print ""
         for (i = 1; i <= n; i++) if (st_status[i] == "fail")
-          print "- **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
+          print "- " sym_fail " **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
         print ""
       }
       if (c_todo > 0) {
         print "## Pendências (ação manual)"
         print ""
         for (i = 1; i <= n; i++) if (st_status[i] == "todo")
-          print "- **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
+          print "- " sym_todo " **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
         print ""
       }
       if (c_warn > 0) {
         print "## Avisos"
         print ""
         for (i = 1; i <= n; i++) if (st_status[i] == "warn")
-          print "- **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
+          print "- " sym_warn " **" md_cell(st_name[i]) "**" (st_reason[i] == "" ? "" : ": " st_reason[i])
         print ""
       }
       if (c_note > 0) {
         print "## Notas operacionais"
         print ""
         for (i = 1; i <= n; i++) if (st_status[i] == "ok" && st_reason[i] != "")
-          print "- **" md_cell(st_name[i]) "**: " st_reason[i]
+          print "- " sym_ok " **" md_cell(st_name[i]) "**: " st_reason[i]
         print ""
       }
     }

@@ -39,22 +39,25 @@ teardown() {
   [[ "$output" == *"**Duração:** 4m 43s"* ]]
 }
 
-@test "report: tabela de steps com tempo formatado" {
+@test "report: steps agrupados por categoria (mesmos grupos do terminal) com símbolo de status" {
   run report_markdown_from_jsonl "$FIXTURE"
-  [[ "$output" == *"| Status | Step | Tempo | Motivo |"* ]]
-  [[ "$output" == *"| ok | Atualizar pacotes do sistema e AUR | 1m 15s |"* ]]
+  [[ "$output" == *"### Sistema / Pacman — 1m 15s"* ]]
+  [[ "$output" == *"| | Step | Tempo | Motivo |"* ]]
+  [[ "$output" == *"| ${SYM_OK} | Atualizar pacotes do sistema e AUR | 1m 15s |"* ]]
+  [[ "$output" == *"### Doctor (auditorias)"* ]]
+  [[ "$output" == *"| ${SYM_WARN} | Auditar binários cargo (CVEs) | 12s | 7 CVEs em rustup |"* ]]
 }
 
 @test "report: seção de pendências lista o todo com motivo" {
   run report_markdown_from_jsonl "$FIXTURE"
   [[ "$output" == *"## Pendências (ação manual)"* ]]
-  [[ "$output" == *"- **Doctor: reboot pendente**: kernel 7.0.11 vs 7.0.12"* ]]
+  [[ "$output" == *"- ${SYM_TODO} **Doctor: reboot pendente**: kernel 7.0.11 vs 7.0.12"* ]]
 }
 
 @test "report: seção de avisos lista o warn" {
   run report_markdown_from_jsonl "$FIXTURE"
   [[ "$output" == *"## Avisos"* ]]
-  [[ "$output" == *"- **Auditar binários cargo (CVEs)**: 7 CVEs em rustup"* ]]
+  [[ "$output" == *"- ${SYM_WARN} **Auditar binários cargo (CVEs)**: 7 CVEs em rustup"* ]]
 }
 
 @test "report: sem seção de falhas quando não há fail" {
