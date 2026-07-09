@@ -360,6 +360,11 @@ EOF
 
 @test "daemon_status: sem PID file => parado" {
   TRAY_PID_FILE="${BATS_TEST_TMPDIR}/nonexistent.pid"
+  # Isola do systemd --user real da máquina de teste: sem isso, uma unit
+  # full-upgrade-tray.service ativa localmente vazava e o teste virava
+  # "rodando (systemd)" em vez de exercitar o fallback "parado".
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; } # is-active: inativo
   run tray_daemon_status
   [ "$output" = "parado" ]
 }
@@ -367,6 +372,9 @@ EOF
 @test "daemon_status: PID file com PID morto => parado" {
   TRAY_PID_FILE="${BATS_TEST_TMPDIR}/dead.pid"
   echo "99999999" > "$TRAY_PID_FILE"
+  # Mesmo isolamento do teste anterior — ver comentário acima.
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; } # is-active: inativo
   run tray_daemon_status
   [ "$output" = "parado" ]
 }
