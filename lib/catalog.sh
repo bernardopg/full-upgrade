@@ -98,6 +98,7 @@ Remover pacotes orfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orpha
 Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check_pacnew_files|Lista arquivos .pacnew/.pacsave que precisam de merge manual.
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
+Limpar logs/relatórios antigos|cleanup|logs,reports,mutating|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
 Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
 Auto-remediar pendências finais|final|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
 Checar atualização do full-upgrade|final|self-update,read,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.

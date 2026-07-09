@@ -120,8 +120,10 @@ update_latest_links() {
 rotate_logs() {
   # find + sort por mtime no lugar de ls -1t: parsing de ls é frágil e o glob
   # sem match ecoava erro suprimido. Mantém os MAX_LOGS mais novos de cada tipo.
+  # Cobre também os artefatos por-run que vazavam sem rotação: relatório .md
+  # (REPORT_ON_FINISH=1) e os snapshots/pid de sudo-keepalive do L3.
   local ext old
-  for ext in log jsonl; do
+  for ext in log jsonl md pkgs-before pkgs-after sudo-keepalive.pid; do
     while IFS= read -r old; do
       [[ -n "$old" ]] && rm -f -- "$old"
     done < <(
