@@ -252,9 +252,10 @@ EOF
 {"event":"summary","timestamp":"2026-06-25T10:00:00","todo":2,"fail":0,"reboot_recommendation":"Kernel atualizado"}
 EOF
   out="$(tray_last_doctor_pending_items)"
-  echo "$out" | grep -q 'todo: Doctor: reboot pendente — Kernel atualizado'
-  echo "$out" | grep -q 'warn: Doctor: units systemd falhadas — foo.service'
-  ! echo "$out" | grep -q 'Atualizar pacotes do sistema e AUR'
+  echo "$out" | grep -q "${SYM_TODO} reboot pendente — Kernel atualizado"
+  echo "$out" | grep -q "${SYM_WARN} units systemd falhadas — foo.service"
+  [[ "$out" != *'Doctor: '* ]]
+  [[ "$out" != *'Atualizar pacotes do sistema e AUR'* ]]
 }
 
 # ── tray_read_state_field ──────────────────────────────────────────────────────

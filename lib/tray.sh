@@ -209,9 +209,13 @@ tray_last_summary_counts() {
 }
 
 # Itens Doctor pendentes (warn/todo/fail) do último run real completo.
-# Formato por linha: "status: Nome do step — motivo".
+# Formato por linha: "<símbolo> Nome do step (sem prefixo 'Doctor: ') — motivo
+# (truncado)". Sem o "status:" textual (redundante com o símbolo) e sem
+# "Doctor: " (redundante com o rótulo do submenu "Pendências do Doctor") —
+# o motivo era truncado no meio da frase pelo limite de largura do popup.
 tray_last_doctor_pending_items() {
-  local jsonl line step status reason
+  local jsonl line step status reason sym
+  local -i max_reason=60
   jsonl=$(tray_latest_completed_real_jsonl 2>/dev/null) || return 0
   while IFS= read -r line; do
     [[ "$line" == *'"event":"step"'* && "$line" == *'"category":"doctor"'* ]] || continue
@@ -220,10 +224,17 @@ tray_last_doctor_pending_items() {
     step=$(tray_extract_json_field "$line" step 2>/dev/null || true)
     reason=$(tray_extract_json_field "$line" reason 2>/dev/null || true)
     [[ -n "$step" ]] || continue
+    step="${step#Doctor: }"
+    case "$status" in
+      warn) sym="${SYM_WARN:-!!}" ;;
+      todo) sym="${SYM_TODO:-->}" ;;
+      fail) sym="${SYM_FAIL:-XX}" ;;
+    esac
+    (( ${#reason} > max_reason )) && reason="${reason:0:$max_reason}…"
     if [[ -n "${reason//[[:space:]]/}" ]]; then
-      printf '%s: %s — %s\n' "$status" "$step" "$reason"
+      printf '%s %s — %s\n' "$sym" "$step" "$reason"
     else
-      printf '%s: %s\n' "$status" "$step"
+      printf '%s %s\n' "$sym" "$step"
     fi
   done < "$jsonl"
 }
@@ -1180,22 +1191,41 @@ def rebuild_menu(data):
         menu.append(info_item(f"     Último run: {run_rel}"))
     if data.get("log_file"):
         menu.append(info_item("     Fonte: último run real completo"))
-    if repo_updates:
-        menu.append(submenu_item(f"     Pacotes repo pendentes ({len(repo_updates)})", repo_updates))
-    if aur_updates:
-        menu.append(submenu_item(f"     Pacotes AUR pendentes ({len(aur_updates)})", aur_updates))
-    if doctor_pending:
-        menu.append(submenu_item(f"     Pendências do Doctor ({len(doctor_pending)})", doctor_pending))
+    # Pendências: consolida pacotes repo/AUR pendentes e itens do Doctor num
+    # único submenu (em vez de 3 entradas soltas), reduzindo o menu principal
+    # ao essencial e evitando repetir "pendentes"/"do Doctor" em cada linha.
+    pend_total = len(repo_updates) + len(aur_updates) + len(doctor_pending)
+    if pend_total:
+        pend_item = Gtk.MenuItem(label=f"     Pendências ({pend_total})")
+        pend_menu = Gtk.Menu()
+        if repo_updates:
+            pend_menu.append(submenu_item(f"Pacotes repo ({len(repo_updates)})", repo_updates))
+        if aur_updates:
+            pend_menu.append(submenu_item(f"Pacotes AUR ({len(aur_updates)})", aur_updates))
+        if doctor_pending:
+            pend_menu.append(submenu_item(f"Doctor ({len(doctor_pending)})", doctor_pending))
+        pend_item.set_submenu(pend_menu)
+        pend_item.show_all()
+        menu.append(pend_item)
     menu.append(separator())
 
-    # Ações de execução (desabilitadas enquanto um run está em andamento).
-    menu.append(menu_item(
-        "Atualizar sistema completo" if can_run else "full-upgrade em execução…",
+    # Ações agrupadas por área — Atualizar / Doctor / Reparos ficam em blocos
+    # distintos em vez de uma lista plana só com o nome do modo. Tudo
+    # desabilitado enquanto um run já está em andamento.
+    update_menu = Gtk.Menu()
+    update_menu.append(menu_item(
+        "Sistema completo (update + doctor + reparos)",
         lambda: launch_and_refresh([SELF, "--tray-launch"]), enabled=can_run))
-    menu.append(menu_item(
-        "Atualizar pacotes",
+    update_menu.append(menu_item(
+        "Só pacotes",
         lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "update"]),
         enabled=can_run))
+    update_item = Gtk.MenuItem(label="Atualizar" if can_run else "Atualizar (em execução…)")
+    update_item.set_submenu(update_menu)
+    update_item.set_sensitive(can_run)
+    update_item.show_all()
+    menu.append(update_item)
+
     menu.append(menu_item(
         "Executar Doctor",
         lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "doctor"]),
@@ -1212,13 +1242,21 @@ def rebuild_menu(data):
     else:
         suffix = f" (última: {rel})" if rel else ""
         menu.append(menu_item(f"Verificar agora{suffix}", lambda: refresh(True, True)))
-    menu.append(menu_item("Abrir último log", lambda: launch([SELF, "--tray-view-log"])))
+
     log_file = str(data.get("log_file") or "")
     report_md = log_file[:-4] + ".md" if log_file.endswith(".log") else ""
-    if report_md and os.path.exists(report_md):
-        menu.append(menu_item("Abrir último relatório", lambda: open_path(report_md)))
+    has_report = bool(report_md and os.path.exists(report_md))
+    logs_menu = Gtk.Menu()
+    logs_menu.append(menu_item("Abrir último log", lambda: launch([SELF, "--tray-view-log"])))
+    if has_report:
+        logs_menu.append(menu_item("Abrir último relatório", lambda: open_path(report_md)))
     if LOG_DIR:
-        menu.append(menu_item("Abrir pasta de logs", lambda: open_path(LOG_DIR)))
+        logs_menu.append(menu_item("Abrir pasta de logs", lambda: open_path(LOG_DIR)))
+    logs_item = Gtk.MenuItem(label="Logs & Relatórios")
+    logs_item.set_submenu(logs_menu)
+    logs_item.show_all()
+    menu.append(logs_item)
+
     menu.append(separator())
     menu.append(menu_item("Sair do tray", Gtk.main_quit))
 
@@ -1286,16 +1324,23 @@ tray_yad_pid_alive() {
   [[ -n "${FU_YAD_PID:-}" ]] && kill -0 "$FU_YAD_PID" 2>/dev/null
 }
 
-# Constrói a string de menu do yad: name[!action] separados por '|'.
+# Constrói a string de menu do yad: name[!action] separados por '|'. O menu
+# de notificação do yad não suporta submenus aninhados (só lista plana), então
+# a separação Atualizar/Doctor/Reparos pedida no tray AppIndicator (Wayland)
+# aqui vira apenas agrupamento visual por separador — mesma organização,
+# limitação da ferramenta no fallback X11.
 tray_build_menu() {
   local self="$1" pid="$2"
   printf '%s' \
     "Atualizar sistema completo!${self} --tray-launch" \
     "|Atualizar pacotes!${self} --tray-launch --mode update" \
+    "|" \
     "|Executar Doctor!${self} --tray-launch --mode doctor" \
     "|Executar reparos!${self} --tray-launch --mode repair" \
+    "|" \
     "|Verificar agora!kill -USR1 ${pid}" \
     "|Abrir último log!${self} --tray-view-log" \
+    "|Abrir pasta de logs!xdg-open \"${LOG_DIR}\"" \
     "|" \
     "|Sair do tray!kill -USR2 ${pid}"
 }
