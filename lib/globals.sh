@@ -40,6 +40,7 @@ HISTORY_N=10
 DO_AUDIT=0           # --audit: auditoria de segurança consolidada (read-only)
 DO_RESUME=0          # --resume: re-roda só os steps não-ok do último run
 RESUME_STEPS=""      # preenchido por --resume: nomes dos steps retomados
+DO_DOCTOR_ACK_JOURNAL=0  # --doctor-ack-journal: grava assinaturas "unknown" do journal como ruído local
 
 # ── Systray daemon (--tray) ──
 TRAY_MODE=""         # start|enable|disable|status|check (via --tray [--subcmd])

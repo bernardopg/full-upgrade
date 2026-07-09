@@ -29,6 +29,43 @@ cleanup_broken_symlinks_local_bin() {
 }
 
 
+# Remove artefatos por-run antigos de ~/.cache/system-upgrade (logs, jsonl,
+# relatórios .md, snapshots pkgs-before/after, pid de sudo-keepalive) além do
+# limite MAX_LOGS por extensão. rotate_logs (lib/json.sh) já faz isso a cada
+# start via setup_logging — este step existe pra dar visibilidade no resumo/
+# relatório e servir de rede de segurança caso algo escape à rotação automática
+# (ex.: LOG_DIR trocado em runtime, extensão nova esquecida na lista).
+cleanup_old_reports() {
+  [[ -d "$LOG_DIR" ]] || { log "  ${LOG_DIR} não existe; nada a limpar."; return 0; }
+
+  local before after removed=0 ext old
+  before="$(du -sm "$LOG_DIR" 2>/dev/null | awk '{print $1}')"
+
+  for ext in log jsonl md pkgs-before pkgs-after sudo-keepalive.pid; do
+    while IFS= read -r old; do
+      [[ -n "$old" ]] || continue
+      rm -f -- "$old" && ((removed++))
+    done < <(
+      find "$LOG_DIR" -maxdepth 1 -name "full-upgrade-*.${ext}" -type f -printf '%T@ %p\n' 2>/dev/null \
+        | sort -rn | cut -d' ' -f2- | tail -n +"$(( MAX_LOGS + 1 ))"
+    )
+  done
+
+  if (( removed == 0 )); then
+    log "  ${LOG_DIR}: dentro do limite de ${MAX_LOGS} arquivo(s) por tipo; nada a remover."
+    return 0
+  fi
+
+  after="$(du -sm "$LOG_DIR" 2>/dev/null | awk '{print $1}')"
+  if [[ -n "$before" && -n "$after" ]]; then
+    log "  Removidos ${removed} arquivo(s) além do limite de ${MAX_LOGS} (mantendo os mais recentes): ${before}MB → ${after}MB."
+  else
+    log "  Removidos ${removed} arquivo(s) além do limite de ${MAX_LOGS} (mantendo os mais recentes)."
+  fi
+  return 0
+}
+
+
 cleanup_journal() {
   if ! has journalctl; then
     log "  journalctl não encontrado."

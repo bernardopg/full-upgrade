@@ -3,6 +3,30 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Step `Limpar logs/relatórios antigos` (cleanup).** `rotate_logs` já fazia
+  rotação a cada start, mas cobria só `.log`/`.jsonl`; relatórios `.md`
+  (`REPORT_ON_FINISH=1`) e snapshots/pid de `sudo-keepalive` do L3 vazavam
+  sem limite. Novo step (`cleanup_old_reports`) dá visibilidade no
+  resumo/relatório e serve de rede de segurança caso algo escape à rotação
+  automática.
+- **`--doctor-ack-journal`.** Lista as assinaturas "unknown" do journal do
+  boot atual (nem ruído já conhecido, nem erro acionável) e, com
+  confirmação, grava cada uma em `~/.config/full-upgrade/journal-noise.txt`
+  para não gerar mais warn recorrente de algo já identificado como
+  inofensivo.
+
+### Modificado
+
+- **Relatório Markdown agrupado por categoria.** `report_markdown_from_jsonl`
+  reaproveita `summary_group_specs` (mesma fonte do resumo no terminal) para
+  agrupar os steps por categoria/rótulo, com os mesmos símbolos de status —
+  antes era uma tabela plana com texto cru de status.
+- **Menu do tray reorganizado.** Pendências de pacotes repo/AUR/doctor
+  consolidadas em um submenu único "Pendências (N)"; log, relatório e pasta
+  de logs consolidados em "Logs & Relatórios" (AppIndicator/GTK). O fallback
+  yad/X11 ganhou separadores entre grupos e a entrada "Abrir pasta de logs".
 
 ## [3.24.1] - 2026-07-08
 ### Corrigido

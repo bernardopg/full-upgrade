@@ -298,20 +298,16 @@ journal_effective_signature_class() {
 }
 
 
-doctor_journal_errors() {
-  if ! has journalctl; then
-    log "  journalctl não encontrado."
-    return 0
-  fi
-
-  local output filtered rc line_count filtered_count grouped unique_count noise_count
-
-  # Padrões de ruído conhecido — grep-E aplicado linha a linha antes de agrupar.
-  # São erros priority<=3 (err) que são benignos/não-acionáveis na prática:
-  # bugs de firmware (DSDT/ACPI), drivers pedindo report upstream, hardware
-  # ausente, ou races transitórios de boot. Mantidos específicos para nunca
-  # mascarar uma falha real (ex.: serviço que não subiu, I/O error de disco).
-  local -a _journal_noise=(
+# Padrões de ruído conhecido do journal (um ERE por linha via stdout) — grep-E
+# aplicado linha a linha antes de agrupar. São erros priority<=3 (err) que são
+# benignos/não-acionáveis na prática: bugs de firmware (DSDT/ACPI), drivers
+# pedindo report upstream, hardware ausente, ou races transitórios de boot.
+# Mantidos específicos para nunca mascarar uma falha real (ex.: serviço que
+# não subiu, I/O error de disco). Inclui os padrões extras de
+# ~/.config/full-upgrade/journal-noise.txt. Compartilhado por
+# doctor_journal_errors e journal_unknown_signatures (--doctor-ack-journal).
+journal_noise_patterns() {
+  local -a pats=(
     'bluetoothd.*HFP.*(gateway|profile|SDP|connect|disconnect)'
     'bluetoothd.*Unable to get.*(Headset|HFP|HandsFree|Hands-Free|Voice gateway)'
     'bluetoothd.*Unable to get Hands-Free'
@@ -353,16 +349,27 @@ doctor_journal_errors() {
     'usb [0-9].*: device not accepting address [0-9]+, error -(32|71|110)'
     'usb [0-9].*: device descriptor read/all, error'
   )
+  printf '%s\n' "${pats[@]}"
 
-  # Padrões adicionais de ~/.config/full-upgrade/journal-noise.txt (um regex-E por linha)
-  local _journal_noise_file="${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade/journal-noise.txt"
-  if [[ -f "$_journal_noise_file" ]]; then
-    local _extra_pat
-    while IFS= read -r _extra_pat; do
-      [[ -z "${_extra_pat//[[:space:]]/}" || "${_extra_pat:0:1}" == "#" ]] && continue
-      _journal_noise+=("$_extra_pat")
-    done < "$_journal_noise_file"
+  local noise_file="${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade/journal-noise.txt"
+  if [[ -f "$noise_file" ]]; then
+    local pat
+    while IFS= read -r pat; do
+      [[ -z "${pat//[[:space:]]/}" || "${pat:0:1}" == "#" ]] && continue
+      printf '%s\n' "$pat"
+    done < "$noise_file"
   fi
+}
+
+doctor_journal_errors() {
+  if ! has journalctl; then
+    log "  journalctl não encontrado."
+    return 0
+  fi
+
+  local output filtered rc line_count filtered_count grouped unique_count noise_count
+  local -a _journal_noise=()
+  mapfile -t _journal_noise < <(journal_noise_patterns)
 
   output="$(journalctl -q -p 3 -b --no-pager -o short-iso 2>&1)"
   rc=$?
@@ -598,6 +605,124 @@ journal_strip_prefix() {
 # Saída: "<contagem> <assinatura>" por linha (formato de `uniq -c`).
 journal_group_signatures() {
   sort | uniq -c | sort -nr | head -n 20
+}
+
+# Escapa uma assinatura de journal (texto literal) para uso como padrão ERE
+# em ~/.config/full-upgrade/journal-noise.txt — usado por --doctor-ack-journal
+# para gravar match exato da assinatura, sem interpretar metacaracteres que
+# porventura estejam na mensagem original (ex.: parênteses de Uncaught (in
+# promise), colchetes, etc.).
+journal_signature_to_pattern() {
+  sed -E 's/[][(){}.^$*+?|\\]/\\&/g' <<< "$1"
+}
+
+# Read-only: assinaturas do journal do boot atual classificadas como "unknown"
+# pelo pipeline de doctor_journal_errors — nem ruído já conhecido, nem erro
+# acionável reconhecido (pam/I/O/EXT4/BTRFS/kernel panic/coredump etc. NUNCA
+# entram aqui). Candidatas a serem marcadas como ruído local via
+# --doctor-ack-journal. Uma assinatura (texto, sem o prefixo de contagem do
+# uniq -c) por linha; vazio se journalctl ausente/falhar ou não houver nada
+# unknown. Duplica só a etapa de fetch+filtro de doctor_journal_errors (não
+# seu RC/logging) para não arriscar a lógica já testada daquele step.
+journal_unknown_signatures() {
+  has journalctl || return 0
+
+  local output
+  output="$(journalctl -q -p 3 -b --no-pager -o short-iso 2>&1)" || return 0
+  [[ -n "${output//[[:space:]]/}" ]] || return 0
+
+  local -a noise=()
+  mapfile -t noise < <(journal_noise_patterns)
+
+  local filtered noise_pat_file pat
+  noise_pat_file="$(mktemp 2>/dev/null || printf '')"
+  if [[ -n "$noise_pat_file" ]]; then
+    printf '%s\n' "${noise[@]}" > "$noise_pat_file"
+    filtered="$(printf '%s\n' "$output" | grep -Evf "$noise_pat_file" || true)"
+    rm -f "$noise_pat_file"
+  else
+    filtered="$output"
+    for pat in "${noise[@]}"; do
+      filtered="$(printf '%s\n' "$filtered" | grep -Ev -- "$pat" || true)"
+    done
+  fi
+  filtered="$(printf '%s\n' "$filtered" | journal_strip_prefix)"
+  [[ -n "${filtered//[[:space:]]/}" ]] || return 0
+
+  local sig class
+  while IFS= read -r sig; do
+    [[ -n "${sig//[[:space:]]/}" ]] || continue
+    class="$(journal_effective_signature_class "$sig")"
+    if [[ "$class" == "unknown" ]]; then
+      printf '%s\n' "$(sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' <<< "$sig")"
+    fi
+  done < <(printf '%s\n' "$filtered" | journal_group_signatures)
+  return 0
+}
+
+# CLI entrypoint de --doctor-ack-journal (early-exit, chamado antes de
+# setup_logging — por isso usa printf direto, não `log`). Lista assinaturas
+# "unknown" do journal do boot atual e, com confirmação (ou direto com
+# --yes), grava-as em ~/.config/full-upgrade/journal-noise.txt como padrões
+# ERE literais, para doctor_journal_errors parar de reabrir warn a cada boot
+# por causa delas. rc 0 = nada a fazer ou gravado; rc 1 = cancelado/erro.
+doctor_ack_journal_interactive() {
+  if ! has journalctl; then
+    printf 'journalctl não encontrado; nada a fazer.\n'
+    return 0
+  fi
+
+  local -a unknown=()
+  mapfile -t unknown < <(journal_unknown_signatures)
+
+  if (( ${#unknown[@]} == 0 )); then
+    printf 'Nenhuma assinatura "unknown" no journal do boot atual — nada a marcar como ruído.\n'
+    return 0
+  fi
+
+  local noise_file="${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade/journal-noise.txt"
+
+  printf '%d assinatura(s) "unknown" encontrada(s) no journal do boot atual:\n\n' "${#unknown[@]}"
+  local sig
+  for sig in "${unknown[@]}"; do
+    printf '  • %s\n' "$sig"
+  done
+  printf '\n'
+
+  if (( ASSUME_YES == 0 )); then
+    if [[ -t 0 ]]; then
+      printf 'Marcar todas como ruído local em %s? [s/N] ' "$noise_file"
+      local answer
+      read -r answer
+      case "$answer" in
+        [sS][iI][mM]|[sS]) ;;
+        *) printf 'Cancelado.\n'; return 1 ;;
+      esac
+    else
+      printf 'Execução não interativa sem --yes; nada gravado. Rode com --yes para confirmar automaticamente.\n'
+      return 1
+    fi
+  fi
+
+  local noise_dir
+  noise_dir="$(dirname -- "$noise_file")"
+  mkdir -p -- "$noise_dir" || { printf 'Erro: não foi possível criar %s.\n' "$noise_dir" >&2; return 1; }
+  touch -- "$noise_file" || { printf 'Erro: não foi possível gravar em %s.\n' "$noise_file" >&2; return 1; }
+
+  local added=0 pattern
+  for sig in "${unknown[@]}"; do
+    pattern="$(journal_signature_to_pattern "$sig")"
+    grep -qxF -- "$pattern" "$noise_file" 2>/dev/null && continue
+    printf '%s\n' "$pattern" >> "$noise_file"
+    ((added++))
+  done
+
+  if (( added == 0 )); then
+    printf 'Todas as assinaturas já estavam em %s; nada gravado.\n' "$noise_file"
+  else
+    printf '%d padrão(ões) adicionado(s) em %s.\n' "$added" "$noise_file"
+  fi
+  return 0
 }
 
 doctor_disk_health() {

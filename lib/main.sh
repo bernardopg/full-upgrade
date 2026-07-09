@@ -588,7 +588,13 @@ run_all_steps() {
     else
         step_skip "Limpar journal do sistema" "journalctl não disponível"
     fi
-    
+
+    if (( NO_CLEANUP )); then
+        step_skip "Limpar logs/relatórios antigos" "--no-cleanup"
+    else
+        run_step "Limpar logs/relatórios antigos" cleanup_old_reports
+    fi
+
     # ── Verificação final ─────────────────────────────────────────────────────────
 
     if has pacdiff; then

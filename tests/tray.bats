@@ -252,9 +252,10 @@ EOF
 {"event":"summary","timestamp":"2026-06-25T10:00:00","todo":2,"fail":0,"reboot_recommendation":"Kernel atualizado"}
 EOF
   out="$(tray_last_doctor_pending_items)"
-  echo "$out" | grep -q 'todo: Doctor: reboot pendente — Kernel atualizado'
-  echo "$out" | grep -q 'warn: Doctor: units systemd falhadas — foo.service'
-  ! echo "$out" | grep -q 'Atualizar pacotes do sistema e AUR'
+  echo "$out" | grep -q "${SYM_TODO} reboot pendente — Kernel atualizado"
+  echo "$out" | grep -q "${SYM_WARN} units systemd falhadas — foo.service"
+  [[ "$out" != *'Doctor: '* ]]
+  [[ "$out" != *'Atualizar pacotes do sistema e AUR'* ]]
 }
 
 # ── tray_read_state_field ──────────────────────────────────────────────────────
@@ -359,6 +360,11 @@ EOF
 
 @test "daemon_status: sem PID file => parado" {
   TRAY_PID_FILE="${BATS_TEST_TMPDIR}/nonexistent.pid"
+  # Isola do systemd --user real da máquina de teste: sem isso, uma unit
+  # full-upgrade-tray.service ativa localmente vazava e o teste virava
+  # "rodando (systemd)" em vez de exercitar o fallback "parado".
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; } # is-active: inativo
   run tray_daemon_status
   [ "$output" = "parado" ]
 }
@@ -366,6 +372,9 @@ EOF
 @test "daemon_status: PID file com PID morto => parado" {
   TRAY_PID_FILE="${BATS_TEST_TMPDIR}/dead.pid"
   echo "99999999" > "$TRAY_PID_FILE"
+  # Mesmo isolamento do teste anterior — ver comentário acima.
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; } # is-active: inativo
   run tray_daemon_status
   [ "$output" = "parado" ]
 }

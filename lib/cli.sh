@@ -51,6 +51,13 @@ Opções:
                     padrão; JSON com --json.
   --resume         Re-rodar só os steps que não fecharam ok (warn/todo/fail) no
                     último run (lê o jsonl mais recente). core/final sempre rodam.
+  --doctor-ack-journal
+                   Listar assinaturas "unknown" do journal do boot atual (nem
+                   ruído já conhecido, nem erro acionável) e, com confirmação
+                   (salvo --yes), gravá-las em
+                   ~/.config/full-upgrade/journal-noise.txt para não gerar mais
+                   warn recorrente. Read-only sem confirmação; sai sem rodar o
+                   fluxo normal.
   --fail-fast      Abortar no 1º step com fail; os restantes viram skip
   --continue-on-fail
                    Continuar mesmo após um fail (padrão; torna explícito)
@@ -212,6 +219,9 @@ parse_args() {
             --resume)
                 DO_RESUME=1
             ;;
+            --doctor-ack-journal)
+                DO_DOCTOR_ACK_JOURNAL=1
+            ;;
             --fail-fast)
                 FAIL_FAST=1
             ;;
@@ -336,6 +346,11 @@ apply_mode_and_early_exits() {
 
     if (( DO_HISTORY )); then
         report_history "$HISTORY_N"
+        exit $?
+    fi
+
+    if (( DO_DOCTOR_ACK_JOURNAL )); then
+        doctor_ack_journal_interactive
         exit $?
     fi
 
