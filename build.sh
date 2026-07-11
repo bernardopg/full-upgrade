@@ -55,7 +55,8 @@ unset _missing _f
   _build_ver=""
   _git_top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
-    _build_ver="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+    _git_desc="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+    [[ "$_git_desc" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]] && _build_ver="$_git_desc"
   fi
   if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
     _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"

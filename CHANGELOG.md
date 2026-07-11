@@ -35,6 +35,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   fallback de instalação do self-update; exceções intencionais de função
   dinâmica e strings do gerador standalone agora estão documentadas localmente.
 
+- **Versão sem hash em clones rasos.** `full-upgrade --version` e o build
+  standalone só aceitam `git describe` quando a saída começa com semver; sem
+  tags disponíveis, usam o arquivo `VERSION` em vez de exibir o SHA do commit.
+
 - **Reinício de serviços não derruba mais a sessão gráfica.** O step
   `Reiniciar serviços com libs antigas` agora protege display managers (inclusive
   aliases dinâmicos de `display-manager.service`), logind, DBus, gettys e units

@@ -27,7 +27,7 @@ fi
 #   3. fallback embutido (último recurso).
 SCRIPT_VERSION="3.25.0"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
-if [[ -n "$_git_ver" ]]; then
+if [[ "$_git_ver" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
   SCRIPT_VERSION="${_git_ver#v}"
 elif [[ -r "${FU_ROOT}/VERSION" ]]; then
   _file_ver="$(tr -d '[:space:]' < "${FU_ROOT}/VERSION" 2>/dev/null || true)"
