@@ -70,7 +70,14 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "bootctl_is_installed: executa sem crash (status depende do hardware)" {
-  run bootctl_is_installed || true
-  true
+@test "bootctl_is_installed: rc 0 quando bootctl confirma instalação" {
+  bootctl() { [[ "$1" == is-installed ]]; }
+  run bootctl_is_installed
+  [ "$status" -eq 0 ]
+}
+
+@test "bootctl_is_installed: propaga rc não-zero sem depender do host" {
+  bootctl() { return 1; }
+  run bootctl_is_installed
+  [ "$status" -eq 1 ]
 }
