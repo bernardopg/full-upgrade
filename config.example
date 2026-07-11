@@ -29,7 +29,7 @@ SNAPSHOT_KEEP=5          # snapshots full-upgrade antigos a manter na limpeza
 # ── Backup de configs críticas / Critical config backup ─────────────────────────
 # Arquiva configs essenciais de /etc em tar.zst antes das mutações, com rotação.
 BACKUP_CONFIGS=1        # 1 = ativo | 0 = desliga
-BACKUP_KEEP=5           # quantos tarballs manter (rotação)
+BACKUP_KEEP=5           # quantos tarballs privados manter (mínimo 1; use BACKUP_CONFIGS=0 para desligar)
 # Paths a arquivar (separados por espaço). Default cobre boot/pacman/systemd.
 # BACKUP_PATHS="/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/systemd/system"
 

@@ -4,6 +4,56 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Tray portátil, consistente e seguro contra instâncias duplicadas.** A unit
+  deixa de depender de `dms.service` ou de scripts pessoais, usa a mesma política
+  tanto no pacote quanto no `--tray --enable`, e o CLI escolhe systemd ou XDG sem
+  iniciar dois daemons no login. O status agora reconhece units do pacote e
+  diferencia habilitada/desabilitada; restart de unit ativa é delegado ao
+  systemd. Estado e singleton ganharam escrita atômica, permissões 0600, `flock`
+  e validação de PID para não sinalizar um processo reciclado. O AppIndicator
+  publica o SVG absoluto para hosts StatusNotifier/Quickshell e filtra somente a
+  depreciação incondicional emitida pela API Python legada do Ayatana; status e
+  check passam a incluir Flatpak e todas as pendências do Doctor.
+
+- **Backup de configs atômico, privado e com rotação garantida.** O tar é criado
+  como arquivo parcial, validado antes do rename e removido em falha; diretório e
+  arquivos usam 0700/0600, inclusive backups antigos. A retenção é saneada antes
+  e depois de cada criação, mantém no mínimo um backup quando habilitada e avisa
+  se algum arquivo antigo não puder ser removido, evitando acúmulo silencioso.
+
+- **CLI rejeita argumentos vazios e combinações ambíguas.** Valores inline de
+  `--skip`, `--only`, `--report`, `--from` e `--explain-step` agora falham com
+  código 2 quando vazios; `--history` exige inteiro positivo e não pode competir
+  com `--report`/`--audit`; `--from` exige `--report`. Foram adicionados
+  `--tray=SUB` e `--tray-restart`, e start/restart do tray sempre encerram o modo
+  CLI sem cair acidentalmente no fluxo completo de upgrade.
+
+- **ShellCheck integral sem findings.** Foram corrigidos quoting em retorno de
+  pipeline e normalização do journal, splitting explícito da lista de IDEs e o
+  fallback de instalação do self-update; exceções intencionais de função
+  dinâmica e strings do gerador standalone agora estão documentadas localmente.
+
+- **Reinício de serviços não derruba mais a sessão gráfica.** O step
+  `Reiniciar serviços com libs antigas` agora protege display managers (inclusive
+  aliases dinâmicos de `display-manager.service`), logind, DBus, gettys e units
+  de usuário. Essas units ficam pendentes para logout/reboot, enquanto serviços
+  seguros continuam sendo reiniciados. Isso evita que `--restart-services -y`
+  reinicie `greetd`/GDM/SDDM durante a sessão e deixe o próximo login preso com
+  o compositor anterior ainda ativo. A sondagem do `checkservices` agora também
+  força o modo sem efeitos colaterais (`-P -L -F -R`): não abre `pacdiff`, não
+  recarrega o systemd e não oferece reinícios escondidos durante o doctor.
+
+- **Output real do full-upgrade normalizado.** Remove `vv` do aviso de versão,
+  barras duplicadas nos paths do systemd-boot e progresso impossível (>100%) do
+  Timeshift no terminal. Grok passa a extrair a semver correta e não executa
+  update quando `latest` é igual; OpenClaw usa o registry npm quando seu dry-run
+  retorna `targetVersion:null`, evitando reinstalação e restart de 60s sem mudança.
+  Updates parciais de plugins do OpenClaw agora viram warning em vez de sucesso.
+  Falha histórica do AdGuard já recuperado vira informativa, e o updater Kimchi
+  restringe automaticamente seu config com chaves de API para modo 0600.
+
 ## [3.25.0] - 2026-07-09
 ### Adicionado
 

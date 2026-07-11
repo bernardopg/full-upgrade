@@ -15,7 +15,9 @@ count_ext_updates() {
 # o conjunto conhecido (code, cursor, codium, code-insiders, vscodium).
 _ide_ext_clis() {
   if [[ -n "${IDE_EXT_CLIS:-}" ]]; then
-    printf '%s\n' $IDE_EXT_CLIS
+    local -a configured=()
+    read -r -a configured <<< "$IDE_EXT_CLIS"
+    printf '%s\n' "${configured[@]}"
   else
     printf '%s\n' code cursor codium code-insiders vscodium
   fi

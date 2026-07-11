@@ -150,9 +150,17 @@ preupgrade_snapshot() {
       ;;
     timeshift)
       has timeshift || { log "  timeshift não instalado."; return 0; }
-      if run_logged sudo timeshift --create --comments "$desc" --scripted; then
+      local timeshift_output timeshift_rc timeshift_result
+      log "  Criando snapshot Timeshift (a saída detalhada ficará no log)..."
+      timeshift_output="$(sudo timeshift --create --comments "$desc" --scripted 2>&1)"
+      timeshift_rc=$?
+      log_raw "$timeshift_output"
+      if (( timeshift_rc == 0 )); then
+        timeshift_result="$(printf '%s\n' "$timeshift_output" | tr '\r' '\n' | grep -E 'Snapshot saved successfully' | tail -1 || true)"
+        [[ -n "$timeshift_result" ]] && log "  ${timeshift_result}"
         log "  Snapshot timeshift criado: ${desc}"
       else
+        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | tail -20
         log "  Aviso: falha ao criar snapshot timeshift."; return "$RC_WARN"
       fi
       ;;

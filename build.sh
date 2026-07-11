@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # build.sh — concatena lib/* num único arquivo dist/full-upgrade-standalone.sh.
 # Para quem prefere instalar/curl um arquivo só. A forma canônica é modular.
+# As strings de printf abaixo geram expansões que devem ocorrer no standalone.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

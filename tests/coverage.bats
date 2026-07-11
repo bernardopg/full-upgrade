@@ -40,6 +40,22 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "timeshift: progresso acima de 100 fica só no log, terminal mostra resumo" {
+  SNAPSHOT_TOOL=timeshift
+  SNAPSHOT_MIN_FREE_GIB=0
+  QUIET=0
+  has() { [[ "$1" == timeshift ]]; }
+  findmnt() { printf 'btrfs\n'; }
+  sudo() { printf '100.93%% complete\r107.20%% complete\rRSYNC Snapshot saved successfully (2s)\n'; }
+
+  run preupgrade_snapshot
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Snapshot saved successfully (2s)"* ]]
+  [[ "$output" != *"100.93"* ]]
+  [[ "$output" != *"107.20"* ]]
+}
+
 # ── update_archlinux_keyring ──────────────────────────────────────────────────
 
 @test "keyring: pacman ausente => 0 sem chamar sudo" {

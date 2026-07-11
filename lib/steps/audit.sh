@@ -251,6 +251,8 @@ audit_report_markdown() {
       fi
       printf -- '- **%s** (%s)\n' "$title" "$c"
       [[ -n "$detail" ]] && printf '  - %s\n' "$detail"
+      # Backticks são Markdown literal ao redor do placeholder de printf.
+      # shellcheck disable=SC2016
       [[ -n "$remed" ]]  && printf '  - remediação: `%s`\n' "$remed"
     done
     (( printed == 1 )) && printf '\n'

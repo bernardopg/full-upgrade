@@ -146,10 +146,41 @@ setup() {
   [ "${result[0]}" = "foo.service" ]
 }
 
+@test "parse_checkservices_units: aceita formato read-only do checkservices -R" {
+  out=$'-------8<-------------------------------8<---------\n\x27greetd.service\x27\n\x27postgresql.service\x27\n-------8<-------------------------------8<---------'
+  mapfile -t result < <(printf '%s\n' "$out" | parse_checkservices_units)
+  [ "${#result[@]}" -eq 2 ]
+  [ "${result[0]}" = "greetd.service" ]
+  [ "${result[1]}" = "postgresql.service" ]
+}
+
 @test "parse_checkservices_units: saída sem units não produz nada" {
   out=$'Found: 0\n:: header'
   result="$(printf '%s\n' "$out" | parse_checkservices_units)"
   [ -z "$result" ]
+}
+
+# ── service_restart_is_session_critical ───────────────────────────────────────
+
+@test "service_restart_is_session_critical: protege login e sessão conhecidos" {
+  run service_restart_is_session_critical greetd.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical systemd-logind.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical user@1000.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical dbus-broker.service
+  [ "$status" -eq 0 ]
+}
+
+@test "service_restart_is_session_critical: protege display manager por alias dinâmico" {
+  run service_restart_is_session_critical my-greeter.service "my-greeter.service display-manager.service"
+  [ "$status" -eq 0 ]
+}
+
+@test "service_restart_is_session_critical: permite serviço comum" {
+  run service_restart_is_session_critical postgresql.service "greetd.service display-manager.service"
+  [ "$status" -ne 0 ]
 }
 
 # ── parse_cargo_vuln_bins ───────────────────────────────────────────────────────

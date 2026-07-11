@@ -7,7 +7,7 @@
 usage() {
   cat <<'EOF'
 Uso:
-  full-upgrade.sh [opções]
+  full-upgrade [opções]
 
 Opções:
   -y, --yes        Modo não interativo (assume "sim")
@@ -132,6 +132,7 @@ parse_args() {
                 add_skip_step "$1"
             ;;
             --skip=*)
+                [[ -n "${1#--skip=}" ]] || { echo "Opção --skip requer o nome exato de um step." >&2; usage >&2; exit 2; }
                 add_skip_step "${1#--skip=}"
             ;;
             --skip-category)
@@ -169,6 +170,7 @@ parse_args() {
             --only=doctor) MODE=doctor ;;
             --only=*)
                 ONLY_CATEGORY="${1#--only=}"
+                [[ -n "$ONLY_CATEGORY" ]] || { echo "Opção --only requer uma categoria, tag ou step." >&2; usage >&2; exit 2; }
             ;;
             --list-steps)
                 LIST_STEPS=1
@@ -192,6 +194,7 @@ parse_args() {
             --report=*)
                 DO_REPORT=1
                 REPORT_FILE="${1#--report=}"
+                [[ -n "$REPORT_FILE" ]] || { echo "Use --report sem '=' para imprimir no terminal, ou informe um arquivo." >&2; usage >&2; exit 2; }
             ;;
             --from)
                 shift
@@ -204,6 +207,7 @@ parse_args() {
             ;;
             --from=*)
                 REPORT_FROM="${1#--from=}"
+                [[ -n "$REPORT_FROM" ]] || { echo "Opção --from requer um run_id." >&2; usage >&2; exit 2; }
             ;;
             --history)
                 DO_HISTORY=1
@@ -215,6 +219,7 @@ parse_args() {
             --history=*)
                 DO_HISTORY=1
                 HISTORY_N="${1#--history=}"
+                [[ "$HISTORY_N" =~ ^[1-9][0-9]*$ ]] || { echo "Opção --history requer um inteiro positivo." >&2; usage >&2; exit 2; }
             ;;
             --resume)
                 DO_RESUME=1
@@ -239,6 +244,7 @@ parse_args() {
             ;;
             --explain-step=*)
                 EXPLAIN_STEP="${1#--explain-step=}"
+                [[ -n "$EXPLAIN_STEP" ]] || { echo "Opção --explain-step requer o nome exato de um step." >&2; usage >&2; exit 2; }
             ;;
             -V|--version)
                 SHOW_VERSION=1
@@ -255,10 +261,14 @@ parse_args() {
                     *) TRAY_MODE=start ;;
                 esac
             ;;
+            --tray=start|--tray=enable|--tray=disable|--tray=status|--tray=check|--tray=restart)
+                TRAY_MODE="${1#--tray=}"
+            ;;
             --tray-enable)   TRAY_MODE=enable ;;
             --tray-disable)  TRAY_MODE=disable ;;
             --tray-status)   TRAY_MODE=status ;;
             --tray-check)    TRAY_MODE=check ;;
+            --tray-restart)  TRAY_MODE=restart ;;
             --tray-launch)
                 TRAY_LAUNCH=1
                 shift
@@ -280,6 +290,22 @@ parse_args() {
         esac
         shift
     done
+
+    if [[ -n "$REPORT_FROM" ]] && (( DO_REPORT == 0 )); then
+        echo "Opção --from só pode ser usada com --report." >&2
+        usage >&2
+        exit 2
+    fi
+    if (( DO_HISTORY == 1 )) && [[ ! "$HISTORY_N" =~ ^[1-9][0-9]*$ ]]; then
+        echo "Opção --history requer um inteiro positivo." >&2
+        usage >&2
+        exit 2
+    fi
+    if (( DO_HISTORY == 1 && (DO_REPORT == 1 || DO_AUDIT == 1) )); then
+        echo "Use apenas uma ação: --history, --report ou --audit." >&2
+        usage >&2
+        exit 2
+    fi
 }
 
 # Saídas precoces (--version, --update, --explain-step, --list-steps) e tradução de --mode/--only.
@@ -307,12 +333,17 @@ apply_mode_and_early_exits() {
         exit 0
     fi
     case "$TRAY_MODE" in
-        start)   tray_main ;;
-        restart) tray_restart ;;
+        start)   tray_main; exit $? ;;
+        restart) tray_restart; exit $? ;;
         enable)
-            tray_enable_autostart
-            # Hyprland/sway não processam XDG autostart; a unit systemd cobre.
-            tray_enable_systemd_unit || echo "systemd user indisponível; apenas autostart XDG habilitado."
+            # Um único mecanismo evita corrida/daemon duplicado no login.
+            # Hyprland/sway precisam da unit; XDG fica como fallback portátil.
+            if tray_enable_systemd_unit; then
+                tray_remove_autostart_quiet
+            else
+                tray_enable_autostart
+                echo "systemd user indisponível; autostart XDG habilitado."
+            fi
             exit 0 ;;
         disable)
             tray_disable_autostart

@@ -38,6 +38,38 @@ setup() {
   [ "$running" = "$installed" ]
 }
 
+# ── restart_stale_services: proteção da sessão ────────────────────────────────
+
+@test "restart_stale_services: nunca reinicia display manager da sessão" {
+  QUIET=0
+  RESTART_SERVICES=1
+  ASSUME_YES=1
+  STEP_REASON=""
+  calls="${BATS_TEST_TMPDIR}/restart-calls"
+  : >"$calls"
+  export calls
+
+  _doctor_sudo_ok() { return 0; }
+  has() { [[ "$1" == checkservices || "$1" == systemctl ]]; }
+  sudo() {
+    [[ "$1 $2 $3 $4 $5 $6" == "-n checkservices -P -L -F -R" ]] || return 1
+    printf '%s\n' \
+      "'greetd.service'" \
+      "'postgresql.service'"
+  }
+  systemctl() {
+    [[ "$1" == show ]] && printf '%s\n' 'greetd.service display-manager.service'
+  }
+  run_logged() { printf '%s\n' "$*" >>"$calls"; }
+
+  run restart_stale_services
+
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"greetd.service"*"NÃO"* || "$output" == *"NÃO"*"greetd.service"* ]]
+  grep -q 'systemctl restart postgresql.service' "$calls"
+  ! grep -q 'systemctl restart greetd.service' "$calls"
+}
+
 # ── usage_pct_severity (classificação de uso disco/inodes) ────────────────────
 @test "usage_pct_severity: >=95 => todo" {
   run usage_pct_severity 95;  [ "$output" = "todo" ]
@@ -105,6 +137,14 @@ setup() {
   [ "$output" = "/vmlinuz-linux" ]
   run bootctl_status_field "$out" initrd
   [ "$output" = "/initramfs-linux.img" ]
+}
+
+@test "bootctl_status_field: normaliza barras duplicadas do bootctl" {
+  out=$'Default Boot Loader Entry:\n        linux: /boot//vmlinuz-linux\n        initrd: /boot///intel-ucode.img'
+  run bootctl_status_field "$out" linux
+  [ "$output" = "/boot/vmlinuz-linux" ]
+  run bootctl_status_field "$out" initrd
+  [ "$output" = "/boot/intel-ucode.img" ]
 }
 
 @test "bootctl_status_field: extrai title da entrada padrão" {
@@ -201,6 +241,20 @@ setup() {
   has() { [[ "$1" == systemctl ]]; }
   systemctl() { return 3; }
   run journal_effective_signature_class '369 full-upgrade-tray.service: Failed at step EXEC spawning /home/user/.local/bin/full-upgrade: No such file or directory'
+  [ "$output" = "unknown" ]
+}
+
+@test "journal_effective_signature_class: falha antiga do AdGuard ativo vira benigno" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { [[ "$*" == "is-active adguardvpn-svc.service" ]]; }
+  run journal_effective_signature_class '2 Failed to start AdGuard VPN Service.'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_effective_signature_class: AdGuard ainda inativo permanece unknown" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { return 3; }
+  run journal_effective_signature_class '2 Failed to start AdGuard VPN Service.'
   [ "$output" = "unknown" ]
 }
 

@@ -30,6 +30,12 @@ teardown() {
 
 # ── backup_rotation_victims ─────────────────────────────────────────────────────
 
+@test "backup_keep_count: normaliza retenção inválida e nunca fica abaixo de um" {
+  [ "$(backup_keep_count 7)" = "7" ]
+  [ "$(backup_keep_count 0)" = "1" ]
+  [ "$(backup_keep_count abc)" = "5" ]
+}
+
 @test "backup_rotation_victims: mantém os N mais recentes, lista o resto" {
   # Nomes com timestamp crescente; sort lexical == cronológico.
   for ts in 20260101-000000 20260102-000000 20260103-000000 20260104-000000; do
@@ -99,4 +105,31 @@ teardown() {
   run backup_critical_configs
   [ "$status" -eq 0 ]
   [[ "$output" == *"Nenhum dos paths"* ]]
+}
+
+@test "backup_critical_configs: publica tar válido, privado e rotaciona o mais antigo" {
+  local source_file="${TMPDIR_BK}/source.conf"
+  printf 'secret=value\n' > "$source_file"
+  XDG_CACHE_HOME="${TMPDIR_BK}/cache"
+  BACKUP_CONFIGS=1
+  BACKUP_KEEP=2
+  BACKUP_PATHS="$source_file"
+  RUN_ID="20260103-000000"
+  DRY_RUN=0
+  SUDO_READY=0
+  QUIET=1
+  mkdir -p "$(backup_dir)"
+  touch "$(backup_dir)/configs-20260101-000000.tar.gz"
+  touch "$(backup_dir)/configs-20260102-000000.tar.gz"
+
+  run backup_critical_configs
+  [ "$status" -eq 0 ]
+  [ ! -e "$(backup_dir)/configs-20260101-000000.tar.gz" ]
+  [ -s "$(backup_dir)/configs-20260103-000000.tar.zst" ] || \
+    [ -s "$(backup_dir)/configs-20260103-000000.tar.gz" ]
+  [ "$(stat -c %a "$(backup_dir)")" = "700" ]
+  local archive
+  archive=$(find "$(backup_dir)" -maxdepth 1 -type f -name 'configs-20260103-*' -print -quit)
+  [ "$(stat -c %a "$archive")" = "600" ]
+  [ -z "$(find "$(backup_dir)" -maxdepth 1 -name '*.partial.*' -print -quit)" ]
 }

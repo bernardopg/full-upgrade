@@ -108,7 +108,7 @@ run_logged() {
     # mantém a saída bruta sem ANSI para auditoria completa.
     "$@" 2>&1 | tee >(_strip_ansi >> "$LOG_FILE") | build_warning_filter
   fi
-  return ${PIPESTATUS[0]}
+  return "${PIPESTATUS[0]}"
 }
 
 remediation() {
@@ -265,9 +265,35 @@ build_warning_filter() {
 # '<unit>'"), deduplicadas. Ignora contadores ("Found: N"), delimitadores
 # ("---8<---"), avisos de pacnew e prompts. Saída vazia = nada a reiniciar.
 parse_checkservices_units() {
-  grep -oE "systemctl restart '[^']+'" \
-    | sed -E "s/^systemctl restart '([^']+)'$/\1/" \
+  sed -nE \
+    -e "s/^.*systemctl restart '([^']+)'.*$/\1/p" \
+    -e "s/^[[:space:]]*'([^']+\.service)'[[:space:]]*$/\1/p" \
     | sort -u
+}
+
+# Retorna sucesso para units que sustentam o login ou a sessão gráfica atual e,
+# portanto, nunca devem ser reiniciadas automaticamente durante um upgrade.
+# O segundo argumento contém os aliases expostos por
+# `systemctl show display-manager.service -p Names --value`; isso cobre display
+# managers desconhecidos sem depender somente de uma lista de nomes conhecidos.
+service_restart_is_session_critical() {
+  local unit="${1:-}" display_manager_units="${2:-}" alias
+
+  case "$unit" in
+    display-manager.service | greetd.service | gdm.service | gdm3.service | \
+      sddm.service | lightdm.service | ly.service | lxdm.service | xdm.service | \
+      cosmic-greeter.service | lemurs.service | systemd-logind.service | \
+      systemd-user-sessions.service | dbus.service | dbus-broker.service | \
+      user@*.service | user-runtime-dir@*.service | getty@*.service | \
+      autovt@*.service | serial-getty@*.service)
+      return 0
+      ;;
+  esac
+
+  for alias in $display_manager_units; do
+    [[ "$unit" == "$alias" ]] && return 0
+  done
+  return 1
 }
 
 # Lê a saída crua do `cargo audit bin` em stdin e emite, um por linha, o

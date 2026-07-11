@@ -41,6 +41,27 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "update_grok: extrai semver e não aplica quando latest é igual" {
+  _ma_silence
+  local applied="$BATS_TEST_TMPDIR/grok-applied"
+  has() { [[ "$1" == grok ]]; }
+  grok() {
+    [[ "${1:-}" == --version ]] && { printf 'grok 0.2.93 (hash) [stable]\n'; return 0; }
+    return 99
+  }
+  run_network_cmd() {
+    if [[ "$*" == "grok update --check" ]]; then
+      printf 'Grok Build - v0.2.93 (latest: 0.2.93) [stable]\n'
+    else
+      : >"$applied"
+      return 99
+    fi
+  }
+  run update_grok
+  [ "$status" -eq 0 ]
+  [ ! -e "$applied" ]
+}
+
 @test "_manual_apps_kind: app coberto vira covered" {
   run _manual_apps_kind droid
   [ "$output" = "covered" ]

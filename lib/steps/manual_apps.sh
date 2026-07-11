@@ -380,7 +380,7 @@ _selfupdate_check_apply() {
   has "$bin" || { log "  ${label} não encontrado."; return 0; }
 
   local current
-  current="$("$bin" --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  current="$("$bin" --version 2>/dev/null | grep -oE 'v?[0-9]+(\.[0-9]+){1,3}' | head -1 | sed 's/^v//' || true)"
   log "  ${label} versão atual: ${current:-desconhecida}"
 
   local check check_rc
@@ -391,7 +391,10 @@ _selfupdate_check_apply() {
     log "  Não foi possível verificar atualização do ${label} (rede/upstream indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
+  local check_latest
+  check_latest="$(printf '%s' "$check" | sed -nE 's/.*latest:[[:space:]]*v?([0-9]+(\.[0-9]+){1,3}).*/\1/p' | head -1)"
+  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' \
+    || [[ -n "$current" && -n "$check_latest" && "$current" == "$check_latest" ]]; then
     log "  ${label} já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -403,7 +406,7 @@ _selfupdate_check_apply() {
   fi
   hash -r 2>/dev/null || true
   local newver
-  newver="$("$bin" --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  newver="$("$bin" --version 2>/dev/null | grep -oE 'v?[0-9]+(\.[0-9]+){1,3}' | head -1 | sed 's/^v//' || true)"
   log "  ${label} atualizado para ${newver:-?}."
   return 0
 }
@@ -477,6 +480,19 @@ update_qoderwake() { _selfupdate_check_apply "qoderwake" qoderwake; }
 # subcomando `self` (não mexe em extensões/pacotes do usuário). Rede → RC_WARN.
 update_kimchi() {
   has kimchi || { log "  kimchi não encontrado."; return 0; }
+  local kimchi_config="${XDG_CONFIG_HOME:-${HOME}/.config}/kimchi/config.json" mode
+  if [[ -f "$kimchi_config" ]]; then
+    mode="$(stat -c '%a' "$kimchi_config" 2>/dev/null || true)"
+    if [[ "$mode" =~ ^[0-7]{3,4}$ && "${mode: -2}" != "00" ]]; then
+      if chmod 600 -- "$kimchi_config" 2>/dev/null; then
+        log "  Permissões do config Kimchi endurecidas: ${mode} → 600 (protege chaves de API)."
+      else
+        log "  Não foi possível restringir ${kimchi_config}; aplique chmod 600."
+        STEP_REASON="config Kimchi expõe chaves para grupo/outros (${mode})"
+        return "$RC_WARN"
+      fi
+    fi
+  fi
   local current
   current="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
   log "  kimchi versão atual: ${current:-desconhecida}"
