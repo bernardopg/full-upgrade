@@ -4,6 +4,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.26.0] - 2026-07-11
+
 ### Corrigido
 
 - **Tray portátil, consistente e seguro contra instâncias duplicadas.** A unit
