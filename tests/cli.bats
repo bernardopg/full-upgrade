@@ -252,6 +252,12 @@ reset_flags() {
   [ "$status" -eq 2 ]
 }
 
+@test "parse_args: --skip= vazio causa exit 2" {
+  reset_flags
+  run parse_args --skip=
+  [ "$status" -eq 2 ]
+}
+
 # ── parse_args: --skip-category ────────────────────────────────────────────────
 
 @test "parse_args: --skip-category doctor funciona" {
@@ -311,6 +317,12 @@ reset_flags() {
   [ "$status" -eq 2 ]
 }
 
+@test "parse_args: --only= vazio causa exit 2" {
+  reset_flags
+  run parse_args --only=
+  [ "$status" -eq 2 ]
+}
+
 # ── parse_args: --report ───────────────────────────────────────────────────────
 
 @test "parse_args: --report seta DO_REPORT sem arquivo" {
@@ -334,17 +346,24 @@ reset_flags() {
   [ "$REPORT_FILE" = "/tmp/out.md" ]
 }
 
+@test "parse_args: --report= vazio orienta usar forma sem igual" {
+  reset_flags
+  run parse_args --report=
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"sem '='"* ]]
+}
+
 # ── parse_args: --from ─────────────────────────────────────────────────────────
 
 @test "parse_args: --from com run_id" {
   reset_flags
-  parse_args --from 20260613-142301
+  parse_args --report --from 20260613-142301
   [ "$REPORT_FROM" = "20260613-142301" ]
 }
 
 @test "parse_args: --from=run_id (inline)" {
   reset_flags
-  parse_args --from=abc123
+  parse_args --report --from=abc123
   [ "$REPORT_FROM" = "abc123" ]
 }
 
@@ -352,6 +371,26 @@ reset_flags() {
   reset_flags
   run parse_args --from
   [ "$status" -eq 2 ]
+}
+
+@test "parse_args: --from= vazio causa exit 2" {
+  reset_flags
+  run parse_args --from=
+  [ "$status" -eq 2 ]
+}
+
+@test "parse_args: --from sem --report causa exit 2" {
+  reset_flags
+  run parse_args --from run-123
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"só pode ser usada com --report"* ]]
+}
+
+@test "parse_args: --report e --from funcionam em qualquer ordem" {
+  reset_flags
+  parse_args --from run-123 --report
+  [ "$DO_REPORT" -eq 1 ]
+  [ "$REPORT_FROM" = "run-123" ]
 }
 
 # ── parse_args: --history ──────────────────────────────────────────────────────
@@ -377,6 +416,31 @@ reset_flags() {
   [ "$HISTORY_N" -eq 8 ]
 }
 
+@test "parse_args: --history inline inválido causa exit 2" {
+  reset_flags
+  run parse_args --history=abc
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"inteiro positivo"* ]]
+}
+
+@test "parse_args: --history 0 causa exit 2 também na forma separada" {
+  reset_flags
+  run parse_args --history 0
+  [ "$status" -eq 2 ]
+}
+
+@test "parse_args: --history e --report são mutuamente exclusivos" {
+  reset_flags
+  run parse_args --history --report
+  [ "$status" -eq 2 ]
+}
+
+@test "parse_args: --history e --audit são mutuamente exclusivos" {
+  reset_flags
+  run parse_args --history --audit
+  [ "$status" -eq 2 ]
+}
+
 # ── parse_args: --explain-step ─────────────────────────────────────────────────
 
 @test "parse_args: --explain-step com nome" {
@@ -394,6 +458,12 @@ reset_flags() {
 @test "parse_args: --explain-step sem argumento causa exit 2" {
   reset_flags
   run parse_args --explain-step
+  [ "$status" -eq 2 ]
+}
+
+@test "parse_args: --explain-step= vazio causa exit 2" {
+  reset_flags
+  run parse_args --explain-step=
   [ "$status" -eq 2 ]
 }
 
@@ -479,6 +549,15 @@ reset_flags() {
   [ "$TRAY_MODE" = "check" ]
 }
 
+@test "parse_args: --tray=restart e --tray-restart são aceitos" {
+  reset_flags
+  parse_args --tray=restart
+  [ "$TRAY_MODE" = "restart" ]
+  reset_flags
+  parse_args --tray-restart
+  [ "$TRAY_MODE" = "restart" ]
+}
+
 @test "parse_args: --tray-view-log seta TRAY_VIEW_LOG" {
   reset_flags
   parse_args --tray-view-log
@@ -548,6 +627,14 @@ reset_flags() {
 @test "apply_mode_and_early_exits: --config (1) imprime e sai" {
   reset_flags
   SHOW_CONFIG=1
+  run apply_mode_and_early_exits
+  [ "$status" -eq 0 ]
+}
+
+@test "apply_mode_and_early_exits: tray restart retorna sem iniciar upgrade" {
+  reset_flags
+  TRAY_MODE=restart
+  tray_restart() { return 0; }
   run apply_mode_and_early_exits
   [ "$status" -eq 0 ]
 }

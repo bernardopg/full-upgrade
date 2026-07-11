@@ -142,6 +142,17 @@ setup() {
   [[ "$output" == *"atualizado"* ]]
 }
 
+@test "notice: git describe com prefixo v não imprime vv" {
+  has() { [[ "$1" == curl ]]; }
+  self_latest_version() { printf 'v3.25.0'; }
+  SCRIPT_VERSION="v3.25.0"
+  QUIET=0
+  run self_update_notice
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"(v3.25.0)"* ]]
+  [[ "$output" != *"vv3.25.0"* ]]
+}
+
 @test "notice: versão local mais nova que latest => 0 (pré-release)" {
   has() { [[ "$1" == curl ]]; }
   self_latest_version() { printf '3.0.0'; }

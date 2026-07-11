@@ -9,13 +9,23 @@ backup_dir() {
   printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}/system-upgrade/backups"
 }
 
+# Normaliza a retenção. BACKUP_CONFIGS=0 é a forma explícita de desligar o
+# backup; quando ele está ativo, manter ao menos um arquivo evita criar e apagar
+# imediatamente o único backup por causa de BACKUP_KEEP=0/valor inválido.
+backup_keep_count() {
+  local keep="${1:-}"
+  [[ "$keep" =~ ^[0-9]+$ ]] || keep=5
+  (( keep < 1 )) && keep=1
+  printf '%s' "$keep"
+}
+
 # Rotação pura: dado um diretório e quantos manter, emite (stdout) os caminhos
 # de tarballs full-upgrade EXCEDENTES (mais antigos) que devem ser removidos.
 # Ordena por nome (timestamp no nome garante ordem cronológica). Sem I/O de
 # remoção aqui — testável. Vazio = nada a remover.
 backup_rotation_victims() {
   local dir="$1" keep="$2"
-  [[ "$keep" =~ ^[0-9]+$ ]] || keep=5
+  keep=$(backup_keep_count "$keep")
   [[ -d "$dir" ]] || return 0
   local -a all=()
   mapfile -t all < <(find "$dir" -maxdepth 1 -type f -name 'configs-*.tar.*' 2>/dev/null | sort)
@@ -54,15 +64,18 @@ backup_critical_configs() {
     return 0
   fi
 
-  local dir; dir="$(backup_dir)"
+  local dir keep
+  dir="$(backup_dir)"
+  keep=$(backup_keep_count "${BACKUP_KEEP:-5}")
   # Escolhe compressor disponível (zstd preferido; gzip como fallback portável).
   local ext comp
   if has zstd; then ext="tar.zst"; comp="--zstd"
   else ext="tar.gz"; comp="--gzip"; fi
 
-  local stamp archive
+  local stamp archive partial
   stamp="${RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
   archive="${dir}/configs-${stamp}.${ext}"
+  partial="${dir}/.configs-${stamp}.${ext}.partial.$$"
 
   if (( DRY_RUN )); then
     log "  [dry-run] arquivaria ${#paths[@]} path(s) em ${archive}:"
@@ -75,6 +88,19 @@ backup_critical_configs() {
     log "  Aviso: não foi possível criar ${dir}; backup pulado."
     return "$RC_WARN"
   }
+  chmod 700 "$dir" 2>/dev/null || true
+  # Corrige permissões de versões antigas: os tarballs podem conter configs e
+  # segredos que não devem ficar legíveis por outros usuários locais.
+  find "$dir" -maxdepth 1 -type f -name 'configs-*.tar.*' -exec chmod 600 {} + 2>/dev/null || true
+
+  # Se uma versão antiga já deixou o diretório acima da retenção, saneia antes
+  # do novo tar. Assim uma falha posterior de tar não perpetua crescimento.
+  local -a victims=()
+  mapfile -t victims < <(backup_rotation_victims "$dir" "$keep")
+  local v rotation_failed=0
+  for v in "${victims[@]}"; do
+    rm -f -- "$v" 2>/dev/null || rotation_failed=1
+  done
 
   log "  Arquivando ${#paths[@]} path(s) de config em ${archive}..."
   # sudo: muitos paths em /etc/systemd/system etc. são lidos por root sem
@@ -83,22 +109,34 @@ backup_critical_configs() {
   # --warning=no-file-ignored silencia avisos de sockets/FIFOs que o tar não
   # arquiva por natureza (ex.: /etc/pacman.d/gnupg/S.* do gpg-agent/dirmngr);
   # não muda o que é arquivado, só remove ruído inofensivo do log.
-  local -a tar_cmd=(tar "$comp" -cpf "$archive" --ignore-failed-read --warning=no-file-changed --warning=no-file-ignored)
+  local -a relative_paths=()
+  local p
+  for p in "${paths[@]}"; do relative_paths+=("${p#/}"); done
+  local -a tar_cmd=(tar "$comp" -C / -cpf "$partial" --ignore-failed-read --warning=no-file-changed --warning=no-file-ignored)
   local rc
   if (( SUDO_READY )) && has sudo; then
-    run_logged sudo "${tar_cmd[@]}" -- "${paths[@]}"
+    run_logged sudo "${tar_cmd[@]}" -- "${relative_paths[@]}"
     rc=$?
-    # Backup criado como root: devolve a posse ao usuário p/ leitura/restauração.
-    [[ -f "$archive" ]] && run_logged sudo chown "$(id -u):$(id -g)" "$archive" 2>/dev/null || true
+    # Arquivo temporário criado como root: devolve a posse antes de validar e
+    # publicar atomicamente com rename no mesmo filesystem.
+    [[ -f "$partial" ]] && run_logged sudo chown "$(id -u):$(id -g)" "$partial" 2>/dev/null || true
   else
-    run_logged "${tar_cmd[@]}" -- "${paths[@]}"
+    run_logged "${tar_cmd[@]}" -- "${relative_paths[@]}"
     rc=$?
   fi
 
   # tar com --ignore-failed-read retorna 0 mesmo pulando arquivo ilegível; rc≠0
   # aqui é falha real (disco cheio, path inválido). Não fatal: vira aviso.
-  if (( rc != 0 )) || [[ ! -s "$archive" ]]; then
+  if (( rc != 0 )) || [[ ! -s "$partial" ]] || ! tar "$comp" -tf "$partial" >/dev/null 2>&1; then
+    rm -f -- "$partial" 2>/dev/null || true
     log "  ${C_YELLOW}Aviso: backup de configs incompleto ou vazio (rc=${rc}).${C_RESET}"
+    return "$RC_WARN"
+  fi
+
+  chmod 600 "$partial" 2>/dev/null || true
+  if ! mv -f -- "$partial" "$archive"; then
+    rm -f -- "$partial" 2>/dev/null || true
+    log "  ${C_YELLOW}Aviso: não foi possível publicar o backup ${archive}.${C_RESET}"
     return "$RC_WARN"
   fi
 
@@ -106,16 +144,20 @@ backup_critical_configs() {
   size="$(du -h "$archive" 2>/dev/null | awk '{print $1}')"
   log "  Backup de configs criado: ${archive} (${size:-?})"
 
-  # Rotação: mantém só os BACKUP_KEEP mais recentes.
-  local -a victims=()
-  mapfile -t victims < <(backup_rotation_victims "$dir" "${BACKUP_KEEP:-5}")
+  # Rotação pós-publicação: o novo arquivo entra na contagem e os N mais
+  # recentes permanecem. Falha de remoção é visível em vez de ser silenciada.
+  victims=()
+  mapfile -t victims < <(backup_rotation_victims "$dir" "$keep")
   if (( ${#victims[@]} > 0 )); then
-    log "  Rotação: removendo ${#victims[@]} backup(s) antigo(s) (mantendo ${BACKUP_KEEP:-5})."
-    local v
+    log "  Rotação: removendo ${#victims[@]} backup(s) antigo(s) (mantendo ${keep})."
     for v in "${victims[@]}"; do
-      rm -f -- "$v" 2>/dev/null || true
+      if ! rm -f -- "$v" 2>/dev/null; then
+        rotation_failed=1
+        log "  Aviso: não foi possível remover backup antigo: ${v}"
+      fi
     done
   fi
 
+  (( rotation_failed == 0 )) || return "$RC_WARN"
   return 0
 }

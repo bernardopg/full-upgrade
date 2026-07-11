@@ -23,6 +23,7 @@
 # ── Paths de estado do tray ────────────────────────────────────────────────────
 TRAY_STATE_FILE="${LOG_DIR}/tray-state.json"
 TRAY_PID_FILE="${XDG_RUNTIME_DIR:-/tmp}/full-upgrade-tray.pid"
+TRAY_LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/full-upgrade-tray.lock"
 FU_RUN_LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/full-upgrade.lock"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -355,13 +356,20 @@ tray_num_or_zero() {
 # Uso: tray_write_state <state> <prev> <repo> <aur> <flatpak> <todo> <fail> <reboot> <checked_at> <last_run_at> <log_file> <jsonl_file> <repo_json> <aur_json> <doctor_json>
 tray_write_state() {
   mkdir -p "${LOG_DIR}" 2>/dev/null || true
-  printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s}\n' \
-    "$(json_escape "$1")" "$(json_escape "$2")" \
-    "$(tray_num_or_zero "$3")" "$(tray_num_or_zero "$4")" "$(tray_num_or_zero "$5")" \
-    "$(tray_num_or_zero "$6")" "$(tray_num_or_zero "$7")" \
-    "$(json_escape "$8")" "$(json_escape "$9")" "$(json_escape "${10}")" \
-    "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" > "${TRAY_STATE_FILE}.tmp" \
-    && mv -f "${TRAY_STATE_FILE}.tmp" "${TRAY_STATE_FILE}" 2>/dev/null
+  local tmp
+  tmp=$(mktemp "${TRAY_STATE_FILE}.tmp.XXXXXX" 2>/dev/null) || return 1
+  if printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s}\n' \
+      "$(json_escape "$1")" "$(json_escape "$2")" \
+      "$(tray_num_or_zero "$3")" "$(tray_num_or_zero "$4")" "$(tray_num_or_zero "$5")" \
+      "$(tray_num_or_zero "$6")" "$(tray_num_or_zero "$7")" \
+      "$(json_escape "$8")" "$(json_escape "$9")" "$(json_escape "${10}")" \
+      "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" > "$tmp" \
+      && chmod 600 "$tmp" 2>/dev/null \
+      && mv -f "$tmp" "${TRAY_STATE_FILE}" 2>/dev/null; then
+    return 0
+  fi
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
 }
 
 # Envia notificação desktop (notify-send). Respeita TRAY_NOTIFICATIONS.
@@ -538,8 +546,8 @@ tray_enable_systemd_unit() {
   local self unit
   self=$(tray_self_bin)
   unit="$(tray_systemd_unit_file)"
-  mkdir -p "$(dirname "$unit")"
-  cat > "$unit" <<EOF
+  mkdir -p "$(dirname "$unit")" || return 1
+  if ! cat > "$unit" <<EOF
 [Unit]
 Description=full-upgrade systray applet
 After=graphical-session.target
@@ -549,16 +557,20 @@ PartOf=graphical-session.target
 Type=simple
 ExecStart=${self} --tray
 Restart=on-failure
-RestartSec=15
+RestartSec=10
 
 [Install]
 WantedBy=graphical-session.target
 EOF
+  then
+    return 1
+  fi
   systemctl --user daemon-reload 2>/dev/null || true
   if systemctl --user enable --now full-upgrade-tray.service >/dev/null 2>&1; then
     echo "Unit systemd habilitada e iniciada: ${unit}"
   else
-    echo "Unit systemd escrita (${unit}); inicie com: systemctl --user start full-upgrade-tray"
+    echo "Unit systemd escrita, mas não pôde ser habilitada/iniciada: ${unit}" >&2
+    return 1
   fi
   return 0
 }
@@ -607,6 +619,10 @@ tray_disable_autostart() {
   fi
 }
 
+tray_remove_autostart_quiet() {
+  rm -f -- "$(tray_autostart_file)" 2>/dev/null || true
+}
+
 # ── --tray-status: imprime estado atual (do arquivo, sem rede) ─────────────────
 
 tray_print_status() {
@@ -614,10 +630,11 @@ tray_print_status() {
     echo "Sem estado ainda. Rode 'full-upgrade --tray-check' para computar." >&2
     return 0
   fi
-  local state repo aur todo fail checked reboot last_run log_file
+  local state repo aur flatpak todo fail checked reboot last_run log_file
   state=$(tray_read_state_field "$TRAY_STATE_FILE" state 2>/dev/null || echo "?")
   repo=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
+  flatpak=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   reboot=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || echo "")
@@ -630,8 +647,8 @@ tray_print_status() {
   [[ -n "$last_rel" ]] && last_run="${last_run} (${last_rel})"
   cat <<EOF
 Estado      : ${state}
-Updates     : ${repo} repo + ${aur} AUR
-Doctor todo : ${todo}
+Updates     : ${repo} repo + ${aur} AUR + ${flatpak} Flatpak
+Doctor pend.: ${todo}
 Falhas      : ${fail}
 Reboot      : ${reboot:-não}
 Verificado  : ${checked}
@@ -642,23 +659,39 @@ Unit systemd: $(tray_systemd_unit_status)
 EOF
 }
 
-# "habilitada (ativa)" | "habilitada (inativa)" | "não instalada"
+# "habilitada/desabilitada (ativa/inativa)" | "não instalada". Consulta o
+# manager para também reconhecer units de /usr/lib/systemd/user, não apenas a
+# cópia local criada por `--tray --enable`.
 tray_systemd_unit_status() {
-  local unit status rc
+  local unit status rc load enabled label
   unit="$(tray_systemd_unit_file)"
-  [[ -f "$unit" ]] || { printf 'não instalada'; return 0; }
   if ! has systemctl; then
-    printf 'habilitada (estado indisponível)'
+    if [[ -f "$unit" ]]; then printf 'instalada (estado indisponível)'; else printf 'não instalada'; fi
     return 0
   fi
+
+  load=$(systemctl --user show full-upgrade-tray.service -p LoadState --value 2>/dev/null)
+  rc=$?
+  if (( rc != 0 )); then
+    if [[ -f "$unit" ]]; then printf 'instalada (estado indisponível)'; else printf 'não instalada'; fi
+    return 0
+  fi
+  [[ "$load" != "not-found" && -n "$load" ]] || { printf 'não instalada'; return 0; }
+
+  enabled=$(systemctl --user is-enabled full-upgrade-tray.service 2>/dev/null || true)
+  case "$enabled" in
+    enabled|enabled-runtime|linked|linked-runtime|alias) label=habilitada ;;
+    disabled|masked|masked-runtime) label=desabilitada ;;
+    *) label=instalada ;;
+  esac
   status="$(systemctl --user is-active full-upgrade-tray.service 2>&1)"
   rc=$?
   if (( rc == 0 )); then
-    printf 'habilitada (ativa)'
+    printf '%s (ativa)' "$label"
   elif printf '%s\n' "$status" | grep -qiE 'failed to connect|operation not permitted|permission denied|no medium|no such file or directory'; then
-    printf 'habilitada (estado indisponível)'
+    printf '%s (estado indisponível)' "$label"
   else
-    printf 'habilitada (inativa)'
+    printf '%s (inativa)' "$label"
   fi
 }
 
@@ -667,7 +700,7 @@ tray_daemon_status() {
   local pidf="$TRAY_PID_FILE" pid
   if [[ -r "$pidf" ]]; then
     pid=$(tr -dc '0-9' < "$pidf" 2>/dev/null | head -1)
-    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    if [[ -n "$pid" ]] && tray_pid_is_daemon "$pid"; then
       printf 'rodando (pid %s)' "$pid"; return 0
     fi
   fi
@@ -678,18 +711,32 @@ tray_daemon_status() {
   printf 'parado'
 }
 
+# Confirma que um PID vivo pertence a este daemon antes de sinalizá-lo. Evita
+# atingir um processo alheio quando um pidfile stale coincide com PID reciclado.
+tray_pid_is_daemon() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  [[ "$pid" == "$$" ]] && return 0
+  if [[ -r "/proc/${pid}/environ" ]]; then
+    tr '\0' '\n' < "/proc/${pid}/environ" 2>/dev/null \
+      | grep -Fxq "TRAY_DAEMON_PID=${pid}" && return 0
+  fi
+  return 1
+}
+
 # ── --tray-check: computa e imprime o estado (faz rede) ────────────────────────
 
 tray_check_and_print() {
   local state
   state=$(tray_check_now no_notify)
-  local repo aur todo fail
+  local repo aur flatpak todo fail
   repo=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
+  flatpak=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
-  printf 'Estado: %s | updates: %s repo + %s AUR | doctor todo: %s | falhas: %s\n' \
-    "$state" "$repo" "$aur" "$todo" "$fail"
+  printf 'Estado: %s | updates: %s repo + %s AUR + %s Flatpak | doctor pend.: %s | falhas: %s\n' \
+    "$state" "$repo" "$aur" "$flatpak" "$todo" "$fail"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -722,6 +769,18 @@ from gi.repository import Gtk  # noqa: F401
 PY
 }
 
+# A versão GTK legada da biblioteca emite esta depreciação incondicionalmente
+# ao criar qualquer indicador, embora seja a única API com bindings Python
+# disponível hoje no Arch. Remove só essa linha conhecida e preserva todo erro
+# real do backend no journal.
+_tray_appindicator_stderr_filter() {
+  local line
+  while IFS= read -r line; do
+    [[ "$line" == "libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." ]] && continue
+    printf '%s\n' "$line" >&2
+  done
+}
+
 tray_appindicator_main() {
   local self="$1" interval="$2" py
   py=$(tray_python_bin) || return 1
@@ -733,7 +792,7 @@ tray_appindicator_main() {
   FU_TRAY_LOG_DIR="${LOG_DIR:-}" \
   FU_TRAY_BADGE="${TRAY_BADGE:-1}" \
   FU_TRAY_NOTIFICATIONS="${TRAY_NOTIFICATIONS:-1}" \
-    exec "$py" - <<'PY'
+    exec "$py" - 2> >(_tray_appindicator_stderr_filter) <<'PY'
 import atexit
 import datetime
 import json
@@ -819,7 +878,10 @@ def resolve_icon_name(name):
                 indicator.set_icon_theme_path(os.path.dirname(path))
             except Exception:
                 pass
-            return name
+            # StatusNotifier hosts such as Quickshell do not inherit the
+            # AppIndicator-specific theme path. Publishing the absolute SVG
+            # keeps the icon resolvable in both GTK and Wayland SNI hosts.
+            return path
     return name
 
 
@@ -1368,17 +1430,26 @@ _tray_cleanup() {
     kill "$FU_YAD_PID" 2>/dev/null || true
     wait "$FU_YAD_PID" 2>/dev/null || true
   fi
-  rm -f "$TRAY_PID_FILE" 2>/dev/null || true
+  local owner=""
+  [[ -r "$TRAY_PID_FILE" ]] && owner=$(tr -dc '0-9' < "$TRAY_PID_FILE" 2>/dev/null | head -1)
+  if [[ "$owner" == "$$" ]]; then
+    rm -f "$TRAY_PID_FILE" 2>/dev/null || true
+  fi
 }
 
 # Reinicia o daemon: encerra a instância antiga (graceful via USR2) e sobe uma
 # nova no lugar. Útil após atualizar o full-upgrade para carregar novo
 # comportamento/ícones. Bloqueante (a nova instância assume o primeiro plano).
 tray_restart() {
+  if has systemctl && systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1; then
+    echo "Reiniciando full-upgrade-tray.service…"
+    systemctl --user restart full-upgrade-tray.service
+    return $?
+  fi
   local old i
   if [[ -r "$TRAY_PID_FILE" ]]; then
     old=$(tr -dc '0-9' < "$TRAY_PID_FILE" 2>/dev/null | head -1)
-    if [[ -n "$old" ]] && kill -0 "$old" 2>/dev/null; then
+    if [[ -n "$old" ]] && tray_pid_is_daemon "$old"; then
       echo "Encerrando applet antigo (pid ${old})…"
       kill -USR2 "$old" 2>/dev/null || kill "$old" 2>/dev/null || true
       for i in 1 2 3 4 5 6; do kill -0 "$old" 2>/dev/null || break; sleep 0.5; done
@@ -1392,11 +1463,20 @@ tray_restart() {
 
 # Ponto de entrada do daemon (--tray). Bloqueante.
 tray_main() {
+  # flock é a autoridade de instância única. O FD permanece aberto no exec do
+  # backend Python e durante todo o loop yad, sem depender apenas de PID.
+  if has flock; then
+    exec 8>"$TRAY_LOCK_FILE" || { echo "Não foi possível abrir o lock do tray." >&2; exit 1; }
+    if ! flock -n 8; then
+      echo "full-upgrade tray já está em execução." >&2
+      exit 0
+    fi
+  fi
   # Instância única.
   if [[ -r "$TRAY_PID_FILE" ]]; then
     local old
     old=$(tr -dc '0-9' < "$TRAY_PID_FILE" 2>/dev/null | head -1)
-    if [[ -n "$old" ]] && kill -0 "$old" 2>/dev/null; then
+    if [[ -n "$old" ]] && tray_pid_is_daemon "$old"; then
       echo "full-upgrade tray já está em execução (pid ${old})." >&2
       exit 0
     fi

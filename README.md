@@ -454,7 +454,7 @@ Principais chaves:
 | `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
 | `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |
 | `BACKUP_CONFIGS` | `1` | Arquiva configs críticas de `/etc` em `tar.zst` antes das mutações. `0` desliga. |
-| `BACKUP_KEEP` | `5` | Quantos tarballs de backup manter (rotação). |
+| `BACKUP_KEEP` | `5` | Quantos tarballs privados manter (rotação antes/depois da criação; mínimo 1 quando o backup está ativo). |
 | `BACKUP_PATHS` | lista de `/etc` | Paths a arquivar, separados por espaço (default cobre `pacman`/boot/`systemd`). |
 | `BTRFS_SCRUB_MAX_DAYS` | `30` | Alerta no doctor se o último scrub btrfs em `/` for mais antigo que isso. |
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |

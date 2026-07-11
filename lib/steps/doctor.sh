@@ -257,7 +257,7 @@ journal_hint_for() {
 # Bluetooth/áudio ou USB serial.
 journal_signature_class() {
   local l="$1"
-  l="${l#${l%%[![:space:]]*}}"
+  l="${l#"${l%%[![:space:]]*}"}"
   l="$(printf '%s\n' "$l" | sed -E 's/^[0-9]+[[:space:]]+//')"
   case "$l" in
     *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*|\
@@ -287,10 +287,19 @@ journal_full_upgrade_tray_exec_self_healed() {
   systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1
 }
 
+journal_adguard_start_self_healed() {
+  local l="$1"
+  [[ "$l" == *"Failed to start AdGuard VPN Service."* ]] || return 1
+  has systemctl || return 1
+  systemctl is-active adguardvpn-svc.service >/dev/null 2>&1
+}
+
 journal_effective_signature_class() {
   local l="$1" class
   class="$(journal_signature_class "$l")"
-  if [[ "$class" == "unknown" ]] && journal_full_upgrade_tray_exec_self_healed "$l"; then
+  if [[ "$class" == "unknown" ]] && {
+    journal_full_upgrade_tray_exec_self_healed "$l" || journal_adguard_start_self_healed "$l"
+  }; then
     printf 'benign'
   else
     printf '%s' "$class"
@@ -573,12 +582,14 @@ smart_counter_severity() {
 bootctl_status_field() {
   local out="$1" field="$2"
   case "$field" in
-    linux)  printf '%s
-' "$out" | awk '/^[[:space:]]+linux:/{print $2; exit}' ;;
-    initrd) printf '%s
-' "$out" | awk '/^[[:space:]]+initrd:/{print $2; exit}' ;;
-    title)  printf '%s
-' "$out" | awk '/Default Boot Loader Entry:/{f=1} f && /^[[:space:]]+title:/{print $2" "$3" "$4; exit}' ;;
+    linux | initrd)
+      printf '%s\n' "$out" | awk -v field="$field" '
+        $1 == field ":" { path=$2; gsub(/\/+/, "/", path); print path; exit }
+      '
+      ;;
+    title)
+      printf '%s\n' "$out" | awk '/Default Boot Loader Entry:/{f=1} f && /^[[:space:]]+title:/{print $2" "$3" "$4; exit}'
+      ;;
   esac
 }
 
@@ -941,6 +952,13 @@ doctor_network_health() {
 }
 
 
+# O checkservices tem efeitos colaterais por padrão: abre pacdiff, recarrega o
+# systemd e oferece restart. Para descoberta, desliga explicitamente tudo isso
+# (-P -L -F -R), preservando o contrato read-only do doctor.
+_checkservices_readonly() {
+  sudo -n checkservices -P -L -F -R
+}
+
 doctor_stale_services() {
   # Detectar serviços usando bibliotecas antigas (após update sem reboot/restart)
   local status=0
@@ -980,7 +998,7 @@ doctor_stale_services() {
 
   if has checkservices; then
     local output rc
-    output="$(sudo -n checkservices 2>&1)"
+    output="$(_checkservices_readonly 2>&1)"
     rc=$?
     if (( rc != 0 )); then
       log "  checkservices retornou código ${rc}."
@@ -990,11 +1008,12 @@ doctor_stale_services() {
     #   ==> pacnew file found for /etc/...   (não é serviço)
     #   Found: 10                            (contador, não item)
     #   -------8<--------                    (delimitadores do bloco de comandos)
-    #   systemctl restart 'foo.service'      (o sinal real)
+    #   'foo.service'                        (modo read-only atual, -R)
+    #   systemctl restart 'foo.service'      (formato de versões antigas)
     # O parser antigo (grep -v '^Found: 0') deixava passar "Found: 10", os
     # delimitadores "8<" e a linha "pacnew file found", inflando a contagem
     # (ex.: 14 itens reportados para 10 serviços reais). Extraímos apenas as
-    # linhas de comando 'systemctl restart' — o conjunto canônico de serviços
+    # somente as linhas de unit reconhecidas — o conjunto canônico de serviços
     # que o checkservices recomenda reiniciar.
     local -a _affected_services=()
     mapfile -t _affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
@@ -1044,7 +1063,7 @@ restart_stale_services() {
   fi
 
   local output rc
-  output="$(sudo -n checkservices 2>&1)"
+  output="$(_checkservices_readonly 2>&1)"
   rc=$?
   if (( rc != 0 )); then
     log "  checkservices retornou código ${rc}."
@@ -1063,13 +1082,34 @@ restart_stale_services() {
     )
   fi
 
-  local -a restart_cmds=()
+  local display_manager_units=""
+  if has systemctl; then
+    display_manager_units="$(systemctl show display-manager.service --property Names --value 2>/dev/null || true)"
+  fi
+
+  local -a restart_cmds=() protected_services=()
   local svc
   for svc in "${affected_services[@]}"; do
-    [[ "$svc" =~ \.(service|socket|timer|mount|target|scope|path)$ ]] && restart_cmds+=("$svc")
+    # O checkservices enumera somente services. Restringir também aqui evita
+    # que um fallback malformado faça restart de mount/target/socket.
+    [[ "$svc" =~ \.service$ ]] || continue
+    if service_restart_is_session_critical "$svc" "$display_manager_units"; then
+      protected_services+=("$svc")
+    else
+      restart_cmds+=("$svc")
+    fi
   done
+
+  if (( ${#protected_services[@]} > 0 )); then
+    log "  Proteção de sessão: ${#protected_services[@]} unit(s) crítica(s) NÃO será(ão) reiniciada(s): ${protected_services[*]}"
+    log "  Faça logout completo ou reinicie a máquina para carregar as bibliotecas dessas units com segurança."
+  fi
   if (( ${#restart_cmds[@]} == 0 )); then
-    log "  Nenhuma unit systemd reiniciável detectada por checkservices."
+    if (( ${#protected_services[@]} > 0 )); then
+      STEP_REASON="${#protected_services[@]} unit(s) crítica(s) protegida(s); logout/reboot necessário"
+      return "$RC_TODO"
+    fi
+    log "  Nenhum serviço systemd reiniciável detectado por checkservices."
     return 0
   fi
 
@@ -1100,6 +1140,10 @@ restart_stale_services() {
       all_ok=0
     fi
   done
+  if (( ${#protected_services[@]} > 0 )); then
+    STEP_REASON="${#protected_services[@]} unit(s) crítica(s) protegida(s); logout/reboot necessário"
+    (( all_ok )) && return "$RC_TODO"
+  fi
   (( all_ok )) && return 0
   return "$RC_WARN"
 }

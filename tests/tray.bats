@@ -490,6 +490,14 @@ EOF
   [ "$status" -ne 0 ]
 }
 
+@test "appindicator stderr filter: remove só depreciação upstream conhecida" {
+  run bash -c 'source "$1"/globals.sh; source "$1"/tray.sh; printf "%s\n%s\n" \
+    "libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." \
+    "erro real preservado" | _tray_appindicator_stderr_filter 2>&1' _ "$FU_LIB"
+  [ "$status" -eq 0 ]
+  [ "$output" = "erro real preservado" ]
+}
+
 # ── tray_num_or_zero (coerção defensiva do estado JSON) ───────────────────────
 
 @test "tray_num_or_zero: inteiro passa" {
@@ -515,6 +523,20 @@ EOF
   run python3 -c "import json,sys; d=json.load(open('$BATS_TEST_TMPDIR/state.json')); print(d['repo'], d['aur'], d['flatpak'], d['todo'], d['fail'])"
   [ "$status" -eq 0 ]
   [ "$output" = "0 0 2 0 1" ]
+  [ "$(stat -c %a "$BATS_TEST_TMPDIR/state.json")" = "600" ]
+  [ -z "$(find "$BATS_TEST_TMPDIR" -maxdepth 1 -name 'state.json.tmp.*' -print -quit)" ]
+}
+
+@test "tray_pid_is_daemon: aceita o próprio PID e rejeita processo alheio" {
+  run tray_pid_is_daemon "$$"
+  [ "$status" -eq 0 ]
+  sleep 30 &
+  local foreign=$!
+  run tray_pid_is_daemon "$foreign"
+  local rc=$status
+  kill "$foreign" 2>/dev/null || true
+  wait "$foreign" 2>/dev/null || true
+  [ "$rc" -eq 1 ]
 }
 
 # ── unit systemd user (XDG + Hyprland/sway) ───────────────────────────────────
@@ -534,6 +556,7 @@ EOF
 
 @test "tray_systemd_unit_status: unit não escrita => 'não instalada'" {
   XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-empty"
+  has() { return 1; }
   run tray_systemd_unit_status
   [ "$status" -eq 0 ]
   [ "$output" = "não instalada" ]
@@ -544,7 +567,13 @@ EOF
   mkdir -p "$(tray_systemd_unit_file | xargs dirname)"
   touch "$(tray_systemd_unit_file)"
   has() { [[ "$1" == systemctl ]]; }
-  systemctl() { return 0; }   # is-active sucesso
+  systemctl() {
+    case "$*" in
+      *" show "*) echo loaded ;;
+      *" is-enabled "*) echo enabled ;;
+      *" is-active "*) return 0 ;;
+    esac
+  }
   run tray_systemd_unit_status
   [ "$status" -eq 0 ]
   [ "$output" = "habilitada (ativa)" ]
@@ -555,7 +584,13 @@ EOF
   mkdir -p "$(tray_systemd_unit_file | xargs dirname)"
   touch "$(tray_systemd_unit_file)"
   has() { [[ "$1" == systemctl ]]; }
-  systemctl() { return 3; }   # is-active falha (inativo)
+  systemctl() {
+    case "$*" in
+      *" show "*) echo loaded; return 0 ;;
+      *" is-enabled "*) echo enabled; return 0 ;;
+      *" is-active "*) echo inactive; return 3 ;;
+    esac
+  }
   run tray_systemd_unit_status
   [ "$status" -eq 0 ]
   [ "$output" = "habilitada (inativa)" ]
@@ -572,7 +607,22 @@ EOF
   }
   run tray_systemd_unit_status
   [ "$status" -eq 0 ]
-  [ "$output" = "habilitada (estado indisponível)" ]
+  [ "$output" = "instalada (estado indisponível)" ]
+}
+
+@test "tray_systemd_unit_status: reconhece unit do pacote sem arquivo local" {
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-package"
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() {
+    case "$*" in
+      *" show "*) echo loaded; return 0 ;;
+      *" is-enabled "*) echo disabled; return 1 ;;
+      *" is-active "*) echo inactive; return 3 ;;
+    esac
+  }
+  run tray_systemd_unit_status
+  [ "$status" -eq 0 ]
+  [ "$output" = "desabilitada (inativa)" ]
 }
 
 @test "tray_systemd_user_available: systemctl ausente => rc 1" {
@@ -601,6 +651,34 @@ EOF
   [ -f "$unit" ]
   grep -q 'ExecStart=/usr/bin/full-upgrade --tray' "$unit"
   grep -q 'WantedBy=graphical-session.target' "$unit"
+  ! grep -q 'dms.service' "$unit"
+  ! grep -q 'wait-for-status-notifier' "$unit"
+}
+
+@test "tray_enable_systemd_unit: falha de enable/start retorna rc 1 para permitir fallback XDG" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() {
+    [[ "$*" == *"show-environment"* ]] && return 0
+    [[ "$*" == *"daemon-reload"* ]] && return 0
+    return 1
+  }
+  tray_self_bin() { printf '/usr/bin/full-upgrade'; }
+  XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/xdg-enable-fail"
+  run tray_enable_systemd_unit
+  [ "$status" -eq 1 ]
+  [ -f "$(tray_systemd_unit_file)" ]
+}
+
+@test "tray_restart: delega ao systemd quando a unit está ativa" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() {
+    [[ "$1 $2 $3" == "--user is-active full-upgrade-tray.service" ]] && return 0
+    [[ "$1 $2 $3" == "--user restart full-upgrade-tray.service" ]] && return 0
+    return 1
+  }
+  run tray_restart
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Reiniciando"* ]]
 }
 
 @test "tray_disable_systemd_unit: remove unit escrita" {

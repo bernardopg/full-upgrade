@@ -41,7 +41,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
-: "${BACKUP_KEEP:=5}"               # quantos tarballs de backup manter (rotação)
+: "${BACKUP_KEEP:=5}"               # quantos tarballs privados manter (mínimo 1 quando ativo)
 # Lista de paths a arquivar (separados por espaço); default cobre o essencial p/ recuperar boot/pacman.
 : "${BACKUP_PATHS:=/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/mkinitcpio.d /etc/default/grub /etc/systemd/system /etc/environment /etc/hostname /etc/locale.conf}"
 # Auto-atualização do próprio script
@@ -236,6 +236,8 @@ load_config() {
   # $PRIV_CMD. Assim todos os steps continuam chamando `sudo <cmd>` (incluindo os
   # diagnósticos do doctor) sem refactor. doas/sudo-rs suportam `-n` como sudo.
   if [[ "$PRIV_CMD" != sudo ]]; then
+    # Invocada indiretamente pelos steps depois que load_config retorna.
+    # shellcheck disable=SC2329
     sudo() { "$PRIV_CMD" "$@"; }
   fi
 
@@ -298,7 +300,7 @@ SNAPSHOT_KEEP=5
 
 # ── Backup de configs críticas de /etc ──
 BACKUP_CONFIGS=1
-BACKUP_KEEP=5
+BACKUP_KEEP=5  # mínimo 1; use BACKUP_CONFIGS=0 para desligar
 # BACKUP_PATHS="/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/systemd/system"
 
 # ── Mirror refresh ── auto | reflector | rate-mirrors | none

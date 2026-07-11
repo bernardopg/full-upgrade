@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # build.sh — concatena lib/* num único arquivo dist/full-upgrade-standalone.sh.
 # Para quem prefere instalar/curl um arquivo só. A forma canônica é modular.
+# As strings de printf abaixo geram expansões que devem ocorrer no standalone.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,7 +55,8 @@ unset _missing _f
   _build_ver=""
   _git_top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
-    _build_ver="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+    _git_desc="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
+    [[ "$_git_desc" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]] && _build_ver="$_git_desc"
   fi
   if [[ -z "$_build_ver" && -r "${ROOT}/VERSION" ]]; then
     _build_ver="$(tr -d '[:space:]' < "${ROOT}/VERSION")"

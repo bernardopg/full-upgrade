@@ -183,7 +183,8 @@ self_update_notice() {
     return 0
   fi
 
-  local current="${SCRIPT_VERSION:-0.0.0}"
+  local current
+  current="$(_self_normalize_version "${SCRIPT_VERSION:-0.0.0}")"
   local latest
   latest="$(self_latest_version 2>/dev/null || true)"
 
@@ -196,6 +197,8 @@ self_update_notice() {
     log "  Canal 'main': rode 'full-upgrade --update' para sincronizar com o topo da branch."
     return 0
   fi
+
+  latest="$(_self_normalize_version "$latest")"
 
   local cmp
   cmp="$(self_version_compare "$current" "$latest")"
@@ -395,10 +398,10 @@ self_install_verified_standalone() {
 
   if ! install -m 0755 -- "$bin" "$dest" 2>/dev/null; then
     # install pode não existir em ambientes mínimos; fallback cp+chmod.
-    cp -f -- "$bin" "$dest" && chmod 0755 "$dest" || {
+    if ! cp -f -- "$bin" "$dest" || ! chmod 0755 "$dest"; then
       log_always "Falha ao instalar o standalone em ${dest}."
       return "$RC_WARN"
-    }
+    fi
   fi
 
   log_always "${C_GREEN}full-upgrade atualizado para ${ref} (standalone verificado): ${dest}${C_RESET}"
