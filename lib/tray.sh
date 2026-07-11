@@ -776,7 +776,7 @@ PY
 _tray_appindicator_stderr_filter() {
   local line
   while IFS= read -r line; do
-    [[ "$line" == "libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." ]] && continue
+    [[ "$line" == *"libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." ]] && continue
     printf '%s\n' "$line" >&2
   done
 }

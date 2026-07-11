@@ -4,6 +4,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Tray não fica preso em `running` após o término.** A sincronização final
+  libera o lock antes de recalcular o estado; a filtragem da depreciação Ayatana
+  também aceita o prefixo GLib que algumas builds adicionam no journal.
+
 ## [3.26.0] - 2026-07-11
 
 ### Corrigido
