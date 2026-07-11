@@ -492,10 +492,26 @@ EOF
 
 @test "appindicator stderr filter: remove só depreciação upstream conhecida" {
   run bash -c 'source "$1"/globals.sh; source "$1"/tray.sh; printf "%s\n%s\n" \
-    "libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." \
+    "(-:123): libayatana-appindicator-WARNING **: libayatana-appindicator is deprecated. Please use libayatana-appindicator-glib in newly written code." \
     "erro real preservado" | _tray_appindicator_stderr_filter 2>&1' _ "$FU_LIB"
   [ "$status" -eq 0 ]
   [ "$output" = "erro real preservado" ]
+}
+
+@test "finalize_sync_tray: libera lock antes de computar estado final" {
+  # shellcheck source=/dev/null
+  source "${FU_LIB}/main.sh"
+  DRY_RUN=0
+  TRAY_STATE_FILE="$BATS_TEST_TMPDIR/state.json"
+  touch "$TRAY_STATE_FILE"
+  release_run_lock() { printf 'release\n'; }
+  tray_check_now() { printf 'tray\n'; }
+  log() { :; }
+  run finalize_sync_tray
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "release" ]
+  # tray_check_now tem stdout redirecionado pela função, mas só roda depois.
+  [ "${#lines[@]}" -eq 1 ]
 }
 
 # ── tray_num_or_zero (coerção defensiva do estado JSON) ───────────────────────

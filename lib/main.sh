@@ -688,6 +688,23 @@ run_all_steps() {
     run_step "Doctor: tempo de boot" doctor_boot_time
 }
 
+finalize_sync_tray() {
+    # O probe do tray usa o lock como fonte do estado `running`. Libere-o antes
+    # da sincronização final; on_exit chama release_run_lock novamente, de forma
+    # idempotente, para cobrir saídas antecipadas.
+    if declare -F release_run_lock >/dev/null 2>&1; then
+        release_run_lock
+    fi
+
+    # Sem isto o applet segue exibindo o estado do run anterior até o próximo
+    # poll. Só sincroniza quando o tray já foi usado e fora de --dry-run.
+    if (( DRY_RUN == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] \
+        && type tray_check_now >/dev/null 2>&1; then
+        log "  Sincronizando estado do systray..."
+        tray_check_now no_notify >/dev/null 2>&1 || true
+    fi
+}
+
 finalize() {
 
     print_summary
@@ -699,16 +716,7 @@ finalize() {
     write_run_event_json "run_end"
     generate_report_on_finish
     notify_on_finish
-
-    # Sincroniza o systray com o resultado deste run — sem isso o applet segue
-    # exibindo o estado do run anterior até o próximo poll do daemon (que pode
-    # nem estar rodando). Só quando o tray já foi usado (state file existe) e
-    # fora de --dry-run.
-    if (( DRY_RUN == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] \
-        && type tray_check_now >/dev/null 2>&1; then
-        log "  Sincronizando estado do systray..."
-        tray_check_now no_notify >/dev/null 2>&1 || true
-    fi
+    finalize_sync_tray
 
     if (( HAS_FAIL )); then
         exit 2
