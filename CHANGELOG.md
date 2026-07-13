@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.27.0] - 2026-07-13
 ### Corrigido
 
 - **Journal do boot não contamina mais runs futuros nem o tray.** O Doctor
