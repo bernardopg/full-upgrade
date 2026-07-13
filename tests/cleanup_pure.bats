@@ -48,10 +48,10 @@ setup() {
 }
 
 @test "timeshift_full_upgrade_names_to_delete: mantém N mais recentes" {
-  input=$'snap1 2026-01-01\nfull-upgrade pré-upgrade 2026-01-02\nfull-upgrade pré-upgrade 2026-01-03\nfull-upgrade pré-upgrade 2026-01-04'
+  input=$'0 > 2026-01-01_10-00-00 O manual\n1 > 2026-01-02_10-00-00 O full-upgrade pré-upgrade 2026-01-02\n2 > 2026-01-03_10-00-00 O D full-upgrade pré-upgrade 2026-01-03\n3 > 2026-01-04_10-00-00 O full-upgrade pré-upgrade 2026-01-04'
   run timeshift_full_upgrade_names_to_delete 2 <<< "$input"
   [ "$status" -eq 0 ]
-  [ "$(printf '%s\n' "$output" | wc -l)" -eq 1 ]
+  [ "$output" = "2026-01-02_10-00-00" ]
 }
 
 @test "snapper_full_upgrade_ids_to_delete: nada a deletar quando keep >= n" {
@@ -62,7 +62,7 @@ setup() {
 }
 
 @test "timeshift_full_upgrade_names_to_delete: nada a deletar quando keep >= n" {
-  input=$'full-upgrade pré-upgrade 2026-01-01\nfull-upgrade pré-upgrade 2026-01-02'
+  input=$'0 > 2026-01-01_10-00-00 O full-upgrade pré-upgrade 2026-01-01\n1 > 2026-01-02_10-00-00 O full-upgrade pré-upgrade 2026-01-02'
   run timeshift_full_upgrade_names_to_delete 5 <<< "$input"
   [ "$status" -eq 0 ]
   [ -z "$output" ]

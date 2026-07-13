@@ -294,16 +294,57 @@ journal_adguard_start_self_healed() {
   systemctl is-active adguardvpn-svc.service >/dev/null 2>&1
 }
 
+journal_dmail_exec_self_healed() {
+  local l="$1"
+  [[ "$l" == *"dmail.service:"*"Neither a valid executable name nor an absolute path:"* ]] || return 1
+  has systemctl || return 1
+  systemctl --user is-active dmail.service >/dev/null 2>&1
+}
+
+journal_battery_warning_self_healed() {
+  local l="$1" result status
+  [[ "$l" == *"Failed to start Battery Low Warning Check."* ]] || return 1
+  has systemctl || return 1
+  result="$(systemctl --user show battery-warning.service -p Result --value 2>/dev/null || true)"
+  status="$(systemctl --user show battery-warning.service -p ExecMainStatus --value 2>/dev/null || true)"
+  [[ "$result" == "success" && "$status" == "0" ]]
+}
+
 journal_effective_signature_class() {
   local l="$1" class
   class="$(journal_signature_class "$l")"
   if [[ "$class" == "unknown" ]] && {
-    journal_full_upgrade_tray_exec_self_healed "$l" || journal_adguard_start_self_healed "$l"
+    journal_full_upgrade_tray_exec_self_healed "$l" ||
+      journal_adguard_start_self_healed "$l" ||
+      journal_dmail_exec_self_healed "$l" ||
+      journal_battery_warning_self_healed "$l"
   }; then
     printf 'benign'
   else
     printf '%s' "$class"
   fi
+}
+
+# Aplica a mesma allow-list estrita de ruído a qualquer recorte do journal.
+# Mantida separada para o Doctor poder mostrar o boot inteiro, mas decidir a
+# severidade apenas com eventos ocorridos durante o run atual.
+journal_filter_known_noise() {
+  local input="$1" pat_file
+  local -a pats=()
+  mapfile -t pats < <(journal_noise_patterns)
+  pat_file="$(mktemp 2>/dev/null || printf '')"
+  if [[ -n "$pat_file" ]]; then
+    printf '%s\n' "${pats[@]}" > "$pat_file"
+    printf '%s\n' "$input" | grep -Evf "$pat_file" || true
+    rm -f "$pat_file"
+    return 0
+  fi
+
+  local filtered="$input" pat
+  for pat in "${pats[@]}"; do
+    filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
+  done
+  printf '%s\n' "$filtered"
 }
 
 
@@ -377,8 +418,6 @@ doctor_journal_errors() {
   fi
 
   local output filtered rc line_count filtered_count grouped unique_count noise_count
-  local -a _journal_noise=()
-  mapfile -t _journal_noise < <(journal_noise_patterns)
 
   output="$(journalctl -q -p 3 -b --no-pager -o short-iso 2>&1)"
   rc=$?
@@ -395,24 +434,7 @@ doctor_journal_errors() {
 
   line_count="$(printf '%s\n' "$output" | wc -l)"
 
-  # Filtrar ruído antes de agrupar.
-  # Uma única passada com grep -Evf (todos os padrões de uma vez) em vez de
-  # N subshells encadeados — com journals grandes (dezenas de milhares de
-  # linhas), o loop antigo reprocessava a string inteira a cada padrão e
-  # estourava o timeout do step.
-  local _noise_pat_file
-  _noise_pat_file="$(mktemp 2>/dev/null || printf '')"
-  if [[ -n "$_noise_pat_file" ]]; then
-    printf '%s\n' "${_journal_noise[@]}" > "$_noise_pat_file"
-    filtered="$(printf '%s\n' "$output" | grep -Evf "$_noise_pat_file" || true)"
-    rm -f "$_noise_pat_file"
-  else
-    # Fallback defensivo se mktemp falhar: aplica padrões em sequência.
-    filtered="$output"
-    for pat in "${_journal_noise[@]}"; do
-      filtered="$(printf '%s\n' "$filtered" | grep -Ev "$pat" || true)"
-    done
-  fi
+  filtered="$(journal_filter_known_noise "$output")"
   filtered="$(printf '%s\n' "$filtered" | journal_strip_prefix)"
   filtered_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
   noise_count=$(( line_count - filtered_count ))
@@ -449,6 +471,31 @@ doctor_journal_errors() {
     printf '%s\n' "$filtered" | tail -n 80
   } >> "$LOG_FILE"
 
+  # O inventário acima cobre o boot inteiro para auditoria, porém um erro já
+  # resolvido antes do full-upgrade não deve contaminar o resultado atual nem o
+  # tray. Units ainda falhadas têm um Doctor próprio; aqui o RC considera apenas
+  # erros surgidos desde setup_logging, preservando coredumps/falhas causados
+  # durante este run.
+  local severity_grouped="$grouped" severity_count="$filtered_count" severity_unique="$unique_count"
+  if [[ -n "${RUN_START_ISO:-}" ]]; then
+    local recent_output recent_filtered recent_grouped recent_rc
+    recent_output="$(journalctl -q -p 3 -b --since "$RUN_START_ISO" --no-pager -o short-iso 2>&1)"
+    recent_rc=$?
+    if (( recent_rc == 0 )); then
+      recent_filtered="$(journal_filter_known_noise "$recent_output" | journal_strip_prefix)"
+      if [[ -z "${recent_filtered//[[:space:]]/}" ]]; then
+        log "  Assinaturas remanescentes são históricas (anteriores ao início deste run) — informativas; o estado atual é auditado pelos demais Doctors."
+        STEP_REASON="journal: ${filtered_count} ocorrência(s) histórica(s), nenhuma durante o run"
+        return 0
+      fi
+      recent_grouped="$(printf '%s\n' "$recent_filtered" | journal_group_signatures)"
+      severity_grouped="$recent_grouped"
+      severity_count="$(printf '%s\n' "$recent_filtered" | grep -c '[^[:space:]]' || true)"
+      severity_unique="$(printf '%s\n' "$recent_grouped" | grep -c '[^[:space:]]' || true)"
+      log "  Journal durante o run (desde o início): ${severity_count} ocorrência(s), ${severity_unique} assinatura(s)."
+    fi
+  fi
+
   local _all_benign=1 _class
   while IFS= read -r _g; do
     [[ -n "${_g//[[:space:]]/}" ]] || continue
@@ -457,15 +504,15 @@ doctor_journal_errors() {
       _all_benign=0
       break
     fi
-  done <<< "$grouped"
+  done <<< "$severity_grouped"
 
   if (( _all_benign )); then
     log "  Todas as assinaturas remanescentes são ruído conhecido/benigno de sessão, Bluetooth/áudio ou USB serial — informativo."
-    STEP_REASON="journal: ${filtered_count} erro(s) benigno(s) conhecido(s) (${unique_count} assinatura(s))"
+    STEP_REASON="journal: ${severity_count} erro(s) benigno(s) conhecido(s) (${severity_unique} assinatura(s))"
     return 0
   fi
 
-  STEP_REASON="${filtered_count} erro(s) crítico(s) reais (${unique_count} assinatura(s))"
+  STEP_REASON="${severity_count} erro(s) crítico(s) do run (${severity_unique} assinatura(s))"
   return "$RC_WARN"
 }
 

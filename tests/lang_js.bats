@@ -142,3 +142,61 @@ setup() {
   run npm_global_writable
   [ "$status" -eq 0 ]
 }
+
+# ── update_pnpm_self ─────────────────────────────────────────────────────────
+
+@test "update_pnpm_self: já atualizado não chama self-update" {
+  local called="$BATS_TEST_TMPDIR/pnpm-called"
+  npm() { printf '11.12.0\n'; }
+  pnpm() {
+    [[ "${1:-}" == "--version" ]] && { printf '11.12.0\n'; return 0; }
+    : > "$called"
+    return 99
+  }
+  run update_pnpm_self
+  [ "$status" -eq 0 ]
+  [ ! -e "$called" ]
+}
+
+@test "update_pnpm_self: falha do self-update usa fallback global e verifica versão" {
+  local state="$BATS_TEST_TMPDIR/pnpm-version"
+  printf '11.11.0\n' > "$state"
+  pnpm_global_project_dir() { printf '%s\n' "$BATS_TEST_TMPDIR/pnpm-global"; }
+  mkdir -p "$BATS_TEST_TMPDIR/pnpm-global"
+  npm() {
+    if [[ "${1:-}" == "view" ]]; then
+      printf '11.12.0\n'
+    elif [[ "${1:-}" == "install" ]]; then
+      printf '11.12.0\n' > "$state"
+      return 0
+    fi
+  }
+  pnpm() {
+    if [[ "${1:-}" == "--version" ]]; then
+      read -r _v < "$state"; printf '%s\n' "$_v"; return 0
+    fi
+    if [[ "${1:-}" == "self-update" ]]; then
+      printf "Cannot use 'in' operator to search for 'integrity' in undefined\n"
+      return 1
+    fi
+    return 99
+  }
+  run update_pnpm_self
+  [ "$status" -eq 0 ]
+  [ "$(<"$state")" = "11.12.0" ]
+}
+
+@test "update_pnpm_self: falha do self-update e fallback continua sendo falha" {
+  pnpm_global_project_dir() { printf '%s\n' "$BATS_TEST_TMPDIR/pnpm-global"; }
+  mkdir -p "$BATS_TEST_TMPDIR/pnpm-global"
+  npm() {
+    [[ "${1:-}" == "view" ]] && { printf '11.12.0\n'; return 0; }
+    return 7
+  }
+  pnpm() {
+    [[ "${1:-}" == "--version" ]] && { printf '11.11.0\n'; return 0; }
+    return 7
+  }
+  run update_pnpm_self
+  [ "$status" -eq 7 ]
+}

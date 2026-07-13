@@ -139,13 +139,18 @@ snapper_full_upgrade_ids_to_delete() {
 
 timeshift_full_upgrade_names_to_delete() {
   local keep="$1"
-  awk -v keep="$keep" '
-    /full-upgrade pré-upgrade/ { names[++n] = $1 }
-    END {
-      limit = n - keep
-      for (i = 1; i <= limit; i++) print names[i]
-    }
-  '
+  local -a names=()
+  local line name
+  while IFS= read -r line; do
+    [[ "$line" == *"full-upgrade pré-upgrade"* ]] || continue
+    if [[ "$line" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}) ]]; then
+      name="${BASH_REMATCH[1]}"
+      names+=("$name")
+    fi
+  done
+  local limit=$(( ${#names[@]} - keep ))
+  (( limit > 0 )) || return 0
+  printf '%s\n' "${names[@]:0:limit}"
 }
 
 
@@ -193,12 +198,21 @@ cleanup_old_snapshots() {
       ;;
     timeshift)
       has timeshift || { log "  timeshift não instalado; limpeza de snapshots pulada."; return 0; }
-      mapfile -t victims < <(timeshift --list 2>/dev/null | timeshift_full_upgrade_names_to_delete "$keep")
+      local timeshift_list timeshift_list_rc
+      timeshift_list="$(sudo timeshift --list 2>&1)"
+      timeshift_list_rc=$?
+      log_raw "$timeshift_list"
+      if (( timeshift_list_rc != 0 )); then
+        log "  Não foi possível listar snapshots Timeshift (rc=${timeshift_list_rc}); a rotação não foi executada."
+        return "$RC_WARN"
+      fi
+      mapfile -t victims < <(printf '%s\n' "$timeshift_list" | timeshift_full_upgrade_names_to_delete "$keep")
       if (( ${#victims[@]} == 0 )); then
         log "  Nenhum snapshot timeshift full-upgrade antigo para remover (mantendo ${keep})."
         return 0
       fi
-      log "  Snapshots timeshift full-upgrade antigos a remover: ${victims[*]} (mantendo ${keep})."
+      log "  Snapshots Timeshift antigos a remover: ${#victims[@]} (mantendo ${keep}; de ${victims[0]} até ${victims[-1]})."
+      log_raw "timeshift-victims: ${victims[*]}"
       if (( ASSUME_YES == 0 )); then
         if [[ -t 0 ]]; then
           printf '%b' "${C_YELLOW}  Remover estes snapshots timeshift? [s/N] ${C_RESET}"
@@ -215,6 +229,7 @@ cleanup_old_snapshots() {
       for snap in "${victims[@]}"; do
         run_logged sudo timeshift --delete --snapshot "$snap" || return $?
       done
+      log "  Rotação Timeshift concluída: ${#victims[@]} removido(s), ${keep} snapshot(s) full-upgrade mantido(s)."
       ;;
     *)
       log "  SNAPSHOT_TOOL inválido para limpeza: ${tool}"
@@ -411,4 +426,3 @@ autofix_final_pending() {
   log "  Pendências remediadas."
   return 0
 }
-

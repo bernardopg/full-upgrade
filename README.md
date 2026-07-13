@@ -318,7 +318,7 @@ Status possíveis no resumo:
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
 | IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
-| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
+| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
 `skip` com o motivo, e o restante do fluxo continua.
@@ -330,8 +330,10 @@ Ferramentas ausentes não quebram a execução normal: o step é marcado como
   órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
   (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
 - **Retenção de snapshots:** `Limpar snapshots full-upgrade antigos` remove
-  apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
-  `SNAPSHOT_KEEP` mais recentes. Não toca snapshots manuais/de outras origens.
+apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
+`SNAPSHOT_KEEP` mais recentes. A listagem Timeshift usa privilégio administrativo
+e falha de leitura é reportada como warning, nunca como lista vazia. Não toca
+snapshots manuais/de outras origens.
 - **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
   restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
   comentado não sobrescreve a mirrorlist corrente.

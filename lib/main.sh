@@ -447,9 +447,9 @@ run_all_steps() {
     fi
 
     if has zap || has zap.sh; then
-        run_step "Atualizar add-ons do OWASP ZAP" update_zap
+        run_step "Atualizar OWASP ZAP (core e add-ons)" update_zap
     else
-        step_skip "Atualizar add-ons do OWASP ZAP" "zap não instalado"
+        step_skip "Atualizar OWASP ZAP (core e add-ons)" "zap não instalado"
     fi
 
     if has gk; then

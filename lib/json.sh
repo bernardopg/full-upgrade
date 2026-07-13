@@ -6,6 +6,7 @@
 
 setup_logging() {
   mkdir -p "${LOG_DIR}"
+  RUN_START_ISO="$(date -Is)"
   RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
   LOG_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.log"
   JSONL_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.jsonl"

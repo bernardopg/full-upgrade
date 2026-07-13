@@ -258,6 +258,31 @@ setup() {
   [ "$output" = "unknown" ]
 }
 
+@test "journal_effective_signature_class: erro antigo do dmail ativo vira benigno" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { [[ "$*" == "--user is-active dmail.service" ]]; }
+  run journal_effective_signature_class '1 /home/user/.config/systemd/user/dmail.service:9: Neither a valid executable name nor an absolute path: ~/.local/bin/dmail'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_effective_signature_class: Battery Warning recuperado vira benigno" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() {
+    [[ "$*" == *"-p Result --value"* ]] && { printf 'success\n'; return 0; }
+    [[ "$*" == *"-p ExecMainStatus --value"* ]] && { printf '0\n'; return 0; }
+    return 1
+  }
+  run journal_effective_signature_class '1 Failed to start Battery Low Warning Check.'
+  [ "$output" = "benign" ]
+}
+
+@test "journal_effective_signature_class: Battery Warning ainda falhando permanece unknown" {
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { printf 'exit-code\n'; }
+  run journal_effective_signature_class '1 Failed to start Battery Low Warning Check.'
+  [ "$output" = "unknown" ]
+}
+
 @test "journal_signature_class: coredump é acionável" {
   run journal_signature_class '2 Process 841215 (antigravity-ide) of user 1000 dumped core.'
   [ "$output" = "actionable" ]
@@ -279,6 +304,34 @@ _mock_journal() {
   export _MOCK_JOURNAL_OUT="$1"
   has() { [[ "$1" == journalctl ]]; }
   journalctl() { printf '%s\n' "$_MOCK_JOURNAL_OUT"; }
+}
+
+_mock_journal_scoped() {
+  export _MOCK_JOURNAL_OUT="$1" _MOCK_JOURNAL_RECENT="$2"
+  has() { [[ "$1" == journalctl ]]; }
+  journalctl() {
+    if [[ "$*" == *"--since"* ]]; then
+      printf '%s\n' "$_MOCK_JOURNAL_RECENT"
+    else
+      printf '%s\n' "$_MOCK_JOURNAL_OUT"
+    fi
+  }
+}
+
+@test "journal_errors: erro histórico não contamina o run atual" {
+  QUIET=0 LOG_FILE=/dev/null RUN_START_ISO="2026-07-12T22:49:14-03:00"
+  _mock_journal_scoped 'Process 123 (electron) of user 1000 dumped core.' ''
+  run doctor_journal_errors
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"históricas"* ]]
+}
+
+@test "journal_errors: erro novo durante o run mantém RC_WARN" {
+  QUIET=0 LOG_FILE=/dev/null RUN_START_ISO="2026-07-12T22:49:14-03:00"
+  _mock_journal_scoped 'nvme0n1: I/O error dev=nvme0n1 op=read' 'nvme0n1: I/O error dev=nvme0n1 op=read'
+  run doctor_journal_errors
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"durante o run"* ]]
 }
 
 @test "journal_errors: só erros USB de enumeração => filtrados (rc 0)" {

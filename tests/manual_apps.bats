@@ -97,7 +97,7 @@ setup() {
   [[ "$output" == *"Atualizar grok (xAI CLI)|manual|"* ]]
   [[ "$output" == *"Atualizar cua-driver|manual|"* ]]
   [[ "$output" == *"Atualizar Snyk CLI|manual|"* ]]
-  [[ "$output" == *"Atualizar add-ons do OWASP ZAP|manual|"* ]]
+  [[ "$output" == *"Atualizar OWASP ZAP (core e add-ons)|manual|"* ]]
   [[ "$output" == *"Doctor: apps manuais (fora de pacote)|doctor|"* ]]
 }
 
@@ -272,6 +272,26 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
   command() { if [[ "$1" == -v ]]; then return 1; else builtin command "$@"; fi; }
   run update_zap
   [ "$status" -eq 0 ]
+}
+
+@test "zap_release_asset_info: extrai versão, URL e digest do asset Linux" {
+  local digest="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  local json='{"tag_name":"v2.17.0","assets":[{"name":"ZAP_2.17.0_Linux.tar.gz","browser_download_url":"https://example/ZAP.tgz","digest":"sha256:'"$digest"'"}]}'
+  run zap_release_asset_info <<< "$json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'2.17.0\thttps://example/ZAP.tgz\t'"$digest" ]
+}
+
+@test "zap_release_asset_info: rejeita asset sem sha256 publicado" {
+  run zap_release_asset_info <<< '{"tag_name":"v2.17.0","assets":[]}'
+  [ "$status" -ne 0 ]
+}
+
+@test "zap_free_port: retorna porta TCP válida" {
+  run zap_free_port
+  [ "$status" -eq 0 ]
+  [[ "$output" =~ ^[0-9]+$ ]]
+  [ "$output" -gt 0 ]
 }
 
 @test "update_gk: ausente => 0; sem curl/unzip => 0" {
