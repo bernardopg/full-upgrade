@@ -12,6 +12,7 @@ coverage/
 .mind/
 .tokensave/
 .headroom/
+AGENTS.md
 .claude/.headroom_wrap_marker.json
 
 # Claude Code: apenas config local e worktrees são ignorados.
