@@ -30,10 +30,13 @@ snapper_full_upgrade_ids_to_delete() {
 timeshift_full_upgrade_names_to_delete() {
   local keep="$1"
   local -a names=()
-  local line
+  local line name
   while IFS= read -r line; do
     [[ "$line" == *"full-upgrade pré-upgrade"* ]] || continue
-    names+=("${line%% *}")
+    if [[ "$line" =~ ([0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}) ]]; then
+      name="${BASH_REMATCH[1]}"
+      names+=("$name")
+    fi
   done
   local n=${#names[@]} limit
   limit=$(( n - keep ))

@@ -75,7 +75,7 @@ Atualizar OBS (plugins e extensões)|manual|obs,git,update,network|mutating|120|
 Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
 Atualizar Kiro CLI (Amazon)|manual|ai,kiro,update,network|mutating|300|kiro-cli|update_kiro_cli|Atualiza a Kiro CLI (Amazon, fora de pacote) via self-update nativo (kiro-cli update --non-interactive).
 Atualizar Snyk CLI|manual|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
-Atualizar add-ons do OWASP ZAP|manual|security,zap,update,network|mutating|600|zap|update_zap|Atualiza add-ons do OWASP ZAP via Marketplace headless (zap.sh -cmd -addonupdate); core é manual.
+Atualizar OWASP ZAP (core e add-ons)|manual|security,zap,update,network|mutating|1200|zap,curl,tar,sha256sum,python3|update_zap|Atualiza o core manual do OWASP ZAP pelo release oficial verificado e depois os add-ons via Marketplace headless.
 Atualizar GitKraken CLI (gk)|manual|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.
 Atualizar grok (xAI CLI)|manual|ai,grok,update,network|mutating|300|grok|update_grok|Atualiza a CLI grok (xAI, self-download em ~/.grok) via update nativo com check prévio (grok update --check).
 Atualizar jcode|manual|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo após comparar com a release mais recente no GitHub.
@@ -93,7 +93,7 @@ Atualizar extensões de IDE (VSCode/Cursor)|editor|vscode,cursor,extensions,upda
 Atualizar plugins Hyprland (hyprpm)|hyprland|hyprpm,update,network|mutating|120|hyprpm|update_hyprpm|Atualiza plugins Hyprland via hyprpm.
 Limpar cache do pacman|cleanup|pacman,sudo,mutating|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
 Limpar cache de build do AUR|cleanup|aur,cache,mutating|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
-Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo,mutating|mutating|120||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
+Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo,mutating|mutating|1800||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
 Remover pacotes orfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
 Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check_pacnew_files|Lista arquivos .pacnew/.pacsave que precisam de merge manual.
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.

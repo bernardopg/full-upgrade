@@ -360,13 +360,36 @@ update_corepack() {
 }
 
 
+pnpm_global_project_dir() {
+  pnpm list -g --depth 0 --json 2>/dev/null | python3 -c '
+import json, os, sys
+try:
+    data = json.load(sys.stdin)
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    path = data.get("dependencies", {}).get("pnpm", {}).get("path", "")
+    if path.endswith("/node_modules/pnpm"):
+        print(path[:-len("/node_modules/pnpm")])
+except Exception:
+    pass
+'
+}
+
 update_pnpm_self() {
-  local installed latest output rc
+  local installed latest output rc fallback fallback_rc current global_project
   installed="$(pnpm --version 2>/dev/null || true)"
   latest="$(npm view pnpm version 2>/dev/null || true)"
 
   if [[ -z "$latest" ]]; then
     log "  pnpm: não foi possível verificar versão mais recente."
+    return 0
+  fi
+
+  # Não invoque o self-updater quando já está atual. Além de poupar rede, isso
+  # evita reabrir um pnpm-lock.yaml de ambiente antigo que só é necessário em
+  # uma troca real de versão.
+  if ! version_is_outdated "$installed" "$latest"; then
+    log "  pnpm ${installed} já na versão mais recente."
     return 0
   fi
 
@@ -380,13 +403,42 @@ update_pnpm_self() {
     return 0
   fi
 
-  if ! version_is_outdated "$installed" "$latest"; then
-    log "  pnpm ${installed} já na versão mais recente."
+  hash -r 2>/dev/null || true
+  current="$(pnpm --version 2>/dev/null || true)"
+  if (( rc == 0 )) && [[ -n "$current" ]] && ! version_is_outdated "$current" "$latest"; then
+    log "  pnpm atualizado: ${installed} → ${current}."
     return 0
   fi
 
-  printf '%s\n' "$output" | grep -v '^$' || true
-  return "$rc"
+  # O self-updater do pnpm 11 pode falhar ao converter seu lockfile de ambiente
+  # quando um snapshot com peers (ex.: fdir(...)) não tem a mesma chave em
+  # packages. O próprio pnpm bloqueia instalar pnpm com `pnpm add -g`; portanto
+  # atualizamos somente o projeto global que já contém o CLI usando npm. O shim
+  # existente continua apontando para node_modules/pnpm/bin/pnpm.mjs.
+  global_project="$(pnpm_global_project_dir)"
+  if [[ -z "$global_project" || ! -d "$global_project" ]]; then
+    log "  pnpm self-update falhou e o projeto global ativo não pôde ser localizado."
+    printf '%s\n' "$output" | grep -v '^$' | tail -20 || true
+    return "$rc"
+  fi
+  log "  pnpm self-update falhou (rc=${rc}); atualizando o projeto global via npm para pnpm@${latest}..."
+  fallback="$(npm install --prefix "$global_project" --save-exact --no-package-lock --ignore-scripts "pnpm@${latest}" 2>&1)"
+  fallback_rc=$?
+  log_raw "$fallback"
+  hash -r 2>/dev/null || true
+  current="$(pnpm --version 2>/dev/null || true)"
+  if (( fallback_rc == 0 )) && [[ -n "$current" ]] && ! version_is_outdated "$current" "$latest"; then
+    log "  pnpm recuperado pelo fallback global: ${installed} → ${current}."
+    return 0
+  fi
+
+  printf '%s\n' "$output" | grep -v '^$' | tail -20 || true
+  printf '%s\n' "$fallback" | grep -v '^$' | tail -20 || true
+  if printf '%s\n%s\n' "$output" "$fallback" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+    return "$RC_WARN"
+  fi
+  (( fallback_rc != 0 )) && return "$fallback_rc"
+  return 1
 }
 
 

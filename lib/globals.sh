@@ -104,6 +104,7 @@ augment_user_path
 
 # ── Log run-scoped (RUN_ID etc definidos após parse, em setup_logging) ──
 RUN_ID=""
+RUN_START_ISO=""
 LOG_FILE=""
 JSONL_FILE=""
 SUDO_KEEPALIVE_PID_FILE=""

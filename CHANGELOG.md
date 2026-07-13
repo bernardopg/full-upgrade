@@ -6,6 +6,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **Journal do boot não contamina mais runs futuros nem o tray.** O Doctor
+  continua inventariando o boot inteiro no log, mas calcula severidade com os
+  eventos desde o início do run; falhas antigas de AdGuard, dmail e Battery
+  Warning já recuperadas viram informativas. Erros novos durante o upgrade
+  (inclusive coredumps e I/O) continuam gerando warning.
+- **pnpm self-update ganha verificação prévia e fallback global.** Quando a
+  versão já está atual o lockfile interno nem é aberto; se o self-updater falhar
+  ao converter snapshots com peer dependencies, o projeto global ativo é
+  atualizado de forma isolada via npm e a versão final é verificada.
+- **Rotação Timeshift volta a funcionar.** A listagem agora usa sudo, falha de
+  permissão deixa de ser confundida com lista vazia e o parser cobre as colunas
+  reais `Num > Name Tags Description`. O timeout permite recuperar acúmulos
+  grandes preservando somente `SNAPSHOT_KEEP` snapshots do full-upgrade.
+- **OWASP ZAP passa a atualizar core e add-ons.** Instalações manuais recebem o
+  tar Linux da release oficial, com sha256 publicado no GitHub, troca atômica e
+  rollback; depois o Marketplace roda numa porta efêmera real para não colidir
+  com Burp/ZAP aberto.
 - **Tray não fica preso em `running` após o término.** A sincronização final
   libera o lock antes de recalcular o estado; a filtragem da depreciação Ayatana
   também aceita o prefixo GLib que algumas builds adicionam no journal.
