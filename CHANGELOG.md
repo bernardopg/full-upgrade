@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.28.0] - 2026-07-14
 ### Corrigido
 
 - **Integrações opcionais têm IDs estáveis para opt-out.**
