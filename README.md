@@ -474,7 +474,8 @@ Principais chaves:
 | `IDE_EXT_CLIS` | auto | Lista (espaço) de CLIs VSCode-family para atualizar extensões; vazio = autodetect (`code cursor codium …`). |
 | `AUR_HELPER` | auto | Helper AUR a usar (`paru`/`yay`/`pikaur`); vazio = autodetecta na ordem `paru > yay > pikaur`. |
 | `PRIV_CMD` | auto | Comando de elevação (`sudo`/`doas`/`run0`/`sudo-rs`); vazio = autodetecta (`sudo` por padrão). |
-| `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular. |
+| `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular; mantido por compatibilidade. |
+| `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit`; evita depender do texto do step. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
@@ -585,7 +586,7 @@ libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
 
 O padrão central é `run_step "Nome" funcao`. Ele:
 
-1. aplica `--skip`, `--only`, `--skip-category` e `FULL_UPGRADE_SKIP`;
+1. aplica `--skip`, `--only`, `--skip-category`, `FULL_UPGRADE_SKIP` e integrações opt-out por ID estável;
 2. respeita `--dry-run`;
 3. valida dependências declaradas no catálogo;
 4. aplica timeout por step;

@@ -56,6 +56,14 @@ setup() {
   [[ "$output" != *"107.20"* ]]
 }
 
+@test "timeshift_terminal_output: remove aviso de rotação após snapshot bem-sucedido" {
+  run timeshift_terminal_output <<< $'Snapshot saved successfully\nMaximum backups exceeded for backup level daily\nfinalizado'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Snapshot saved successfully"* ]]
+  [[ "$output" == *"finalizado"* ]]
+  [[ "$output" != *"Maximum backups exceeded"* ]]
+}
+
 # ── update_archlinux_keyring ──────────────────────────────────────────────────
 
 @test "keyring: pacman ausente => 0 sem chamar sudo" {

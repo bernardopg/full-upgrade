@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Integrações opcionais têm IDs estáveis para opt-out.**
+  `FULL_UPGRADE_DISABLED_INTEGRATIONS=openclaw,coderabbit` não depende mais do
+  texto traduzido do step; `FULL_UPGRADE_SKIP` continua compatível.
+- **OpenClaw não mascara gateway falhado.** O step verifica
+  `openclaw-gateway.service` mesmo quando a CLI já está atualizada e registra
+  uma remediação acionável no relatório.
+- **Auditorias e snapshots reduzem ruído sem esconder evidência.** CVEs Rust
+  upstream-only ficam informativas no terminal com saída bruta no log, e o
+  aviso de rotação do Timeshift não é exibido como falha após snapshot válido.
+
 ## [3.27.0] - 2026-07-13
 ### Corrigido
 
