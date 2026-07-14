@@ -308,7 +308,9 @@ run_all_steps() {
         step_skip "Atualizar RTK" "rtk não instalado"
     fi
 
-    if has openclaw || [[ -x "${OPENCLAW_BIN:-}" ]]; then
+    if integration_disabled openclaw; then
+        step_skip "Atualizar OpenClaw" "integração desabilitada: openclaw"
+    elif has openclaw || [[ -x "${OPENCLAW_BIN:-}" ]]; then
         run_step "Atualizar OpenClaw" update_openclaw
     else
         step_skip "Atualizar OpenClaw" "openclaw não instalado"
@@ -391,7 +393,9 @@ run_all_steps() {
         step_skip "Atualizar OBS (plugins e extensões)" "OBS Studio não instalado"
     fi
 
-    if has coderabbit; then
+    if integration_disabled coderabbit; then
+        step_skip "Atualizar CodeRabbit CLI" "integração desabilitada: coderabbit"
+    elif has coderabbit; then
         run_step "Atualizar CodeRabbit CLI" update_coderabbit
     else
         step_skip "Atualizar CodeRabbit CLI" "coderabbit não instalado"

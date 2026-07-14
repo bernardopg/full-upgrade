@@ -72,6 +72,9 @@ FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa uma versão exata de poetry-core, poetry-core é adicionado
 # automaticamente ao ignore efetivo para evitar conflito/ping-pong de versão.
 FULL_UPGRADE_PIP_USER_IGNORE=""
+# Integrações opcionais desabilitadas por ID estável (não depende do nome do
+# step). Ex.: FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw,coderabbit"
+FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"

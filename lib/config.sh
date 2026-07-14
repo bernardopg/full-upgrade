@@ -39,6 +39,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
+: "${FULL_UPGRADE_DISABLED_INTEGRATIONS:=}" # IDs estáveis (ex.: openclaw,coderabbit)
 # Backup de configs críticas antes das mutações (F1)
 : "${BACKUP_CONFIGS:=1}"            # 1 = arquiva /etc críticas antes do update; 0 = desliga
 : "${BACKUP_KEEP:=5}"               # quantos tarballs privados manter (mínimo 1 quando ativo)
@@ -124,6 +125,7 @@ FULL_UPGRADE_UPDATE_CHANNEL
 FULL_UPGRADE_AUR_IGNORE
 FULL_UPGRADE_PIP_USER_IGNORE
 FULL_UPGRADE_SKIP
+FULL_UPGRADE_DISABLED_INTEGRATIONS
 GCLOUD_BIN
 COPILOT_BIN
 ADGUARD_BIN
@@ -248,7 +250,7 @@ load_config() {
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
-  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL
+  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
   config_warn_typos
@@ -376,6 +378,8 @@ IDE_EXT_CLIS=""
 FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa poetry-core, poetry-core entra no ignore efetivo automaticamente.
 FULL_UPGRADE_PIP_USER_IGNORE=""
+# IDs estáveis de integrações opcionais desabilitadas (ex.: openclaw,coderabbit).
+FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
@@ -471,6 +475,7 @@ show_config() {
   _cfg_kv "FULL_UPGRADE_AUR_IGNORE" "$FULL_UPGRADE_AUR_IGNORE" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_PIP_USER_IGNORE" "$FULL_UPGRADE_PIP_USER_IGNORE" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_SKIP" "$FULL_UPGRADE_SKIP" "<nenhum>"
+  _cfg_kv "FULL_UPGRADE_DISABLED_INTEGRATIONS" "$FULL_UPGRADE_DISABLED_INTEGRATIONS" "<nenhuma>"
   printf '\n'
 
   # ── Paths de tools (auto-detectados ou via override) ──

@@ -60,6 +60,18 @@ teardown() {
   [[ "$output" == *"- ${SYM_WARN} **Auditar binários cargo (CVEs)**: 7 CVEs em rustup"* ]]
 }
 
+@test "report: alerta de gateway preserva remediação no relatório" {
+  local gateway; gateway="$(mktemp)"
+  cat > "$gateway" <<'JSONL'
+{"event":"run_start","run_id":"gateway","timestamp":"2026-07-01T10:00:00Z","script_version":"1.0"}
+{"event":"step","step":"Atualizar OpenClaw","status":"warn","duration_seconds":1,"reason":"openclaw-gateway.service falhada; rode openclaw doctor --fix"}
+{"event":"summary","ok":0,"warn":1,"todo":0,"fail":0,"skip":0,"duration_seconds":1}
+JSONL
+  run report_markdown_from_jsonl "$gateway"
+  rm -f "$gateway"
+  [[ "$output" == *"openclaw doctor --fix"* ]]
+}
+
 @test "report: sem seção de falhas quando não há fail" {
   run report_markdown_from_jsonl "$FIXTURE"
   [[ "$output" != *"## Falhas"* ]]

@@ -137,6 +137,9 @@ print_banner() {
       log_always "${C_YELLOW}  [SKIP] Steps ignorados: ${FULL_UPGRADE_SKIP}${C_RESET}"
     fi
   fi
+  if [[ -n "${FULL_UPGRADE_DISABLED_INTEGRATIONS//[[:space:]]/}" ]]; then
+    log_always "${C_YELLOW}  [INTEGRAÇÕES DESABILITADAS] ${FULL_UPGRADE_DISABLED_INTEGRATIONS}${C_RESET}"
+  fi
 }
 
 # ── Mapeia status → símbolo + cor ───────────────────────────────────────────────

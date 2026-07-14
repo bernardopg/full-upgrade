@@ -112,6 +112,18 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "integration_disabled: ID exato é reconhecido mesmo com espaços" {
+  FULL_UPGRADE_DISABLED_INTEGRATIONS=" coderabbit, openclaw "
+  run integration_disabled openclaw
+  [ "$status" -eq 0 ]
+}
+
+@test "integration_disabled: não casa substring parcial" {
+  FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw"
+  run integration_disabled claw
+  [ "$status" -ne 0 ]
+}
+
 # ── aur_ignore_args ───────────────────────────────────────────────────────────
 
 @test "aur_ignore_args: lista vazia não produz saída" {

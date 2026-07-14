@@ -24,12 +24,26 @@ openclaw_update_has_partial_failure() {
   grep -qiE 'Failed to update|after plugin update failure|Update Result:[[:space:]]*(FAILED|ERROR)'
 }
 
+# A CLI pode estar atualizada enquanto o gateway systemd --user não reiniciou.
+# Reportamos a condição, mas não alteramos estado/configuração sem decisão explícita.
+openclaw_verify_gateway() {
+  has systemctl || return 0
+  local state
+  state="$(systemctl --user is-failed openclaw-gateway.service 2>/dev/null || true)"
+  [[ "$state" == "failed" ]] || return 0
+  log "  Gateway OpenClaw está em estado failed após a checagem."
+  remediation "openclaw doctor --fix && openclaw gateway restart"
+  STEP_REASON="openclaw-gateway.service falhada; rode openclaw doctor --fix"
+  return "$RC_WARN"
+}
+
 update_openclaw() {
   local openclaw_bin="${OPENCLAW_BIN:-$(command -v openclaw 2>/dev/null || true)}"
 
   if [[ -z "$openclaw_bin" || ! -x "$openclaw_bin" ]]; then
     log "  OpenClaw não encontrado (defina OPENCLAW_BIN no config)."
-    return 0
+    openclaw_verify_gateway
+    return $?
   fi
 
   log "  OpenClaw em: ${openclaw_bin}"
@@ -54,7 +68,8 @@ update_openclaw() {
     local current_core
     current_core="$(printf '%s' "$dry" | sed -nE 's/.*"currentVersion"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)"
     log "  OpenClaw ${current_core:-${current_ver:-}} já na versão mais recente; pulando reinstalação e restart do gateway."
-    return 0
+    openclaw_verify_gateway
+    return $?
   fi
 
   local output rc
@@ -70,7 +85,8 @@ $output"
   if (( rc == 0 )); then
     if printf '%s\n' "$output" | grep -qiE 'already up.to.date|already at latest|já est[áa] atualizado|latest version|up to date|nothing to do|no updates? available'; then
       log "  OpenClaw ${current_ver:-} já na versão mais recente."
-      return 0
+      openclaw_verify_gateway
+      return $?
     fi
     if printf '%s\n' "$output" | openclaw_update_has_partial_failure; then
       log "  OpenClaw core processado, mas um ou mais plugins falharam durante o update."
@@ -89,5 +105,9 @@ $output"
     | head -30 \
     || true
 
+  if (( rc == 0 )); then
+    openclaw_verify_gateway
+    return $?
+  fi
   return "$rc"
 }

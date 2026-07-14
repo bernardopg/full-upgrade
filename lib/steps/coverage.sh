@@ -101,6 +101,12 @@ update_archlinux_keyring() {
 }
 
 # ── Snapshot pré-upgrade (btrfs via snapper/timeshift) ──────────────────────────
+# Timeshift pode avisar sobre rotação mesmo depois de criar o snapshot com sucesso.
+# A saída crua fica no log; este filtro só reduz ruído no terminal.
+timeshift_terminal_output() {
+  sed '/^Maximum backups exceeded for backup level /d'
+}
+
 preupgrade_snapshot() {
   local tool="${SNAPSHOT_TOOL:-auto}"
   [[ "$tool" == "none" ]] && { log "  Snapshot desabilitado (SNAPSHOT_TOOL=none)."; return 0; }
@@ -160,7 +166,7 @@ preupgrade_snapshot() {
         [[ -n "$timeshift_result" ]] && log "  ${timeshift_result}"
         log "  Snapshot timeshift criado: ${desc}"
       else
-        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | tail -20
+        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | timeshift_terminal_output | tail -20
         log "  Aviso: falha ao criar snapshot timeshift."; return "$RC_WARN"
       fi
       ;;

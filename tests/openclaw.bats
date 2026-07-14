@@ -53,3 +53,22 @@ setup() {
   run openclaw_update_has_partial_failure <<< 'Gateway: restarted and verified.'
   [ "$status" -ne 0 ]
 }
+
+@test "openclaw_verify_gateway: unit user falhada vira RC_WARN acionável" {
+  QUIET=0 LOG_FILE=/dev/null STEP_REASON=""
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { printf 'failed\n'; }
+
+  run openclaw_verify_gateway
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"openclaw doctor --fix"* ]]
+}
+
+@test "openclaw_verify_gateway: unit ativa não gera alerta" {
+  QUIET=0 LOG_FILE=/dev/null STEP_REASON=""
+  has() { [[ "$1" == systemctl ]]; }
+  systemctl() { printf 'active\n'; }
+
+  run openclaw_verify_gateway
+  [ "$status" -eq 0 ]
+}

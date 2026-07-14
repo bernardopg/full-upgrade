@@ -62,12 +62,6 @@ audit_cargo_bins() {
     log "  cargo audit: falha de rede transitória ao buscar advisory DB."
     return "$RC_WARN"
   fi
-  # mostrar só blocos de CVE — suprimir Fetching/Loaded/Updating/warning de binários sem auditable
-  printf '%s\n' "$output" \
-    | grep -v '^\s*Fetching advisory\|^\s*Loaded \|^\s*Updating crates\|^warning:.*not built with' \
-    | grep -v '^$' \
-    | grep -A 8 '^Crate:' || true
-
   # Extrai os binários com vulnerabilidade: cargo-audit emite
   #   error: N vulnerabilities found in /home/user/.cargo/bin/<nome>
   local -a vuln_bins=()
@@ -110,9 +104,17 @@ audit_cargo_bins() {
     if (( _rc_rc != RC_WARN )) && ! rustup_check_has_update "$_rc_out"; then
       log "  ${vuln_count} binário(s) da toolchain com CVE conhecida: ${vuln_bins[*]}"
       log "  rustup já na última versão — estas CVEs vivem em crates vendorizadas no binário upstream e só somem quando o upstream reconstrói. Não acionável localmente (informativo)."
+      log "  Detalhes brutos do cargo-audit foram preservados no log, sem imprimir erros alarmistas no terminal."
       return 0
     fi
   fi
+
+  # Exibe detalhes somente quando há uma ação local possível. A saída bruta já
+  # foi gravada no log, então CVEs upstream-only não parecem falha do run.
+  printf '%s\n' "$output" \
+    | grep -v '^\s*Fetching advisory\|^\s*Loaded \|^\s*Updating crates\|^warning:.*not built with' \
+    | grep -v '^$' \
+    | grep -A 8 '^Crate:' || true
 
   log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com CVEs conhecidas: ${vuln_bins[*]}${C_RESET}"
   if (( ${#cargo_bins[@]} > 0 )); then
@@ -341,5 +343,4 @@ autofix_rust_cves() {
   STEP_REASON="${#after_cargo[@]} CVE(s) acionável(is) remanescente(s) após remediação"
   return "$RC_WARN"
 }
-
 

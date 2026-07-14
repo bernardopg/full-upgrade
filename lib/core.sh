@@ -454,6 +454,20 @@ _step_skip_requested() {
   return 1
 }
 
+# IDs estáveis para integrações opcionais. Ao contrário de FULL_UPGRADE_SKIP,
+# não dependem do texto apresentado ao usuário e sobrevivem a traduções/renomes.
+integration_disabled() {
+  local id="$1" item
+  [[ -n "$id" && -n "${FULL_UPGRADE_DISABLED_INTEGRATIONS//[[:space:]]/}" ]] || return 1
+  IFS=',' read -ra _disabled_integrations <<< "$FULL_UPGRADE_DISABLED_INTEGRATIONS"
+  for item in "${_disabled_integrations[@]}"; do
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
+    [[ "$item" == "$id" ]] && return 0
+  done
+  return 1
+}
+
 _ts() {
   # timestamp relativo MM:SS desde início do script
   local secs=$((SECONDS - TOTAL_START))
