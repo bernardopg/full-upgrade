@@ -164,7 +164,8 @@ doctor_failed_systemd_units() {
   if [[ -n "${failed_user//[[:space:]]/}" ]]; then
     while IFS= read -r _line; do
       [[ -z "${_line//[[:space:]]/}" ]] && continue
-      if [[ "$_line" =~ ^[[:space:]]*app-.*@autostart\.service[[:space:]] ]]; then
+      if [[ "$_line" =~ ^[[:space:]]*app-.*@autostart\.service[[:space:]] ]] ||
+         [[ "$_line" =~ ^[[:space:]]*app-.*\.scope[[:space:]] ]]; then
         _usr_autostart+="${_line}"$'\n'
       else
         _usr_real+="${_line}"$'\n'
@@ -181,7 +182,7 @@ doctor_failed_systemd_units() {
   if [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
     local _auto_cnt
     _auto_cnt="$(printf '%s' "$_usr_autostart" | grep -c '[^[:space:]]' || true)"
-    log "  ${_auto_cnt} app(s) de autostart em estado failed (systemd-xdg-autostart-generator; Restart=no — fechado/KILLado pelo usuário, não é serviço quebrado):"
+    log "  ${_auto_cnt} unit(s) gerada(s) para app de sessão em estado failed (autostart/scope transitório — app encerrado, não é serviço persistente quebrado):"
     printf '%s' "$_usr_autostart" | sed '/^[[:space:]]*$/d' | tee >(_strip_ansi >> "$LOG_FILE")
   fi
   if [[ -z "${_usr_real}${_usr_autostart}" ]] && [[ "$user_scope" != "available" ]]; then
@@ -194,7 +195,7 @@ doctor_failed_systemd_units() {
   # Se só há app-autostart (generator) e nenhuma unit de sistema/usuário real
   # falhada, é informativo — não aciona TODO.
   if (( _sys_cnt == 0 )) && (( _usr_cnt == 0 )) && [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
-    log "  Nenhuma unit de serviço real falhada; só app(s) de autostart (artefato do generator)."
+    log "  Nenhuma unit de serviço real falhada; só unit(s) transitória(s) de app de sessão."
     return 0
   fi
 
@@ -1064,18 +1065,6 @@ doctor_stale_services() {
     # que o checkservices recomenda reiniciar.
     local -a _affected_services=()
     mapfile -t _affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
-    # Fallback: builds antigos do checkservices podem listar nomes de serviço
-    # sem o comando 'systemctl restart'. Se nada casou acima, recai para o
-    # filtro genérico (ainda excluindo contadores/delimitadores/pacnew).
-    if (( ${#_affected_services[@]} == 0 )); then
-      mapfile -t _affected_services < <(
-        printf '%s\n' "$output" \
-          | grep -vE '^::|^Found:|^[[:space:]]*-+8<-+|pacnew file found|^[[:space:]]*$|^Execute' \
-          | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
-          | grep -E '\.(service|socket|timer|mount|target|scope|path)$|\.service' \
-          | sort -u
-      )
-    fi
     if (( ${#_affected_services[@]} == 0 )); then
       log "  checkservices: nenhum serviço com bibliotecas antigas."
       return 0
@@ -1119,15 +1108,6 @@ restart_stale_services() {
 
   local -a affected_services=()
   mapfile -t affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
-  if (( ${#affected_services[@]} == 0 )); then
-    mapfile -t affected_services < <(
-      printf '%s\n' "$output" \
-        | grep -vE '^::|^Found:|^[[:space:]]*-+8<-+|pacnew file found|^[[:space:]]*$|^Execute' \
-        | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
-        | grep -E '\.(service|socket|timer|mount|target|scope|path)$|\.service' \
-        | sort -u
-    )
-  fi
 
   local display_manager_units=""
   if has systemctl; then

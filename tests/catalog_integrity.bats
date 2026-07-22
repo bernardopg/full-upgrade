@@ -151,7 +151,7 @@ setup() {
   [ "$shadow_line" -lt "$update_line" ]
 }
 
-@test "main.sh: reinício de serviços antigos é despachado" {
+@test "main.sh: reinício de serviços antigos precede a auditoria pós-condição" {
   local main="${FU_ROOT}/lib/main.sh"
   [ -f "$main" ]
 
@@ -161,7 +161,7 @@ setup() {
 
   [ -n "$stale_line" ]
   [ -n "$restart_line" ]
-  [ "$stale_line" -lt "$restart_line" ]
+  [ "$restart_line" -lt "$stale_line" ]
 }
 
 @test "catálogo: steps que mutam estado do shell pai têm timeout 0" {

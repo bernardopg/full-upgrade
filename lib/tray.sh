@@ -219,7 +219,11 @@ tray_last_doctor_pending_items() {
   local -i max_reason=60
   jsonl=$(tray_latest_completed_real_jsonl 2>/dev/null) || return 0
   while IFS= read -r line; do
-    [[ "$line" == *'"event":"step"'* && "$line" == *'"category":"doctor"'* ]] || continue
+    [[ "$line" == *'"event":"step"'* ]] || continue
+    # O campo manteve o nome histórico doctor_pending por compatibilidade, mas
+    # o tray deve expor TODA pendência acionável do fechamento do run. Sem isso,
+    # .pacnew/.pacsave e outros checks finais somem da interface.
+    [[ "$line" == *'"category":"doctor"'* || "$line" == *'"category":"final"'* ]] || continue
     status=$(tray_extract_json_field "$line" status 2>/dev/null || true)
     case "$status" in warn|todo|fail) ;; *) continue ;; esac
     step=$(tray_extract_json_field "$line" step 2>/dev/null || true)
