@@ -4,6 +4,31 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Atualização automática do TokenSave.** O novo step usa o self-updater
+  oficial `tokensave upgrade`, confirma a versão final e preserva a instalação
+  atual quando rede ou upgrade falham.
+- **TUI mais compacta e responsiva.** A barra de progresso adapta-se à largura
+  do terminal, nomes longos são truncados com reticências e os motivos de
+  `warn`/`todo`/`fail` aparecem junto ao status e no resumo.
+
+### Corrigido
+
+- **Tray e resumo não mantêm pendências já resolvidas.** O restart de serviços
+  com bibliotecas antigas agora precede sua auditoria pós-condição, e o tray
+  inclui pendências da verificação final, como `.pacnew/.pacsave`.
+- **Scopes transitórios e configuração de coredump são autorreparados.** Scopes
+  `app-*.scope` encerrados saem de `systemctl --user --failed` sem apagar a
+  evidência do journal; diretivas inválidas `MaxAge`/`Keep` são removidas de
+  `coredump.conf` com backup reversível.
+- **Auto-remediação final roda antes da verificação.** O resultado registrado
+  passa a representar a pós-condição, evitando `todo` obsoleto após correção.
+- **Runs filtrados deixam de inundar o terminal com skips.** Acima de oito
+  steps omitidos, a TUI mostra uma linha consolidada; nomes e motivos completos
+  continuam preservados no log e nos eventos JSONL. A contagem do banner também
+  deduplica filtros sobrepostos, mantendo-se igual ao total real do resumo.
+
 ## [3.28.0] - 2026-07-14
 ### Corrigido
 

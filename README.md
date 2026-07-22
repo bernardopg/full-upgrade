@@ -63,7 +63,7 @@ full-upgrade
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
-| Observabilidade | Log completo em texto sem escapes ANSI, eventos JSONL por step com `reason`, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. |
+| Observabilidade | TUI responsiva com progresso adaptativo e motivos acionáveis, log completo em texto sem escapes ANSI, eventos JSONL por step com `reason`, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. Runs filtrados compactam listas extensas de skips no terminal sem perder detalhes no log. |
 
 ## Instalação
 
@@ -316,8 +316,8 @@ Status possíveis no resumo:
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
-| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
 | Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
@@ -358,7 +358,7 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | Check | Detecta |
 | --- | --- |
 | Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
-| systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; se `--user` não puder ser consultado, o doctor registra checagem parcial. |
+| systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; scopes transitórios `app-*.scope` já encerrados são informativos e autorreparados no modo completo. |
 | Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
 | Firmware | Resultado de `fwupdmgr security`. |
 | Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |

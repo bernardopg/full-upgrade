@@ -25,6 +25,8 @@ Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutatin
 Garantir Wireshark|repair|security,wireshark,network,mutating|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
 Garantir Burp Suite|repair|security,burp,aur,network,mutating|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
 Reparar comandos locais conflitantes|repair|shadowing,mutating|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
+Limpar scopes transitórios de apps|repair|systemd,user,desktop,mutating|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes app-*.scope já encerrados; journal e coredump permanecem para auditoria.
+Reparar configuração de coredump|repair|systemd,coredump,config,sudo,mutating|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
 Reparar sombra local do full-upgrade|repair|shadowing,self,pacman,mutating|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
 Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman,mutating|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga que ainda aponta para ~/.local/bin/full-upgrade quando a instalação ativa é pacman/AUR.
 Reparar permissoes de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
@@ -59,6 +61,7 @@ Atualizar gems de usuário|lang|ruby,gem,update,network|mutating|300|gem|update_
 Atualizar ghcup|lang|haskell,ghcup,update,network|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
 Atualizar Hermes|ai|hermes,update,network|mutating|120|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
 Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK (Rust Token Killer) para a última release publicada no GitHub.
+Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
 Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
 Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_claude_code|Atualiza Claude Code CLI.
