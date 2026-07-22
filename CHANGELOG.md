@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.29.0] - 2026-07-22
 ### Adicionado
 
 - **Atualização automática do TokenSave.** O novo step usa o self-updater
