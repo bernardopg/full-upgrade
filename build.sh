@@ -45,16 +45,24 @@ unset _missing _f
   printf 'set -uo pipefail\n\n'
   # Metadados (sem resolução de lib/ — é single-file).
   # Prioridade da versão embutida:
-  #   1. git describe SOMENTE se o repo git for ESTE projeto (toplevel contém
+  #   1. FULL_UPGRADE_BUILD_VERSION, usada pelo pipeline no commit ainda não
+  #      tagueado da release;
+  #   2. git describe SOMENTE se o repo git for ESTE projeto (toplevel contém
   #      full-upgrade.sh + build.sh) — dá o estado de dev (vX.Y.Z-N-gHASH);
-  #   2. arquivo VERSION (fonte autoritativa em releases/tarballs);
-  #   3. fallback embutido.
+  #   3. arquivo VERSION (fonte autoritativa em releases/tarballs);
+  #   4. fallback embutido.
   # A checagem do toplevel é essencial: buildar a partir de um tarball extraído
   # dentro de OUTRO repo git (ex.: makepkg no clone do AUR) pegaria a versão
   # errada do repo pai — por isso git describe não é usado nesse caso.
   _build_ver=""
   _git_top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
-  if [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
+  if [[ -n "${FULL_UPGRADE_BUILD_VERSION:-}" ]]; then
+    if [[ ! "${FULL_UPGRADE_BUILD_VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+      printf 'build.sh: FULL_UPGRADE_BUILD_VERSION inválida: %s\n' "${FULL_UPGRADE_BUILD_VERSION}" >&2
+      exit 1
+    fi
+    _build_ver="${FULL_UPGRADE_BUILD_VERSION}"
+  elif [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
     _git_desc="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
     [[ "$_git_desc" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]] && _build_ver="$_git_desc"
   fi
