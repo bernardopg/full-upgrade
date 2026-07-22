@@ -165,9 +165,15 @@ jobs:
           bats tests/
 
       - name: Build standalone
+        env:
+          # No dispatch, a tag só é criada depois do build. Passe a versão
+          # resolvida explicitamente para não embutir o git-describe anterior.
+          FULL_UPGRADE_BUILD_VERSION: ${{ (github.event_name == 'workflow_dispatch' && needs.bump.outputs.version) || github.ref_name }}
         run: |
           ./build.sh
-          sha256sum dist/full-upgrade-standalone.sh > dist/full-upgrade-standalone.sh.sha256
+          test "$(dist/full-upgrade-standalone.sh --version)" = "${FULL_UPGRADE_BUILD_VERSION#v}"
+          (cd dist && sha256sum full-upgrade-standalone.sh > full-upgrade-standalone.sh.sha256)
+          (cd dist && sha256sum -c full-upgrade-standalone.sh.sha256)
           cat dist/full-upgrade-standalone.sh.sha256
 
       - name: Attest build provenance

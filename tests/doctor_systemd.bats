@@ -89,8 +89,17 @@ _setup_failed_units() {
   _setup_failed_units "" "app-9router@autostart.service loaded failed failed 9Router"
   run doctor_failed_systemd_units
   [ "$status" -eq 0 ]
-  [[ "$output" == *"app(s) de autostart em estado failed"* ]]
+  [[ "$output" == *"unit(s) gerada(s) para app de sessão em estado failed"* ]]
   [[ "$output" == *"app-9router@autostart.service"* ]]
+  [[ "$output" == *"Nenhuma unit de serviço real falhada"* ]]
+}
+
+@test "failed_units: scope transitório de app => rc 0 (informativo, não TODO)" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" "app-orca-87907.scope loaded failed failed app-orca-87907.scope"
+  run doctor_failed_systemd_units
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"app-orca-87907.scope"* ]]
   [[ "$output" == *"Nenhuma unit de serviço real falhada"* ]]
 }
 

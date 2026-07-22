@@ -70,12 +70,16 @@ skip_step_count() {
   local item
   local count=0
   local -a _skip_count_items=()
+  local -A _skip_count_seen=()
   [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]] && { printf '0'; return 0; }
   IFS=',' read -ra _skip_count_items <<< "$FULL_UPGRADE_SKIP"
   for item in "${_skip_count_items[@]}"; do
     item="${item#"${item%%[![:space:]]*}"}"
     item="${item%"${item##*[![:space:]]}"}"
-    [[ -n "$item" ]] && ((count++))
+    if [[ -n "$item" && -z "${_skip_count_seen[$item]+x}" ]]; then
+      _skip_count_seen["$item"]=1
+      ((count++))
+    fi
   done
   printf '%d' "$count"
 }
@@ -268,6 +272,7 @@ parse_checkservices_units() {
   sed -nE \
     -e "s/^.*systemctl restart '([^']+)'.*$/\1/p" \
     -e "s/^[[:space:]]*'([^']+\.service)'[[:space:]]*$/\1/p" \
+    -e 's/^[[:space:]]*([A-Za-z0-9_.@:-]+\.service)[[:space:]]*$/\1/p' \
     | sort -u
 }
 
@@ -492,6 +497,22 @@ _step_name_width() {
   printf '%d' "$STEP_NAME_W"
 }
 
+_step_display_name() {
+  local width
+  width="$(_step_name_width)"
+  ui_fit "$1" "$width"
+}
+
+_log_step_reason() {
+  local reason="$1" available shown
+  [[ -n "${reason//[[:space:]]/}" ]] || return 0
+  available=$(( $(ui_width) - 6 ))
+  (( available < 12 )) && available=12
+  shown="$(ui_truncate "$reason" "$available")"
+  log "  ${C_DIM}↳ ${shown}${C_RESET}"
+  [[ "$shown" == "$reason" ]] || log_raw "  Motivo completo: ${reason}"
+}
+
 # Resolve a categoria de um step pelo catálogo (vazio se não-catalogado).
 _category_of() {
   local name="$1" category rest
@@ -527,62 +548,78 @@ step_start() {
   local step_n=$(( done_count + 1 ))
   local prefix="[${step_n}]"
   if (( ${TOTAL_STEPS:-0} > 0 )); then
-    prefix="[${step_n}/${TOTAL_STEPS}] $(ui_bar "$step_n" "$TOTAL_STEPS" 14)"
+    prefix="[${step_n}/${TOTAL_STEPS}] $(ui_progress "$step_n" "$TOTAL_STEPS")"
   fi
+  local available=$(( $(ui_width) - ${#prefix} - 12 ))
+  (( available < 12 )) && available=12
   log ""
-  log "${C_BLUE}${C_BOLD}${SYM_ARROW} ${prefix} ${name}${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
+  log "${C_BLUE}${C_BOLD}${SYM_ARROW} ${prefix} $(ui_truncate "$name" "$available")${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
 }
 
 step_ok() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("ok")
   STEP_TIMES+=("$dur")
+  STEP_REASONS+=("$STEP_REASON")
   write_step_event_json "${STEP_NAMES[-1]}" "ok" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   local time_color="$C_DIM"
   (( dur >= 30 )) && time_color="${C_YELLOW}${C_BOLD}"
-  log "${C_GREEN}${SYM_OK}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${time_color}($(elapsed "$dur"))${C_RESET}"
+  log "${C_GREEN}${SYM_OK}${C_RESET} $(_step_display_name "${STEP_NAMES[-1]}") ${time_color}($(elapsed "$dur"))${C_RESET}"
 }
 
 step_fail() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("fail")
   STEP_TIMES+=("$dur")
+  STEP_REASONS+=("$STEP_REASON")
   HAS_FAIL=1
   write_step_event_json "${STEP_NAMES[-1]}" "fail" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_RED}${SYM_FAIL}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_RED}${SYM_FAIL}${C_RESET} $(_step_display_name "${STEP_NAMES[-1]}") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  _log_step_reason "$STEP_REASON"
 }
 
 step_warn() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("warn")
   STEP_TIMES+=("$dur")
+  STEP_REASONS+=("$STEP_REASON")
   write_step_event_json "${STEP_NAMES[-1]}" "warn" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_YELLOW}${SYM_WARN}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_YELLOW}${SYM_WARN}${C_RESET} $(_step_display_name "${STEP_NAMES[-1]}") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  _log_step_reason "$STEP_REASON"
 }
 
 step_todo() {
   local dur=$((SECONDS - STEP_START))
   STEP_RESULTS+=("todo")
   STEP_TIMES+=("$dur")
+  STEP_REASONS+=("$STEP_REASON")
   if [[ "${STEP_NAMES[-1]}" == "Doctor: reboot pendente" && -n "${STEP_REASON//[[:space:]]/}" ]]; then
     REBOOT_RECOMMENDATION="$STEP_REASON"
   fi
   write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
-  log "${C_CYAN}${SYM_TODO}${C_RESET} $(ui_pad "${STEP_NAMES[-1]}" "$(_step_name_width)") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  log "${C_CYAN}${SYM_TODO}${C_RESET} $(_step_display_name "${STEP_NAMES[-1]}") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
+  _log_step_reason "$STEP_REASON"
 }
 
 step_skip() {
   local name="$1"
   local reason="$2"
   local _cat; _cat="$(_category_of "$name")"
-  _maybe_print_section "$_cat"
+  if (( ! ${COMPACT_SKIP_OUTPUT:-0} )); then
+    _maybe_print_section "$_cat"
+  fi
   STEP_NAMES+=("$name")
   STEP_CATEGORIES+=("$_cat")
   STEP_RESULTS+=("skip")
   STEP_TIMES+=(0)
+  STEP_REASONS+=("$reason")
   STEP_START_ISO="$(date -Is)"
   write_step_event_json "$name" "skip" 0 0 "$reason"
-  log "${C_YELLOW}${SYM_SKIP}${C_RESET} $(ui_pad "${name}" "$(_step_name_width)") ${C_DIM}(${reason})${C_RESET}"
+  if (( ${COMPACT_SKIP_OUTPUT:-0} )); then
+    log_raw "${SYM_SKIP} ${name} (${reason})"
+  else
+    log "${C_YELLOW}${SYM_SKIP}${C_RESET} $(_step_display_name "$name") ${C_DIM}(${reason})${C_RESET}"
+  fi
 }
 
 run_step() {
@@ -681,6 +718,7 @@ run_step() {
       local dur=$((SECONDS - STEP_START))
       STEP_RESULTS+=("warn")
       STEP_TIMES+=("$dur")
+      STEP_REASONS+=("timed_out")
       write_step_event_json "$name" "warn" "$dur" "$rc" "timed_out"
       log "${C_YELLOW}[warn]${C_RESET} ${name} ${C_DIM}(timeout ${_to}s excedido)${C_RESET}"
       return 0

@@ -12,7 +12,8 @@
 LANG_OVERRIDE=auto
 
 # ── Tools custom / Custom tools ─────────────────────────────────────────────────
-# As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK) rodam
+# As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK,
+# TokenSave) rodam
 # POR PRESENÇA da ferramenta — não precisam desta flag. ENABLE_CUSTOM_TOOLS=1 só é
 # necessário para: (a) Burp/Wireshark, que INSTALA o pacote burpsuite; (b) carregar
 # seus próprios plugins de ~/.config/full-upgrade/steps.d/.
@@ -86,6 +87,7 @@ FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # ANTIGRAVITY_BIN="/usr/bin/antigravity"
 # ANTIGRAVITY_IDE_BIN="/usr/bin/antigravity-ide"
 # RTK_BIN="$HOME/.local/bin/rtk"
+# TOKENSAVE_BIN="$HOME/.local/bin/tokensave"
 # BURPSUITE_JAVA_BIN="/usr/lib/jvm/java-21-openjdk/bin/java"  # Java p/ o fallback do Burp
 
 # ── Auto-atualização do próprio full-upgrade / Self-update ──────────────────────

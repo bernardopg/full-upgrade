@@ -677,7 +677,7 @@ _manual_apps_has_step() {
   # steps acima e com ai.sh/self_update.sh/steps.d.
   local marker="$1"
   case "$marker" in
-    droid|snyk|zap|zap.sh|zaproxy|rtk|adguardvpn-cli|adguardvpn_cli|openclaw|\
+    droid|snyk|zap|zap.sh|zaproxy|rtk|tokensave|adguardvpn-cli|adguardvpn_cli|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
     kiro-cli|kiro-cli-chat|kiro-cli-term|\

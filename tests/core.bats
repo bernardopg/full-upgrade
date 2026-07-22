@@ -86,6 +86,12 @@ setup() {
   [ "$output" = "3" ]
 }
 
+@test "skip_step_count: deduplica nomes repetidos" {
+  FULL_UPGRADE_SKIP="A,B,A, B"
+  run skip_step_count
+  [ "$output" = "2" ]
+}
+
 # ── _step_skip_requested ──────────────────────────────────────────────────────
 
 @test "_step_skip_requested: nome presente retorna 0" {
@@ -167,9 +173,14 @@ setup() {
 }
 
 @test "parse_checkservices_units: saída sem units não produz nada" {
-  out=$'Found: 0\n:: header'
+  out=$'Found: 0\n:: header\nError:: Unable to read maps file of containerd.service for pid 123.'
   result="$(printf '%s\n' "$out" | parse_checkservices_units)"
   [ -z "$result" ]
+}
+
+@test "parse_checkservices_units: aceita nome de unit legado sem aspas" {
+  result="$(printf '%s\n' 'containerd.service' | parse_checkservices_units)"
+  [ "$result" = "containerd.service" ]
 }
 
 # ── service_restart_is_session_critical ───────────────────────────────────────

@@ -54,6 +54,21 @@ ui_pad() {
   printf '%s%s' "$s" "$pad"
 }
 
+# Corta texto pela largura de exibição, usando reticências quando necessário.
+# Larguras muito pequenas ainda produzem uma saída determinística.
+ui_truncate() {
+  local s="$1" w="$2"
+  (( w <= 0 )) && return 0
+  (( ${#s} <= w )) && { printf '%s' "$s"; return 0; }
+  (( w == 1 )) && { printf '…'; return 0; }
+  printf '%s…' "${s:0:w-1}"
+}
+
+ui_fit() {
+  local s="$1" w="$2"
+  ui_pad "$(ui_truncate "$s" "$w")" "$w"
+}
+
 # Linha horizontal de largura adaptativa. $1 = char (default HR_HEAVY).
 ui_hr() {
   local ch="${1:-$HR_HEAVY}" w; w="$(ui_width)"
@@ -76,6 +91,20 @@ ui_bar() {
   printf '%s %3d%%' "$bar" "$pct"
 }
 
+# Progresso responsivo: barra completa em telas largas, curta nas médias e
+# somente percentual em terminais estreitos.
+ui_progress() {
+  local cur="$1" total="$2" w
+  w="$(ui_width)"
+  if (( w >= 76 )); then
+    ui_bar "$cur" "$total" 14
+  elif (( w >= 56 )); then
+    ui_bar "$cur" "$total" 8
+  elif (( total > 0 )); then
+    printf '%3d%%' "$(( cur * 100 / total ))"
+  fi
+}
+
 # ── Banner de cabeçalho (largura adaptativa) ────────────────────────────────────
 print_banner() {
   local w title="full-upgrade  ${SCRIPT_VERSION}"
@@ -95,10 +124,12 @@ print_banner() {
   log_always "${C_BOLD}${C_CYAN}${BOX_TL}${top}${BOX_TR}${C_RESET}"
   log_always "${C_BOLD}${C_CYAN}${BOX_V}${spaces_l}${title}${spaces_r}${BOX_V}${C_RESET}"
   log_always "${C_BOLD}${C_CYAN}${BOX_BL}${bot}${BOX_BR}${C_RESET}"
-  log_always "${C_DIM}$(date '+%Y-%m-%d %H:%M:%S')  ${SYM_ARROW}  host: $(hostname)  ${SYM_ARROW}  kernel: $(uname -r)${C_RESET}"
-  log_always "${C_DIM}Script: ${SCRIPT_VERSION}  ${SYM_ARROW}  sha256: ${SCRIPT_SHA256}${C_RESET}"
-  log_always "${C_DIM}Log: ${LOG_FILE}${C_RESET}"
-  log_always "${C_DIM}JSONL: ${JSONL_FILE}${C_RESET}"
+  local sha_short="${SCRIPT_SHA256:0:12}" meta log_line
+  meta="$(date '+%Y-%m-%d %H:%M:%S')  ${SYM_ARROW}  $(hostname)  ${SYM_ARROW}  kernel $(uname -r)  ${SYM_ARROW}  sha ${sha_short}"
+  log_always "${C_DIM}$(ui_truncate "$meta" "$w")${C_RESET}"
+  log_line="Log: ${LOG_FILE}"
+  log_always "${C_DIM}$(ui_truncate "$log_line" "$w")${C_RESET}"
+  log_raw "JSONL: ${JSONL_FILE}"
   if (( DRY_RUN )); then
     log_always "${C_YELLOW}${C_BOLD}  [DRY-RUN] Nenhum comando será executado.${C_RESET}"
   fi
@@ -132,7 +163,8 @@ print_banner() {
   if [[ -n "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
     local skip_count; skip_count="$(skip_step_count)"
     if (( skip_count > 8 )); then
-      log_always "${C_YELLOW}  [SKIP] ${skip_count} step(s) ignorados; o resumo final lista os nomes.${C_RESET}"
+      COMPACT_SKIP_OUTPUT=1
+      log_always "${C_YELLOW}  [SKIP] ${skip_count} step(s) filtrados; detalhes no log/JSONL.${C_RESET}"
     else
       log_always "${C_YELLOW}  [SKIP] Steps ignorados: ${FULL_UPGRADE_SKIP}${C_RESET}"
     fi
@@ -309,7 +341,10 @@ print_summary() {
     _nlen=${#STEP_NAMES[$i]}
     (( _nlen > namew )) && namew=$_nlen
   done
+  local terminal_namew=$(( $(ui_width) - 16 ))
+  (( terminal_namew < 16 )) && terminal_namew=16
   (( namew > 50 )) && namew=50
+  (( namew > terminal_namew )) && namew=$terminal_namew
   (( namew < 24 )) && namew=24
 
   # Ordem/grupos de categorias para exibição.
@@ -331,7 +366,10 @@ print_summary() {
       dur="$(elapsed "${STEP_TIMES[$i]}")"
       time_color="$C_DIM"
       (( "${STEP_TIMES[$i]}" >= 30 )) && time_color="${C_YELLOW}"
-      log_always "    ${color}${sym}${C_RESET}  $(ui_pad "${STEP_NAMES[$i]}" "$namew")  ${time_color}(${dur})${C_RESET}"
+      log_always "    ${color}${sym}${C_RESET}  $(ui_fit "${STEP_NAMES[$i]}" "$namew")  ${time_color}(${dur})${C_RESET}"
+      if [[ "${STEP_RESULTS[$i]}" != "ok" && -n "${STEP_REASONS[$i]:-}" ]]; then
+        log_always "       ${C_DIM}↳ $(ui_truncate "${STEP_REASONS[$i]}" "$(( $(ui_width) - 9 ))")${C_RESET}"
+      fi
     done
   done < <(summary_group_specs)
 
@@ -343,16 +381,23 @@ print_summary() {
     local symcolor sym color dur
     symcolor="$(_status_sym "${STEP_RESULTS[$i]}")"; sym="${symcolor%%|*}"; color="${symcolor##*|}"
     dur="$(elapsed "${STEP_TIMES[$i]}")"
-    log_always "    ${color}${sym}${C_RESET}  $(ui_pad "${STEP_NAMES[$i]}" "$namew")  ${C_DIM}(${dur})${C_RESET}"
+    log_always "    ${color}${sym}${C_RESET}  $(ui_fit "${STEP_NAMES[$i]}" "$namew")  ${C_DIM}(${dur})${C_RESET}"
+    if [[ -n "${STEP_REASONS[$i]:-}" ]]; then
+      log_always "       ${C_DIM}↳ $(ui_truncate "${STEP_REASONS[$i]}" "$(( $(ui_width) - 9 ))")${C_RESET}"
+    fi
   done
 
   # Skips agrupados ao final.
   if (( skip > 0 )); then
     log_always "  ${C_DIM}$(ui_hr "$HR_LIGHT")${C_RESET}"
-    for i in "${!STEP_NAMES[@]}"; do
-      [[ "${STEP_RESULTS[$i]}" != "skip" ]] && continue
-      log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
-    done
+    if (( ${COMPACT_SKIP_OUTPUT:-0} && skip > 8 )); then
+      log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${skip} steps omitidos por filtro; detalhes no log/JSONL.${C_RESET}"
+    else
+      for i in "${!STEP_NAMES[@]}"; do
+        [[ "${STEP_RESULTS[$i]}" != "skip" ]] && continue
+        log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
+      done
+    fi
   fi
 
   log_always "${C_BOLD}$(ui_hr "$HR_HEAVY")${C_RESET}"

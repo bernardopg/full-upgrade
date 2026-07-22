@@ -258,6 +258,20 @@ EOF
   [[ "$out" != *'Atualizar pacotes do sistema e AUR'* ]]
 }
 
+@test "last_doctor_pending_items: inclui pendência da verificação final" {
+  LOG_DIR="$(mktemp -d)"
+  local f out
+  f="${LOG_DIR}/full-upgrade-20260625-100000-1.jsonl"
+  cat > "$f" <<'EOF'
+{"event":"run_start","dry_run":false}
+{"event":"step","step":"Verificar arquivos .pacnew/.pacsave","status":"todo","reason":"1 arquivo pendente","category":"final"}
+{"event":"summary","timestamp":"2026-06-25T10:00:00","todo":1,"fail":0,"reboot_recommendation":""}
+EOF
+  out="$(tray_last_doctor_pending_items)"
+  [[ "$out" == *"Verificar arquivos .pacnew/.pacsave"* ]]
+  [[ "$out" == *"1 arquivo pendente"* ]]
+}
+
 # ── tray_read_state_field ──────────────────────────────────────────────────────
 
 @test "read_state_field: extrai campo string" {

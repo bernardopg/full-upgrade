@@ -47,6 +47,8 @@ run_all_steps() {
 
             if (( NO_REPAIR )); then
                 step_skip "Reparar comandos locais conflitantes"        "--no-repair"
+                step_skip "Limpar scopes transitórios de apps"          "--no-repair"
+                step_skip "Reparar configuração de coredump"            "--no-repair"
                 step_skip "Reparar sombra local do full-upgrade"        "--no-repair"
                 step_skip "Reparar unit stale do full-upgrade tray"     "--no-repair"
                 step_skip "Garantir Wireshark"                         "--no-repair"
@@ -57,8 +59,10 @@ run_all_steps() {
                 # Shadowing é reparo genérico, útil p/ todos e deve acontecer
                 # antes do update principal.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
-            run_step "Reparar sombra local do full-upgrade"         repair_full_upgrade_shadow
-            run_step "Reparar unit stale do full-upgrade tray"      repair_full_upgrade_tray_unit
+                run_step "Limpar scopes transitórios de apps"           repair_stale_user_app_scopes
+                run_step "Reparar configuração de coredump"             repair_coredump_obsolete_keys
+                run_step "Reparar sombra local do full-upgrade"          repair_full_upgrade_shadow
+                run_step "Reparar unit stale do full-upgrade tray"       repair_full_upgrade_tray_unit
                 # Wireshark/Burp ficam atrás de ENABLE_CUSTOM_TOOLS: instalam pacotes
                 # se ausentes, então não devem rodar por padrão. Opt-in explícito.
                 custom_step_or_skip "Garantir Wireshark"                ensure_wireshark
@@ -83,6 +87,8 @@ run_all_steps() {
             "Garantir Wireshark" \
             "Garantir Burp Suite" \
             "Reparar comandos locais conflitantes" \
+            "Limpar scopes transitórios de apps" \
+            "Reparar configuração de coredump" \
             "Reparar permissoes de captura do Wireshark" \
             "Reparar atalhos antigos do Burp"; do
                 step_skip "$_s" "sudo indisponível"
@@ -306,6 +312,12 @@ run_all_steps() {
         run_step "Atualizar RTK" update_rtk
     else
         step_skip "Atualizar RTK" "rtk não instalado"
+    fi
+
+    if has tokensave || [[ -x "${TOKENSAVE_BIN:-}" ]]; then
+        run_step "Atualizar TokenSave" update_tokensave
+    else
+        step_skip "Atualizar TokenSave" "tokensave não instalado"
     fi
 
     if integration_disabled openclaw; then
@@ -601,16 +613,6 @@ run_all_steps() {
 
     # ── Verificação final ─────────────────────────────────────────────────────────
 
-    if has pacdiff; then
-        if (( SUDO_READY )); then
-            run_step "Verificar arquivos .pacnew/.pacsave" check_pacnew_files
-        else
-            step_skip "Verificar arquivos .pacnew/.pacsave" "sudo indisponível"
-        fi
-    else
-        step_skip "Verificar arquivos .pacnew/.pacsave" "pacdiff não instalado (pacman-contrib)"
-    fi
-    
     # Auto-remediação opcional: só sob AUTO_FIX_FINAL_PENDING=1, nunca sob
     # --no-repair (efeito mutating; --mode doctor/--dry-run já a pulam).
     # Roda ANTES da verificação final: o autofix detecta e corrige sozinho, e a
@@ -625,6 +627,16 @@ run_all_steps() {
         run_step "Auto-remediar pendências finais" autofix_final_pending
     fi
 
+    if has pacdiff; then
+        if (( SUDO_READY )); then
+            run_step "Verificar arquivos .pacnew/.pacsave" check_pacnew_files
+        else
+            step_skip "Verificar arquivos .pacnew/.pacsave" "sudo indisponível"
+        fi
+    else
+        step_skip "Verificar arquivos .pacnew/.pacsave" "pacdiff não instalado (pacman-contrib)"
+    fi
+
     run_step "Verificação final de pendências" final_check_pending
     run_step "Checar atualização do full-upgrade" self_update_notice
     run_step "Doctor: reboot pendente" doctor_reboot_pending
@@ -636,7 +648,6 @@ run_all_steps() {
     run_step "Doctor: saúde de disco" doctor_disk_health
     run_step "Doctor: saúde de boot" doctor_boot_health
     run_step "Doctor: saúde de rede" doctor_network_health
-    run_step "Doctor: serviços com libs antigas" doctor_stale_services
     if (( NO_REPAIR )); then
         step_skip "Reiniciar serviços com libs antigas" "--no-repair"
     elif (( RESTART_SERVICES )) && ! has checkservices; then
@@ -648,6 +659,9 @@ run_all_steps() {
     else
         step_skip "Reiniciar serviços com libs antigas" "--restart-services ausente"
     fi
+    # Pós-condição: auditar DEPOIS da tentativa de restart evita deixar no
+    # resumo/tray um TODO obsoleto para um serviço já reiniciado com sucesso.
+    run_step "Doctor: serviços com libs antigas" doctor_stale_services
     run_step "Doctor: saúde do pacman" doctor_pacman_health
     run_step "Doctor: CVEs de pacotes oficiais (arch-audit)" doctor_arch_audit_cves
     run_step "Doctor: arquivos .pacnew/.pacsave" doctor_pacfiles
