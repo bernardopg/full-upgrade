@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.29.1] - 2026-07-22
 ### Corrigido
 
 - **Artefato standalone de release carrega a versão correta.** O workflow passa
