@@ -4,6 +4,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Segurança
+
+- **Lock do Semgrep passa por auditoria de CVEs bloqueante.** Semgrep e sua
+  lockfile hash-pinned foram atualizados, e o CI agora executa `pip-audit`.
+  Exceções documentadas cobrem somente APIs de servidor MCP/`click.edit()` que
+  o job `semgrep scan` não alcança; qualquer vulnerabilidade adicional bloqueia
+  o workflow até ser corrigida ou formalmente triada.
+
 ## [3.29.1] - 2026-07-22
 ### Corrigido
 
