@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.29.2] - 2026-07-22
 ### Segurança
 
 - **Lock do Semgrep passa por auditoria de CVEs bloqueante.** Semgrep e sua
