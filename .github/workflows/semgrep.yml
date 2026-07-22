@@ -13,12 +13,14 @@ on:
       - "**.sh"
       - "**.bash"
       - ".github/workflows/semgrep.yml"
+      - ".github/requirements-semgrep.in"
       - ".github/requirements-semgrep.txt"
   pull_request:
     paths:
       - "**.sh"
       - "**.bash"
       - ".github/workflows/semgrep.yml"
+      - ".github/requirements-semgrep.in"
       - ".github/requirements-semgrep.txt"
   schedule:
     - cron: "17 3 * * 1"   # segunda 03:17 UTC
@@ -57,6 +59,22 @@ jobs:
         run: |
           python3 -m pip install --user --require-hashes -r .github/requirements-semgrep.txt
           semgrep scan --config p/default --sarif --output semgrep.sarif
+
+      # Bloqueante: o lock hash-pinned não pode introduzir CVE conhecida.
+      # O próprio pip-audit vem do mesmo lock, sem instalação ad-hoc não fixada.
+      - name: Audit locked Python dependencies
+        run: |
+          # Semgrep 1.170.1 fixa mcp==1.23.3 e click~=8.1.8. As quatro CVEs
+          # abaixo atingem exclusivamente servidores MCP ou click.edit(); este
+          # job só executa `semgrep scan` e não expõe esses code paths. Mantemos
+          # exceções explícitas até o pin upstream ser atualizado; qualquer
+          # vulnerabilidade adicional continua bloqueando o workflow.
+          python3 -m pip_audit --strict --require-hashes --disable-pip \
+            --ignore-vuln CVE-2026-52870 \
+            --ignore-vuln CVE-2026-52869 \
+            --ignore-vuln CVE-2026-59950 \
+            --ignore-vuln PYSEC-2026-2132 \
+            -r .github/requirements-semgrep.txt
 
       - name: Upload SARIF to GitHub code scanning
         if: always() && hashFiles('semgrep.sarif') != ''
