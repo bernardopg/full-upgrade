@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Artefato standalone de release carrega a versão correta.** O workflow passa
+  a versão resolvida explicitamente ao build antes de criar a tag, valida o
+  `--version` do binário e publica um `.sha256` portátil, verificável no mesmo
+  diretório dos downloads com `sha256sum -c`.
+
 ## [3.29.0] - 2026-07-22
 ### Adicionado
 
