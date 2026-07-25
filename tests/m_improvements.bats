@@ -211,6 +211,14 @@ EOF
   [[ "$output" == *"linha normal"* ]]
 }
 
+@test "build_warning_filter: indenta a saída externa para a coluna 0 ficar só do script" {
+  run build_warning_filter <<'EOF'
+-> Syncing bundled skills...
+EOF
+  [ "$status" -eq 0 ]
+  [ "$output" = "  -> Syncing bundled skills..." ]
+}
+
 @test "reboot_recommendation_from_reason: formata rodapé quando há motivo" {
   run reboot_recommendation_from_reason "kernel 7.0.11-arch1-1 → 7.0.12-arch1-1"
   [ "$status" -eq 0 ]

@@ -18,7 +18,12 @@ load_libs() {
   QUIET=1
   # Evita que a detecção de TTY/locale produza saída não-determinística.
   NO_COLOR=1
-  export LOG_FILE QUIET NO_COLOR
+  # Largura fixa e larga: os testes de mensagem checam o TEXTO, não o layout, e
+  # sem isso a quebra de linha do `log` (ui_wrap) partiria frases longas no meio
+  # e faria o assert de conteúdo falhar. Quem testa layout (tests/ui.bats)
+  # sobrescreve COLUMNS localmente.
+  COLUMNS=200
+  export LOG_FILE QUIET NO_COLOR COLUMNS
 
   # shellcheck source=/dev/null
   source "${FU_LIB}/globals.sh"
@@ -26,6 +31,11 @@ load_libs() {
   source "${FU_LIB}/ui.sh"
   # shellcheck source=/dev/null
   source "${FU_LIB}/core.sh"
+  # json.sh vem antes de catalog.sh como no entrypoint: history.sh, report.sh e
+  # tray.sh dependem de helpers dele (jsonl_is_dry_run), e sem carregá-lo aqui o
+  # teste falha por "comando não encontrado" onde a produção funciona.
+  # shellcheck source=/dev/null
+  source "${FU_LIB}/json.sh"
   # shellcheck source=/dev/null
   source "${FU_LIB}/catalog.sh"
 

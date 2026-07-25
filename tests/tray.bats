@@ -116,7 +116,7 @@ EOF
   local t
   t=$(tray_tooltip_for_state attention 12 2 1 "Kernel atualizado")
   echo "$t" | grep -q "Reboot pendente"
-  echo "$t" | grep -q "2 doctor todo"
+  echo "$t" | grep -q "2 pendência(s)"
   echo "$t" | grep -q "12 atualização"
 }
 

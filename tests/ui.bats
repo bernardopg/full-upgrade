@@ -80,3 +80,45 @@ setup() {
   [[ "$output" == *"9 steps omitidos por filtro"* ]]
   [[ "$output" != *"  A"* ]]
 }
+
+# ── ui_pad_left / ui_strip_ansi / ui_wrap ─────────────────────────────────────
+
+@test "ui_pad_left: alinha à direita e nunca corta o que já é maior" {
+  [ "$(ui_pad_left "7" 3)" = "  7" ]
+  [ "$(ui_pad_left "120" 3)" = "120" ]
+  [ "$(ui_pad_left "12345" 3)" = "12345" ]
+}
+
+@test "ui_strip_ansi: remove escapes sem fork e preserva o texto" {
+  local colored
+  colored="$(printf '\033[1;33maviso\033[0m final')"
+  [ "$(ui_strip_ansi "$colored")" = "aviso final" ]
+  [ "$(ui_strip_ansi "sem cor")" = "sem cor" ]
+}
+
+@test "ui_wrap: devolve intacta a linha que cabe na largura" {
+  [ "$(ui_wrap "curta" 40)" = "curta" ]
+}
+
+@test "ui_wrap: quebra em espaços repetindo a indentação inicial" {
+  run ui_wrap "  alfa beta gama delta" 12
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "  alfa beta" ]
+  [ "${lines[1]}" = "  gama delta" ]
+}
+
+@test "ui_wrap: token maior que a largura sai inteiro em vez de cortado" {
+  local url="https://example.com/um/caminho/absurdamente/longo/que/nao/cabe"
+  run ui_wrap "  veja $url agora" 20
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$url"* ]]
+}
+
+@test "ui_wrap: mede largura de exibição, ignorando escapes ANSI" {
+  local colored
+  colored="$(printf '  \033[33malfa beta\033[0m')"
+  # 11 colunas de exibição ("  alfa beta") cabem em 12, apesar de a string crua
+  # ser bem maior por causa dos escapes.
+  run ui_wrap "$colored" 12
+  [ "${#lines[@]}" -eq 1 ]
+}
