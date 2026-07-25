@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.30.0] - 2026-07-25
 ### Adicionado
 
 - **Relatório `.md` passou a ter a seção "Pacotes alterados".** O evento
