@@ -1128,12 +1128,12 @@ restart_stale_services() {
   done
 
   if (( ${#protected_services[@]} > 0 )); then
-    log "  Proteção de sessão: ${#protected_services[@]} unit(s) crítica(s) NÃO será(ão) reiniciada(s): ${protected_services[*]}"
+    log "  Proteção de sessão/rede: ${#protected_services[@]} unit(s) crítica(s) NÃO será(ão) reiniciada(s): ${protected_services[*]}"
     log "  Faça logout completo ou reinicie a máquina para carregar as bibliotecas dessas units com segurança."
   fi
   if (( ${#restart_cmds[@]} == 0 )); then
     if (( ${#protected_services[@]} > 0 )); then
-      STEP_REASON="${#protected_services[@]} unit(s) crítica(s) protegida(s); logout/reboot necessário"
+      STEP_REASON="$(protected_units_reason "${protected_services[@]}")"
       return "$RC_TODO"
     fi
     log "  Nenhum serviço systemd reiniciável detectado por checkservices."
@@ -1168,7 +1168,7 @@ restart_stale_services() {
     fi
   done
   if (( ${#protected_services[@]} > 0 )); then
-    STEP_REASON="${#protected_services[@]} unit(s) crítica(s) protegida(s); logout/reboot necessário"
+    STEP_REASON="$(protected_units_reason "${protected_services[@]}")"
     (( all_ok )) && return "$RC_TODO"
   fi
   (( all_ok )) && return 0
@@ -2068,7 +2068,12 @@ doctor_boot_time() {
     log "  systemd-analyze sem dados de boot (container?); pulando."
     return 0
   fi
-  printf '%s\n' "$time_out" | tee >(_strip_ansi >> "$LOG_FILE")
+  # Via `log`, uma linha por vez: o `printf | tee` que havia aqui escrevia na
+  # coluna 0, ignorava --quiet e não respeitava a largura do terminal.
+  local _bt_line
+  while IFS= read -r _bt_line; do
+    [[ -n "${_bt_line//[[:space:]]/}" ]] && log "  ${_bt_line}"
+  done <<< "$time_out"
 
   # "Startup finished in ... = 12.345s" — pega o total após o último '='.
   local total_str total_s warn_s

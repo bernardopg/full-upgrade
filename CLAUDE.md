@@ -48,10 +48,17 @@ Everything is a step run via `run_step "Nome exato" funcao_impl` (`lib/core.sh`)
 1. honors `FULL_UPGRADE_SKIP` (comma-separated exact step names);
 2. short-circuits to `skip` under `--dry-run`;
 3. reads the step's metadata from the catalog and skips with `cmd-ausente: X` if a declared command dependency is missing;
-4. enforces the per-step timeout (background function + sentinel `sleep` + `wait -n`; timeout → rc 124 → `warn`);
-5. maps the function's return code to a status.
+4. gates steps tagged `network` on connectivity (`network_gate_ready`, `lib/core.sh`) — see below;
+5. enforces the per-step timeout (background function + sentinel `sleep` + `wait -n`; timeout → rc 124 → `warn`);
+6. maps the function's return code to a status.
 
 Return-code contract (`lib/globals.sh`): `0`→ok, `RC_WARN`(10)→warn (non-blocking / transient, e.g. network), `RC_TODO`(11)→todo (manual action needed), anything else→fail. Only `fail` affects the exit code (final exit `2`). Network helpers `run_network_cmd` and `_retry` convert DNS/connectivity errors into `RC_WARN` so a flaky network never fails the run.
+
+#### The connectivity gate (why the `network` tag is load-bearing)
+
+A step that does network I/O with the network down does **not** fail fast — it *hangs* until the catalog timeout fires. A real run burned the full 120s on `Doctor: CVEs de pacotes oficiais (arch-audit)` (≈2s of actual work) after the service-restart step bounced `NetworkManager`. So `run_step` probes connectivity before any step whose catalog `tags` contain `network`: `network_probe` (routing table via `ip route get`, IPv4 **and** IPv6, then a `timeout`-bounded `getent ahosts`) never blocks; `network_gate_ready` caches the verdict in the parent process (up 30s / down 10s) and waits up to `NETWORK_GATE_WAIT_S` for the network to come back before closing the step as `warn` with reason `sem conectividade (aguardou Ns)`. Knobs: `NETWORK_GATE`, `NETWORK_GATE_HOST`, `NETWORK_GATE_WAIT_S` (`lib/globals.sh`, surfaced in `--config` and `config.example`).
+
+Two consequences for contributors: **(a)** a step that talks to the network must carry the `network` tag or it will hang again — `tests/catalog_integrity.bats` enforces this mechanically for every step calling `run_network_cmd`/`_retry`; **(b)** units that carry the machine's connectivity (`NetworkManager`, `wpa_supplicant`, `systemd-resolved`, …) are in `service_restart_is_session_critical` and are never auto-restarted, alongside display managers — restarting them mid-run breaks the following steps and drops SSH sessions. Their pendency feeds `REBOOT_RECOMMENDATION` via `step_todo`.
 
 ### Catalog ⇄ dispatch (two places, kept in sync)
 

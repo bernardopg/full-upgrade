@@ -134,3 +134,60 @@ JSONL
   rm -f "${FIXTURE}.nosum"
   assert_json "$output" '[d["summary"][k] for k in ("ok","warn","todo","fail","skip")]==[1,1,1,0,0]'
 }
+
+# ── Pacotes alterados ─────────────────────────────────────────────────────────
+
+@test "report: seção de pacotes alterados lista o que mudou na máquina" {
+  local f; f="$(mktemp)"
+  {
+    head -1 "$FIXTURE"
+    printf '%s\n' '{"event":"pkg_changes","run_id":"20260613-142301-900745","upgraded":2,"installed":1,"removed":1,"packages":[{"action":"upgraded","name":"chromium","from":"150.0-1","to":"151.0-1"},{"action":"upgraded","name":"linux","from":"7.1.4-1","to":"7.1.5-1"},{"action":"installed","name":"novo-pkg","version":"1.0-1"},{"action":"removed","name":"velho-pkg","version":"9.9-1"}]}'
+    tail -n +2 "$FIXTURE"
+  } > "$f"
+
+  run report_markdown_from_jsonl "$f"
+  rm -f "$f"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"## Pacotes alterados"* ]]
+  [[ "$output" == *"2 atualizado(s) · 1 instalado(s) · 1 removido(s)"* ]]
+  [[ "$output" == *"| ↑ | chromium | 150.0-1 | 151.0-1 |"* ]]
+  [[ "$output" == *"| ↑ | linux | 7.1.4-1 | 7.1.5-1 |"* ]]
+  [[ "$output" == *"| + | novo-pkg | — | 1.0-1 |"* ]]
+  [[ "$output" == *"| − | velho-pkg | 9.9-1 | — |"* ]]
+}
+
+@test "report: JSONL antigo (só contagens) não gera tabela vazia" {
+  local f; f="$(mktemp)"
+  {
+    head -1 "$FIXTURE"
+    printf '%s\n' '{"event":"pkg_changes","run_id":"20260613-142301-900745","upgraded":4,"installed":0,"removed":0}'
+    tail -n +2 "$FIXTURE"
+  } > "$f"
+
+  run report_markdown_from_jsonl "$f"
+  rm -f "$f"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"4 atualizado(s) · 0 instalado(s) · 0 removido(s)"* ]]
+  [[ "$output" != *"| | Pacote | De | Para |"* ]]
+}
+
+@test "report: run sem mudança de pacote não cria a seção" {
+  run report_markdown_from_jsonl "$FIXTURE"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"## Pacotes alterados"* ]]
+}
+
+@test "report: relatório de dry-run avisa que nada foi executado" {
+  local f; f="$(mktemp)"
+  sed '1s/"pid":"900745"/"pid":"900745","dry_run":true/' "$FIXTURE" > "$f"
+  run report_markdown_from_jsonl "$f"
+  rm -f "$f"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'**Simulação (`--dry-run`)**'* ]]
+}
+
+@test "report: run real não recebe o aviso de simulação" {
+  run report_markdown_from_jsonl "$FIXTURE"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Simulação"* ]]
+}

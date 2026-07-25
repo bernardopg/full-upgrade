@@ -53,7 +53,7 @@ run_all_steps() {
                 step_skip "Reparar unit stale do full-upgrade tray"     "--no-repair"
                 step_skip "Garantir Wireshark"                         "--no-repair"
                 step_skip "Garantir Burp Suite"                        "--no-repair"
-                step_skip "Reparar permissoes de captura do Wireshark"  "--no-repair"
+                step_skip "Reparar permissões de captura do Wireshark"  "--no-repair"
                 step_skip "Reparar atalhos antigos do Burp"             "--no-repair"
             else
                 # Shadowing é reparo genérico, útil p/ todos e deve acontecer
@@ -67,7 +67,7 @@ run_all_steps() {
                 # se ausentes, então não devem rodar por padrão. Opt-in explícito.
                 custom_step_or_skip "Garantir Wireshark"                ensure_wireshark
                 custom_step_or_skip "Garantir Burp Suite"               ensure_burpsuite
-                custom_step_or_skip "Reparar permissoes de captura do Wireshark" repair_wireshark_capture_permissions
+                custom_step_or_skip "Reparar permissões de captura do Wireshark" repair_wireshark_capture_permissions
                 custom_step_or_skip "Reparar atalhos antigos do Burp"   repair_broken_burpsuite_desktop_entries
             fi
             
@@ -89,7 +89,7 @@ run_all_steps() {
             "Reparar comandos locais conflitantes" \
             "Limpar scopes transitórios de apps" \
             "Reparar configuração de coredump" \
-            "Reparar permissoes de captura do Wireshark" \
+            "Reparar permissões de captura do Wireshark" \
             "Reparar atalhos antigos do Burp"; do
                 step_skip "$_s" "sudo indisponível"
             done
@@ -102,7 +102,7 @@ run_all_steps() {
         "Garantir Wireshark" \
         "Garantir Burp Suite" \
         "Reparar comandos locais conflitantes" \
-        "Reparar permissoes de captura do Wireshark" \
+        "Reparar permissões de captura do Wireshark" \
         "Reparar atalhos antigos do Burp"; do
             step_skip "$_s" "gerenciador Arch não encontrado"
         done

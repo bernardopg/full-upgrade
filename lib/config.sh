@@ -105,6 +105,9 @@ BACKUP_KEEP
 BACKUP_PATHS
 BTRFS_SCRUB_MAX_DAYS
 BOOT_TIME_WARN_S
+NETWORK_GATE
+NETWORK_GATE_HOST
+NETWORK_GATE_WAIT_S
 DOCKER_INFO_TIMEOUT_S
 ORPHAN_CLEANUP_MAX_ROUNDS
 AUTO_FIX_RUST_CVES
@@ -305,6 +308,15 @@ BACKUP_CONFIGS=1
 BACKUP_KEEP=5  # mínimo 1; use BACKUP_CONFIGS=0 para desligar
 # BACKUP_PATHS="/etc/pacman.conf /etc/pacman.d /etc/fstab /etc/mkinitcpio.conf /etc/systemd/system"
 
+# ── Portão de conectividade dos steps de rede ──
+# Sem rede, um step de rede não falha rápido: ele pendura até estourar o timeout
+# do catálogo. O portão sonda a conectividade antes desses steps, espera um
+# pouco pela volta da rede e, se não voltar, fecha o step como aviso em vez de
+# queimar o timeout inteiro. Use NETWORK_GATE=0 para desligar.
+NETWORK_GATE=1
+NETWORK_GATE_HOST=archlinux.org   # nome resolvido na sonda de DNS
+NETWORK_GATE_WAIT_S=20            # espera máxima pela volta da rede
+
 # ── Mirror refresh ── auto | reflector | rate-mirrors | none
 MIRROR_TOOL=auto
 
@@ -451,6 +463,9 @@ show_config() {
   _cfg_kv "BACKUP_PATHS" "$BACKUP_PATHS"
   _cfg_kv "BTRFS_SCRUB_MAX_DAYS" "$BTRFS_SCRUB_MAX_DAYS"
   _cfg_kv "BOOT_TIME_WARN_S" "$BOOT_TIME_WARN_S"
+  _cfg_kv "NETWORK_GATE" "${NETWORK_GATE:-1}"
+  _cfg_kv "NETWORK_GATE_HOST" "${NETWORK_GATE_HOST:-archlinux.org}"
+  _cfg_kv "NETWORK_GATE_WAIT_S" "${NETWORK_GATE_WAIT_S:-20}"
   _cfg_kv "DOCKER_INFO_TIMEOUT_S" "$DOCKER_INFO_TIMEOUT_S"
   _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"

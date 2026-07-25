@@ -19,12 +19,22 @@ _report_resolve_jsonl() {
     [[ -n "$f" && -r "$f" ]] && { printf '%s' "$f"; return 0; }
     return 1
   fi
-  if [[ -r "$LATEST_JSONL_LINK" ]]; then
+  # Sem --from, o alvo é o último run REAL. O latest.jsonl aponta para o último
+  # run qualquer: depois de um `--dry-run`, `full-upgrade --report` emitia o
+  # relatório do dry-run (121 skips, 5s) como se fosse o do upgrade de verdade.
+  # Com --from explícito o usuário escolheu aquele run e ele é respeitado — o
+  # cabeçalho do relatório é que passa a dizer que é um dry-run.
+  if [[ -r "$LATEST_JSONL_LINK" ]] && ! jsonl_is_dry_run "$LATEST_JSONL_LINK"; then
     printf '%s' "$LATEST_JSONL_LINK"; return 0
   fi
-  f="$(find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-        | sort -rn | head -n1 | cut -d' ' -f2-)"
-  [[ -n "$f" && -r "$f" ]] && { printf '%s' "$f"; return 0; }
+  while IFS= read -r f; do
+    [[ -n "$f" && -r "$f" ]] || continue
+    jsonl_is_dry_run "$f" && continue
+    printf '%s' "$f"; return 0
+  done < <(
+    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
+      | sort -rn | cut -d' ' -f2-
+  )
   return 1
 }
 
@@ -94,6 +104,23 @@ report_markdown_from_jsonl() {
       return "?"
     }
     function in_group(cat) { return (cat in cat_to_group) }
+    # Cada objeto de "packages" vira uma linha da tabela. Quebrar em "{" evita
+    # um parser de JSON aninhado em awk: cada pedaço carrega as chaves do
+    # objeto, e o pedaço 1 (o envelope do evento) não tem "action" e é pulado.
+    function emit_pkg_rows(line,   nchunks, chunks, i, act, nm) {
+      nchunks = split(line, chunks, /\{/)
+      for (i = 1; i <= nchunks; i++) {
+        act = json_str(chunks[i], "action")
+        if (act == "") continue
+        nm = md_cell(json_str(chunks[i], "name"))
+        if (act == "upgraded")
+          print "| ↑ | " nm " | " md_cell(json_str(chunks[i], "from")) " | " md_cell(json_str(chunks[i], "to")) " |"
+        else if (act == "installed")
+          print "| + | " nm " | — | " md_cell(json_str(chunks[i], "version")) " |"
+        else if (act == "removed")
+          print "| − | " nm " | " md_cell(json_str(chunks[i], "version")) " | — |"
+      }
+    }
 
     BEGIN {
       # Mesma ordem/rótulos/categorias de summary_group_specs (lib/ui.sh),
@@ -117,9 +144,19 @@ report_markdown_from_jsonl() {
       run_id   = json_str($0, "run_id")
       start_ts = json_str($0, "timestamp")
       log_file = json_str($0, "log_file")
+      dry_run  = ($0 ~ /"dry_run":true/)
       next
     }
     /"event":"run_end"/   { end_ts = json_str($0, "timestamp"); next }
+    # O que mudou na máquina é o dado central de um relatório de upgrade, e já
+    # estava no JSONL — só não era lido aqui.
+    /"event":"pkg_changes"/ {
+      pkg_up  = json_num($0, "upgraded")
+      pkg_ins = json_num($0, "installed")
+      pkg_rem = json_num($0, "removed")
+      pkg_line = $0
+      next
+    }
     /"event":"step"/ {
       n++
       st_name[n]   = json_str($0, "step")
@@ -156,6 +193,12 @@ report_markdown_from_jsonl() {
       if (run_id == "") run_id = "(desconhecido)"
       print "# Relatório full-upgrade — " run_id
       print ""
+      # Um dry-run só registra skips; sem este aviso o relatório dele passa por
+      # relatório de upgrade real, com "121 skip" parecendo um run filtrado.
+      if (dry_run) {
+        print "> **Simulação (`--dry-run`)** — nenhum step foi executado; todos figuram como pulados."
+        print ""
+      }
       print "- **Versão:** " (version == "" ? "—" : version)
       if (start_ts != "") print "- **Início:** " start_ts
       if (end_ts != "")   print "- **Fim:** " end_ts
@@ -168,6 +211,21 @@ report_markdown_from_jsonl() {
       # header + tabela por grupo (só os que têm step não-pulado), depois
       # "Outros" (categoria sem grupo conhecido, defensivo) e "Pulados" ao
       # final, igual ao terminal (SEÇÃO summary_group_specs → skips juntos).
+      if (pkg_up + pkg_ins + pkg_rem > 0) {
+        print "## Pacotes alterados"
+        print ""
+        printf "%d atualizado(s) · %d instalado(s) · %d removido(s)\n", pkg_up, pkg_ins, pkg_rem
+        print ""
+        # JSONL de versão anterior tem só as contagens: sem a lista, imprimir
+        # o cabeçalho da tabela deixaria uma tabela vazia no relatório.
+        if (pkg_line ~ /"action"/) {
+          print "| | Pacote | De | Para |"
+          print "|---|--------|----|------|"
+          emit_pkg_rows(pkg_line)
+          print ""
+        }
+      }
+
       print "## Steps"
       print ""
       for (g = 1; g <= ngroups; g++) {

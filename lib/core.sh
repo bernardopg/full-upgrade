@@ -84,6 +84,28 @@ skip_step_count() {
   printf '%d' "$count"
 }
 
+# Imprime no terminal aplicando %b e quebrando na largura do terminal, para que
+# mensagens longas (listas de serviços, caminhos, explicações) não estourem a
+# tela com uma quebra crua no meio da palavra. O arquivo de log continua
+# recebendo a linha inteira, que é o que mantém o `grep` no log utilizável.
+# Caminho rápido: o comprimento cru (com ANSI) já superestima a largura de
+# exibição, então quem passa nele com certeza cabe e sai sem trabalho extra.
+_log_to_terminal() {
+  local _w; _w="$(ui_width)"
+  if (( ${#1} <= _w )); then
+    printf '%b\n' "$1"
+    return 0
+  fi
+  local _s; _s="$(printf '%b' "$1")"
+  # Mensagem com quebra de linha embutida sai como sempre saiu: o wrap trabalha
+  # por token e juntaria as linhas.
+  if [[ "$_s" == *$'\n'* ]]; then
+    printf '%s\n' "$_s"
+    return 0
+  fi
+  ui_wrap "$_s" "$_w"
+}
+
 log() {
   # Antes de setup_logging (ex.: --update), LOG_FILE ainda é vazio.
   local _lf="${LOG_FILE:-/dev/null}"
@@ -91,7 +113,7 @@ log() {
   if (( QUIET )); then
     printf '%b\n' "$*" | _strip_ansi >> "$_lf"
   else
-    printf '%b\n' "$*"                          # terminal: mantém cores
+    _log_to_terminal "$*"                       # terminal: mantém cores
     printf '%b\n' "$*" | _strip_ansi >> "$_lf"  # arquivo: sem ANSI
   fi
 }
@@ -100,7 +122,7 @@ log() {
 log_always() {
   local _lf="${LOG_FILE:-/dev/null}"
   [[ -z "$_lf" ]] && _lf="/dev/null"
-  printf '%b\n' "$*"                            # terminal: mantém cores
+  _log_to_terminal "$*"                         # terminal: mantém cores
   printf '%b\n' "$*" | _strip_ansi >> "$_lf"    # arquivo: sem ANSI
 }
 
@@ -155,6 +177,78 @@ run_network_cmd() {
     fi
   fi
   return "$_rc"
+}
+
+# Sonda de conectividade barata e SEMPRE limitada no tempo — uma sonda que
+# pendura seria o próprio bug que o portão existe para evitar. Duas camadas:
+#   1) rota: `ip route get` não gera tráfego e responde em ~1ms. Testa IPv4 e
+#      IPv6 (só-IPv6 é rede legítima) e só reprova se NENHUMA das duas tem rota,
+#      que é o estado durante um restart do NetworkManager;
+#   2) resolução: com rota de pé, um DNS quebrado (systemd-resolved reiniciando,
+#      dnscrypt-proxy fora) ainda pendura qualquer step de rede. Resolve um nome
+#      sob `timeout` para a sonda jamais bloquear além do teto configurado.
+# Cada camada só reprova se a ferramenta existir: sem `ip`, sem `timeout` ou sem
+# `getent`, a camada é pulada em vez de inventar um veredito.
+# Retorna 0 se a rede parece utilizável, 1 caso contrário.
+network_probe() {
+  local _t="${NETWORK_GATE_PROBE_TIMEOUT_S:-2}"
+
+  if has ip; then
+    if ! ip route get 1.1.1.1 >/dev/null 2>&1 \
+      && ! ip route get 2606:4700:4700::1111 >/dev/null 2>&1; then
+      return 1
+    fi
+  fi
+
+  if has timeout && has getent; then
+    timeout "$_t" getent ahosts "${NETWORK_GATE_HOST:-archlinux.org}" >/dev/null 2>&1 || return 1
+  fi
+
+  return 0
+}
+
+# Portão de conectividade dos steps com tag `network` (ver globals.sh).
+# Retorna 0 quando a rede está utilizável e 1 quando desistiu de esperar.
+#
+# Guarda o veredito por pouco tempo: sem isso cada step de rede pagaria a sonda
+# e, com a rede fora, a espera inteira — uma queda de rede viraria dezenas de
+# esperas em série. "up" vale mais tempo por ser o caso normal; "down" vale
+# pouco, para a volta da rede ser percebida já no step seguinte.
+#
+# Roda no processo PAI (antes do subshell de timeout do run_step), que é o que
+# permite o cache sobreviver de um step para o outro.
+network_gate_ready() {
+  (( ${NETWORK_GATE:-1} == 1 )) || return 0
+
+  local now=$SECONDS
+  case "$NETWORK_GATE_CACHE_STATE" in
+    up)   (( now - NETWORK_GATE_CACHE_AT < ${NETWORK_GATE_UP_TTL_S:-30} ))   && return 0 ;;
+    down) (( now - NETWORK_GATE_CACHE_AT < ${NETWORK_GATE_DOWN_TTL_S:-10} )) && return 1 ;;
+  esac
+
+  if network_probe; then
+    NETWORK_GATE_CACHE_STATE="up"; NETWORK_GATE_CACHE_AT=$SECONDS
+    return 0
+  fi
+
+  # Rede fora: um serviço de rede reiniciado reconecta em poucos segundos, então
+  # vale esperar um pouco antes de desistir do step.
+  local waited=0 wait_max="${NETWORK_GATE_WAIT_S:-20}"
+  log "  ${C_YELLOW}Sem conectividade; aguardando até ${wait_max}s antes de seguir...${C_RESET}"
+  while (( waited < wait_max )); do
+    sleep 2
+    waited=$(( waited + 2 ))
+    if network_probe; then
+      log "  Conectividade restabelecida após ${waited}s."
+      NETWORK_GATE_CACHE_STATE="up"; NETWORK_GATE_CACHE_AT=$SECONDS
+      NETWORK_GATE_WAITED=$waited
+      return 0
+    fi
+  done
+
+  NETWORK_GATE_CACHE_STATE="down"; NETWORK_GATE_CACHE_AT=$SECONDS
+  NETWORK_GATE_WAITED=$waited
+  return 1
 }
 
 # Tenta comando N vezes com delay de 5s entre tentativas.
@@ -247,6 +341,10 @@ version_is_outdated() {
   [[ "$(version_compare "$1" "$2")" == "2" ]]
 }
 
+# Também indenta a saída em 2 espaços: sem isso, a saída de um comando externo
+# sai encostada na coluna 0, exatamente como as linhas de status do próprio
+# script, e um `→ Syncing…` de um updater qualquer se confunde com um step em
+# todo. Com a indentação, coluna 0 pertence só ao full-upgrade.
 build_warning_filter() {
   local suppressed=0 line
   while IFS= read -r line; do
@@ -254,8 +352,11 @@ build_warning_filter() {
       *SetuptoolsDeprecationWarning*|*'setup.py install is deprecated'*|*'already initialized constant RDoc::'*)
         ((suppressed++))
         ;;
+      '')
+        printf '\n'
+        ;;
       *)
-        printf '%s\n' "$line"
+        printf '  %s\n' "$line"
         ;;
     esac
   done
@@ -276,11 +377,19 @@ parse_checkservices_units() {
     | sort -u
 }
 
-# Retorna sucesso para units que sustentam o login ou a sessão gráfica atual e,
-# portanto, nunca devem ser reiniciadas automaticamente durante um upgrade.
+# Retorna sucesso para units que sustentam o login, a sessão gráfica ou a
+# conectividade atual e, portanto, nunca devem ser reiniciadas automaticamente
+# durante um upgrade.
 # O segundo argumento contém os aliases expostos por
 # `systemctl show display-manager.service -p Names --value`; isso cobre display
 # managers desconhecidos sem depender somente de uma lista de nomes conhecidos.
+#
+# O grupo de rede entrou depois de um run real: com NetworkManager e
+# wpa_supplicant reiniciados no meio do run, os steps de rede que vêm logo
+# depois ficam sem conectividade — o `Doctor: CVEs de pacotes oficiais
+# (arch-audit)`, que roda em ~2s, travou até estourar o timeout de 120s. Fora
+# isso, derrubar a rede desconecta quem estiver rodando o upgrade por SSH.
+# Assim como os display managers, essas units ficam para o logout/reboot.
 service_restart_is_session_critical() {
   local unit="${1:-}" display_manager_units="${2:-}" alias
 
@@ -293,12 +402,25 @@ service_restart_is_session_critical() {
       autovt@*.service | serial-getty@*.service)
       return 0
       ;;
+    NetworkManager.service | systemd-networkd.service | systemd-resolved.service | \
+      wpa_supplicant.service | iwd.service | connman.service | netctl.service | \
+      netctl@*.service | dhcpcd.service | dhcpcd@*.service)
+      return 0
+      ;;
   esac
 
   for alias in $display_manager_units; do
     [[ "$unit" == "$alias" ]] && return 0
   done
   return 1
+}
+
+# Motivo de um step que deixou units críticas sem reiniciar. Nomeia as units:
+# "2 unit(s) protegida(s)" não diz ao usuário o que reiniciar, e este texto vira
+# também o rodapé "Reboot recomendado: …" do resumo (ver step_todo).
+protected_units_reason() {
+  (( $# > 0 )) || return 1
+  printf '%d unit(s) crítica(s) com bibliotecas antigas: %s' "$#" "$*"
 }
 
 # Lê a saída crua do `cargo audit bin` em stdin e emite, um por linha, o
@@ -548,7 +670,9 @@ step_start() {
   local step_n=$(( done_count + 1 ))
   local prefix="[${step_n}]"
   if (( ${TOTAL_STEPS:-0} > 0 )); then
-    prefix="[${step_n}/${TOTAL_STEPS}] $(ui_progress "$step_n" "$TOTAL_STEPS")"
+    # Alinha o contador pela largura do total: sem isso o prefixo cresce em
+    # [9]→[10]→[100] e o nome do step dança de coluna a cada dezena.
+    prefix="[$(ui_pad_left "$step_n" "${#TOTAL_STEPS}")/${TOTAL_STEPS}] $(ui_progress "$step_n" "$TOTAL_STEPS")"
   fi
   local available=$(( $(ui_width) - ${#prefix} - 12 ))
   (( available < 12 )) && available=12
@@ -593,9 +717,18 @@ step_todo() {
   STEP_RESULTS+=("todo")
   STEP_TIMES+=("$dur")
   STEP_REASONS+=("$STEP_REASON")
-  if [[ "${STEP_NAMES[-1]}" == "Doctor: reboot pendente" && -n "${STEP_REASON//[[:space:]]/}" ]]; then
-    REBOOT_RECOMMENDATION="$STEP_REASON"
-  fi
+  # Steps cujo TODO só se resolve com reboot alimentam o rodapé do resumo (e,
+  # via JSONL, o tray). Units críticas que ficaram sem restart entram aqui: sem
+  # isso a pendência viraria um TODO solto, sem dizer que o reboot é a saída.
+  # Primeiro a registrar vence — `Doctor: reboot pendente` roda antes e costuma
+  # ter o motivo mais forte (kernel novo).
+  case "${STEP_NAMES[-1]}" in
+    "Doctor: reboot pendente" | "Reiniciar serviços com libs antigas")
+      if [[ -z "${REBOOT_RECOMMENDATION//[[:space:]]/}" && -n "${STEP_REASON//[[:space:]]/}" ]]; then
+        REBOOT_RECOMMENDATION="$STEP_REASON"
+      fi
+      ;;
+  esac
   write_step_event_json "${STEP_NAMES[-1]}" "todo" "$dur" "$STEP_LAST_RC" "$STEP_REASON"
   log "${C_CYAN}${SYM_TODO}${C_RESET} $(_step_display_name "${STEP_NAMES[-1]}") ${C_DIM}($(elapsed "$dur"))${C_RESET}"
   _log_step_reason "$STEP_REASON"
@@ -661,6 +794,16 @@ run_step() {
 
   step_start "$name"
 
+  # Portão de conectividade (ver network_gate_ready): sem rede, um step marcado
+  # com a tag `network` não falharia — ele penduraria até queimar o timeout do
+  # catálogo. Aqui ele vira um aviso imediato e legível, em segundos.
+  if [[ ",${_cat_tags}," == *,network,* ]] && ! network_gate_ready; then
+    STEP_REASON="sem conectividade (aguardou ${NETWORK_GATE_WAITED:-0}s)"
+    STEP_LAST_RC="$RC_WARN"
+    step_warn
+    return 0
+  fi
+
   if (( VERBOSE )); then
     log "${C_DIM}  [verbose] func: ${_cat_func:-$2} | args: $*${C_RESET}"
   fi
@@ -714,13 +857,13 @@ run_step() {
     [[ -n "$_reason_file" ]] && rm -f "$_reason_file"
 
     if (( _timed_out )); then
+      # Fecha pelo mesmo caminho dos demais warns: antes esta linha imprimia um
+      # "[warn] nome (timeout Ns excedido)" solto, com formato e símbolo
+      # diferentes de todo o resto do TUI. O motivo em PT-BR também diz qual é
+      # o limite, que é o botão que o usuário tem para mexer (catálogo).
       STEP_LAST_RC=$rc
-      local dur=$((SECONDS - STEP_START))
-      STEP_RESULTS+=("warn")
-      STEP_TIMES+=("$dur")
-      STEP_REASONS+=("timed_out")
-      write_step_event_json "$name" "warn" "$dur" "$rc" "timed_out"
-      log "${C_YELLOW}[warn]${C_RESET} ${name} ${C_DIM}(timeout ${_to}s excedido)${C_RESET}"
+      STEP_REASON="tempo esgotado: limite de ${_to}s do catálogo"
+      step_warn
       return 0
     fi
   fi

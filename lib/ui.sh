@@ -35,7 +35,14 @@ fi
 # ── Largura adaptativa do terminal ──────────────────────────────────────────────
 ui_width() {
   local w="${COLUMNS:-0}"
-  (( w == 0 )) && w="$(tput cols 2>/dev/null || echo 0)"
+  # Sem COLUMNS (caso normal fora de shell interativo) o `tput` seria um fork
+  # por linha de log; memoriza o resultado. Com COLUMNS setado nada é
+  # memorizado, então os testes continuam podendo variar a largura.
+  if (( w == 0 )); then
+    [[ -n "${UI_WIDTH_TPUT_CACHE:-}" ]] || UI_WIDTH_TPUT_CACHE="$(tput cols 2>/dev/null || echo 0)"
+    w="$UI_WIDTH_TPUT_CACHE"
+  fi
+  [[ "$w" =~ ^[0-9]+$ ]] || w=0
   (( w == 0 )) && w=80
   (( w < 40 )) && w=40
   (( w > 100 )) && w=100
@@ -54,6 +61,15 @@ ui_pad() {
   printf '%s%s' "$s" "$pad"
 }
 
+# Como ui_pad, mas preenchendo à esquerda (alinhamento à direita). Usado para
+# números em coluna (contador de steps, durações do "top mais lentos").
+ui_pad_left() {
+  local s="$1" w="$2" len="${#1}" i pad=""
+  (( len >= w )) && { printf '%s' "$s"; return; }
+  for (( i = len; i < w; i++ )); do pad+=" "; done
+  printf '%s%s' "$pad" "$s"
+}
+
 # Corta texto pela largura de exibição, usando reticências quando necessário.
 # Larguras muito pequenas ainda produzem uma saída determinística.
 ui_truncate() {
@@ -69,9 +85,66 @@ ui_fit() {
   ui_pad "$(ui_truncate "$s" "$w")" "$w"
 }
 
+# Remove sequências ANSI de uma STRING em Bash puro (sem fork), ao contrário de
+# `_strip_ansi`, que é um filtro de stdin. Usado só para medir largura de
+# exibição em caminhos quentes (cada linha de `log`), onde um `sed` extra por
+# linha pesaria. Cobre o subconjunto CSI que o projeto emite: ESC '[' … letra.
+ui_strip_ansi() {
+  local s="$1" out="" pre rest
+  while [[ "$s" == *$'\e['* ]]; do
+    pre="${s%%$'\e['*}"
+    rest="${s#*$'\e['}"
+    out+="$pre"
+    while [[ -n "$rest" && "${rest:0:1}" != [a-zA-Z] ]]; do rest="${rest:1}"; done
+    s="${rest:1}"
+  done
+  printf '%s' "${out}${s}"
+}
+
+# Quebra $1 em linhas de no máximo $2 colunas de EXIBIÇÃO (ANSI não conta),
+# repetindo a indentação inicial nas continuações. Quebra só em espaços: um
+# token maior que a largura (URL, caminho longo, régua) fica sozinho e intacto,
+# em vez de ser cortado no meio. As cores viajam junto com o token que as
+# carrega, então o texto continua colorido depois da quebra.
+# Uso: ui_wrap <texto> <largura>   → uma linha por saída (pode ser 1 só).
+ui_wrap() {
+  local s="$1" w="${2:-0}"
+  (( w <= 0 )) && { printf '%s\n' "$s"; return 0; }
+
+  local plain; plain="$(ui_strip_ansi "$s")"
+  (( ${#plain} <= w )) && { printf '%s\n' "$s"; return 0; }
+
+  # Indentação da 1ª linha, replicada nas continuações.
+  local indent="${plain%%[![:space:]]*}"
+  local -a toks=()
+  local _restore_glob=0
+  [[ -o noglob ]] || { set -f; _restore_glob=1; }
+  read -ra toks <<< "$s"
+  (( _restore_glob )) && set +f
+
+  local line="" linew=0 tok tokw
+  for tok in "${toks[@]}"; do
+    tokw=${#tok}
+    [[ "$tok" == *$'\e['* ]] && { local _p; _p="$(ui_strip_ansi "$tok")"; tokw=${#_p}; }
+    if [[ -z "$line" ]]; then
+      line="${indent}${tok}"; linew=$(( ${#indent} + tokw ))
+    elif (( linew + 1 + tokw > w )); then
+      printf '%s\n' "$line"
+      line="${indent}${tok}"; linew=$(( ${#indent} + tokw ))
+    else
+      line+=" ${tok}"; linew=$(( linew + 1 + tokw ))
+    fi
+  done
+  [[ -n "$line" ]] && printf '%s\n' "$line"
+  return 0
+}
+
 # Linha horizontal de largura adaptativa. $1 = char (default HR_HEAVY).
+# $2 = largura explícita, para réguas que saem indentadas e precisam descontar
+# a indentação em vez de estourar a tela por 2 colunas.
 ui_hr() {
-  local ch="${1:-$HR_HEAVY}" w; w="$(ui_width)"
+  local ch="${1:-$HR_HEAVY}" w="${2:-0}"
+  (( w > 0 )) || w="$(ui_width)"
   local line=""; local i
   for (( i = 0; i < w; i++ )); do line+="$ch"; done
   printf '%s' "$line"
@@ -389,10 +462,11 @@ print_summary() {
 
   # Skips agrupados ao final.
   if (( skip > 0 )); then
-    log_always "  ${C_DIM}$(ui_hr "$HR_LIGHT")${C_RESET}"
+    log_always "  ${C_DIM}$(ui_hr "$HR_LIGHT" "$(( $(ui_width) - 2 ))")${C_RESET}"
     if (( ${COMPACT_SKIP_OUTPUT:-0} && skip > 8 )); then
       log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${skip} steps omitidos por filtro; detalhes no log/JSONL.${C_RESET}"
     else
+      log_always "  ${C_DIM}Pulados (${skip})${C_RESET}"
       for i in "${!STEP_NAMES[@]}"; do
         [[ "${STEP_RESULTS[$i]}" != "skip" ]] && continue
         log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
@@ -412,7 +486,7 @@ print_summary() {
       log_always "  ${C_BOLD}Top 3 mais lentos:${C_RESET}"
       printed_slow=1
     fi
-    log_always "    ${C_DIM}$(elapsed "$slow_dur")${C_RESET}  ${slow_name} (${slow_status})"
+    log_always "    ${C_DIM}$(ui_pad_left "$(elapsed "$slow_dur")" 7)${C_RESET}  ${slow_name} (${slow_status})"
   done < <(summary_slowest_steps 3)
   if (( todo > 0 )); then
     log_always "  ${C_CYAN}${C_BOLD}Ação necessária: ${todo} item(ns) precisam de decisão ou ação manual.${C_RESET}"
@@ -446,7 +520,10 @@ print_pkg_changes() {
   ins="$(grep -c '^I ' <<< "$diff" || true)"
   rem="$(grep -c '^R ' <<< "$diff" || true)"
 
-  log_always "${C_BOLD}Pacotes alterados${C_RESET}  (${C_GREEN}${up} atualizados${C_RESET}, ${ins} instalados, ${rem} removidos)"
+  # Indentado em 2 como o resto do corpo do resumo; antes o título ficava
+  # colado na coluna 0 e destoava do bloco inteiro logo acima.
+  local up_color="$C_DIM"; (( up > 0 )) && up_color="$C_GREEN"
+  log_always "  ${C_BOLD}Pacotes alterados${C_RESET} (${up_color}${up} atualizados${C_RESET}, ${ins} instalados, ${rem} removidos)"
 
   local shown=0 max=30 tag a b c
   while read -r tag a b c; do

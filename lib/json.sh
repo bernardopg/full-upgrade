@@ -118,19 +118,56 @@ update_latest_links() {
   ln -sfn -- "$JSONL_FILE" "$LATEST_JSONL_LINK"
 }
 
+# Verdadeiro (rc 0) se o JSONL $1 é de um `--dry-run`. Um dry-run grava um JSONL
+# com a mesma forma de um run real (todo step vira skip), então quem consome o
+# histórico precisa distinguir os dois — senão um dry-run de 5s entra na tabela
+# do --history, distorce a tendência de duração e vira o alvo do `--report` sem
+# --from. Predicado único: o tray já filtrava assim por conta própria, history e
+# report não filtravam de jeito nenhum.
+jsonl_is_dry_run() {
+  [[ -r "${1:-}" ]] || return 1
+  grep -m1 '"event":"run_start"' "$1" 2>/dev/null | grep -q '"dry_run":true'
+}
+
+# Extrai o RUN_ID (AAAAMMDD-HHMMSS-PID) embutido no nome de um artefato por-run.
+# Todo artefato de um run carrega o RUN_ID no nome — inclusive os escritos por
+# plugins de steps.d/ (ex.: hermes-update-<RUN_ID>.log). Emite vazio para nomes
+# que não são artefatos de run (arch-news-last, webkit-rebuild.log…), que é o
+# que impede a rotação de tocar em arquivo que não é dela.
+run_id_from_artifact() {
+  local base="${1##*/}"
+  [[ "$base" =~ ([0-9]{8}-[0-9]{6}-[0-9]+) ]] || return 1
+  printf '%s' "${BASH_REMATCH[1]}"
+}
+
+# Mantém em LOG_DIR os artefatos dos MAX_LOGS runs mais recentes e apaga os dos
+# runs mais antigos.
+#
+# Antes isto era uma lista fixa de extensões (`log jsonl md pkgs-before …`) com
+# glob `full-upgrade-*`, e vazava por duas frestas ao mesmo tempo: extensão nova
+# esquecida na lista (114 `.aur-out-of-date` e 8 `.pacfiles-todo` acumulados) e
+# artefato com outro prefixo (213 `hermes-update-*.log` de um plugin de
+# steps.d/). Agrupar por RUN_ID cobre os dois casos e qualquer artefato futuro
+# sem precisar lembrar de registrar nada.
 rotate_logs() {
-  # find + sort por mtime no lugar de ls -1t: parsing de ls é frágil e o glob
-  # sem match ecoava erro suprimido. Mantém os MAX_LOGS mais novos de cada tipo.
-  # Cobre também os artefatos por-run que vazavam sem rotação: relatório .md
-  # (REPORT_ON_FINISH=1) e os snapshots/pid de sudo-keepalive do L3.
-  local ext old
-  for ext in log jsonl md pkgs-before pkgs-after sudo-keepalive.pid; do
-    while IFS= read -r old; do
-      [[ -n "$old" ]] && rm -f -- "$old"
-    done < <(
-      find "$LOG_DIR" -maxdepth 1 -name "full-upgrade-*.${ext}" -type f -printf '%T@ %p\n' 2>/dev/null \
-        | sort -rn | cut -d' ' -f2- | tail -n +"$(( MAX_LOGS + 1 ))"
-    )
+  [[ -d "${LOG_DIR:-}" ]] || return 0
+
+  local -a all_runs=()
+  mapfile -t all_runs < <(
+    find "$LOG_DIR" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null \
+      | grep -oE '[0-9]{8}-[0-9]{6}-[0-9]+' | sort -ru
+  )
+  (( ${#all_runs[@]} > MAX_LOGS )) || return 0
+
+  # RUN_IDs a apagar = todos menos os MAX_LOGS mais recentes. O run atual é o
+  # mais novo e portanto fica; ainda assim é protegido explicitamente, para uma
+  # borda de relógio/ordenação jamais apagar o log que está sendo escrito.
+  local rid f
+  for rid in "${all_runs[@]:$MAX_LOGS}"; do
+    [[ "$rid" == "${RUN_ID:-}" ]] && continue
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && rm -f -- "$f"
+    done < <(find "$LOG_DIR" -maxdepth 1 -type f -name "*${rid}*" 2>/dev/null)
   done
 }
 
@@ -145,10 +182,36 @@ write_pkg_changes_json() {
   ins="$(grep -c '^I ' <<< "$diff" || true)"
   rem="$(grep -c '^R ' <<< "$diff" || true)"
   (( up + ins + rem == 0 )) && return 0
+  # Guarda também a LISTA, não só as contagens. "o que mudou na minha máquina
+  # no run X" é a pergunta forense central de um upgrader, o diff já está
+  # calculado aqui, e os snapshots .pkgs-before são rotacionados — sem isto o
+  # JSONL vira o único registro durável e ele só dizia "4 atualizados".
   write_jsonl "$(
-    printf '{"event":"pkg_changes","run_id":%s,"upgraded":%d,"installed":%d,"removed":%d}\n' \
-      "$(json_escape "$RUN_ID")" "$up" "$ins" "$rem"
+    printf '{"event":"pkg_changes","run_id":%s,"upgraded":%d,"installed":%d,"removed":%d,"packages":%s}\n' \
+      "$(json_escape "$RUN_ID")" "$up" "$ins" "$rem" "$(pkg_diff_json "$diff")"
   )"
+}
+
+# Converte a saída do pkg_diff ("U nome antes depois" / "I nome ver" /
+# "R nome ver") num array JSON de objetos. Pura: lê do $1, não toca disco.
+pkg_diff_json() {
+  local diff="$1" tag a b c first=1
+  printf '['
+  while read -r tag a b c; do
+    [[ -n "$tag" ]] || continue
+    (( first )) || printf ','
+    first=0
+    case "$tag" in
+      U) printf '{"action":"upgraded","name":%s,"from":%s,"to":%s}' \
+        "$(json_escape "$a")" "$(json_escape "$b")" "$(json_escape "$c")" ;;
+      I) printf '{"action":"installed","name":%s,"version":%s}' \
+        "$(json_escape "$a")" "$(json_escape "$b")" ;;
+      R) printf '{"action":"removed","name":%s,"version":%s}' \
+        "$(json_escape "$a")" "$(json_escape "$b")" ;;
+      *) first=1 ;;
+    esac
+  done <<< "$diff"
+  printf ']'
 }
 
 # L2 — jsonl mais recente de um run REAL (dry_run:false). Ignora dry-runs (que

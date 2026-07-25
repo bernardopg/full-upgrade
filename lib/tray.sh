@@ -123,7 +123,10 @@ tray_tooltip_for_state() {
   esac
   local -a parts=()
   if [[ -n "${reboot//[[:space:]]/}" ]]; then parts+=("Reboot pendente"); fi
-  [[ "$todo" =~ ^[0-9]+$ ]] && (( todo > 0 )) && parts+=("$todo doctor todo")
+  # "pendência(s)" e não "todo": tray_last_doctor_pending_items conta warn, todo
+  # e fail juntos, então rotular tudo de todo mente sobre o run (um run com
+  # 0 todo e 2 warn aparecia como "2 doctor todo").
+  [[ "$todo" =~ ^[0-9]+$ ]] && (( todo > 0 )) && parts+=("$todo pendência(s)")
   [[ "$updates" =~ ^[0-9]+$ ]] && (( updates > 0 )) && parts+=("$updates atualização(ões)")
   if (( ${#parts[@]} == 0 )); then
     printf 'full-upgrade: sistema atualizado'
@@ -184,7 +187,10 @@ tray_latest_completed_real_jsonl() {
   local f
   while IFS= read -r f; do
     [[ -r "$f" ]] || continue
-    grep -m1 '"event":"run_start"' "$f" 2>/dev/null | grep -q '"dry_run":false' || continue
+    # Predicado compartilhado com --history e --report (lib/json.sh): antes cada
+    # consumidor decidia por conta própria o que era "run real", e só o tray
+    # decidia.
+    jsonl_is_dry_run "$f" && continue
     grep -q '"event":"summary"' "$f" 2>/dev/null || continue
     printf '%s\n' "$f"
     return 0
@@ -940,10 +946,12 @@ def tooltip_for_state(data):
     if reboot:
         parts.append("Reboot pendente")
     if todo > 0:
-        parts.append(f"{todo} doctor todo")
+        parts.append(f"{todo} pendência(s)")
     if updates > 0:
         parts.append(f"{updates} atualização(ões)")
-    return "full-upgrade: " + ("; ".join(parts) if parts else "sistema atualizado")
+    # Mesmo separador do tray_tooltip_for_state em Bash (caminho yad/X11), para
+    # o tooltip não mudar de cara conforme o backend que atendeu.
+    return "full-upgrade: " + (" · ".join(parts) if parts else "sistema atualizado")
 
 
 def badge_text(data):
