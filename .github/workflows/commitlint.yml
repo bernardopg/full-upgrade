@@ -11,6 +11,12 @@ permissions:
   contents: read
   pull-requests: write
 
+# Required check: cancelar runs antigos do mesmo PR evita que um verde obsoleto
+# fique valendo depois de um force-push que trocou as mensagens de commit.
+concurrency:
+  group: commitlint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   lint-commits:
     name: Validar Conventional Commits
@@ -18,7 +24,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0   # histórico completo p/ ler os commits do PR
 
