@@ -89,3 +89,49 @@ teardown() {
   [[ "$output" == *"Histórico dos últimos"* ]]
   [[ "$output" != *'"runs"'* ]]
 }
+
+@test "tendência: ignora run filtrado e compara com o anterior de escopo igual" {
+  # Entre os dois runs completos do setup, um run --only (2 steps executados,
+  # 51 pulados, 4s). Comparar com ele diria "4s → 130s", uma mentira.
+  cat > "${LOG_DIR}/full-upgrade-20260610-113000-9.jsonl" <<'JSONL'
+{"event":"run_start","run_id":"20260610-113000-9","timestamp":"2026-06-10T11:30:00-03:00","script_version":"3.5.0"}
+{"event":"summary","ok":2,"warn":0,"todo":0,"fail":0,"skip":51,"duration_seconds":4,"has_fail":0,"category_totals":{},"slowest_steps":[]}
+JSONL
+  # mtime entre os dois runs completos do setup (10:05 e 13/06 14:28).
+  touch -d '2026-06-11 09:00' "${LOG_DIR}/full-upgrade-20260610-113000-9.jsonl"
+
+  run report_history 5
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"4s → "* ]]
+  [[ "$output" == *"rodaram com filtro"* ]]
+}
+
+@test "tendência: sem run anterior comparável diz isso em vez de inventar número" {
+  local d; d="$(mktemp -d)"
+  LOG_DIR="$d"
+  cat > "${d}/full-upgrade-20260610-100000-1.jsonl" <<'JSONL'
+{"event":"run_start","run_id":"20260610-100000-1","timestamp":"2026-06-10T10:00:00-03:00","script_version":"3.5.0"}
+{"event":"summary","ok":1,"warn":0,"todo":0,"fail":0,"skip":99,"duration_seconds":3,"has_fail":0,"category_totals":{},"slowest_steps":[]}
+JSONL
+  cat > "${d}/full-upgrade-20260610-120000-2.jsonl" <<'JSONL'
+{"event":"run_start","run_id":"20260610-120000-2","timestamp":"2026-06-10T12:00:00-03:00","script_version":"3.5.0"}
+{"event":"summary","ok":80,"warn":0,"todo":0,"fail":0,"skip":2,"duration_seconds":200,"has_fail":0,"category_totals":{},"slowest_steps":[]}
+JSONL
+  touch "${d}/full-upgrade-20260610-120000-2.jsonl"
+
+  run report_history 5
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sem run anterior de escopo comparável"* ]]
+}
+
+@test "history: dry-run não entra na tabela nem na tendência" {
+  cat > "${LOG_DIR}/full-upgrade-20260614-090000-7.jsonl" <<'JSONL'
+{"event":"run_start","run_id":"20260614-090000-7","timestamp":"2026-06-14T09:00:00-03:00","script_version":"9.9.9","dry_run":true}
+{"event":"summary","ok":0,"warn":0,"todo":0,"fail":0,"skip":121,"duration_seconds":5,"has_fail":0,"category_totals":{},"slowest_steps":[]}
+JSONL
+  touch -d '2026-06-14 09:01' "${LOG_DIR}/full-upgrade-20260614-090000-7.jsonl"
+
+  run report_history 5
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"9.9.9"* ]]
+}

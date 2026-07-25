@@ -8,9 +8,17 @@
 # do mais novo para o mais antigo. Ignora o symlink latest.jsonl (não é -type f
 # real do find quando aponta para fora? é; mas os arquivos reais bastam).
 _history_jsonl_files() {
-  local n="$1"
-  find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-    | sort -rn | head -n "$n" | cut -d' ' -f2-
+  local n="$1" f
+  # Descarta dry-runs: eles têm a forma de um run real (todo step vira skip) e
+  # entrariam na tabela como um run de 5s com 0 ok, sujando também a tendência.
+  # O head vem DEPOIS do filtro, senão N dry-runs seguidos zeravam o histórico.
+  while IFS= read -r f; do
+    jsonl_is_dry_run "$f" && continue
+    printf '%s\n' "$f"
+  done < <(
+    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
+      | sort -rn | cut -d' ' -f2-
+  ) | head -n "$n"
 }
 
 # Extrai de um JSONL a linha TSV do run:
@@ -121,14 +129,31 @@ report_history() {
       "${fails[$i]}" "${skips[$i]}" "$(elapsed "${durs[$i]}")"
   done
 
-  # ── Tendência de duração: run mais recente vs. anterior ──
+  # ── Tendência de duração: run mais recente vs. o anterior COMPARÁVEL ──
+  # Comparar com o run imediatamente anterior mentia quando esse anterior era
+  # filtrado: um `--only doctor` de 5s virava "5s → 7m 10s (↑ +7m 05s)", como se
+  # o upgrade tivesse ficado 85× mais lento. Compara-se com o run anterior mais
+  # recente que executou um número de steps parecido (≥50% do atual).
   if (( ${#durs[@]} >= 2 )); then
-    local delta=$(( durs[0] - durs[1] )) arrow
-    if (( delta > 0 )); then arrow="↑ +$(elapsed "$delta")"
-    elif (( delta < 0 )); then arrow="↓ -$(elapsed "$(( -delta ))")"
-    else arrow="estável"; fi
-    printf '\nTendência de duração: %s → %s (%s).\n' \
-      "$(elapsed "${durs[1]}")" "$(elapsed "${durs[0]}")" "$arrow"
+    local ran0=$(( oks[0] + warns[0] + todos[0] + fails[0] ))
+    local j prev=-1
+    for (( j = 1; j < ${#durs[@]}; j++ )); do
+      local ranj=$(( oks[j] + warns[j] + todos[j] + fails[j] ))
+      if (( ran0 == 0 || ranj * 2 >= ran0 )); then prev=$j; break; fi
+    done
+
+    if (( prev < 0 )); then
+      printf '\nTendência de duração: sem run anterior de escopo comparável (%d step(s) executado(s)).\n' "$ran0"
+    else
+      local delta=$(( durs[0] - durs[prev] )) arrow
+      if (( delta > 0 )); then arrow="↑ +$(elapsed "$delta")"
+      elif (( delta < 0 )); then arrow="↓ -$(elapsed "$(( -delta ))")"
+      else arrow="estável"; fi
+      printf '\nTendência de duração: %s → %s (%s).\n' \
+        "$(elapsed "${durs[$prev]}")" "$(elapsed "${durs[0]}")" "$arrow"
+      (( prev > 1 )) && printf 'Comparado com o run de %s: os %d run(s) entre eles rodaram com filtro.\n' \
+        "${dates[$prev]:0:16}" "$(( prev - 1 ))"
+    fi
   fi
 
   # ── Warns/todos recorrentes (em >=2 runs) ──
