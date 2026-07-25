@@ -3,6 +3,129 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Relatório `.md` passou a ter a seção "Pacotes alterados".** O evento
+  `pkg_changes` já existia no JSONL e o `report.sh` simplesmente não o lia: o
+  relatório — o artefato que se arquiva e compartilha — não dizia o que mudou na
+  máquina. Agora traz as contagens e a tabela pacote a pacote (de → para).
+- **O JSONL passou a guardar a LISTA de pacotes, não só as contagens.** O evento
+  `pkg_changes` gravava apenas `upgraded/installed/removed`, jogando fora o diff
+  que já havia calculado; como os snapshots `.pkgs-before` são rotacionados, o
+  registro de "o que mudou no run X" se perdia por completo. JSONL de versões
+  anteriores continua sendo lido (mostra as contagens, sem a tabela).
+
+- **Portão de conectividade nos steps com tag `network`.** Um step de rede
+  rodando sem rede não falha rápido: ele *pendura* até estourar o timeout do
+  catálogo — foi assim que o `Doctor: CVEs de pacotes oficiais (arch-audit)`,
+  com ~2s de trabalho real, queimou os 120s inteiros. Agora o `run_step` sonda a
+  conectividade antes desses steps. A sonda nunca bloqueia: checa a tabela de
+  rotas (IPv4 **e** IPv6, para não reprovar rede só-IPv6) e resolve um nome sob
+  `timeout`. Se a rede estiver fora, espera até `NETWORK_GATE_WAIT_S` (20s) pela
+  volta — restart de serviço de rede reconecta em poucos segundos — e só então
+  fecha o step como aviso, com o motivo `sem conectividade (aguardou Ns)`. O
+  veredito é memorizado no processo pai (30s para "up", 10s para "down"), então
+  uma queda de rede não vira dezenas de esperas em série. Ajustável por
+  `NETWORK_GATE`, `NETWORK_GATE_HOST` e `NETWORK_GATE_WAIT_S`; visível em
+  `--config` e no `config.example`.
+- **Invariante de catálogo:** todo step que chama `run_network_cmd`/`_retry`
+  precisa carregar a tag `network`, verificado por teste. Sem a tag o step fica
+  fora do portão e volta a pendurar — o teste impede a regressão silenciosa.
+- **`Atualizar archlinux-keyring` ganhou a tag `network`** (faz `pacman -Sy`).
+
+### Corrigido
+
+- **`--report` e `--history` tratavam um `--dry-run` como run real.** O dry-run
+  grava um JSONL com a mesma forma de um run de verdade (todo step vira skip), e
+  só o tray filtrava isso — por conta própria. Resultado: depois de qualquer
+  `--dry-run`, `full-upgrade --report` emitia o relatório da simulação (121
+  skips, 5s) como se fosse o do upgrade, e o `--history` punha a simulação na
+  tabela e na tendência. O predicado virou um só (`jsonl_is_dry_run`, `json.sh`)
+  usado pelos três: `--report` sem `--from` pula dry-runs ao escolher o alvo,
+  `--history` os exclui, e um relatório pedido explicitamente com `--from` de um
+  dry-run agora abre avisando que é simulação.
+- **Rotação de artefatos deixava de limpar quase tudo que não fosse do padrão.**
+  A rotação casava `full-upgrade-*.<ext>` contra uma lista fixa de extensões e
+  vazava por duas frestas ao mesmo tempo: extensão fora da lista (**114**
+  `.aur-out-of-date` e 8 `.pacfiles-todo` acumulados) e artefato com outro
+  prefixo (**213** `hermes-update-*.log` escritos por um plugin de `steps.d/`).
+  Passou a agrupar por RUN_ID: mantém os artefatos dos `MAX_LOGS` runs mais
+  recentes e apaga os dos runs antigos, seja qual for o nome ou a extensão —
+  inclusive de plugins e de tipos que ainda nem existem. Arquivos sem RUN_ID no
+  nome (`arch-news-last`, `tray-state.json`, logs avulsos) não são tocados, e o
+  run em andamento é protegido explicitamente. Numa máquina real: 412 → 86
+  arquivos, 251 → 20 runs.
+- **Tamanho relatado pela limpeza de logs ignorava o que ela realmente mexe.**
+  Media `du -sm` do diretório inteiro, somando `backups/` e `burpsuite/`, então
+  imprimia "1996MB → 1996MB" depois de remover arquivos de verdade. Agora soma
+  só os arquivos do primeiro nível, que são os que a rotação gerencia.
+- **Tendência de duração do `--history` comparava com run filtrado.** Um
+  `--only doctor` de 5s no meio do histórico produzia "5s → 7m 10s (↑ +7m 05s)",
+  como se o upgrade tivesse ficado 85× mais lento. Agora compara com o run
+  anterior mais recente de escopo parecido (≥50% dos steps executados), avisa
+  quantos runs filtrados foram pulados e, quando não há nenhum comparável, diz
+  isso em vez de inventar um número.
+- **Units críticas sem restart agora viram recomendação de reboot.** O motivo
+  do step passou a nomear as units (`2 unit(s) crítica(s) com bibliotecas
+  antigas: NetworkManager.service …`) e alimenta o rodapé `Reboot recomendado:`
+  do resumo e o tray, em vez de ficar num TODO solto que não dizia qual era a
+  saída. A recomendação já registrada por `Doctor: reboot pendente` (kernel novo)
+  tem precedência.
+- **Serviços de rede não são mais reiniciados no meio do run.**
+  `NetworkManager`, `wpa_supplicant`, `systemd-networkd`, `systemd-resolved`,
+  `iwd`, `connman`, `netctl` e `dhcpcd` entraram na mesma proteção que já cobria
+  display managers e units de sessão. Num run real, reiniciá-los deixou os steps
+  seguintes sem conectividade e o `Doctor: CVEs de pacotes oficiais
+  (arch-audit)` — que roda em ~2s — travou até estourar o timeout de 120s. Além
+  disso, derrubar a rede desconecta quem roda o upgrade por SSH. Como os display
+  managers, essas units ficam para o logout/reboot.
+- **Step com timeout fecha pelo mesmo caminho visual dos demais avisos.** Antes
+  imprimia `[warn] nome (timeout Ns excedido)`, com símbolo e formato diferentes
+  do resto do TUI, e gravava o motivo como `timed_out`. Agora usa o `⚠` padrão e
+  o motivo diz qual limite estourou (`tempo esgotado: limite de Ns do catálogo`).
+- **Timeout do `Doctor: AI CLIs` subiu de 30s para 90s.** O step leva ~8s ocioso,
+  mas sob a carga de um run completo passava de 30s e virava `warn` sem motivo real.
+- **`Reparar permissões de captura do Wireshark`** — o nome do step estava sem acento.
+
+### Alterado
+
+- **Mensagens longas quebram na largura do terminal.** `log`/`log_always` agora
+  quebram em espaços, repetindo a indentação nas continuações e medindo largura
+  de exibição (escapes ANSI não contam). Tokens maiores que a largura (URLs,
+  caminhos) saem inteiros, para continuarem copiáveis. O arquivo de log segue
+  recebendo a linha inteira, sem quebra, para o `grep` continuar funcionando.
+- **Saída de comandos externos sai indentada em 2 espaços.** A coluna 0 passa a
+  ser exclusiva do full-upgrade: antes um `→ Syncing…` de um updater qualquer se
+  confundia com uma linha de status de step em `todo`.
+- **Contador de steps alinhado no progresso** (`[  7/120]`): o nome do step não
+  muda mais de coluna ao virar a dezena/centena.
+- **Resumo:** durações do "Top 3 mais lentos" alinhadas à direita, bloco de
+  pulados com cabeçalho `Pulados (N)`, título `Pacotes alterados` indentado como
+  o resto do corpo, e régua indentada descontando a indentação.
+- **Tray:** o tooltip diz `N pendência(s)` em vez de `N doctor todo` — a
+  contagem sempre incluiu `warn` e `fail`, então um run com 0 todo e 2 warn
+  aparecia como "2 doctor todo". O separador do tooltip AppIndicator (`·`) passa
+  a ser o mesmo do caminho yad.
+- **`Doctor: tempo de boot`** imprime via `log`, respeitando `--quiet`, a
+  indentação e a largura do terminal.
+- **O portão de release passou a usar a mesma toolchain do CI.** O
+  `release.yml` instalava `bats` pelo apt, ou seja, validava a release numa
+  versão diferente daquela que aprovou o PR (`scripts/install-bats.sh`, hoje
+  1.13.0); o mesmo valia para o `shellcheck`, que agora reaproveita o da imagem
+  do runner. Além disso o standalone publicado só era conferido com
+  `--version`: agora também passa por `bash -n`, `--list-steps` e um
+  `--dry-run --mode full` sem config, como no CI.
+- **`release.yml` ganhou `concurrency` sem cancelamento.** Publicar tag, GitHub
+  Release e AUR é uma sequência que não pode ser interrompida no meio; duas
+  releases simultâneas agora enfileiram em vez de disputar.
+- **Smoke do CI cobre as early-exits do `lib/cli.sh`.** Elas são ignoradas no
+  Codecov por terem efeitos colaterais, então executá-las é a única checagem que
+  existe: `--version`, `--explain-step`, `--config`, `--config-example` e
+  `--tray --status` entraram no smoke.
+- **`labeler` e `commitlint` cancelam runs obsoletos do mesmo PR** — um verde de
+  commitlint anterior a um force-push não fica mais valendo como required check.
+- Actions repinadas nos releases correntes: `checkout` v7.0.1, `labeler` v7.0.0,
+  `scorecard-action` v2.4.4 e `github-actions-deploy-aur` v4.2.0.
 
 ## [3.29.2] - 2026-07-22
 ### Segurança
