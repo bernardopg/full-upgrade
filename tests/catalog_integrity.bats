@@ -197,3 +197,36 @@ setup() {
   done < <(step_catalog)
   [ "$bad" -eq 0 ]
 }
+
+@test "catálogo: todo step que usa helper de rede carrega a tag network" {
+  # O portão de conectividade do run_step decide pela tag `network`. Se um step
+  # faz I/O de rede sem a tag, ele volta a pendurar até o timeout quando a rede
+  # cai — que é exatamente o bug que o portão existe para impedir.
+  # `run_network_cmd`/`_retry` são o sinal mecânico de "este step fala com a
+  # rede": quem os chama tem de estar marcado.
+  local -A netfn=()
+  local f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && netfn["$f"]=1
+  done < <(
+    awk '/^[a-zA-Z_][a-zA-Z0-9_]*\(\)/ { fn=$1; sub(/\(\)/, "", fn) }
+         /run_network_cmd|_retry / { if (fn != "") print fn }' \
+      "${FU_ROOT}"/lib/steps/*.sh "${FU_ROOT}"/steps.d/*.sh | sort -u
+  )
+
+  # Sanidade: se o awk parar de casar, o teste vira vacuamente verde.
+  [ "${#netfn[@]}" -gt 10 ]
+
+  local missing=""
+  local name cat tags eff to deps fn desc
+  while IFS='|' read -r name cat tags eff to deps fn desc; do
+    [[ -n "$name" ]] || continue
+    [[ -n "${netfn[$fn]:-}" ]] || continue
+    [[ ",${tags}," == *,network,* ]] || missing+="${name} (${fn}); "
+  done < <(step_catalog)
+
+  [ -z "$missing" ] || {
+    echo "steps com I/O de rede sem a tag 'network': $missing"
+    false
+  }
+}

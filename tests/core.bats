@@ -196,6 +196,20 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "service_restart_is_session_critical: protege a rede que os steps seguintes usam" {
+  run service_restart_is_session_critical NetworkManager.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical wpa_supplicant.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical systemd-resolved.service
+  [ "$status" -eq 0 ]
+  run service_restart_is_session_critical dhcpcd@wlan0.service
+  [ "$status" -eq 0 ]
+  # Serviço de rede que NÃO é o transporte da máquina segue reiniciável.
+  run service_restart_is_session_critical tailscaled.service
+  [ "$status" -ne 0 ]
+}
+
 @test "service_restart_is_session_critical: protege display manager por alias dinâmico" {
   run service_restart_is_session_critical my-greeter.service "my-greeter.service display-manager.service"
   [ "$status" -eq 0 ]
@@ -519,4 +533,168 @@ setup() {
 @test "NETWORK_TRANSIENT_RE: não casa erro de compilação/PKGBUILD" {
   run bash -c "printf '%s\n' 'error: os pacotes foo falharam na compilação' | grep -qiE \"\$1\"" _ "$NETWORK_TRANSIENT_RE"
   [ "$status" -ne 0 ]
+}
+
+# ── portão de conectividade (network_probe / network_gate_ready) ──────────────
+
+@test "network_probe: sem rota IPv4 nem IPv6 => rede fora" {
+  has() { [[ "$1" == ip ]]; }
+  ip() { return 1; }
+  run network_probe
+  [ "$status" -eq 1 ]
+}
+
+@test "network_probe: rota só-IPv6 ainda conta como rede de pé" {
+  has() { [[ "$1" == ip ]]; }
+  ip() { [[ "$3" == *:* ]]; }
+  run network_probe
+  [ "$status" -eq 0 ]
+}
+
+@test "network_probe: rota de pé mas DNS mudo => rede fora" {
+  has() { case "$1" in ip|timeout|getent) return 0 ;; *) return 1 ;; esac; }
+  ip() { return 0; }
+  timeout() { return 124; }
+  run network_probe
+  [ "$status" -eq 1 ]
+}
+
+@test "network_probe: rota e DNS ok => rede de pé" {
+  has() { case "$1" in ip|timeout|getent) return 0 ;; *) return 1 ;; esac; }
+  ip() { return 0; }
+  timeout() { return 0; }
+  run network_probe
+  [ "$status" -eq 0 ]
+}
+
+@test "network_gate_ready: desligado por NETWORK_GATE=0 nem sonda" {
+  NETWORK_GATE=0
+  network_probe() { return 1; }
+  run network_gate_ready
+  [ "$status" -eq 0 ]
+}
+
+@test "network_gate_ready: veredito 'up' recente evita nova sonda" {
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=up
+  NETWORK_GATE_CACHE_AT=$SECONDS
+  NETWORK_GATE_UP_TTL_S=30
+  network_probe() { return 1; }   # falharia se fosse consultada
+  run network_gate_ready
+  [ "$status" -eq 0 ]
+}
+
+@test "network_gate_ready: veredito 'down' recente evita nova espera" {
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=down
+  NETWORK_GATE_CACHE_AT=$SECONDS
+  NETWORK_GATE_DOWN_TTL_S=10
+  network_probe() { return 0; }   # nem chega a ser consultada
+  run network_gate_ready
+  [ "$status" -eq 1 ]
+}
+
+@test "network_gate_ready: cache 'up' vencido volta a sondar" {
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=up
+  NETWORK_GATE_UP_TTL_S=30
+  NETWORK_GATE_CACHE_AT=$(( SECONDS - 120 ))
+  NETWORK_GATE_WAIT_S=0
+  network_probe() { return 1; }
+  run network_gate_ready
+  [ "$status" -eq 1 ]
+}
+
+@test "network_gate_ready: rede fora e sem tempo de espera desiste na hora" {
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=""
+  NETWORK_GATE_WAIT_S=0
+  network_probe() { return 1; }
+  run network_gate_ready
+  [ "$status" -eq 1 ]
+}
+
+@test "network_gate_ready: rede que volta durante a espera libera o step" {
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=""
+  NETWORK_GATE_WAIT_S=4
+  _probe_calls_file="${BATS_TEST_TMPDIR}/probes"
+  printf '0' > "$_probe_calls_file"
+  network_probe() {
+    local n; n="$(cat "$_probe_calls_file")"
+    printf '%d' "$(( n + 1 ))" > "$_probe_calls_file"
+    (( n >= 1 ))
+  }
+  run network_gate_ready
+  [ "$status" -eq 0 ]
+}
+
+# ── protected_units_reason ────────────────────────────────────────────────────
+
+@test "protected_units_reason: conta e NOMEIA as units que ficaram de fora" {
+  run protected_units_reason NetworkManager.service greetd.service
+  [ "$status" -eq 0 ]
+  [ "$output" = "2 unit(s) crítica(s) com bibliotecas antigas: NetworkManager.service greetd.service" ]
+}
+
+@test "protected_units_reason: sem units não produz motivo" {
+  run protected_units_reason
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+@test "run_step: step com tag network vira warn imediato quando não há rede" {
+  STEP_NAMES=(); STEP_RESULTS=(); STEP_TIMES=(); STEP_REASONS=(); STEP_CATEGORIES=()
+  TOTAL_STEPS=0
+  write_step_event_json() { :; }
+  network_gate_ready() { NETWORK_GATE_WAITED=20; return 1; }
+
+  _ran_file="${BATS_TEST_TMPDIR}/ran"
+  _impl() { printf 'sim' > "$_ran_file"; return 0; }
+
+  run_step "Atualizar mirrors" _impl
+
+  [ "${STEP_RESULTS[-1]}" = "warn" ]
+  [ "${STEP_REASONS[-1]}" = "sem conectividade (aguardou 20s)" ]
+  # O corpo do step não pode ter rodado: é justamente o que penduraria.
+  [ ! -e "$_ran_file" ]
+}
+
+@test "run_step: step com tag network roda normalmente com rede de pé" {
+  STEP_NAMES=(); STEP_RESULTS=(); STEP_TIMES=(); STEP_REASONS=(); STEP_CATEGORIES=()
+  TOTAL_STEPS=0
+  write_step_event_json() { :; }
+  network_gate_ready() { return 0; }
+
+  _ran_file="${BATS_TEST_TMPDIR}/ran2"
+  _impl() { printf 'sim' > "$_ran_file"; return 0; }
+
+  run_step "Atualizar mirrors" _impl
+
+  [ "${STEP_RESULTS[-1]}" = "ok" ]
+  [ -e "$_ran_file" ]
+}
+
+@test "step_todo: units críticas sem restart viram a recomendação de reboot" {
+  STEP_NAMES=("Reiniciar serviços com libs antigas")
+  STEP_RESULTS=(); STEP_TIMES=(); STEP_REASONS=()
+  STEP_START=$SECONDS
+  REBOOT_RECOMMENDATION=""
+  STEP_REASON="$(protected_units_reason NetworkManager.service)"
+  write_step_event_json() { :; }
+
+  step_todo
+  [[ "$REBOOT_RECOMMENDATION" == *"NetworkManager.service"* ]]
+}
+
+@test "step_todo: recomendação já registrada não é sobrescrita" {
+  STEP_NAMES=("Reiniciar serviços com libs antigas")
+  STEP_RESULTS=(); STEP_TIMES=(); STEP_REASONS=()
+  STEP_START=$SECONDS
+  REBOOT_RECOMMENDATION="kernel 7.0.11 => 7.0.12"
+  STEP_REASON="$(protected_units_reason NetworkManager.service)"
+  write_step_event_json() { :; }
+
+  step_todo
+  [ "$REBOOT_RECOMMENDATION" = "kernel 7.0.11 => 7.0.12" ]
 }

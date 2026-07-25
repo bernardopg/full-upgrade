@@ -14,7 +14,7 @@ step_catalog() {
 Adquirir lock de execução|core|lock,preflight|read|0||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
 Validar sudo|core|sudo,preflight|read|0||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
 Pré-flight: espaço em disco|core|disk,read,preflight|read|30||preflight_disk_space|Verifica espaço livre mínimo em / e /boot antes de mutações.
-Atualizar archlinux-keyring|core|keyring,sudo,preflight|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
+Atualizar archlinux-keyring|core|keyring,sudo,preflight,network|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
 Backup de configs críticas|pacman|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
 Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
 Checar notícias do Arch Linux|pacman|news,read,network|read|45|curl|check_arch_news|Baixa o feed de notícias do Arch e avisa (todo) se houver notícia nova com cara de intervenção manual antes do upgrade.
@@ -29,7 +29,7 @@ Limpar scopes transitórios de apps|repair|systemd,user,desktop,mutating|mutatin
 Reparar configuração de coredump|repair|systemd,coredump,config,sudo,mutating|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
 Reparar sombra local do full-upgrade|repair|shadowing,self,pacman,mutating|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
 Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman,mutating|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga que ainda aponta para ~/.local/bin/full-upgrade quando a instalação ativa é pacman/AUR.
-Reparar permissoes de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
+Reparar permissões de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
 Reparar atalhos antigos do Burp|repair|desktop,mutating|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
 Atualizar Flatpak|flatpak|update,network,slow|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
 Atualizar pacotes Snap|snap|snap,update,network,slow|mutating|600|snap|update_snap|Atualiza pacotes Snap instalados.
@@ -124,7 +124,7 @@ Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Ve
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
 Doctor: apps manuais (fora de pacote)|doctor|manual,inventory,read|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
 Doctor: módulos OBS|doctor|obs,read|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
-Doctor: AI CLIs|doctor|ai,read|read|30||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
+Doctor: AI CLIs|doctor|ai,read|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
 Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
 Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.

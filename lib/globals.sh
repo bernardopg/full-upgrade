@@ -125,5 +125,21 @@ STEP_REASON=""                  # motivo opcional p/ warn/todo/fail (gravado no 
 TOTAL_START=$SECONDS
 TOTAL_STEPS=0                    # NOVO: total efetivo (p/ barra de progresso)
 REBOOT_RECOMMENDATION=""         # rodapé de resumo quando Doctor detectar reboot
+
+# ── Portão de conectividade dos steps com tag `network` ─────────────────────
+# Um step de rede rodando sem rede não falha rápido: ele PENDURA até estourar o
+# timeout do catálogo. Foi assim que o `Doctor: CVEs de pacotes oficiais
+# (arch-audit)` — ~2s de trabalho real — queimou os 120s inteiros num run em que
+# a rede havia caído. O portão troca esse minuto de espera cega por um aviso
+# imediato, dizendo exatamente o que aconteceu.
+NETWORK_GATE="${NETWORK_GATE:-1}"                  # 0 desliga o portão
+NETWORK_GATE_HOST="${NETWORK_GATE_HOST:-archlinux.org}"  # nome resolvido na sonda
+NETWORK_GATE_WAIT_S="${NETWORK_GATE_WAIT_S:-20}"   # espera máx. pela volta da rede
+NETWORK_GATE_PROBE_TIMEOUT_S="${NETWORK_GATE_PROBE_TIMEOUT_S:-2}"  # teto de cada sonda
+NETWORK_GATE_UP_TTL_S="${NETWORK_GATE_UP_TTL_S:-30}"     # validade do veredito "up"
+NETWORK_GATE_DOWN_TTL_S="${NETWORK_GATE_DOWN_TTL_S:-10}" # validade do veredito "down"
+NETWORK_GATE_CACHE_STATE=""      # up|down|"" (sem veredito ainda)
+NETWORK_GATE_CACHE_AT=0          # $SECONDS do último veredito
+NETWORK_GATE_WAITED=0            # segundos esperados no último veredito "down"
 LAST_SECTION_GROUP=""            # último cabeçalho de seção impresso ao vivo (output agrupado)
 COMPACT_SKIP_OUTPUT=0           # muitos skips: detalhes só no log/JSONL
