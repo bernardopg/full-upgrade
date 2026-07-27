@@ -576,15 +576,15 @@ run_all_steps() {
     fi
 
     if (( NO_CLEANUP )); then
-        step_skip "Remover pacotes orfãos" "--no-cleanup"
+        step_skip "Remover pacotes órfãos" "--no-cleanup"
     elif has pacman; then
         if (( SUDO_READY )); then
-            run_step "Remover pacotes orfãos" cleanup_orphans
+            run_step "Remover pacotes órfãos" cleanup_orphans
         else
-            step_skip "Remover pacotes orfãos" "sudo indisponível"
+            step_skip "Remover pacotes órfãos" "sudo indisponível"
         fi
     else
-        step_skip "Remover pacotes orfãos" "pacman não instalado"
+        step_skip "Remover pacotes órfãos" "pacman não instalado"
     fi
     
     if (( NO_CLEANUP )); then

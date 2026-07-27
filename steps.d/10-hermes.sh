@@ -44,7 +44,7 @@ update_hermes() {
 
   grep -E '^(✓|⚠|✗|→|  ✓|  ⚠|  →|Tip:|Up to date|Already|No update|error:|Error:|warning:|Warning:|fatal:|Traceback)' "$output_file" \
     | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \
-    | tail -40 || true
+    | tail -40 | log_out || true
   log "  Log Hermes: ${output_file}"
   return "$rc"
 }

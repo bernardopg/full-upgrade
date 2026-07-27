@@ -2,6 +2,7 @@
 # steps/containers.sh — docker, flatpak, snap
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 _docker_is_remote_image() {
   local img="$1"
@@ -141,13 +142,46 @@ update_flatpak() {
   local appstream_output
   appstream_output="$(flatpak update --appstream 2>&1)"
   log_raw "$appstream_output"
-  printf '%s\n' "$appstream_output" | grep -v '^$' | grep -v 'Nothing to do' || true
+  printf '%s\n' "$appstream_output" | grep -v '^$' | grep -v 'Nothing to do' | log_out || true
   run_logged flatpak update -y
 }
 
 
+# Atualiza snaps instalados. Autorremedia os dois modos de falha reais do snapd
+# no Arch: (a) nenhum snap instalado — `snap refresh` ainda assim consulta a
+# store e falha por rede/proxy sem nada a ganhar; (b) o kernel foi atualizado
+# neste mesmo run, os módulos do kernel em execução sumiram e o snapd não
+# consegue montar o squashfs ("cannot setup loop device"). O (b) não é um erro
+# do sistema: é um reboot pendente, e virava `fail` sem motivo no resumo.
 update_snap() {
-  run_logged sudo snap refresh
+  local listing
+  listing="$(snap list 2>&1)"
+  if printf '%s' "$listing" | grep -qiE 'no snaps are installed|nenhum snap'; then
+    log "  Nenhum snap instalado; refresh dispensado."
+    return 0
+  fi
+
+  local out rc
+  out="$(sudo snap refresh 2>&1)"
+  rc=$?
+  printf '%s\n' "$out" | log_stream
+  (( rc == 0 )) && return 0
+
+  if printf '%s\n' "$out" | grep -qiE 'cannot mount squashfs|loop device|does not fully support snapd'; then
+    # Tentativa de remediação: o módulo `loop` costuma só não estar carregado.
+    if sudo modprobe loop >/dev/null 2>&1; then
+      log "  Módulo 'loop' carregado; repetindo o refresh..."
+      if run_logged sudo snap refresh; then
+        return 0
+      fi
+    fi
+    log "  ${C_YELLOW}snapd não consegue montar squashfs — o módulo 'loop' do kernel em execução não está disponível.${C_RESET}"
+    remediation "reinicie para carregar os módulos do kernel novo; o refresh dos snaps entra no próximo run"
+    STEP_REASON="snapd sem módulo loop (reboot pendente após upgrade de kernel)"
+    return "$RC_WARN"
+  fi
+
+  return "$rc"
 }
 
 

@@ -25,7 +25,7 @@ update_adguardvpn() {
     return 0
   fi
 
-  printf '%s\n' "$output" | grep -v '^$' || true
+  printf '%s\n' "$output" | grep -v '^$' | log_out || true
   return "$rc"
 }
 

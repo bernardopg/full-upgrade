@@ -151,7 +151,7 @@ doctor_failed_systemd_units() {
   if [[ -n "${failed_system//[[:space:]]/}" ]]; then
     _sys_cnt="$(printf '%s\n' "$failed_system" | grep -c '[^[:space:]]' || true)"
     log "  Units systemd falhadas:"
-    printf '%s\n' "$failed_system" | tee >(_strip_ansi >> "$LOG_FILE")
+    printf '%s\n' "$failed_system" | log_stream
   fi
 
   # Units app-<nome>@autostart.service são geradas pelo
@@ -177,13 +177,13 @@ doctor_failed_systemd_units() {
 
   if [[ -n "${_usr_real//[[:space:]]/}" ]]; then
     log "  Units systemd --user falhadas:"
-    printf '%s' "$_usr_real" | sed '/^[[:space:]]*$/d' | tee >(_strip_ansi >> "$LOG_FILE")
+    printf '%s' "$_usr_real" | sed '/^[[:space:]]*$/d' | log_stream
   fi
   if [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
     local _auto_cnt
     _auto_cnt="$(printf '%s' "$_usr_autostart" | grep -c '[^[:space:]]' || true)"
     log "  ${_auto_cnt} unit(s) gerada(s) para app de sessão em estado failed (autostart/scope transitório — app encerrado, não é serviço persistente quebrado):"
-    printf '%s' "$_usr_autostart" | sed '/^[[:space:]]*$/d' | tee >(_strip_ansi >> "$LOG_FILE")
+    printf '%s' "$_usr_autostart" | sed '/^[[:space:]]*$/d' | log_stream
   fi
   if [[ -z "${_usr_real}${_usr_autostart}" ]] && [[ "$user_scope" != "available" ]]; then
     case "$user_scope" in
@@ -451,7 +451,7 @@ doctor_journal_errors() {
   local noise_note=""
   (( noise_count > 0 )) && noise_note=", ${noise_count} de ruído filtrado"
   log "  Journal: ${filtered_count} erro(s) pós-filtro neste boot (${unique_count} assinatura(s)${noise_note}):"
-  printf '%s\n' "$grouped" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$grouped" | log_stream
 
   # K4 — dicas acionáveis para assinaturas conhecidas (dedup por dica).
   local -A _hints=()
@@ -531,11 +531,11 @@ doctor_fwupd_security() {
 
   if (( rc != 0 )); then
     log "  fwupdmgr security retornou código ${rc}:"
-    printf '%s\n' "$output" | grep -v '^$' || true
+    printf '%s\n' "$output" | grep -v '^$' | log_out || true
     return "$RC_WARN"
   fi
 
-  printf '%s\n' "$output" | grep -v '^$' || true
+  printf '%s\n' "$output" | grep -v '^$' | log_out || true
 
   # O nível HSI agregado (0–4) é o sinal de verdade. O sufixo "!" indica apenas
   # que há medições de runtime presentes (HSI-Runtime), não insegurança. E os
@@ -577,14 +577,14 @@ doctor_flatpak_repair_dry_run() {
 
   if (( rc != 0 )); then
     log "  flatpak repair --user --dry-run retornou código ${rc}:"
-    printf '%s\n' "$output" | grep -v '^$' || true
+    printf '%s\n' "$output" | grep -v '^$' | log_out || true
     return "$RC_WARN"
   fi
 
   if [[ -z "${output//[[:space:]]/}" ]]; then
     log "  Flatpak repair dry-run: nenhuma inconsistência reportada."
   else
-    printf '%s\n' "$output" | grep -v '^$' || true
+    printf '%s\n' "$output" | grep -v '^$' | log_out || true
   fi
   return 0
 }
@@ -811,9 +811,9 @@ doctor_disk_health() {
   local status=0
   local line mount used_pct inode_pct
   log "  Uso de espaço:"
-  df -Ph -- "${paths[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+  df -Ph -- "${paths[@]}" | log_stream
   log "  Uso de inodes:"
-  df -Pih -- "${paths[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+  df -Pih -- "${paths[@]}" | log_stream
 
   while IFS= read -r line; do
     mount="$(awk '{print $6}' <<<"$line")"
@@ -1031,7 +1031,7 @@ doctor_stale_services() {
     kstat="$(printf '%s\n' "$output" | awk -F'=' '/NEEDRESTART-KSTA/{print $2; exit}')"
     if (( svc_count > 0 )); then
       log "  needrestart: ${svc_count} serviço(s) usando bibliotecas antigas:"
-      printf '%s\n' "$output" | grep 'NEEDRESTART-SVC' | awk -F'=' '{print "    " $2}' | tee >(_strip_ansi >> "$LOG_FILE")
+      printf '%s\n' "$output" | grep 'NEEDRESTART-SVC' | awk -F'=' '{print "    " $2}' | log_stream
       status="$RC_TODO"
       STEP_REASON="${svc_count} serviço(s) com bibliotecas antigas (needrestart)"
     else
@@ -1071,7 +1071,7 @@ doctor_stale_services() {
     fi
     local svc_count="${#_affected_services[@]}"
     log "  checkservices: ${svc_count} serviço(s) usando bibliotecas substituídas (reinício recomendado):"
-    printf '%s\n' "${_affected_services[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+    printf '%s\n' "${_affected_services[@]}" | log_stream
     STEP_REASON="${svc_count} serviço(s) com libs antigas (reinício pendente)"
 
     if (( RESTART_SERVICES )); then
@@ -1220,7 +1220,7 @@ doctor_pacman_health() {
 
   if [[ "$check_cmd_label" == "pacman -Qkq" ]] && grep -Eqi 'permission denied|permiss[aã]o negada' <<<"$output"; then
     log "  pacman -Qkq encontrou caminhos sem permissão; rode com sudo para uma auditoria conclusiva."
-    printf '%s\n' "$output" | grep -Ei 'permission denied|permiss[aã]o negada' | tee >(_strip_ansi >> "$LOG_FILE") | head -n 20
+    printf '%s\n' "$output" | grep -Ei 'permission denied|permiss[aã]o negada' | log_stream | head -n 20
     return "$RC_WARN"
   fi
 
@@ -1237,7 +1237,7 @@ doctor_pacman_health() {
   local noise_note=""
   (( noise_count > 0 )) && noise_note=" (+ ${noise_count} falso(s) positivo(s) filtrado(s))"
   log "  ${check_cmd_label}: ${count} arquivo(s)/pacote(s) com problema${noise_note} (mostrando até 60):"
-  printf '%s\n' "$filtered" | grep '[^[:space:]]' | tee >(_strip_ansi >> "$LOG_FILE") | head -n 60
+  printf '%s\n' "$filtered" | grep '[^[:space:]]' | log_stream | head -n 60
   if (( count > 60 )); then
     log "  Saída completa registrada no log."
   fi
@@ -1380,7 +1380,7 @@ doctor_pacman_hooks() {
   local count
   count="$(printf '%s\n' "$failed_hooks" | grep -c '[^[:space:]]' || true)"
   log "  ${count} mensagem(ns) de erro em hooks ALPM no boot atual (mostrando até 20):"
-  printf '%s\n' "$failed_hooks" | head -n 20 | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$failed_hooks" | head -n 20 | log_stream
   (( count > 20 )) && log "  Saída completa registrada no log."
   STEP_REASON="${count} erro(s) em hook(s) ALPM no boot atual"
   return "$RC_TODO"
@@ -1640,7 +1640,7 @@ PYEOF
         local cc
         cc="$(printf '%s\n' "$conflicts" | wc -l)"
         log "  Conflito npm/pnpm global: ${cc} pacote(s) instalado(s) em ambos:"
-        printf '%s\n' "$conflicts" | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "$conflicts" | log_stream
         log "  Remova de um dos gestores para evitar versões divergentes."
         (( status == 0 )) && status="$RC_WARN"
       else
@@ -1755,7 +1755,7 @@ doctor_python_env() {
       else
         # Parser não casou — preserva o dump bruto.
         log "  pip check encontrou dependências Python quebradas:"
-        printf '%s\n' "$pip_check_out" | grep -v '^$' | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "$pip_check_out" | grep -v '^$' | log_stream
       fi
       (( status == 0 )) && status="$RC_WARN"
     fi
@@ -1782,7 +1782,7 @@ for b in broken:
         local bc
         bc="$(printf '%s\n' "$broken_count" | wc -l)"
         log "  pipx: ${bc} venv(s) quebrada(s) — interpreter ausente:"
-        printf '%s\n' "$broken_count" | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "$broken_count" | log_stream
         log "  Repare com: pipx reinstall-all"
         (( status == 0 )) && status="$RC_TODO"
       else
@@ -1812,7 +1812,7 @@ for tool in (data if isinstance(data, list) else []):
         local buc
         buc="$(printf '%s\n' "$broken_uv" | wc -l)"
         log "  uv tools: ${buc} ferramenta(s) com interpreter ausente:"
-        printf '%s\n' "$broken_uv" | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "$broken_uv" | log_stream
         log "  Repare com: uv tool install --reinstall <nome>"
         (( status == 0 )) && status="$RC_TODO"
       else
@@ -1860,7 +1860,7 @@ doctor_btrfs_health() {
     errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
     if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
       log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — possível defeito físico.${C_RESET}"
-      printf '%s\n' "$stats" | grep -E '_errs' | grep -vE '_errs[[:space:]]+0$' | tee >(_strip_ansi >> "$LOG_FILE")
+      printf '%s\n' "$stats" | grep -E '_errs' | grep -vE '_errs[[:space:]]+0$' | log_stream
       log "  Remediação: investigue o disco (smartctl) e zere após resolver: sudo btrfs device stats -z /"
       status="$RC_TODO"
     else
@@ -2088,7 +2088,7 @@ doctor_boot_time() {
     blame="$(systemd-analyze blame --no-pager 2>/dev/null | head -5 || true)"
     if [[ -n "${blame//[[:space:]]/}" ]]; then
       log "  Piores units no boot (top 5):"
-      printf '%s\n' "$blame" | tee >(_strip_ansi >> "$LOG_FILE")
+      printf '%s\n' "$blame" | log_stream
     fi
   fi
 

@@ -87,12 +87,12 @@ update_dotnet_tools() {
     _rc=$?
     log_raw "$_out"
     if (( _rc == 0 )); then
-      printf '%s\n' "$_out" | grep -v '^$' || true
+      printf '%s\n' "$_out" | grep -v '^$' | log_out || true
     elif printf '%s\n' "$_out" | grep -qi "is already the latest version\|já está na versão mais recente\|No packages installed were updated\|No se actualizaron"; then
       log "  ${tool}: já na versão mais recente."
     else
       log "  ERRO ao atualizar ${tool}:"
-      printf '%s\n' "$_out" | grep -v '^$' || true
+      printf '%s\n' "$_out" | grep -v '^$' | log_out || true
       any_fail=1
     fi
   done
@@ -107,7 +107,7 @@ update_gcloud() {
   rc=$?
   log_raw "$output"
   (( rc == RC_WARN )) && { log "  gcloud: falha de rede transitória após 2 tentativas."; return "$RC_WARN"; }
-  printf '%s\n' "$output" | grep -v '^Beginning update\.' || true
+  printf '%s\n' "$output" | grep -v '^Beginning update\.' | log_out || true
   return "$rc"
 }
 
@@ -168,7 +168,7 @@ update_gem_user() {
           log_raw "$outdated_user"
         else
           log "  Gems do usuário desatualizadas:"
-          printf '%s\n' "$outdated_user" | tee >(_strip_ansi >> "$LOG_FILE")
+          printf '%s\n' "$outdated_user" | log_stream
           log "  Atualizando ${#updatable[@]} gem(s) próprias do usuário (excluídas as do Arch): ${updatable[*]}"
           GEM_HOME="$gem_user_dir" run_logged gem update "${updatable[@]}"
         fi
@@ -185,7 +185,7 @@ update_gem_user() {
   fi
 
   log "  Gems desatualizadas:"
-  printf '%s\n' "$outdated" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$outdated" | log_stream
   # rdoc/rake/rubygems-update podem gerar conflito com versão do Arch — ignorar erros não-fatais
   run_logged gem update || log "  Aviso: gem update retornou erro (possível conflito rdoc/rake com pacman — inofensivo)."
 }
@@ -282,7 +282,7 @@ update_ghcup() {
   output="$(ghcup upgrade 2>&1)"
   rc=$?
   log_raw "$output"
-  printf '%s\n' "$output" | grep -E '^\[' || true
+  printf '%s\n' "$output" | grep -E '^\[' | log_out || true
   return "$rc"
 }
 
@@ -305,7 +305,7 @@ update_arduino() {
   local upg_output rc_upg
   upg_output="$(arduino-cli upgrade 2>&1)"
   rc_upg=$?
-  printf '%s\n' "$upg_output" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$upg_output" | log_stream
 
   if (( rc_idx != 0 || rc_upg != 0 )); then return 1; fi
 

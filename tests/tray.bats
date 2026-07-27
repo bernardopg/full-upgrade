@@ -240,7 +240,7 @@ EOF
   [ "$(tray_last_summary_counts)" = "1 0 0" ]
 }
 
-@test "last_doctor_pending_items: lista Doctor warn/todo/fail do último run real" {
+@test "last_doctor_pending_items: lista warn/todo/fail de qualquer categoria" {
   LOG_DIR="$(mktemp -d)"
   local f out
   f="${LOG_DIR}/full-upgrade-20260625-100000-1.jsonl"
@@ -254,8 +254,11 @@ EOF
   out="$(tray_last_doctor_pending_items)"
   echo "$out" | grep -q "${SYM_TODO} reboot pendente — Kernel atualizado"
   echo "$out" | grep -q "${SYM_WARN} units systemd falhadas — foo.service"
+  # Pendência fora de doctor/final também aparece: o filtro antigo por categoria
+  # escondia todo/warn de ai, lang e cleanup, e como este contador sobrescreve o
+  # todo do summary em tray_check_now, o badge ficava menor que o run real.
+  echo "$out" | grep -q "${SYM_TODO} Atualizar pacotes do sistema e AUR — x"
   [[ "$out" != *'Doctor: '* ]]
-  [[ "$out" != *'Atualizar pacotes do sistema e AUR'* ]]
 }
 
 @test "last_doctor_pending_items: inclui pendência da verificação final" {

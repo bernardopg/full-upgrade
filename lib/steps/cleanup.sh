@@ -289,14 +289,14 @@ final_check_pending() {
 
       if (( ${#held_official[@]} > 0 )); then
         log "  ${#held_official[@]} pacote(s) oficiais segurados por rebuild upstream (cluster Haskell/GHC); o pacman evita o partial upgrade até o cluster publicar — não acionável agora:"
-        printf '%s\n' "${held_official[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "${held_official[@]}" | log_stream
       fi
 
       if (( ${#actionable_official[@]} > 0 )); then
         pending=1
         official_count="${#actionable_official[@]}"
         log "  Pendencias acionáveis em repositorios oficiais:"
-        printf '%s\n' "${actionable_official[@]}" | tee >(_strip_ansi >> "$LOG_FILE")
+        printf '%s\n' "${actionable_official[@]}" | log_stream
         remediation "sudo pacman -Syu"
       fi
     fi
@@ -326,7 +326,7 @@ final_check_pending() {
       pending=1
       aur_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
       log "  Pendencias no AUR:"
-      printf '%s\n' "$filtered" | tee >(_strip_ansi >> "$LOG_FILE")
+      printf '%s\n' "$filtered" | log_stream
       if has paru; then
         remediation "paru -Syu"
       elif has yay; then
@@ -346,7 +346,7 @@ final_check_pending() {
     _aur_ood_count="$(grep -c '[^[:space:]]' "$_aur_ood_file" 2>/dev/null || true)"
     if (( _aur_ood_count > 0 )); then
       log "  ${_aur_ood_count} pacote(s) AUR marcados como out-of-date pelo mantenedor (informativo; não implica update aplicável):"
-      sort -u "$_aur_ood_file" | tee >(_strip_ansi >> "$LOG_FILE")
+      sort -u "$_aur_ood_file" | log_stream
     fi
   fi
 

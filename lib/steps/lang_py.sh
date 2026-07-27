@@ -139,7 +139,7 @@ update_pipx() {
   fi
 
   # Suprimir "upgrading X..." — manter só sumário e linhas de pacotes atualizados
-  printf '%s\n' "$output" | grep -v '^upgrading ' | grep -v '^$' || true
+  printf '%s\n' "$output" | grep -v '^upgrading ' | grep -v '^$' | log_out || true
 
   # Detecta symlink quebrado/auto-referente em ~/.local/bin (pipx avisa
   # "File exists at ... and points to <ele mesmo>, not <venv>"). Costuma
@@ -164,7 +164,7 @@ update_uv_self() {
   local output rc
   output="$(uv self update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$output" | log_stream
   return "$rc"
 }
 
@@ -201,7 +201,7 @@ update_uv_python() {
   local output rc
   output="$(uv python upgrade "${minor_versions[@]}" 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$output" | log_stream
   return "$rc"
 }
 
@@ -211,7 +211,7 @@ update_uv_tools() {
 
   output="$(uv tool upgrade --all 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$output" | log_stream
 
   if (( rc != 0 )); then
     if grep -qi 'no tools installed\|nothing to upgrade' <<<"$output"; then

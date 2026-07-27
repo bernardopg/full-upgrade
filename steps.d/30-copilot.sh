@@ -13,7 +13,7 @@ update_copilot_cli() {
   output="$("$copilot_bin" update 2>&1)"
   rc=$?
   log_raw "$output"
-  printf '%s\n' "$output" | grep -v '^$' || true
+  printf '%s\n' "$output" | grep -v '^$' | log_out || true
   return "$rc"
 }
 

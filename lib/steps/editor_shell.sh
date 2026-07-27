@@ -64,7 +64,7 @@ update_omz() {
     | grep -v -E '^(Updating Oh My Zsh|[[:space:]]*(__|/ __|/ /|\\____|/____)|[[:space:]]*$)' \
     | grep -v -E '(https?://|discord\.gg|commitgoods\.com|follow us|Join our|swag at|x\.com|twitter\.com)' \
     | grep -v '^$' \
-    || true
+    | log_out || true
 
   # Rede fora (GitHub inacessível) é transitório — warn, não fail (contrato RC).
   if (( rc != 0 )) && printf '%s\n' "$output" | grep -qiE "$NETWORK_TRANSIENT_RE"; then

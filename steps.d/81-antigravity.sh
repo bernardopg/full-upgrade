@@ -349,10 +349,12 @@ check_antigravity_release_status() {
     fi
 
     log " ${label}: pacote ${current}; upstream ${latest}."
+    # Este check roda DEPOIS de install_antigravity_aur, ou seja, o pacote já
+    # está na versão mais nova que o AUR oferece. Se ainda assim está atrás do
+    # upstream, quem está atrasado é o PKGBUILD — não há ação do usuário, e
+    # marcar todo só gera ruído recorrente em todo run. Fica informativo.
     if version_is_outdated "$current" "$latest"; then
-        STEP_REASON="${pkg} ${current} está atrás do upstream ${latest}"
-        remediation "${AUR_HELPER:-paru} -S ${pkg} # ou aguarde o PKGBUILD do AUR atualizar"
-        return "$RC_TODO"
+        log " ${label}: AUR ainda não empacotou ${latest}; nada a fazer neste run."
     fi
 }
 
