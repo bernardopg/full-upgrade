@@ -87,6 +87,8 @@ Two consequences for contributors: **(a)** a step that talks to the network must
 
 `lib/json.sh` `setup_logging` defines `RUN_ID` and writes paired artifacts to `~/.cache/system-upgrade/`: `full-upgrade-<run_id>.log` (human) and `.jsonl` (one event per step + `run_start`/`run_end`/`summary`), with `latest.log`/`latest.jsonl` symlinks and rotation keeping the newest 20 of each. Use `log` (respects `--quiet`, tees to log) vs `log_always` (always to terminal). `--json` prints a one-line summary at the end.
 
+Column 0 belongs to full-upgrade's own status lines. Output captured from an external command goes to the terminal through `log_stream` (`cmd | log_stream`, or `run_logged cmd`, which uses it) — it indents 2 spaces, collapses allow-listed build noise, and honors `--quiet`. Never pipe captured output straight to `tee >(_strip_ansi >> "$LOG_FILE")`: that reintroduces the column-0 collision and leaks to the terminal under `--quiet`.
+
 ### Systray daemon
 
 `lib/tray.sh` implements the optional systray applet. On Wayland it uses AppIndicator via Python/GI when available; on X11 it falls back to `yad --notification --listen`. It is an early-exit CLI surface: `--tray` starts the daemon, `--tray --enable|--disable|--status|--check` manages/checks it, `--tray-launch` and `--tray-view-log` are internal menu actions. Pure helpers in `tray.sh` are covered by `tests/tray.bats`; GUI/runtime behavior is smoke-tested via `--tray --status` and `--tray --check` when network is acceptable. State priority is `running > error > attention > updates > idle`, persisted in `~/.cache/system-upgrade/tray-state.json`. Icons live in `assets/icons/` in dev, are copied to `${DEST_DIR}/icons`, and are also installed into hicolor by `install.sh`.

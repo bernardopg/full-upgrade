@@ -7,7 +7,7 @@
 update_rustup() {
   local check_out
   check_out="$(rustup check 2>&1)"
-  printf '%s\n' "$check_out" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$check_out" | log_stream
 
   if ! printf '%s\n' "$check_out" | grep -qi 'update available\|needs updating'; then
     log "  rustup: toolchain já atualizado, pulando sync."

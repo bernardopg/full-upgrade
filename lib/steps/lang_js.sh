@@ -214,7 +214,7 @@ update_npm_self() {
   output="$(npm install -g "npm@${latest}" 2>&1)"
   rc=$?
   log_raw "$output"
-  printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' || true
+  printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' | log_out || true
   return "$rc"
 }
 
@@ -242,7 +242,7 @@ update_npm_globals() {
   outdated="$(npm outdated -g --depth=0 --json 2>/dev/null || true)"
   if [[ -n "${outdated//[[:space:]]/}" && "$outdated" != "{}" ]]; then
     log "  Pacotes npm globais desatualizados:"
-    npm outdated -g --depth=0 2>/dev/null | tee >(_strip_ansi >> "$LOG_FILE") || true
+    npm outdated -g --depth=0 2>/dev/null | log_stream || true
   else
     log "  Sem pacotes npm globais pendentes."
     (( prefix_rc == RC_WARN )) && return "$RC_WARN"
@@ -295,7 +295,7 @@ for name in sorted(data.keys()):
     _npm_out="$(npm install -g "$spec" 2>&1)"
     _npm_rc=$?
     log_raw "$_npm_out"
-    printf '%s\n' "$_npm_out" | grep -v '^$' || true
+    printf '%s\n' "$_npm_out" | grep -v '^$' | log_out || true
     local -a _blocked=()
     mapfile -t _blocked < <(printf '%s\n' "$_npm_out" | npm_allow_scripts_packages)
     (( ${#_blocked[@]} == 0 )) || script_blocked+=("${_blocked[@]}")
@@ -355,7 +355,7 @@ update_corepack() {
   output="$(npm install -g "corepack@${latest}" 2>&1)"
   rc=$?
   log_raw "$output"
-  printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' || true
+  printf '%s\n' "$output" | grep -v '^npm warn\|^added\|^changed\|^up to date' | log_out || true
   return "$rc"
 }
 
@@ -418,7 +418,7 @@ update_pnpm_self() {
   global_project="$(pnpm_global_project_dir)"
   if [[ -z "$global_project" || ! -d "$global_project" ]]; then
     log "  pnpm self-update falhou e o projeto global ativo não pôde ser localizado."
-    printf '%s\n' "$output" | grep -v '^$' | tail -20 || true
+    printf '%s\n' "$output" | grep -v '^$' | tail -20 | log_out || true
     return "$rc"
   fi
   log "  pnpm self-update falhou (rc=${rc}); atualizando o projeto global via npm para pnpm@${latest}..."
@@ -432,8 +432,8 @@ update_pnpm_self() {
     return 0
   fi
 
-  printf '%s\n' "$output" | grep -v '^$' | tail -20 || true
-  printf '%s\n' "$fallback" | grep -v '^$' | tail -20 || true
+  printf '%s\n' "$output" | grep -v '^$' | tail -20 | log_out || true
+  printf '%s\n' "$fallback" | grep -v '^$' | tail -20 | log_out || true
   if printf '%s\n%s\n' "$output" "$fallback" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
     return "$RC_WARN"
   fi
@@ -492,7 +492,7 @@ for name, info in deps.items():
   printf '%s\n' "$output" \
     | grep -v -E '^(Done in|No global packages found)' \
     | grep -v '^$' \
-    || true
+    | log_out || true
   return 0
 }
 
@@ -518,7 +518,7 @@ update_bun() {
     log "  bun já na versão mais recente."
     return 0
   fi
-  printf '%s\n' "$output" | grep -v '^$' | tail -5 || true
+  printf '%s\n' "$output" | grep -v '^$' | tail -5 | log_out || true
   return "$rc"
 }
 
@@ -543,6 +543,6 @@ update_deno() {
     log "  deno já na versão mais recente."
     return 0
   fi
-  printf '%s\n' "$output" | grep -v '^$' | tail -5 || true
+  printf '%s\n' "$output" | grep -v '^$' | tail -5 | log_out || true
   return "$rc"
 }

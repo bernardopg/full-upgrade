@@ -69,10 +69,10 @@ preflight_disk_space() {
       thresh_mib=$(( min_gib * 1024 ))
     fi
     if (( avail_mib < thresh_mib )); then
-      log "  ${C_RED}Espaço baixo em ${mp}: $(( avail_mib / 1024 ))GiB (${avail_mib}MiB) livre (< $(( thresh_mib / 1024 ))GiB).${C_RESET}"
+      log "  ${C_RED}Espaço baixo em ${mp}: $(fmt_mib "$avail_mib") livre (< $(fmt_mib "$thresh_mib")).${C_RESET}"
       status="$RC_WARN"
     else
-      log "  ${mp}: $(( avail_mib / 1024 ))GiB (${avail_mib}MiB) livre (OK)."
+      log "  ${mp}: $(fmt_mib "$avail_mib") livre (OK)."
     fi
   done
 
@@ -166,7 +166,7 @@ preupgrade_snapshot() {
         [[ -n "$timeshift_result" ]] && log "  ${timeshift_result}"
         log "  Snapshot timeshift criado: ${desc}"
       else
-        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | timeshift_terminal_output | tail -20
+        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | timeshift_terminal_output | tail -20 | log_out
         log "  Aviso: falha ao criar snapshot timeshift."; return "$RC_WARN"
       fi
       ;;

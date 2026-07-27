@@ -325,7 +325,7 @@ Ferramentas ausentes não quebram a execução normal: o step é marcado como
 
 ### Salvaguardas recentes de manutenção
 
-- **Órfãos recursivos:** `Remover pacotes orfãos` repete a consulta
+- **Órfãos recursivos:** `Remover pacotes órfãos` repete a consulta
   `pacman -Qdtq` após cada remoção para capturar dependências que só viram
   órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
   (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
@@ -464,6 +464,7 @@ Principais chaves:
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
+| `AUTO_MERGE_PACNEW` | `0` | `1` = mescla sozinho os `.pacnew` cujo merge preserva **exatamente** a configuração ativa do arquivo atual (com backup `.full-upgrade.bak.<timestamp>` e hook de pós-merge, ex. `locale-gen`); `0` = só reporta. `sudoers`, `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram. |
 | `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
 | `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
 | `TRAY_CHECK_INTERVAL_M` | `30` | Intervalo, em minutos, entre checagens do systray daemon. O daemon impõe mínimo efetivo de 1 minuto. |

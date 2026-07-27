@@ -215,10 +215,11 @@ tray_last_summary_counts() {
   tray_summary_counts "$line"
 }
 
-# Itens Doctor pendentes (warn/todo/fail) do último run real completo.
+# Itens pendentes (warn/todo/fail) do último run real completo, de qualquer
+# categoria — não só Doctor.
 # Formato por linha: "<símbolo> Nome do step (sem prefixo 'Doctor: ') — motivo
 # (truncado)". Sem o "status:" textual (redundante com o símbolo) e sem
-# "Doctor: " (redundante com o rótulo do submenu "Pendências do Doctor") —
+# "Doctor: " (redundante com o rótulo do submenu "A resolver") —
 # o motivo era truncado no meio da frase pelo limite de largura do popup.
 tray_last_doctor_pending_items() {
   local jsonl line step status reason sym
@@ -227,9 +228,11 @@ tray_last_doctor_pending_items() {
   while IFS= read -r line; do
     [[ "$line" == *'"event":"step"'* ]] || continue
     # O campo manteve o nome histórico doctor_pending por compatibilidade, mas
-    # o tray deve expor TODA pendência acionável do fechamento do run. Sem isso,
-    # .pacnew/.pacsave e outros checks finais somem da interface.
-    [[ "$line" == *'"category":"doctor"'* || "$line" == *'"category":"final"'* ]] || continue
+    # o tray expõe TODA pendência acionável do run, de qualquer categoria. O
+    # filtro antigo (doctor|final) escondia todo/warn de categorias como ai,
+    # lang e cleanup — e como este contador sobrescreve o `todo` do summary em
+    # tray_check_now, o badge e o estado ficavam menores que o run real
+    # (2 todo no resumo viravam "1 pendência" no tray).
     status=$(tray_extract_json_field "$line" status 2>/dev/null || true)
     case "$status" in warn|todo|fail) ;; *) continue ;; esac
     step=$(tray_extract_json_field "$line" step 2>/dev/null || true)
@@ -658,7 +661,7 @@ tray_print_status() {
   cat <<EOF
 Estado      : ${state}
 Updates     : ${repo} repo + ${aur} AUR + ${flatpak} Flatpak
-Doctor pend.: ${todo}
+A resolver  : ${todo}
 Falhas      : ${fail}
 Reboot      : ${reboot:-não}
 Verificado  : ${checked}
@@ -745,7 +748,7 @@ tray_check_and_print() {
   flatpak=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
-  printf 'Estado: %s | updates: %s repo + %s AUR + %s Flatpak | doctor pend.: %s | falhas: %s\n' \
+  printf 'Estado: %s | updates: %s repo + %s AUR + %s Flatpak | a resolver: %s | falhas: %s\n' \
     "$state" "$repo" "$aur" "$flatpak" "$todo" "$fail"
 }
 
@@ -1254,7 +1257,7 @@ def rebuild_menu(data):
             detail += f" · {flatpak} flatpak"
         menu.append(info_item(detail))
     if todo > 0:
-        menu.append(info_item(f"     {todo} item(ns) do Doctor"))
+        menu.append(info_item(f"     {todo} item(ns) a resolver"))
     if reboot:
         menu.append(info_item(f"     Reboot: {reboot[:48]}"))
     rel = relative_time(str(data.get("checked_at") or ""))
@@ -1277,7 +1280,7 @@ def rebuild_menu(data):
         if aur_updates:
             pend_menu.append(submenu_item(f"Pacotes AUR ({len(aur_updates)})", aur_updates))
         if doctor_pending:
-            pend_menu.append(submenu_item(f"Doctor ({len(doctor_pending)})", doctor_pending))
+            pend_menu.append(submenu_item(f"A resolver ({len(doctor_pending)})", doctor_pending))
         pend_item.set_submenu(pend_menu)
         pend_item.show_all()
         menu.append(pend_item)

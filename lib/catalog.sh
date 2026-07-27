@@ -97,8 +97,8 @@ Atualizar plugins Hyprland (hyprpm)|hyprland|hyprpm,update,network|mutating|120|
 Limpar cache do pacman|cleanup|pacman,sudo,mutating|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
 Limpar cache de build do AUR|cleanup|aur,cache,mutating|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
 Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo,mutating|mutating|1800||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
-Remover pacotes orfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
-Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,sudo|read|30||check_pacnew_files|Lista arquivos .pacnew/.pacsave que precisam de merge manual.
+Remover pacotes órfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
+Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,repair,sudo|read|30||check_pacnew_files|Lista arquivos pendentes e, com AUTO_MERGE_PACNEW=1, mescla casos seguros fora de doctor/dry-run/no-repair.
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
 Limpar logs/relatórios antigos|cleanup|logs,reports,mutating|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.

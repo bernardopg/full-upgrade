@@ -347,6 +347,21 @@ summary_slowest_steps() {
   done | sort -rn | head -n "$limit"
 }
 
+# Itens acionáveis do run (fail, todo e warn, nessa ordem de urgência), um por
+# linha no formato "status<TAB>nome<TAB>motivo". Alimenta o bloco "Próximos
+# passos" do resumo: os motivos já saem soltos dentro de cada categoria, mas em
+# um run de 120 steps eles rolam para fora da tela e o usuário só ficava com a
+# contagem ("2 item(ns) precisam de decisão"). Puro.
+summary_action_items() {
+  local wanted i
+  for wanted in fail todo warn; do
+    for i in "${!STEP_NAMES[@]}"; do
+      [[ "${STEP_RESULTS[$i]}" == "$wanted" ]] || continue
+      printf '%s\t%s\t%s\n' "$wanted" "${STEP_NAMES[$i]}" "${STEP_REASONS[$i]:-}"
+    done
+  done
+}
+
 summary_category_totals_json() {
   local first=1 group_label group_cats i status total ok warn todo fail skip
   printf '{'
@@ -496,6 +511,24 @@ print_summary() {
   fi
   if (( fail > 0 )); then
     log_always "  ${C_RED}${C_BOLD}Atenção: ${fail} step(s) com falha — verifique o log: ${LOG_FILE}${C_RESET}"
+  fi
+
+  if (( todo + warn + fail > 0 )); then
+    local act_status act_name act_reason act_symcolor act_sym act_color printed_act=0
+    while IFS=$'\t' read -r act_status act_name act_reason; do
+      [[ -n "$act_name" ]] || continue
+      if (( printed_act == 0 )); then
+        log_always "  ${C_BOLD}Próximos passos:${C_RESET}"
+        printed_act=1
+      fi
+      act_symcolor="$(_status_sym "$act_status")"
+      act_sym="${act_symcolor%%|*}"; act_color="${act_symcolor##*|}"
+      if [[ -n "${act_reason//[[:space:]]/}" ]]; then
+        log_always "    ${act_color}${act_sym}${C_RESET}  ${act_name} — ${C_DIM}${act_reason}${C_RESET}"
+      else
+        log_always "    ${act_color}${act_sym}${C_RESET}  ${act_name}"
+      fi
+    done < <(summary_action_items)
   fi
 
   write_summary_event_json "$ok" "$warn" "$todo" "$fail" "$skip" "$total_dur"

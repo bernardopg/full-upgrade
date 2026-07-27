@@ -12,7 +12,7 @@ update_fwupd() {
   rc_refresh=$?
   # Filtrar linhas de progresso de download do terminal (gravadas no log integralmente)
   log_raw "$refresh_output"
-  printf '%s\n' "$refresh_output" | grep -v '^Downloading\|^Baixando' || true
+  printf '%s\n' "$refresh_output" | grep -v '^Downloading\|^Baixando' | log_out || true
 
   if (( rc_refresh != 0 && rc_refresh != RC_WARN )); then
     return "$rc_refresh"
@@ -46,13 +46,13 @@ update_fwupd() {
   # Tem atualizações — mostrar quais dispositivos serão atualizados
   printf '%s\n' "$updates_output" \
     | grep -v '^\s*•.*no available firmware updates\|^Devices with no\|^No updates available' \
-    || true
+    | log_out || true
 
   local update_output rc_update
   update_output="$(LC_ALL=C fwupdmgr update -y 2>&1)"
   rc_update=$?
   log_raw "$update_output"
-  printf '%s\n' "$update_output" | grep -v '^Downloading\|^Baixando' || true
+  printf '%s\n' "$update_output" | grep -v '^Downloading\|^Baixando' | log_out || true
   return "$rc_update"
 }
 
@@ -71,7 +71,7 @@ update_bootctl() {
   local output rc
   output="$(sudo bootctl update 2>&1)"
   rc=$?
-  printf '%s\n' "$output" | tee >(_strip_ansi >> "$LOG_FILE")
+  printf '%s\n' "$output" | log_stream
   # rc=1 quando já atualizado ("same boot loader version in place already") — tratar como ok
   if (( rc == 1 )) && printf '%s\n' "$output" | grep -q 'same boot loader version'; then
     log "  systemd-boot: já atualizado."

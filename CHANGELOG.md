@@ -3,6 +3,59 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Merge automático de `.pacnew` seguros (`AUTO_MERGE_PACNEW`, default `0`).**
+  O caso recorrente — o pacote só mexeu em comentários/opções novas e o usuário
+  só tinha descomentado linhas — não precisa de decisão humana e voltava como
+  `todo` a cada upgrade. O merge parte do `.pacnew` e reinsere as linhas ATIVAS
+  do arquivo atual byte a byte; só é aplicado quando o resultado tem exatamente
+  a mesma configuração em vigor (nenhuma diretiva do usuário some, nenhum
+  default novo do pacote entra sozinho). Grava
+  `<arquivo>.full-upgrade.bak.<timestamp>` antes de sobrescrever e roda o hook
+  de pós-merge quando existe (`/etc/locale.gen` → `locale-gen`); falha no hook
+  fecha o step como `warn`, e falha ao remover o `.pacnew` mantém a pendência.
+  `sudoers`,
+  `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram no
+  merge automático. Nunca roda sob `--mode doctor`/`--dry-run`/`--no-repair`.
+- **Bloco "Próximos passos" no resumo.** Os motivos de `fail`/`todo`/`warn` já
+  saíam dentro de cada categoria, mas num run de ~120 steps eles rolam para fora
+  da tela e sobrava só a contagem ("2 item(ns) precisam de decisão"). O resumo
+  agora fecha com a lista consolidada dos itens acionáveis, na ordem
+  fail → todo → warn.
+
+### Corrigido
+
+- **Saída de comandos externos passou a respeitar a indentação e o `--quiet`.**
+  32 pontos escreviam com `tee >(_strip_ansi >> "$LOG_FILE")`, jogando a saída
+  na coluna 0 — a mesma coluna das linhas de status do full-upgrade — e vazando
+  para o terminal mesmo sob `--quiet`. Todos passaram a usar o novo
+  `log_stream`, com a mesma indentação e o mesmo filtro de ruído de build que o
+  `run_logged` já aplicava. As pipelines que só recortam a saída para exibição
+  (a saída crua já tinha ido ao log via `log_raw`) passaram pelo novo `log_out`,
+  que indenta e é silencioso sob `--quiet` — antes elas imprimiam na coluna 0 e
+  ignoravam o `--quiet`.
+- **`Atualizar pacotes Snap` não falha mais por reboot pendente.** Depois de um
+  upgrade de kernel no mesmo run, o snapd não consegue montar o squashfs
+  ("cannot setup loop device") e o step virava `fail` com motivo vazio. Agora
+  tenta carregar o módulo `loop` e repetir; se persistir, fecha como `warn` com
+  o motivo real. Sem nenhum snap instalado, o refresh é dispensado.
+- **`Garantir Antigravity` não gera mais `todo` inacionável.** O check roda
+  depois da instalação via AUR, então "atrás do upstream" significa que o
+  PKGBUILD é que está atrasado — não há ação do usuário. Virou informativo.
+- **Systray voltava a contagem menor que a do run.** `tray_last_doctor_pending_items`
+  filtrava por categoria `doctor`/`final`, escondendo `todo`/`warn` de `ai`,
+  `lang`, `cleanup` etc. — e como esse contador sobrescreve o `todo` do summary,
+  o badge e o estado ficavam menores que o resumo (2 `todo` viravam
+  "1 pendência"). Agora considera qualquer categoria.
+- **Espaço livre abaixo de 1 GiB não sai mais como `0GiB`.** O pré-flight
+  imprimia `/boot: 0GiB (756MiB) livre` e o limiar como `< 0GiB`. Novo helper
+  `fmt_mib` formata em MiB abaixo de 1 GiB e em GiB com uma casa acima disso.
+- **`_strip_ansi` passou a remover também sequências OSC** (`\e]…BEL`/`ST`),
+  que viravam lixo de uma linha só no meio do log.
+- **Ortografia:** o step `Remover pacotes orfãos` virou `Remover pacotes
+  órfãos`. Quem usa `--skip`/`FULL_UPGRADE_SKIP` com o nome antigo precisa
+  atualizar a string.
 
 ## [3.30.0] - 2026-07-25
 ### Adicionado

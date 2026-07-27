@@ -83,7 +83,7 @@ update_opencode() {
   log "  opencode atual: ${before:-?}"
   out="$(run_network_cmd opencode upgrade)"
   rc=$?
-  printf '%s\n' "$out" | grep -v '^$' || true
+  printf '%s\n' "$out" | grep -v '^$' | log_out || true
   if (( rc == RC_WARN )); then
     log "  opencode: falha de rede ao atualizar."
     STEP_REASON="rede indisponível para opencode upgrade"
@@ -110,7 +110,7 @@ update_claude_code() {
   output="$(claude update 2>&1)"
   rc=$?
   log_raw "$output"
-  printf '%s\n' "$output" | grep -v '^$' || true
+  printf '%s\n' "$output" | grep -v '^$' | log_out || true
   return "$rc"
 }
 

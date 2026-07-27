@@ -30,7 +30,10 @@ _strip_ansi() {
   #    progresso do curl/wget reescrevem a mesma linha com \r e, sem isso,
   #    cada quadro vira uma linha gigante ilegível no log. Mantém só o
   #    último estado de cada linha (texto após o último \r).
-  sed -E 's/\x1b\[[0-9;]*[mGKHfABCD]//g; s/.*\r([^\r])/\1/g; s/\r$//'
+  # 3) remove sequências OSC (\e]…BEL ou \e]…ST) — títulos de janela e os
+  #    marcadores de sessão que ferramentas modernas emitem; sem isso viravam
+  #    lixo de uma linha só no meio do log.
+  sed -E 's/\x1b\][^\x07\x1b]*(\x07|\x1b\\)?//g; s/\x1b\[[0-9;]*[mGKHfABCD]//g; s/.*\r([^\r])/\1/g; s/\r$//'
 }
 
 # Grava conteúdo SOMENTE no arquivo de log (não no terminal), removendo ANSI.
@@ -127,14 +130,50 @@ log_always() {
 }
 
 run_logged() {
-  if (( QUIET )); then
-    "$@" > >(_strip_ansi >> "$LOG_FILE") 2>&1
-  else
-    # Terminal recebe saída com ruído de build allow-listed colapsado; arquivo
-    # mantém a saída bruta sem ANSI para auditoria completa.
-    "$@" 2>&1 | tee >(_strip_ansi >> "$LOG_FILE") | build_warning_filter
-  fi
+  # Terminal recebe saída indentada com ruído de build allow-listed colapsado;
+  # arquivo mantém a saída bruta sem ANSI para auditoria completa. Em --quiet,
+  # log_stream manda tudo só para o arquivo.
+  "$@" 2>&1 | log_stream
   return "${PIPESTATUS[0]}"
+}
+
+# Ecoa um bloco de saída já capturado: terminal recebe a versão indentada (e com
+# o ruído de build colapsado), arquivo recebe a versão crua sem ANSI. Substitui
+# o antigo `| tee >(_strip_ansi >> "$LOG_FILE")`, que jogava a saída de comandos
+# externos na coluna 0 — a mesma coluna das linhas de status do full-upgrade —
+# e ainda vazava para o terminal sob --quiet. Uso: cmd | log_stream
+log_stream() {
+  local _lf="${LOG_FILE:-/dev/null}"
+  [[ -z "$_lf" ]] && _lf="/dev/null"
+  if (( QUIET )); then
+    _strip_ansi >> "$_lf"
+  else
+    tee >(_strip_ansi >> "$_lf") | build_warning_filter
+  fi
+}
+
+# Só terminal: indenta e colapsa ruído de build, SEM gravar no arquivo. Use
+# quando a saída crua já foi para o log via log_raw e a pipeline seguinte existe
+# só para mostrar um recorte ao usuário. Silencioso sob --quiet, que essas
+# pipelines de exibição ignoravam.
+log_out() {
+  if (( QUIET )); then
+    cat >/dev/null
+  else
+    build_warning_filter
+  fi
+}
+
+# Formata MiB para leitura humana. Sem isso, uma ESP com 756MiB livres saía como
+# "0GiB (756MiB)" e o limiar de /boot como "< 0GiB".
+fmt_mib() {
+  local mib="$1"
+  [[ "$mib" =~ ^[0-9]+$ ]] || { printf '%s' "$mib"; return 0; }
+  if (( mib < 1024 )); then
+    printf '%dMiB' "$mib"
+  else
+    printf '%d.%dGiB' $(( mib / 1024 )) $(( (mib % 1024) * 10 / 1024 ))
+  fi
 }
 
 remediation() {

@@ -17,7 +17,8 @@ update_tokensave() {
 
   output="$(run_network_cmd "$tokensave_bin" upgrade 2>&1)"
   rc=$?
-  [[ -n "${output//[[:space:]]/}" ]] && printf '%s\n' "$output" | _strip_ansi | tee -a "$LOG_FILE"
+  # run_network_cmd já gravou a saída crua no log; aqui é só exibição.
+  [[ -n "${output//[[:space:]]/}" ]] && printf '%s\n' "$output" | _strip_ansi | log_out
 
   if (( rc == RC_WARN )); then
     STEP_REASON="rede indisponível para tokensave upgrade"

@@ -141,7 +141,7 @@ _aur_syu_with_retry_and_fallback() {
     }
     out="$("${cmd[@]}" 2>&1)"
     rc=$?
-    printf '%s\n' "$out" | tee >(_strip_ansi >> "$LOG_FILE")
+    printf '%s\n' "$out" | log_stream
     (( rc == 0 )) && return 0
     printf '%s\n' "$out" | grep -qiE "$_AUR_NETWORK_RE" || break
   done
@@ -182,7 +182,7 @@ update_system_aur() {
       }
       _paru_out="$("${cmd[@]}" 2>&1)"
       _paru_rc=$?
-      printf '%s\n' "$_paru_out" | tee >(_strip_ansi >> "$LOG_FILE")
+      printf '%s\n' "$_paru_out" | log_stream
       if [[ -n "${RUN_ID:-}" ]]; then
         local _aur_ood_file="${LOG_DIR}/full-upgrade-${RUN_ID}.aur-out-of-date"
         printf '%s\n' "$_paru_out" | aur_out_of_date_pkgs > "$_aur_ood_file"
@@ -301,16 +301,16 @@ cleanup_orphans() {
       return 0
     fi
 
-    log "  Pacotes orfaos encontrados (rodada ${round}/${max_rounds}, ${#orphans[@]}): ${orphans[*]}"
+    log "  Pacotes órfãos encontrados (rodada ${round}/${max_rounds}, ${#orphans[@]}): ${orphans[*]}"
 
     if (( ASSUME_YES == 0 )); then
       if [[ -t 0 ]]; then
-        printf '%b' "${C_YELLOW}  Remover pacotes orfãos? [s/N] ${C_RESET}"
+        printf '%b' "${C_YELLOW}  Remover pacotes órfãos? [s/N] ${C_RESET}"
         local answer
         read -r answer
         case "$answer" in
           [sS][iI][mM]|[sS]) ;;
-          *) log "  Remoção de orfãos cancelada pelo usuário."; return 0 ;;
+          *) log "  Remoção de órfãos cancelada pelo usuário."; return 0 ;;
         esac
       else
         log "  Execução não interativa sem --yes; pulando remoção de órfãos."
@@ -334,6 +334,132 @@ cleanup_orphans() {
 }
 
 
+# Arquivos em que um merge automático nunca é aceitável: um erro aqui tranca a
+# máquina ou o login. Continuam sempre como decisão manual.
+PACNEW_NEVER_AUTO_RE='^/etc/(sudoers|passwd|shadow|group|gshadow|fstab|crypttab)$'
+
+# Gera em stdout um merge de <atual> com <pacnew>: parte do .pacnew (comentários,
+# opções e defaults novos do pacote) e reinsere nele, byte a byte, as linhas
+# ATIVAS do arquivo atual. Só tem sucesso quando o resultado fica com EXATAMENTE
+# a mesma configuração ativa do arquivo atual — nenhuma diretiva do usuário some
+# e nenhum default novo do pacote entra em vigor sozinho; muda só comentário.
+# Se o usuário alterou o VALOR de uma linha, ou o pacote passou a ativar algo
+# que o arquivo atual não tem, rc 1 e o arquivo segue como decisão manual.
+pacnew_safe_merge() {
+  local current="$1" new="$2"
+  [[ -r "$current" && -r "$new" ]] || return 1
+  awk '
+    function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+    FNR == NR {
+      t = trim($0)
+      if (t == "" || substr(t, 1, 1) == "#") next
+      cnt[t]++; total++
+      verb[t SUBSEP cnt[t]] = $0
+      next
+    }
+    { pn[++np] = $0 }
+    END {
+      for (i = 1; i <= np; i++) {
+        t = trim(pn[i])
+        if (t == "") continue
+        if (substr(t, 1, 1) == "#") {
+          u = trim(substr(t, 2))
+          if (u != "" && (u in cnt) && used[u] < cnt[u]) {
+            used[u]++; got++; repl[i] = verb[u SUBSEP used[u]]
+          }
+        } else {
+          # Linha ativa no .pacnew sem contrapartida ativa no arquivo atual:
+          # aceitar mudaria a configuração em vigor. Recusa o merge.
+          if ((t in cnt) && used[t] < cnt[t]) {
+            used[t]++; got++; repl[i] = verb[t SUBSEP used[t]]
+          } else {
+            exit 1
+          }
+        }
+      }
+      if (got != total) exit 1
+      for (i = 1; i <= np; i++) {
+        if (i in repl) print repl[i]; else print pn[i]
+      }
+    }
+  ' "$current" "$new"
+}
+
+# Comando a rodar depois de mesclar um arquivo, quando o conteúdo precisa ser
+# recompilado para valer. Silêncio = nada a fazer.
+pacnew_post_merge_cmd() {
+  case "$1" in
+    /etc/locale.gen) printf 'locale-gen' ;;
+    *) printf '' ;;
+  esac
+}
+
+# Tenta o merge seguro em cada .pacnew de "${@:2}" e grava em $1 (um por linha)
+# os caminhos que continuaram pendentes: merge recusado, .pacsave ou arquivo da
+# blocklist. O que sobrou vai para arquivo, e não stdout, porque esta função usa
+# `log` — que escreve no terminal e contaminaria a captura. Faz backup do
+# arquivo atual antes de sobrescrever.
+pacnew_auto_merge() {
+  local out="$1"; shift
+  local f cur ts post
+  local cur_tmp new_tmp merged_tmp
+  PACNEW_AUTO_MERGE_WARNINGS=0
+  ts="$(date +%Y%m%d-%H%M%S)"
+  : > "$out"
+  for f in "$@"; do
+    [[ "$f" == *.pacnew ]] || { printf '%s\n' "$f" >>"$out"; continue; }
+    cur="${f%.pacnew}"
+    if [[ "$cur" =~ $PACNEW_NEVER_AUTO_RE ]]; then
+      log "    ${cur}: merge automático desabilitado para este arquivo."
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
+    if ! sudo test -f "$cur"; then printf '%s\n' "$f" >>"$out"; continue; fi
+
+    cur_tmp="$(mktemp)" && new_tmp="$(mktemp)" && merged_tmp="$(mktemp)" || {
+      printf '%s\n' "$f" >>"$out"; continue
+    }
+    # shellcheck disable=SC2024  # o redirect é para tmp do usuário; sudo só precisa LER
+    if ! sudo cat "$cur" >"$cur_tmp" 2>/dev/null || ! sudo cat "$f" >"$new_tmp" 2>/dev/null; then
+      rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
+
+    if ! pacnew_safe_merge "$cur_tmp" "$new_tmp" >"$merged_tmp" 2>/dev/null; then
+      log "    ${cur}: diferença de configuração ativa; merge manual."
+      rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
+
+    if ! sudo cp --preserve=all -- "$cur" "${cur}.full-upgrade.bak.${ts}" 2>/dev/null \
+       || ! sudo cp -- "$merged_tmp" "$cur" 2>/dev/null; then
+      log "    ${cur}: falha ao gravar o merge; segue pendente."
+      rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
+    if ! sudo rm -f -- "$f" 2>/dev/null; then
+      log "    ${cur}: merge gravado, mas não foi possível remover ${f}; segue pendente."
+      rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
+    rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"
+    log "    ${C_GREEN}${cur}: mesclado automaticamente${C_RESET} (backup em ${cur}.full-upgrade.bak.${ts})."
+
+    post="$(pacnew_post_merge_cmd "$cur")"
+    if [[ -n "$post" ]] && has "$post"; then
+      log "    Reaplicando: ${post}"
+      if ! run_logged sudo "$post"; then
+        log "    ${C_YELLOW}${post} falhou; verifique manualmente.${C_RESET}"
+        ((++PACNEW_AUTO_MERGE_WARNINGS))
+      fi
+    fi
+  done
+}
+
 check_pacnew_files() {
   if ! has pacdiff; then
     log "  pacdiff não encontrado (instale pacman-contrib)."
@@ -348,6 +474,33 @@ check_pacnew_files() {
     return 0
   fi
 
+  # Autorremediação: o caso recorrente (.pacnew que só traz comentários/opções
+  # novas, com o usuário tendo apenas descomentado linhas) é mesclável sem
+  # decisão humana. O que sobra continua sendo todo.
+  if (( ${AUTO_MERGE_PACNEW:-0} )) && (( ! NO_REPAIR )); then
+    local -a remaining=()
+    local _left merge_warnings=0
+    log "  Tentando merge automático de ${#pacnew[@]} arquivo(s)..."
+    _left="$(mktemp)" || _left=""
+    if [[ -n "$_left" ]]; then
+      pacnew_auto_merge "$_left" "${pacnew[@]}"
+      merge_warnings="${PACNEW_AUTO_MERGE_WARNINGS:-0}"
+      mapfile -t remaining < <(grep -v '^[[:space:]]*$' "$_left" || true)
+      rm -f "$_left"
+      local merged=$(( ${#pacnew[@]} - ${#remaining[@]} ))
+      (( merged > 0 )) && log "  ${merged} arquivo(s) mesclado(s) automaticamente."
+      pacnew=("${remaining[@]}")
+    fi
+    if (( ${#pacnew[@]} == 0 )); then
+      log "  Nenhum arquivo .pacnew/.pacsave pendente após o merge automático."
+      if (( merge_warnings > 0 )); then
+        STEP_REASON="${merge_warnings} hook(s) pós-merge falharam"
+        return "$RC_WARN"
+      fi
+      return 0
+    fi
+  fi
+
   log "  ${C_YELLOW}Aviso: ${#pacnew[@]} arquivo(s) .pacnew/.pacsave requerem atenção manual:${C_RESET}"
   local f
   for f in "${pacnew[@]}"; do
@@ -358,4 +511,3 @@ check_pacnew_files() {
   mark_pacfiles_todo_reported
   return "$RC_TODO"
 }
-
