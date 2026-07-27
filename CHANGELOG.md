@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.31.0] - 2026-07-27
 ### Adicionado
 
 - **Merge automático de `.pacnew` seguros (`AUTO_MERGE_PACNEW`, default `0`).**
