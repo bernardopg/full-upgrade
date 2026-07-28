@@ -518,6 +518,29 @@ doctor_journal_errors() {
 }
 
 
+# Verdadeiro quando um HSI:1 é causado somente pelo atributo introduzido no
+# fwupd 2.1.7 para lock de MTD, mas o firmware/hardware não fornece os dados
+# necessários. Isso é uma lacuna de medição ("not-supported"/"missing-data"),
+# não uma regressão de segurança da máquina. Qualquer outro ✘ em HSI-2 mantém o
+# warning. Puro/testável.
+fwupd_hsi_only_mtd_measurement_gap() {
+  local output="$1" hsi_level="$2"
+  [[ "$hsi_level" == "1" ]] || return 1
+
+  local failures
+  failures="$(
+    printf '%s\n' "$output" | _strip_ansi | awk '
+      /^HSI-2([[:space:]]|$)/ { in_hsi2=1; next }
+      /^HSI-[0-9]+([[:space:]]|$)/ { if (in_hsi2) exit }
+      in_hsi2 && /✘/ { print }
+    '
+  )"
+  [[ -n "${failures//[[:space:]]/}" ]] || return 1
+  ! printf '%s\n' "$failures" \
+    | grep -viE 'Locked MTD.*(not supported|não suportado)' \
+    | grep -q '[^[:space:]]'
+}
+
 doctor_fwupd_security() {
   if ! has fwupdmgr; then
     log "  fwupdmgr não instalado."
@@ -547,6 +570,10 @@ doctor_fwupd_security() {
 
   if [[ -n "$hsi_level" ]]; then
     if (( hsi_level < 2 )); then
+      if fwupd_hsi_only_mtd_measurement_gap "$output" "$hsi_level"; then
+        log "  fwupd security: HSI:1 limitado apenas por Locked MTD sem suporte/dados no fwupd 2.1.7; postura de firmware inalterada."
+        return 0
+      fi
       STEP_REASON="nível HSI baixo (HSI:${hsi_level} de 4)"
       log "  fwupd security: nível HSI:${hsi_level} abaixo do recomendado (>= 2)."
       return "$RC_WARN"

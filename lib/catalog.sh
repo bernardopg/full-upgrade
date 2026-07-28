@@ -59,7 +59,7 @@ Atualizar ferramentas .NET|lang|dotnet,update,network|mutating|300|dotnet|update
 Atualizar Google Cloud SDK|lang|gcloud,update,network,slow|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
 Atualizar gems de usuário|lang|ruby,gem,update,network|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
 Atualizar ghcup|lang|haskell,ghcup,update,network|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
-Atualizar Hermes|ai|hermes,update,network|mutating|120|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
+Atualizar Hermes|ai|hermes,update,network|mutating|300|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
 Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK (Rust Token Killer) para a última release publicada no GitHub.
 Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
 Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
