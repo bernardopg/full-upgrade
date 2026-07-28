@@ -9,6 +9,30 @@ setup() {
   source "${FU_LIB}/steps/doctor.sh"
 }
 
+# ── fwupd 2.1.7: Locked MTD sem dados não é regressão da máquina ─────────────
+
+@test "fwupd HSI:1: somente Locked MTD não suportado é lacuna de medição" {
+  local out
+  out=$'HSI-1\n✔ TPM v2.0: Encontrado\n\n\e[1mHSI-2\e[0m\n✘ Locked MTD: Não suportado\n✘ Locked MTD: Não suportado\n\nHSI-3\n✔ CET Platform: Suportado'
+  run fwupd_hsi_only_mtd_measurement_gap "$out" 1
+  [ "$status" -eq 0 ]
+}
+
+@test "fwupd HSI:1: bloqueador real adicional continua acionável" {
+  local out
+  out=$'HSI-2\n✘ Locked MTD: Not supported\n✘ IOMMU: Disabled\n\nHSI-3'
+  run fwupd_hsi_only_mtd_measurement_gap "$out" 1
+  [ "$status" -ne 0 ]
+}
+
+@test "fwupd: helper não mascara HSI:0 nem nível já aceitável" {
+  local out=$'HSI-2\n✘ Locked MTD: Not supported\n\nHSI-3'
+  run fwupd_hsi_only_mtd_measurement_gap "$out" 0
+  [ "$status" -ne 0 ]
+  run fwupd_hsi_only_mtd_measurement_gap "$out" 2
+  [ "$status" -ne 0 ]
+}
+
 @test "systemd_running_version: extrai versão Arch completa do parêntese" {
   run systemd_running_version "systemd 261 (261-1-arch)"
   [ "$status" -eq 0 ]

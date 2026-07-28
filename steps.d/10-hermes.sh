@@ -20,14 +20,28 @@ update_hermes() {
 
   log "  Hermes em: ${hermes_bin}"
 
-  # Otimização: o `hermes update` completo (git pull + deps Node + sync de skills)
-  # leva ~20s mesmo sem novidade. Antes, `hermes update --check` (rápido: só
-  # fetch + compara) decide se há update; se não houver, pula o update pesado.
-  local check_out
-  check_out="$(CI=1 NO_COLOR=1 TERM=dumb hermes update --check 2>&1 | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g')"
-  if hermes_is_current "$check_out"; then
+  # Otimização: o `hermes update --check` (só fetch + comparação) decide se o
+  # update completo é necessário. O smart-HTTP do GitHub pode ficar pendurado
+  # transitoriamente; o probe tem limite próprio para ainda sobrar tempo para a
+  # segunda tentativa feita pelo update real. O update completo pode drenar o
+  # gateway por até 75s e levou 113s em medição real, portanto o timeout total do
+  # catálogo é deliberadamente maior.
+  local check_out check_rc
+  if check_out="$(timeout 30 env CI=1 NO_COLOR=1 TERM=dumb GIT_TERMINAL_PROMPT=0 hermes update --check 2>&1)"; then
+    check_rc=0
+  else
+    check_rc=$?
+  fi
+  check_out="$(printf '%s\n' "$check_out" | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g')"
+
+  if (( check_rc == 0 )) && hermes_is_current "$check_out"; then
     log "  Hermes já está na versão mais recente (check); pulando update."
     return 0
+  fi
+  if (( check_rc == 124 )); then
+    log "  Check do Hermes excedeu 30s; tentando o update completo como segunda tentativa."
+  elif (( check_rc != 0 )); then
+    log "  Check do Hermes falhou (rc=${check_rc}); tentando o update completo."
   fi
 
   local output_file rc
@@ -46,7 +60,13 @@ update_hermes() {
     | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \
     | tail -40 | log_out || true
   log "  Log Hermes: ${output_file}"
+  if (( rc != 0 )); then
+    if grep -qiE "$NETWORK_TRANSIENT_RE" "$output_file"; then
+      STEP_REASON="rede indisponível durante hermes update (detalhes: ${output_file})"
+      return "$RC_WARN"
+    fi
+    # shellcheck disable=SC2034  # global cross-module lida por core.sh
+    STEP_REASON="hermes update falhou com rc=${rc} (detalhes: ${output_file})"
+  fi
   return "$rc"
 }
-
-

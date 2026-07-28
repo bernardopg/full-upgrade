@@ -4,6 +4,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **`Atualizar Hermes` não expira mais durante um update normal.** O limite de
+  120s era menor que o tempo real do updater quando ele drena/reinicia o gateway
+  (113s medidos), e um `git fetch` transitório podia consumir todo o step ainda
+  no `--check`. O probe agora tem limite próprio de 30s e cai para a tentativa
+  completa; o step dispõe de 300s e registra falhas de rede/execução com motivo
+  e caminho do log.
+- **`fwupd` 2.1.7 não gera warning falso de regressão HSI.** A versão passou a
+  incluir `Locked MTD` no cálculo e rebaixou HSI:3 para HSI:1 quando o hardware
+  retorna apenas `not-supported`/`missing-data`, sem mudança na postura real da
+  máquina. Esse caso exclusivamente informacional agora é reconhecido; qualquer
+  outro bloqueador HSI-2 continua como `warn`.
+
 ## [3.31.0] - 2026-07-27
 ### Adicionado
 
