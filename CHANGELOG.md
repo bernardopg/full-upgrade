@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.31.1] - 2026-07-28
 ### Corrigido
 
 - **`Atualizar Hermes` não expira mais durante um update normal.** O limite de
