@@ -704,6 +704,7 @@ run_all_steps() {
     fi
 
     run_step "Doctor: tempo de boot" doctor_boot_time
+    run_step "Doctor: TRIM de SSD" doctor_trim_health
 }
 
 finalize_sync_tray() {
