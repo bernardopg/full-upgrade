@@ -132,6 +132,7 @@ Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem,read|read|30|gem|d
 Doctor: saúde do btrfs|doctor|btrfs,disk,read,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.
 Auto-remediar scrub btrfs|doctor|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
 Doctor: tempo de boot|doctor|boot,systemd,read|read|30||doctor_boot_time|Reporta tempo total de boot (systemd-analyze) e as piores units.
+Doctor: TRIM de SSD|doctor|disk,ssd,trim,read|read|15||doctor_trim_health|Verifica se há mecanismo de TRIM ativo (fstrim.timer periódico ou discard= contínuo) em máquinas com SSD/NVMe.
 EOF
 }
 

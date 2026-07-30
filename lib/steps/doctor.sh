@@ -399,6 +399,20 @@ journal_noise_patterns() {
     'usb [0-9].*-port[0-9]+: attempt power cycle'
     'usb [0-9].*: device not accepting address [0-9]+, error -(32|71|110)'
     'usb [0-9].*: device descriptor read/all, error'
+    # ── Intel WiFi (iwlwifi): microcode SW error → firmware crash dump no log.
+    #    Bug entre driver iwlwifi e firmware Intel AX-series. O driver detecta o
+    #    erro, faz dump do estado (registers, PC, Fseq), reinicia o firmware e
+    #    recupera. Não acionável por software — é upstream driver/firmware. ──
+    'iwlwifi [0-9].*: Start IWL Error Log Dump'
+    'iwlwifi [0-9].*: Microcode SW error detected'
+    'iwlwifi [0-9].*: Device error - SW reset'
+    'iwlwifi [0-9].*: Transport status:'
+    'iwlwifi [0-9].*: (UMAC|LMAC)[0-9]* (CURRENT PC|CURRENT)'
+    'iwlwifi [0-9].*: Not associated and the session protection'
+    'iwlwifi [0-9].*: Loaded firmware version:'
+    'iwlwifi [0-9].*: IML/ROM dump'
+    'iwlwifi [0-9].*: Fseq'
+    'iwlwifi [0-9].*: 0x[0-9A-Fa-f]+ \|'
   )
   printf '%s\n' "${pats[@]}"
 
@@ -2127,4 +2141,56 @@ doctor_boot_time() {
 
   log "  Tempo de boot dentro do limite (~${total_s}s ≤ ${warn_s}s)."
   return 0
+}
+
+# Doctor: verifica se há mecanismo de TRIM ativo para SSDs/NVMe.
+# Dois mecanismos aceitáveis: fstrim.timer (periódico) ou discard= nas opções
+# de mount (contínuo). Se nenhum dos dois está ativo e há SSD, alerta — sem
+# TRIM, SSDs perdem performance e longevity ao acumular páginas marcadas como
+# livres que nunca são devolvidas ao garbage collector do controlador.
+doctor_trim_health() {
+  # Detecta SSD/NVMe: queue/rotational == 0 em dispositivo de bloco real.
+  local has_ssd=0
+  local dev name
+  for dev in /sys/block/*; do
+    [[ -f "${dev}/queue/rotational" ]] || continue
+    name="${dev##*/}"
+    [[ "$name" =~ ^(loop|ram|dm-|md) ]] && continue
+    if [[ "$(cat "${dev}/queue/rotational" 2>/dev/null || echo 1)" == "0" ]]; then
+      has_ssd=1; break
+    fi
+  done
+  (( has_ssd )) || {
+    log "  Nenhum SSD/NVMe detectado; TRIM não aplicável."
+    return 0
+  }
+
+  # Mecanismo 1: fstrim.timer ativo (TRIM periódico semanal).
+  if has systemctl && systemctl is-active --quiet fstrim.timer 2>/dev/null; then
+    log "  TRIM periódico ativo (fstrim.timer em execução)."
+    return 0
+  fi
+
+  # Mecanismo 2: discard= nas opções de mount de qualquer filesystem (contínuo).
+  # Btrfs com discard=async é a abordagem preferida em NVMe — mais eficiente que
+  # o fstrim.timer porque devolve páginas ao GC do SSD imediatamente, sem scan.
+  # findmnt -no OPTIONS lista opções separadas por vírgula; tr+grep casa "discard"
+  # como token inteiro (discard, discard=async) — não substring de "nodiscard".
+  if findmnt -no OPTIONS 2>/dev/null | tr ',' '\n' | grep -qE '^discard(=|$)'; then
+    local discard_fs=""
+    discard_fs="$(findmnt -lno TARGET,OPTIONS 2>/dev/null | while IFS=' ' read -r _tgt _opts; do
+      printf '%s\n' "$_opts" | tr ',' '\n' | grep -qE '^discard(=|$)' && printf '%s\n' "$_tgt"
+    done | sort -u | tr '\n' ' ' | sed 's/ $//')"
+    log "  TRIM contínuo ativo via discard mount option em: ${discard_fs}."
+    return 0
+  fi
+
+  # Nem periódico nem contínuo — SSD sem TRIM.
+  log "  ${C_YELLOW}SSD/NVMe detectado sem mecanismo de TRIM ativo.${C_RESET}"
+  log "  Sem TRIM, blocos livres acumulam e degradam write amplification e performance do SSD."
+  log "  Remediação: habilite 'sudo systemctl enable --now fstrim.timer' (periódico, simples)"
+  log "              OU adicione 'discard=async' às opções de mount no /etc/fstab (contínuo, preferido em NVMe)."
+  remediation "sudo systemctl enable --now fstrim.timer  # ou adicione discard=async no fstab"
+  STEP_REASON="SSD sem TRIM (nem fstrim.timer nem discard mount option)"
+  return "$RC_TODO"
 }

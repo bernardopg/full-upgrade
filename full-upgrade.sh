@@ -22,12 +22,16 @@ fi
 
 # ── Metadados do script (dependem deste arquivo, não das libs) ──────────────────
 # Resolução de versão, em ordem de prioridade:
-#   1. git describe (rodando a partir de um clone do repo, durante o dev);
-#   2. arquivo VERSION ao lado do entrypoint (gravado por install.sh/build.sh);
+#   1. git describe --exact-match (HEAD está exatamente numa tag de release);
+#   2. arquivo VERSION ao lado do entrypoint (gravado por release commits/build.sh);
 #   3. fallback embutido (último recurso).
+# O git describe "X.Y.Z-N-gHASH" (HEAD entre tags) NÃO sobrescreve o VERSION file,
+# pois o VERSION file é autoritativo — setado explicitamente por commits de release.
+# Sem isto, um dev tree com tag local desatualizada reportava "update disponível"
+# mesmo já estando no commit da release (falso TODO no self-update check).
 SCRIPT_VERSION="3.31.1"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
-if [[ "$_git_ver" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+if [[ "$_git_ver" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   SCRIPT_VERSION="${_git_ver#v}"
 elif [[ -r "${FU_ROOT}/VERSION" ]]; then
   _file_ver="$(tr -d '[:space:]' < "${FU_ROOT}/VERSION" 2>/dev/null || true)"

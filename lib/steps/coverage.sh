@@ -96,6 +96,17 @@ update_archlinux_keyring() {
     return 0
   fi
 
+  # Fallback: pacman -Sy é atômico — se um repo terceiro (warpdotdev, etc.)
+  # estiver lento/indisponível, o rc≠0 descarta TODO o sync mesmo que core/extra
+  # já tenham sido baixados com sucesso. Tentar sem -y reusa o DB local que
+  # acabou de ser parcialmente atualizado; --needed pula se já está na versão
+  # mais recente. Não atrapalha: o -Syu do step principal sincroniza depois.
+  log "  Sync do DB falhou (repo terceiro lento/indisponível?); tentando via DB em cache..."
+  if run_logged sudo pacman -S --needed --noconfirm archlinux-keyring; then
+    log "  archlinux-keyring OK (via DB em cache)."
+    return 0
+  fi
+
   log "  Aviso: falha ao atualizar archlinux-keyring (seguindo)."
   return "$RC_WARN"
 }
@@ -160,7 +171,9 @@ preupgrade_snapshot() {
       log "  Criando snapshot Timeshift (a saída detalhada ficará no log)..."
       timeshift_output="$(sudo timeshift --create --comments "$desc" --scripted 2>&1)"
       timeshift_rc=$?
-      log_raw "$timeshift_output"
+      # \r → \n: progresso do timeshift ("12%... 32%... 43%...") acumula numa linha
+      # só no log; convertendo dá uma linha por atualização (legível em auditoria).
+      log_raw "$(printf '%s' "$timeshift_output" | tr '\r' '\n')"
       if (( timeshift_rc == 0 )); then
         timeshift_result="$(printf '%s\n' "$timeshift_output" | tr '\r' '\n' | grep -E 'Snapshot saved successfully' | tail -1 || true)"
         [[ -n "$timeshift_result" ]] && log "  ${timeshift_result}"
