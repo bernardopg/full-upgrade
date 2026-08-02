@@ -19,14 +19,18 @@ setup() {
   source "${FU_LIB}/steps/doctor.sh"
 }
 
-@test "pipefail: 'produtor | grep -q' com match cedo devolve 141 (a armadilha)" {
+@test "pipefail: 'produtor | grep -q' com match cedo NÃO devolve 0 (a armadilha)" {
   # Prova que a armadilha é real neste bash, não folclore. Se um dia o bash
   # mudar esse comportamento, este teste avisa que o resto do arquivo perdeu o
   # motivo de existir.
+  #
+  # O status exato varia com o ambiente: 141 quando o produtor morre de SIGPIPE,
+  # 1 quando ele trata o EPIPE e reporta erro de escrita. O que importa é que
+  # não é 0 — o padrão casou e o `if` vai ler "não casou".
   run bash -c 'set -uo pipefail
     big="$(printf "MATCH\n"; seq 1 200000)"
     printf "%s\n" "$big" | grep -q "^MATCH$"'
-  [ "$status" -eq 141 ]
+  [ "$status" -ne 0 ]
 }
 
 @test "pipefail: herestring com match cedo devolve 0 (a correção)" {
