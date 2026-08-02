@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.32.0] - 2026-08-02
 ### Adicionado
 
 - **`Doctor: crashes recorrentes (coredump)`.** Um programa que quebra várias
