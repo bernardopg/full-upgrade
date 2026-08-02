@@ -83,7 +83,7 @@ $output"
 
   # Tratar "já atualizado" — OpenClaw pode retornar 0 com mensagem específica
   if (( rc == 0 )); then
-    if printf '%s\n' "$output" | grep -qiE 'already up.to.date|already at latest|já est[áa] atualizado|latest version|up to date|nothing to do|no updates? available'; then
+    if grep -qiE 'already up.to.date|already at latest|já est[áa] atualizado|latest version|up to date|nothing to do|no updates? available' <<<"$output"; then
       log "  OpenClaw ${current_ver:-} já na versão mais recente."
       openclaw_verify_gateway
       return $?

@@ -8,6 +8,20 @@ has() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# Pertinência exata em array: array_contains <agulha> "${palheiro[@]}".
+# Substitui `printf '%s\n' "${arr[@]}" | grep -qx` — sob `set -o pipefail` esse
+# pipeline devolve 141 quando o grep casa e sai antes de o printf terminar de
+# escrever, ou seja, um "não encontrado" falso. Sem fork, comparação exata.
+array_contains() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 # Dependência de comando do catálogo satisfeita?
 # Aceita o comando no PATH ou um override <CMD>_BIN apontando para executável
 # (ex.: GCLOUD_BIN p/ gcloud, OPENCLAW_BIN p/ openclaw) — o mesmo contrato que
@@ -176,8 +190,11 @@ fmt_mib() {
   fi
 }
 
+# A remediação é justamente a parte que o usuário vai reler depois, no log ou
+# no relatório — então precisa passar por `log`. Com `printf` cru ela só existia
+# no terminal: nunca chegou ao LOG_FILE e ainda vazava sob --quiet.
 remediation() {
-  printf '  Remediação: %s\n' "$*"
+  log "  Remediação: $*"
 }
 
 _pacfiles_todo_marker_file() {
@@ -210,7 +227,7 @@ run_network_cmd() {
   printf '%s\n' "$_out"
   log_raw "$_out"
   if (( _rc != 0 )); then
-    if printf '%s\n' "$_out" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+    if grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$_out"; then
       log "  Falha de rede transitória detectada (DNS/conectividade). Marcando como aviso."
       return "$RC_WARN"
     fi
@@ -311,7 +328,7 @@ _retry() {
       sleep 5
     fi
   done
-  if printf '%s\n' "$out" | grep -qiE "$_network_re"; then
+  if grep -qiE "$_network_re" <<<"$out"; then
     log "  Todas as ${n} tentativas falharam por erro de rede — marcando como aviso."
     return "$RC_WARN"
   fi

@@ -3,6 +3,45 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Doctor: TRIM de SSD` acusava "SSD sem TRIM" em máquina com TRIM ativo.**
+  O teste era `findmnt -no OPTIONS | tr ',' '\n' | grep -qE '^discard(=|$)'`.
+  Com `set -o pipefail` (ativo no entrypoint) o `grep -q` casa, sai, e o `tr`
+  toma SIGPIPE: o pipeline devolve 141 e o `if` lê isso como "não casou". Numa
+  raiz btrfs montada com `discard=async` o step reportava `todo` pedindo para
+  habilitar algo que já estava ligado. A detecção agora usa a função pura
+  `mounts_with_discard` (uma chamada ao `findmnt`, comparação token a token, e
+  `nodiscard` continua não contando) e o resultado alimenta tanto a decisão
+  quanto a lista de mountpoints do log.
+- **A mesma armadilha em mais 56 lugares.** `produtor | grep -q PADRÃO` devolve
+  141 sob `pipefail` sempre que o produtor ainda está escrevendo quando o grep
+  sai — o que acontece com qualquer saída multi-linha grande o suficiente para
+  não caber no buffer do pipe (64 KiB). Todos foram convertidos para herestring
+  (`grep -q PADRÃO <<<"$var"`), que não é pipeline. Os casos com consequência
+  real: a detecção de erro transitório de rede em `run_network_cmd`/`_retry` e
+  nos steps de npm/pnpm/cargo/paru (uma falha de rede viraria `fail` em vez de
+  `warn`, derrubando o exit code do run) e o rebaixamento de falha de build AUR
+  para `todo` em `update_system_aur`, que recebe a saída inteira do paru.
+- **`array_contains` substitui `printf '%s\n' "${arr[@]}" | grep -qx`** nos dois
+  testes de pertinência (pnpm com pacote linkado, minors do uv Python), pelo
+  mesmo motivo — e sem fork.
+- **`remediation` nunca chegava ao log.** Ela usava `printf` cru em vez de
+  `log`, então a linha `Remediação: …` — justamente a parte acionável que se
+  relê depois — existia só no terminal, some do `full-upgrade-<run>.log` e do
+  relatório, e ainda era impressa sob `--quiet`, contra o contrato do próprio
+  projeto. Nenhum dos 11 call sites (news, containers, pip/pipx, rustup, npm,
+  pnpm, TRIM) aparecia em log nenhum. Agora passa por `log`.
+
+### Adicionado
+
+- **`tests/shell_hygiene.bats`** trava a regressão: prova que a armadilha existe
+  neste bash, que a herestring a evita, e falha o CI se qualquer
+  `cmd | grep -q` reaparecer em `lib/`, `steps.d/` ou nos entrypoints. Mais
+  cobertura de `mounts_with_discard` e do `Doctor: TRIM de SSD` nos quatro
+  cenários (discard montado, `fstrim.timer` ativo, nenhum dos dois, máquina só
+  com disco rotacional), com sysfs falso via `FU_SYSBLOCK_DIR` para não depender
+  do disco de quem roda.
 
 ## [3.32.0] - 2026-08-02
 ### Adicionado

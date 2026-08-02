@@ -143,10 +143,10 @@ _aur_syu_with_retry_and_fallback() {
     rc=$?
     printf '%s\n' "$out" | log_stream
     (( rc == 0 )) && return 0
-    printf '%s\n' "$out" | grep -qiE "$_AUR_NETWORK_RE" || break
+    grep -qiE "$_AUR_NETWORK_RE" <<<"$out" || break
   done
 
-  if printf '%s\n' "$out" | grep -qiE "$_AUR_NETWORK_RE"; then
+  if grep -qiE "$_AUR_NETWORK_RE" <<<"$out"; then
     log "  ${cmd[0]}: falha de rede transitória após tentativas."
     log "  Fallback: aplicando upgrade dos repositórios oficiais via pacman (AUR fica para o próximo run)..."
     if run_logged sudo pacman -Syu --noconfirm; then
@@ -193,13 +193,13 @@ update_system_aur() {
       # (checksum/download), que a limpeza pode curar. Erro de PKGBUILD,
       # conflito ou compilação não cura com retry — aborta o loop.
       if (( _paru_attempt < _paru_max )) \
-         && ! printf '%s\n' "$_paru_out" | grep -qiE "${_AUR_NETWORK_RE}|${_AUR_TRANSIENT_SRC_RE}"; then
+         && ! grep -qiE "${_AUR_NETWORK_RE}|${_AUR_TRANSIENT_SRC_RE}" <<<"$_paru_out"; then
         break
       fi
     done
 
     if (( _paru_rc != 0 )); then
-      if printf '%s\n' "$_paru_out" | grep -qiE "$_AUR_NETWORK_RE"; then
+      if grep -qiE "$_AUR_NETWORK_RE" <<<"$_paru_out"; then
         # O RPC do AUR caiu, mas os repos oficiais provavelmente estão de pé.
         # Sem este fallback, um soluço no aur.archlinux.org bloqueava TODO o
         # upgrade (nem core/extra atualizavam) e deixava pendências no final.
@@ -230,8 +230,7 @@ update_system_aur() {
     # marcar todo o run como FAIL e forçar exit 2. Se a falha for restrita a
     # build/download de pacote(s) AUR, rebaixa para RC_TODO (ação manual).
     if (( _paru_rc != 0 )); then
-      if printf '%s\n' "$_paru_out" \
-           | grep -qiE 'falharam na compilação|failed to build|falha ao compilar|failed to compile|falha ao baixar fontes|error downloading sources|não passaram na verificação de validade'; then
+      if grep -qiE 'falharam na compilação|failed to build|falha ao compilar|failed to compile|falha ao baixar fontes|error downloading sources|não passaram na verificação de validade' <<<"$_paru_out"; then
         local -a _failed_aur=()
         mapfile -t _failed_aur < <(
           printf '%s\n' "$_paru_out" \

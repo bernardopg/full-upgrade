@@ -27,7 +27,7 @@ _audit_add() {
 
 # CVEs em binários cargo do usuário (reusa o parser de core.sh).
 _audit_rustup_check_has_update() {
-  printf '%s\n' "$1" | grep -qiE 'update available|atualiza(c|ç)[aã]o dispon[ií]vel'
+  grep -qiE 'update available|atualiza(c|ç)[aã]o dispon[ií]vel' <<<"$1"
 }
 
 _audit_probe_cargo() {
@@ -39,7 +39,7 @@ _audit_probe_cargo() {
   (( ${#bins[@]} )) || return 0
   local out
   out="$(cargo audit bin "${bins[@]}" 2>&1)"
-  if printf '%s\n' "$out" | grep -qiE "$_audit_rede_re"; then
+  if grep -qiE "$_audit_rede_re" <<<"$out"; then
     _audit_add info cargo "Auditoria cargo indisponível" "Falha de rede ao buscar advisory DB" "Repita com rede"
     return 0
   fi
@@ -130,12 +130,12 @@ _audit_probe_secure_boot() {
     state="$(bootctl status 2>/dev/null | grep -i 'secure boot' | head -n1)"
   fi
   [[ -n "$state" ]] || return 0
-  if printf '%s' "$state" | grep -qiE 'disabled|desabilit|inativ'; then
+  if grep -qiE 'disabled|desabilit|inativ' <<<"$state"; then
     local sev="info"
     (( ${SECURE_BOOT_STRICT:-0} == 1 )) && sev="medium"
     _audit_add "$sev" secureboot "Secure Boot desabilitado" "$state; postura/política de segurança, não falha operacional" \
       "Opcional: habilite Secure Boot na UEFI se a máquina suportar; use SECURE_BOOT_STRICT=1 para tratar como severidade média"
-  elif printf '%s' "$state" | grep -qiE 'enabled|ativ'; then
+  elif grep -qiE 'enabled|ativ' <<<"$state"; then
     _audit_add info secureboot "Secure Boot habilitado" "$state" ""
   fi
   return 0
@@ -169,7 +169,7 @@ _audit_probe_pip() {
   local out rc
   out="$(python -m pip check 2>&1)"
   rc=$?
-  if (( rc != 0 )) || printf '%s' "$out" | grep -qiE 'requires|incompatible|has requirement'; then
+  if (( rc != 0 )) || grep -qiE 'requires|incompatible|has requirement' <<<"$out"; then
     _audit_add low python "Dependências pip quebradas" \
       "pip check reportou inconsistências de versão" "Revise: python -m pip check"
   fi

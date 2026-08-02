@@ -20,7 +20,7 @@ update_adguardvpn() {
   log_raw "$output"
 
   # rc=17 = "You are using the latest version" — não é falha
-  if (( rc == 17 )) || printf '%s\n' "$output" | grep -q 'latest version'; then
+  if (( rc == 17 )) || grep -q 'latest version' <<<"$output"; then
     log "  adguardvpn-cli ${current} já na versão mais recente."
     return 0
   fi

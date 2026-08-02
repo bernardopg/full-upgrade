@@ -96,7 +96,7 @@ update_docker_images() {
       log "  Falha ao pull ${img}"
       failed+=("$img")
     else
-      if printf '%s\n' "$output" | grep -q 'Downloaded newer image'; then
+      if grep -q 'Downloaded newer image' <<<"$output"; then
         log "  Atualizado: ${img}"
         pulled+=("$img")
       else
@@ -156,7 +156,7 @@ update_flatpak() {
 update_snap() {
   local listing
   listing="$(snap list 2>&1)"
-  if printf '%s' "$listing" | grep -qiE 'no snaps are installed|nenhum snap'; then
+  if grep -qiE 'no snaps are installed|nenhum snap' <<<"$listing"; then
     log "  Nenhum snap instalado; refresh dispensado."
     return 0
   fi
@@ -167,7 +167,7 @@ update_snap() {
   printf '%s\n' "$out" | log_stream
   (( rc == 0 )) && return 0
 
-  if printf '%s\n' "$out" | grep -qiE 'cannot mount squashfs|loop device|does not fully support snapd'; then
+  if grep -qiE 'cannot mount squashfs|loop device|does not fully support snapd' <<<"$out"; then
     # Tentativa de remediação: o módulo `loop` costuma só não estar carregado.
     if sudo modprobe loop >/dev/null 2>&1; then
       log "  Módulo 'loop' carregado; repetindo o refresh..."

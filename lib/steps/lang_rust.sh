@@ -9,7 +9,7 @@ update_rustup() {
   check_out="$(rustup check 2>&1)"
   printf '%s\n' "$check_out" | log_stream
 
-  if ! printf '%s\n' "$check_out" | grep -qi 'update available\|needs updating'; then
+  if ! grep -qi 'update available\|needs updating' <<<"$check_out"; then
     log "  rustup: toolchain já atualizado, pulando sync."
     return 0
   fi
@@ -28,7 +28,7 @@ update_cargo_bins() {
 # toolchain são acionáveis (há update pendente) ou não (já na última → a CVE vive
 # numa crate vendorizada no binário upstream e só some quando upstream reconstrói).
 rustup_check_has_update() {
-  printf '%s\n' "$1" | grep -qiE 'Update available'
+  grep -qiE 'Update available' <<<"$1"
 }
 
 
@@ -51,14 +51,14 @@ audit_cargo_bins() {
   local output rc_audit
   output="$(cargo audit bin "${bins[@]}" 2>&1)"
   rc_audit=$?
-  if (( rc_audit != 0 )) && printf '%s\n' "$output" | grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
+  if (( rc_audit != 0 )) && grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect' <<<"$output"; then
     log "  cargo audit: falha de rede; tentando novamente em 5s..."
     sleep 5
     output="$(cargo audit bin "${bins[@]}" 2>&1)"
     rc_audit=$?
   fi
   log_raw "$output"
-  if (( rc_audit != 0 )) && printf '%s\n' "$output" | grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'; then
+  if (( rc_audit != 0 )) && grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect' <<<"$output"; then
     log "  cargo audit: falha de rede transitória ao buscar advisory DB."
     return "$RC_WARN"
   fi
@@ -148,7 +148,7 @@ _rust_collect_vuln_bins() {
   output="$(cargo audit bin "${bins[@]}" 2>&1)"
   rc=$?
   log_raw "$output"
-  if (( rc != 0 )) && printf '%s\n' "$output" | grep -qiE "$netre"; then
+  if (( rc != 0 )) && grep -qiE "$netre" <<<"$output"; then
     return "$RC_WARN"
   fi
   printf '%s\n' "$output" | parse_cargo_vuln_bins

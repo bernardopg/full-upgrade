@@ -42,7 +42,7 @@ arch_news_parse() {
 # Classifica um título de notícia: "action" (intervenção manual provável) ou
 # "info". Puro; case-insensitive.
 arch_news_classify() {
-  if printf '%s\n' "$1" | grep -qiE "$_ARCH_NEWS_ACTION_RE"; then
+  if grep -qiE "$_ARCH_NEWS_ACTION_RE" <<<"$1"; then
     printf 'action'
   else
     printf 'info'
@@ -59,7 +59,7 @@ check_arch_news() {
   local out rc=0
   out="$(curl -fsSL --max-time 20 "$ARCH_NEWS_FEED_URL" 2>&1)" || rc=$?
   if (( rc != 0 )); then
-    if printf '%s\n' "$out" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+    if grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$out"; then
       log "  Feed de notícias inacessível (rede); seguindo sem checagem."
     else
       log "  Falha ao baixar o feed de notícias do Arch (curl rc=${rc})."

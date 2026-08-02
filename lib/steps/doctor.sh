@@ -604,7 +604,7 @@ doctor_recurrent_coredumps() {
   while read -r count name path; do
     [[ -n "$name" ]] || continue
     (( count >= min_crashes )) || continue
-    if printf '%s\n' "$recent_names" | grep -qxF -- "$name"; then
+    if grep -qxF -- "$name" <<<"$recent_names"; then
       hot+="${hot:+, }${name} (${count}x)"
     else
       stale+="${stale:+, }${name} (${count}x)"
@@ -648,9 +648,10 @@ fwupd_hsi_only_mtd_measurement_gap() {
     '
   )"
   [[ -n "${failures//[[:space:]]/}" ]] || return 1
-  ! printf '%s\n' "$failures" \
-    | grep -viE 'Locked MTD.*(not supported|não suportado)' \
-    | grep -q '[^[:space:]]'
+
+  local others
+  others="$(grep -viE 'Locked MTD.*(not supported|não suportado)' <<<"$failures")"
+  [[ -z "${others//[[:space:]]/}" ]]
 }
 
 doctor_fwupd_security() {
@@ -695,7 +696,7 @@ doctor_fwupd_security() {
   fi
 
   # Sem nível HSI legível (formato inesperado): cair para heurística de falha.
-  if printf '%s\n' "$output" | grep -q '✘'; then
+  if grep -q '✘' <<<"$output"; then
     STEP_REASON="fwupd security reportou falha(s) sem nível HSI legível"
     return "$RC_WARN"
   fi
@@ -1415,7 +1416,7 @@ doctor_arch_audit_cves() {
   netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
   out="$(arch-audit 2>&1)"
   rc=$?
-  if (( rc != 0 )) && printf '%s\n' "$out" | grep -qiE "$netre"; then
+  if (( rc != 0 )) && grep -qiE "$netre" <<<"$out"; then
     log "  arch-audit: falha de rede ao consultar o tracker de segurança."
     STEP_REASON="rede indisponível para arch-audit"
     return "$RC_WARN"
@@ -2011,7 +2012,7 @@ doctor_btrfs_health() {
   local scrub max_days last_epoch now_epoch age_days
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
   scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null || true)"
-  if printf '%s\n' "$scrub" | grep -qiE 'no stats available|never'; then
+  if grep -qiE 'no stats available|never' <<<"$scrub"; then
     log "  ${C_YELLOW}btrfs: nenhum scrub registrado em / — recomendado rodar periodicamente.${C_RESET}"
     log "  Remediação: sudo btrfs scrub start /"
     (( status == 0 )) && status="$RC_TODO"
@@ -2051,7 +2052,7 @@ doctor_btrfs_health() {
 # Sem efeitos colaterais; testável com fixtures.
 btrfs_scrub_state() {
   local txt="$1" max_days="${2:-30}"
-  if printf '%s\n' "$txt" | grep -qiE 'no stats available|never'; then
+  if grep -qiE 'no stats available|never' <<<"$txt"; then
     printf 'never'; return 0
   fi
   local started last_epoch now_epoch age_days
@@ -2241,6 +2242,18 @@ doctor_boot_time() {
   return 0
 }
 
+# Lista os mountpoints cujas opções trazem o token `discard` (`discard` ou
+# `discard=async`). Entrada: `findmnt -lno TARGET,OPTIONS`. Compara token a
+# token, então `nodiscard` não conta como TRIM ativo. Puro/testável.
+mounts_with_discard() {
+  awk '{
+    n = split($2, opts, ",")
+    for (i = 1; i <= n; i++) {
+      if (opts[i] == "discard" || opts[i] ~ /^discard=/) { print $1; break }
+    }
+  }' | sort -u
+}
+
 # Doctor: verifica se há mecanismo de TRIM ativo para SSDs/NVMe.
 # Dois mecanismos aceitáveis: fstrim.timer (periódico) ou discard= nas opções
 # de mount (contínuo). Se nenhum dos dois está ativo e há SSD, alerta — sem
@@ -2248,9 +2261,11 @@ doctor_boot_time() {
 # livres que nunca são devolvidas ao garbage collector do controlador.
 doctor_trim_health() {
   # Detecta SSD/NVMe: queue/rotational == 0 em dispositivo de bloco real.
+  # FU_SYSBLOCK_DIR existe só para o teste apontar para um sysfs falso; em
+  # produção é sempre /sys/block.
   local has_ssd=0
   local dev name
-  for dev in /sys/block/*; do
+  for dev in "${FU_SYSBLOCK_DIR:-/sys/block}"/*; do
     [[ -f "${dev}/queue/rotational" ]] || continue
     name="${dev##*/}"
     [[ "$name" =~ ^(loop|ram|dm-|md) ]] && continue
@@ -2272,13 +2287,9 @@ doctor_trim_health() {
   # Mecanismo 2: discard= nas opções de mount de qualquer filesystem (contínuo).
   # Btrfs com discard=async é a abordagem preferida em NVMe — mais eficiente que
   # o fstrim.timer porque devolve páginas ao GC do SSD imediatamente, sem scan.
-  # findmnt -no OPTIONS lista opções separadas por vírgula; tr+grep casa "discard"
-  # como token inteiro (discard, discard=async) — não substring de "nodiscard".
-  if findmnt -no OPTIONS 2>/dev/null | tr ',' '\n' | grep -qE '^discard(=|$)'; then
-    local discard_fs=""
-    discard_fs="$(findmnt -lno TARGET,OPTIONS 2>/dev/null | while IFS=' ' read -r _tgt _opts; do
-      printf '%s\n' "$_opts" | tr ',' '\n' | grep -qE '^discard(=|$)' && printf '%s\n' "$_tgt"
-    done | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  local discard_fs
+  discard_fs="$(findmnt -lno TARGET,OPTIONS 2>/dev/null | mounts_with_discard | tr '\n' ' ' | sed 's/ *$//')"
+  if [[ -n "${discard_fs//[[:space:]]/}" ]]; then
     log "  TRIM contínuo ativo via discard mount option em: ${discard_fs}."
     return 0
   fi
@@ -2286,9 +2297,8 @@ doctor_trim_health() {
   # Nem periódico nem contínuo — SSD sem TRIM.
   log "  ${C_YELLOW}SSD/NVMe detectado sem mecanismo de TRIM ativo.${C_RESET}"
   log "  Sem TRIM, blocos livres acumulam e degradam write amplification e performance do SSD."
-  log "  Remediação: habilite 'sudo systemctl enable --now fstrim.timer' (periódico, simples)"
+  remediation "sudo systemctl enable --now fstrim.timer (periódico, simples)"
   log "              OU adicione 'discard=async' às opções de mount no /etc/fstab (contínuo, preferido em NVMe)."
-  remediation "sudo systemctl enable --now fstrim.timer  # ou adicione discard=async no fstab"
   STEP_REASON="SSD sem TRIM (nem fstrim.timer nem discard mount option)"
   return "$RC_TODO"
 }

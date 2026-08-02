@@ -64,6 +64,50 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+# ── array_contains ────────────────────────────────────────────────────────────
+# Substituiu `printf '%s\n' "${arr[@]}" | grep -qx`, que devolve 141 sob
+# `set -o pipefail` quando o grep casa antes de o printf terminar de escrever.
+
+@test "array_contains: elemento presente retorna 0" {
+  local -a arr=(alfa beta gama)
+  run array_contains beta "${arr[@]}"
+  [ "$status" -eq 0 ]
+}
+
+@test "array_contains: elemento ausente retorna não-zero" {
+  local -a arr=(alfa beta gama)
+  run array_contains delta "${arr[@]}"
+  [ "$status" -ne 0 ]
+}
+
+@test "array_contains: casa elemento inteiro, não prefixo nem substring" {
+  local -a arr=(typescript-eslint eslint-config)
+  run array_contains eslint "${arr[@]}"
+  [ "$status" -ne 0 ]
+}
+
+@test "array_contains: array vazio retorna não-zero sem quebrar sob set -u" {
+  local -a arr=()
+  run array_contains alfa "${arr[@]}"
+  [ "$status" -ne 0 ]
+}
+
+@test "array_contains: elemento com espaço é comparado inteiro" {
+  local -a arr=("pacote com espaco" outro)
+  run array_contains "pacote com espaco" "${arr[@]}"
+  [ "$status" -eq 0 ]
+}
+
+@test "array_contains: imune a pipefail com array grande e match no início" {
+  # A armadilha original: o grep casava na primeira linha e saía, o printf
+  # tomava SIGPIPE e o pipeline devolvia 141 — "não encontrado" falso.
+  set -o pipefail
+  local -a arr
+  mapfile -t arr < <(printf 'ALVO\n'; seq 1 20000)
+  run array_contains ALVO "${arr[@]}"
+  [ "$status" -eq 0 ]
+}
+
 # ── add_skip_step / skip_step_count ───────────────────────────────────────────
 
 @test "skip_step_count: lista vazia é 0" {
