@@ -109,6 +109,7 @@ Doctor: reboot pendente|doctor|kernel,read|read|15||doctor_reboot_pending|Compar
 Doctor: units systemd falhadas|doctor|systemd,read|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
 Doctor: configuração paru Devel|doctor|paru,aur,read|read|10|paru|doctor_paru_devel_mode|Detecta configuração global Devel no paru.
 Doctor: journal erros críticos|doctor|journal,systemd,read|read|30||doctor_journal_errors|Mostra erros críticos do boot atual com limite de linhas.
+Doctor: crashes recorrentes (coredump)|doctor|coredump,systemd,read|read|30|coredumpctl|doctor_recurrent_coredumps|Agrupa coredumps dos últimos 14 dias por programa e aponta crash recorrente ainda ativo (>=3x com ocorrência nas últimas 48 h).
 Doctor: fwupd security|doctor|fwupd,firmware,security,read|read|60|fwupdmgr|doctor_fwupd_security|Executa auditoria de segurança de firmware via fwupdmgr.
 Doctor: Flatpak repair dry-run|doctor|flatpak,read|read|60|flatpak|doctor_flatpak_repair_dry_run|Executa flatpak repair --user --dry-run para detectar inconsistências.
 Doctor: saúde de disco|doctor|disk,read|read|15||doctor_disk_health|Verifica uso de espaço e inodes em mounts essenciais.
