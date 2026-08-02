@@ -403,3 +403,84 @@ _mock_journal_scoped() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Nenhum erro crítico"* ]]
 }
+
+# ── doctor_recurrent_coredumps (crash recorrente por programa) ────────────────
+
+_mock_coredumpctl() {
+  export _MOCK_CORE_WINDOW="$1" _MOCK_CORE_RECENT="$2"
+  has() { [[ "$1" == coredumpctl ]]; }
+  # A janela curta (-2d) e a larga (-14d) são distinguidas pelo argumento
+  # --since, exatamente como o step as emite.
+  coredumpctl() {
+    if [[ "$*" == *"-2d"* ]]; then
+      [[ -n "$_MOCK_CORE_RECENT" ]] || return 1
+      printf '%s\n' "$_MOCK_CORE_RECENT"
+    else
+      [[ -n "$_MOCK_CORE_WINDOW" ]] || return 1
+      printf '%s\n' "$_MOCK_CORE_WINDOW"
+    fi
+  }
+}
+
+@test "coredump_group_by_executable: agrupa por basename, não por caminho" {
+  # AppImage extrai num diretório novo a cada execução: agrupar por caminho
+  # esconderia a recorrência.
+  in=$'Thu 2026-07-30 00:38:57 -03 1 1000 1000 SIGTRAP present /tmp/appimage_extracted_aaa/hub 7.5M\nThu 2026-07-30 01:27:25 -03 2 0 0 SIGTRAP inaccessible /tmp/appimage_extracted_bbb/hub -\nThu 2026-07-30 01:53:13 -03 3 1000 1000 SIGSEGV present /opt/x/cli 145.9K'
+  run coredump_group_by_executable <<<"$in"
+  [[ "${lines[0]}" == "2 hub /tmp/appimage_extracted_bbb/hub" ]]
+  [[ "${lines[1]}" == "1 cli /opt/x/cli" ]]
+}
+
+@test "coredump_group_by_executable: acha o executável mesmo com colunas variáveis" {
+  # COREFILE varia (present/inaccessible/none) e SIZE some quando o dump já foi
+  # removido — por isso o executável é o primeiro campo absoluto, não $10.
+  in=$'Thu 2026-07-30 01:27:25 -03 2641601 0 0 SIGTRAP none /usr/bin/prog\nThu 2026-07-30 01:53:13 -03 2726827 1000 1000 SIGSEGV present /usr/bin/prog 145.9K'
+  run coredump_group_by_executable <<<"$in"
+  [[ "${lines[0]}" == "2 prog /usr/bin/prog" ]]
+}
+
+@test "recurrent_coredumps: 3+ crashes com ocorrência recente => todo" {
+  QUIET=0 LOG_FILE=/dev/null
+  STEP_REASON=""
+  local crash="Sat 2026-08-01 23:13:52 -03 40031 1000 1000 SIGSEGV present /opt/x/vpn-cli 140K"
+  _mock_coredumpctl "$crash"$'\n'"$crash"$'\n'"$crash" "$crash"
+  run doctor_recurrent_coredumps
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"Crash recorrente ativo"* ]]
+  [[ "$output" == *"vpn-cli (3x)"* ]]
+}
+
+@test "recurrent_coredumps: crashes antigos sem ocorrência recente => ok" {
+  QUIET=0 LOG_FILE=/dev/null
+  local crash="Tue 2026-07-21 19:44:48 -03 3167135 0 0 SIGTRAP inaccessible /tmp/e/hub -"
+  _mock_coredumpctl "$crash"$'\n'"$crash"$'\n'"$crash" ""
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"provavelmente já resolvido"* ]]
+  [[ "$output" != *"Crash recorrente ativo"* ]]
+}
+
+@test "recurrent_coredumps: crash isolado não vira todo" {
+  QUIET=0 LOG_FILE=/dev/null
+  local crash="Sat 2026-08-01 22:57:03 -03 6726 1000 1000 SIGSEGV present /usr/lib/tb/tb 45.4M"
+  _mock_coredumpctl "$crash" "$crash"
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhum programa com crash recorrente ativo"* ]]
+}
+
+@test "recurrent_coredumps: sem coredumps na janela => ok" {
+  QUIET=0 LOG_FILE=/dev/null
+  _mock_coredumpctl "" ""
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhum coredump"* ]]
+}
+
+@test "recurrent_coredumps: sem coredumpctl => ok sem ruído" {
+  QUIET=0 LOG_FILE=/dev/null
+  has() { return 1; }
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"coredumpctl não encontrado"* ]]
+}

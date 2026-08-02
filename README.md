@@ -61,7 +61,7 @@ full-upgrade
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
 | IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi), servidores **MCP**, Orca IDE (Stably AI) e extensões de IDE da família VSCode (Code/Cursor/Codium). |
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
-| Doctor | Auditorias de reboot, systemd, journal, fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
+| Doctor | Auditorias de reboot, systemd, journal, crashes recorrentes (coredump), fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
 | Observabilidade | TUI responsiva com progresso adaptativo e motivos acionáveis, log completo em texto sem escapes ANSI, eventos JSONL por step com `reason`, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. Runs filtrados compactam listas extensas de skips no terminal sem perder detalhes no log. |
 
@@ -360,6 +360,7 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
 | systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; scopes transitórios `app-*.scope` já encerrados são informativos e autorreparados no modo completo. |
 | Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
+| Crashes recorrentes | Coredumps dos últimos 14 dias agrupados por programa; vira `todo` no programa que quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h (crash isolado ou já resolvido fica informativo). |
 | Firmware | Resultado de `fwupdmgr security`. |
 | Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |
 | Disco | Uso de espaço e inodes em mounts essenciais. |

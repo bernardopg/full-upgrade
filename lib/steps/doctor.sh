@@ -532,6 +532,104 @@ doctor_journal_errors() {
 }
 
 
+# Agrupa linhas de `coredumpctl list` por programa. Saída: "<contagem> <nome>
+# <último caminho>", ordenada por contagem decrescente.
+#
+# O executável é o primeiro campo absoluto da linha, não uma posição fixa: a
+# coluna COREFILE varia (present/inaccessible/none/error) e a coluna SIZE some
+# quando o dump já foi removido, então índice fixo erra em parte das linhas.
+#
+# A chave é o basename, não o caminho: AppImages extraem para
+# /tmp/appimage_extracted_<hash>/ a cada execução, e agrupar por caminho
+# transformaria 17 crashes do mesmo programa em 17 ocorrências únicas — exatamente
+# o padrão que este Doctor existe para enxergar. O caminho da ocorrência mais
+# recente é preservado para o relatório.
+coredump_group_by_executable() {
+  awk '
+    {
+      for (i = 1; i <= NF; i++) {
+        if (substr($i, 1, 1) == "/") {
+          n = split($i, parts, "/")
+          name = parts[n]
+          count[name]++
+          last_path[name] = $i
+          break
+        }
+      }
+    }
+    END { for (name in count) printf "%d %s %s\n", count[name], name, last_path[name] }
+  ' | sort -k1,1nr -k2,2
+}
+
+# Um crash isolado é ruído (OOM, kill no shutdown, arquivo corrompido pontual);
+# o mesmo programa quebrando várias vezes é bug. O Doctor de journal já lista
+# "dumped core" como assinatura, mas apenas do boot atual e sem agregar por
+# programa, então a recorrência — o único dado que separa acidente de defeito —
+# se perdia como nota informativa.
+#
+# Não depende do core file estar no disco: os metadados ficam no journal mesmo
+# depois de o dump ser removido por vacuum ou por Storage=none.
+doctor_recurrent_coredumps() {
+  if ! has coredumpctl; then
+    log "  coredumpctl não encontrado."
+    return 0
+  fi
+
+  # Janela larga para enxergar a recorrência; janela curta para saber se o
+  # problema ainda está vivo. Sem a segunda, um crash já corrigido manteria o
+  # step em todo por duas semanas.
+  local window_days=14 recent_days=2 min_crashes=3
+  local window_raw recent_names window_grouped
+
+  window_raw="$(coredumpctl list --no-legend --no-pager --since "-${window_days}d" 2>/dev/null || true)"
+
+  if [[ -z "${window_raw//[[:space:]]/}" ]]; then
+    log "  Nenhum coredump nos últimos ${window_days} dias."
+    return 0
+  fi
+
+  window_grouped="$(printf '%s\n' "$window_raw" | coredump_group_by_executable)"
+
+  log "  Coredumps nos últimos ${window_days} dias, por programa:"
+  printf '%s\n' "$window_grouped" \
+    | awk '{ printf "    %sx  %s  (%s)\n", $1, $2, $3 }' \
+    | log_stream
+
+  recent_names="$(
+    coredumpctl list --no-legend --no-pager --since "-${recent_days}d" 2>/dev/null \
+      | coredump_group_by_executable | awk '{ print $2 }'
+  )"
+
+  local hot="" stale="" count name path
+  while read -r count name path; do
+    [[ -n "$name" ]] || continue
+    (( count >= min_crashes )) || continue
+    if printf '%s\n' "$recent_names" | grep -qxF -- "$name"; then
+      hot+="${hot:+, }${name} (${count}x)"
+    else
+      stale+="${stale:+, }${name} (${count}x)"
+    fi
+  done <<< "$window_grouped"
+
+  if [[ -n "$stale" ]]; then
+    log "  Recorrente porém sem crash nas últimas $(( recent_days * 24 )) h (provavelmente já resolvido): ${stale}"
+  fi
+
+  if [[ -z "$hot" ]]; then
+    log "  Nenhum programa com crash recorrente ativo."
+    return 0
+  fi
+
+  log "  Crash recorrente ativo (>= ${min_crashes}x em ${window_days} dias, com ocorrência recente):"
+  log "    ${hot}"
+  log "  Investigue com: coredumpctl info <PID> e coredumpctl debug <PID>."
+  log "  Crash repetido de app de usuário costuma ser bug do app; se for serviço, verifique também o Doctor de units falhadas."
+
+  STEP_REASON="crash recorrente: ${hot}"
+  return "$RC_TODO"
+}
+
+
 # Verdadeiro quando um HSI:1 é causado somente pelo atributo introduzido no
 # fwupd 2.1.7 para lock de MTD, mas o firmware/hardware não fornece os dados
 # necessários. Isso é uma lacuna de medição ("not-supported"/"missing-data"),

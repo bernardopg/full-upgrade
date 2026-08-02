@@ -643,6 +643,7 @@ run_all_steps() {
     run_step "Doctor: units systemd falhadas" doctor_failed_systemd_units
     run_step "Doctor: configuração paru Devel" doctor_paru_devel_mode
     run_step "Doctor: journal erros críticos" doctor_journal_errors
+    run_step "Doctor: crashes recorrentes (coredump)" doctor_recurrent_coredumps
     run_step "Doctor: fwupd security" doctor_fwupd_security
     run_step "Doctor: Flatpak repair dry-run" doctor_flatpak_repair_dry_run
     run_step "Doctor: saúde de disco" doctor_disk_health

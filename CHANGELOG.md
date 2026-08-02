@@ -3,6 +3,20 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **`Doctor: crashes recorrentes (coredump)`.** Um programa que quebra várias
+  vezes por semana é bug, mas isso não aparecia em lugar nenhum: o Doctor de
+  journal lista `dumped core` como uma assinatura entre outras, só do boot
+  atual e sem agregar por programa, então 11 SIGSEGVs do mesmo binário passavam
+  como nota informativa. O step novo agrupa `coredumpctl list` dos últimos 14
+  dias por programa e devolve `todo` para quem quebrou 3+ vezes **e** voltou a
+  quebrar nas últimas 48 h — sem a segunda condição, um crash já corrigido
+  manteria o step em `todo` por duas semanas. O agrupamento usa o nome do
+  executável, não o caminho: AppImage extrai para
+  `/tmp/appimage_extracted_<hash>/` a cada execução, e por caminho a recorrência
+  viraria N ocorrências únicas. Não depende do core file existir no disco (os
+  metadados ficam no journal mesmo após vacuum ou `Storage=none`).
 
 ## [3.31.1] - 2026-07-28
 ### Corrigido
