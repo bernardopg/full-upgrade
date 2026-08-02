@@ -269,7 +269,7 @@ elif kind == "codex":
 # upgrade conduzido por agente: a própria sessão (Claude/Codex) mantém o serena
 # uvx vivo, segurando o lock. Não é falha — apenas adiamento. Puro/testável.
 mcp_uv_lock_busy() {
-  printf '%s' "$1" | grep -qiE 'lock|in[ -]?use|another uv process|timeout'
+  grep -qiE 'lock|in[ -]?use|another uv process|timeout' <<<"$1"
 }
 
 # K1 — step mutating (gated MCP_AUTO_UPDATE=1): refresca os servidores MCP cujo

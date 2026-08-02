@@ -67,7 +67,7 @@ update_omz() {
     | log_out || true
 
   # Rede fora (GitHub inacessível) é transitório — warn, não fail (contrato RC).
-  if (( rc != 0 )) && printf '%s\n' "$output" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+  if (( rc != 0 )) && grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$output"; then
     log "  Falha de rede ao atualizar Oh My Zsh — aviso, não erro."
     STEP_REASON="rede indisponível durante omz update"
     return "$RC_WARN"
@@ -96,7 +96,7 @@ update_omz_custom_plugins() {
     if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para plugin ${plugin}"
-      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
+      grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
       failed+=("$plugin")
       continue
     fi
@@ -150,7 +150,7 @@ update_yazi_plugins() {
   log_raw "$output"
 
   if (( rc != 0 )); then
-    if printf '%s\n' "$output" | grep -q 'modified the contents'; then
+    if grep -q 'modified the contents' <<<"$output"; then
       log "  Plugin(s) com modificações locais — rode 'ya pkg upgrade --discard' manualmente."
       STEP_REASON="plugin(s) Yazi com modificações locais (--discard para sobrescrever)"
       return "$RC_TODO"

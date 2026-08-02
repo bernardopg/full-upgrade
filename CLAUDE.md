@@ -116,6 +116,7 @@ Coverage (`codecov.yml`): kcov measures only what `bats` executes; orchestration
 - All step functions return via the RC contract; never `exit` from inside a step.
 - Guard external tools with `has <cmd>` before calling; prefer letting `run_step`'s catalog-dep check produce the `skip`.
 - `set -uo pipefail` is active (no `-e`) — check return codes explicitly.
+- **Never write `producer | grep -q PATTERN`.** `grep -q` exits at the first match, the producer takes SIGPIPE, and `pipefail` turns the whole pipeline into 141 — so a matching pattern reads as "no match", silently. Use a herestring: `grep -q PATTERN <<<"$var"` (and `array_contains needle "${arr[@]}"` for membership). This shipped as a real bug in v3.32.0 (`Doctor: TRIM de SSD` claimed a machine with `discard=async` had no TRIM). `tests/shell_hygiene.bats` fails the build if the pipeline form comes back.
 - Comments and user-facing strings are PT-BR; keep that voice when editing.
 - `build.sh` inlines all libs into one file — anything relying on separate file paths at runtime (beyond root resolution) will break the standalone build, so test `./build.sh && ./dist/full-upgrade-standalone.sh --list-steps` after structural changes. The systray can run from standalone, but icons are external assets; it falls back to hicolor/theme lookup if no `icons/` directory is beside the script.
 - Commits use **Conventional Commits** (`feat:`, `fix:`, `ci:`, …), enforced by commitlint on PRs (`.commitlintrc.json`). This keeps the auto-generated release notes clean.

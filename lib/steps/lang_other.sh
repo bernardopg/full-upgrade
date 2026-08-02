@@ -88,7 +88,7 @@ update_dotnet_tools() {
     log_raw "$_out"
     if (( _rc == 0 )); then
       printf '%s\n' "$_out" | grep -v '^$' | log_out || true
-    elif printf '%s\n' "$_out" | grep -qi "is already the latest version\|já está na versão mais recente\|No packages installed were updated\|No se actualizaron"; then
+    elif grep -qi "is already the latest version\|já está na versão mais recente\|No packages installed were updated\|No se actualizaron" <<<"$_out"; then
       log "  ${tool}: já na versão mais recente."
     else
       log "  ERRO ao atualizar ${tool}:"

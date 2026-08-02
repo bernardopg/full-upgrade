@@ -18,7 +18,7 @@ fwupdmgr_has_updates() {
 # fwupdmgr_is_network_error — detecta erro de rede transitório no output
 fwupdmgr_is_network_error() {
   local output="$1"
-  printf '%s\n' "$output" | grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
+  grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect' <<<"$output"
 }
 
 # bootctl_is_installed — verifica se systemd-boot está instalado no ESP
@@ -30,5 +30,5 @@ bootctl_is_installed() {
 # bootctl_update_already_applied — detecta "já atualizado" no output
 bootctl_update_already_applied() {
   local output="$1"
-  printf '%s\n' "$output" | grep -q 'same boot loader version in place already'
+  grep -q 'same boot loader version in place already' <<<"$output"
 }

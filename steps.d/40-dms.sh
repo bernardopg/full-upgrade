@@ -34,7 +34,7 @@ update_dms_plugins() {
     if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para DMS plugin ${plugin}"
-      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
+      grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
       failed+=("$plugin")
       continue
     fi
@@ -100,7 +100,7 @@ update_dms_plugins() {
     if ! fetch_err="$(git -C "$repo_dir" fetch --quiet origin 2>&1)"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para monorepo DMS ${repo_name}"
-      printf '%s\n' "$fetch_err" | grep -qiE "$NETWORK_TRANSIENT_RE" && net_fail=1
+      grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
       failed+=(".repos/${repo_name}")
       continue
     fi

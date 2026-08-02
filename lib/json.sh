@@ -126,7 +126,7 @@ update_latest_links() {
 # report não filtravam de jeito nenhum.
 jsonl_is_dry_run() {
   [[ -r "${1:-}" ]] || return 1
-  grep -m1 '"event":"run_start"' "$1" 2>/dev/null | grep -q '"dry_run":true'
+  grep -q '"dry_run":true' <<<"$(grep -m1 '"event":"run_start"' "$1" 2>/dev/null)"
 }
 
 # Extrai o RUN_ID (AAAAMMDD-HHMMSS-PID) embutido no nome de um artefato por-run.
@@ -221,7 +221,7 @@ resume_latest_real_jsonl() {
   local f
   while IFS= read -r f; do
     [[ -r "$f" ]] || continue
-    if grep -m1 '"event":"run_start"' "$f" 2>/dev/null | grep -q '"dry_run":false'; then
+    if grep -q '"dry_run":false' <<<"$(grep -m1 '"event":"run_start"' "$f" 2>/dev/null)"; then
       printf '%s\n' "$f"
       return 0
     fi

@@ -95,9 +95,22 @@ EOF'
 }
 
 @test "remediation: imprime padrão reproduzível" {
+  QUIET=0
   run remediation "sudo pacman -Syu"
   [ "$status" -eq 0 ]
   [ "$output" = "  Remediação: sudo pacman -Syu" ]
+}
+
+@test "remediation: grava no LOG_FILE e respeita --quiet" {
+  # Regressão: com `printf` cru a dica nunca chegava ao log (justo a parte que o
+  # usuário relê depois) e ainda era impressa sob --quiet.
+  local logf="${BATS_TEST_TMPDIR}/rem.log"
+  : >"$logf"
+  LOG_FILE="$logf" QUIET=1
+  run remediation "sudo systemctl enable --now fstrim.timer"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  grep -q 'Remediação: sudo systemctl enable --now fstrim.timer' "$logf"
 }
 
 @test "resume_pending_steps: extrai só warn/todo/fail, em ordem, sem duplicar (L2)" {

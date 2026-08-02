@@ -73,7 +73,7 @@ update_bootctl() {
   rc=$?
   printf '%s\n' "$output" | log_stream
   # rc=1 quando já atualizado ("same boot loader version in place already") — tratar como ok
-  if (( rc == 1 )) && printf '%s\n' "$output" | grep -q 'same boot loader version'; then
+  if (( rc == 1 )) && grep -q 'same boot loader version' <<<"$output"; then
     log "  systemd-boot: já atualizado."
     return 0
   fi

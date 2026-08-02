@@ -6,7 +6,7 @@
 # Verdadeiro (rc 0) se a saída de `hermes update --check` indica que já está
 # atualizado. Puro/testável. Qualquer outra coisa => há update (não pula).
 hermes_is_current() {
-  printf '%s' "$1" | grep -qiE 'already up.to.date|up to date|no updates? available|nenhuma atualiza'
+  grep -qiE 'already up.to.date|up to date|no updates? available|nenhuma atualiza' <<<"$1"
 }
 
 update_hermes() {

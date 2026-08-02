@@ -48,7 +48,7 @@ update_droid() {
     log "  Não foi possível verificar atualização do droid (rede/Factory indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check"; then
     log "  droid já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -351,7 +351,7 @@ update_zap() {
   out="$(run_network_cmd "$zap_cmd" -cmd -port "$port" -addonupdate 2>&1)"; rc=$?
   log_raw "$out"
 
-  if printf '%s' "$out" | grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza'; then
+  if grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza' <<<"$out"; then
     log "  Add-ons do ZAP atualizados (core ${core:-?})."
     return "$core_rc"
   fi
@@ -492,7 +492,7 @@ _selfupdate_check_apply() {
   fi
   local check_latest
   check_latest="$(printf '%s' "$check" | sed -nE 's/.*latest:[[:space:]]*v?([0-9]+(\.[0-9]+){1,3}).*/\1/p' | head -1)"
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' \
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check" \
     || [[ -n "$current" && -n "$check_latest" && "$current" == "$check_latest" ]]; then
     log "  ${label} já está na versão mais recente (${current:-?})."
     return 0
@@ -604,7 +604,7 @@ update_kimchi() {
     log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
     return "$RC_WARN"
   fi
-  if printf '%s' "$check" | grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza'; then
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check"; then
     log "  kimchi já está na versão mais recente (${current:-?})."
     return 0
   fi
@@ -641,7 +641,7 @@ update_cua_driver() {
     return "$RC_WARN"
   fi
 
-  if printf '%s' "$check" | grep -qiE '"update_available"[[:space:]]*:[[:space:]]*true'; then
+  if grep -qiE '"update_available"[[:space:]]*:[[:space:]]*true' <<<"$check"; then
     log "  Atualizando cua-driver…"
     if ! run_network_cmd cua-driver update --apply; then
       log "  Falha ao atualizar o cua-driver."

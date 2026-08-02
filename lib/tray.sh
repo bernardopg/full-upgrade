@@ -701,7 +701,7 @@ tray_systemd_unit_status() {
   rc=$?
   if (( rc == 0 )); then
     printf '%s (ativa)' "$label"
-  elif printf '%s\n' "$status" | grep -qiE 'failed to connect|operation not permitted|permission denied|no medium|no such file or directory'; then
+  elif grep -qiE 'failed to connect|operation not permitted|permission denied|no medium|no such file or directory' <<<"$status"; then
     printf '%s (estado indisponível)' "$label"
   else
     printf '%s (inativa)' "$label"

@@ -276,7 +276,7 @@ for name in sorted(data.keys()):
     IFS=$'\t' read -r pkg latest <<<"$entry"
     [[ -n "$pkg" ]] || continue
 
-    if printf '%s\n' "${linked_pkgs[@]}" | grep -qx "$pkg"; then
+    if array_contains "$pkg" "${linked_pkgs[@]}"; then
       log "  Pulando pacote instalado localmente via link: ${pkg} (gerencie manualmente)"
       skipped+=("$pkg")
       continue
@@ -398,7 +398,7 @@ update_pnpm_self() {
   log_raw "$output"
 
   # "newer than latest" = pnpm à frente do registry — não é falha
-  if printf '%s\n' "$output" | grep -q 'newer than'; then
+  if grep -q 'newer than' <<<"$output"; then
     log "  pnpm ${installed} (à frente do registry latest=${latest}) — ok."
     return 0
   fi
@@ -434,7 +434,8 @@ update_pnpm_self() {
 
   printf '%s\n' "$output" | grep -v '^$' | tail -20 | log_out || true
   printf '%s\n' "$fallback" | grep -v '^$' | tail -20 | log_out || true
-  if printf '%s\n%s\n' "$output" "$fallback" | grep -qiE "$NETWORK_TRANSIENT_RE"; then
+  local _both="${output}"$'\n'"${fallback}"
+  if grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$_both"; then
     return "$RC_WARN"
   fi
   (( fallback_rc != 0 )) && return "$fallback_rc"
@@ -514,7 +515,7 @@ update_bun() {
   output="$(bun upgrade 2>&1)"
   rc=$?
   log_raw "$output"
-  if printf '%s\n' "$output" | grep -qiE "already on the latest|congrats|you're on the latest"; then
+  if grep -qiE "already on the latest|congrats|you're on the latest" <<<"$output"; then
     log "  bun já na versão mais recente."
     return 0
   fi
@@ -539,7 +540,7 @@ update_deno() {
   output="$(deno upgrade 2>&1)"
   rc=$?
   log_raw "$output"
-  if printf '%s\n' "$output" | grep -qiE "already.*latest|is the most recent|up to date"; then
+  if grep -qiE "already.*latest|is the most recent|up to date" <<<"$output"; then
     log "  deno já na versão mais recente."
     return 0
   fi

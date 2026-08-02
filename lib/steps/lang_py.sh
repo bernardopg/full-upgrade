@@ -133,7 +133,7 @@ update_pipx() {
   log_raw "$output"
 
   # "No packages upgraded" = nada a fazer — substituir por msg limpa em pt-BR
-  if printf '%s\n' "$output" | grep -q 'No packages upgraded'; then
+  if grep -q 'No packages upgraded' <<<"$output"; then
     log "  pipx: todos os pacotes já atualizados."
     return "$rc"
   fi
@@ -191,7 +191,7 @@ update_uv_python() {
     # ver = cpython-3.13.12-linux-x86_64-gnu  →  3.13
     minor="$(printf '%s' "$ver" | sed -nE 's/.*cpython-([0-9]+\.[0-9]+).*/\1/p')"
     [[ -n "$minor" ]] || continue
-    if ! printf '%s\n' "${seen_minors[@]}" | grep -qx "$minor"; then
+    if ! array_contains "$minor" "${seen_minors[@]}"; then
       seen_minors+=("$minor")
       minor_versions+=("$minor")
     fi
