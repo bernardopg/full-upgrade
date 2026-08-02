@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.32.1] - 2026-08-02
 ### Corrigido
 
 - **`Doctor: TRIM de SSD` acusava "SSD sem TRIM" em máquina com TRIM ativo.**
