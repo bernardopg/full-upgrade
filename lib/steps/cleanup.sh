@@ -367,6 +367,92 @@ final_check_pending() {
 }
 
 
+# Conta linhas não vazias. Evita `wc -l` sobre string vazia contar 1.
+_count_lines() {
+  local text="$1"
+  [[ -n "${text//[[:space:]]/}" ]] || { printf '0'; return 0; }
+  grep -c '[^[:space:]]' <<< "$text"
+}
+
+
+# Espelho de final_check_pending para os gerenciadores de linguagem: pacman/AUR
+# já tinham conferência final, os demais não — um update que falhou no meio do
+# run terminava silencioso. Só entram gerenciadores com consulta de "outdated"
+# barata e read-only; pipx, uv tool e go não expõem nenhuma (não há --dry-run),
+# então ficam de fora em vez de virar ruído ou consulta cara.
+final_check_managers() {
+  local -a pending=()
+  local out count
+
+  if has npm && npm_global_writable; then
+    out="$(npm outdated -g --depth=0 --parseable 2>/dev/null || true)"
+    count="$(_count_lines "$out")"
+    if (( count > 0 )); then
+      pending+=("npm global (${count})")
+      log "  npm global ainda com ${count} pacote(s) desatualizado(s):"
+      log_stream <<< "$out"
+      remediation "npm update -g"
+    fi
+  fi
+
+  if has pnpm; then
+    out="$(pnpm -g outdated --format list 2>/dev/null || true)"
+    count="$(_count_lines "$out")"
+    if (( count > 0 )); then
+      pending+=("pnpm global")
+      log "  pnpm global ainda com pacote(s) desatualizado(s):"
+      log_stream <<< "$out"
+      remediation "pnpm -g update"
+    fi
+  fi
+
+  if has cargo-install-update; then
+    out="$(cargo install-update -l 2>/dev/null | awk '$NF == "Yes" { print $1 }' || true)"
+    count="$(_count_lines "$out")"
+    if (( count > 0 )); then
+      pending+=("cargo (${count})")
+      log "  Binários cargo ainda desatualizados: $(tr '\n' ' ' <<< "$out")"
+      remediation "cargo install-update -a"
+    fi
+  fi
+
+  if has gem; then
+    local gem_outdated gem_arch
+    gem_outdated="$(mktemp)"
+    gem_arch="$(mktemp)"
+    gem outdated 2>/dev/null > "$gem_outdated" || true
+    gem list 2>/dev/null > "$gem_arch" || true
+    out="$(gem_user_updatable "$gem_outdated" "$gem_arch")"
+    rm -f "$gem_outdated" "$gem_arch"
+    count="$(_count_lines "$out")"
+    if (( count > 0 )); then
+      pending+=("gem (${count})")
+      log "  Gems de usuário ainda desatualizadas: $(tr '\n' ' ' <<< "$out")"
+      remediation "gem update --user-install"
+    fi
+  fi
+
+  if has flatpak; then
+    out="$(flatpak remote-ls --updates --columns=application 2>/dev/null || true)"
+    count="$(_count_lines "$out")"
+    if (( count > 0 )); then
+      pending+=("flatpak (${count})")
+      log "  Flatpak ainda com ${count} atualização(ões) pendente(s):"
+      log_stream <<< "$out"
+      remediation "flatpak update"
+    fi
+  fi
+
+  if (( ${#pending[@]} == 0 )); then
+    log "  Nenhuma pendência nos gerenciadores de linguagem verificados (npm, pnpm, cargo, gem, flatpak)."
+    return 0
+  fi
+
+  STEP_REASON="pendências após update: ${pending[*]}"
+  return "$RC_TODO"
+}
+
+
 # Auto-remediação das pendências detectadas por final_check_pending: aplica
 # `pacman -Syu` para pendências oficiais acionáveis (e um retry de `paru -Syu`
 # para AUR, se houver). Step separado com efeito=mutating para preservar a

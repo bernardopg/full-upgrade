@@ -345,6 +345,17 @@ snapshots manuais/de outras origens.
   para `poetry-core`, o update genérico de `pip --user` adiciona `poetry-core`
   ao ignore efetivo. Isso evita o ping-pong de versão entre o step de pip e o
   step de Poetry.
+- **Verificação final por gerenciador:** além de reconferir `pacman`/AUR, o run
+  reconsulta `npm` global, `pnpm` global, `cargo`, gems de usuário e Flatpak
+  depois dos steps de update, para que um update que falhou no meio do run não
+  termine silencioso. Sobrou pendência → `todo` com a contagem por gerenciador e
+  o comando de remediação. `pipx`, `uv tool` e `go` ficam de fora porque não
+  expõem consulta de "outdated" sem executar o upgrade.
+- **Plugins de shell com histórico reescrito:** um force-push no repositório do
+  plugin deixa o clone divergente e derruba `git pull --ff-only`. Com a árvore
+  limpa, o clone é realinhado em `origin/HEAD` e o HEAD anterior fica guardado em
+  `refs/full-upgrade/pre-realign/<timestamp>`. Plugin com modificação local não é
+  tocado e vira `todo`, nunca `fail`.
 - **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
   `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
   compartilham um único bloco **Shell / Editor**. Cada grupo mostra tempo total,
@@ -361,7 +372,7 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; scopes transitórios `app-*.scope` já encerrados são informativos e autorreparados no modo completo. |
 | Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
 | Crashes recorrentes | Coredumps dos últimos 14 dias agrupados por programa; vira `todo` no programa que quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h (crash isolado ou já resolvido fica informativo). |
-| Firmware | Resultado de `fwupdmgr security`. |
+| Firmware | Nível HSI de `fwupdmgr security`, resumido: o terminal recebe a contagem de atributos ✔ e a lista dos ✘ sem suporte no hardware; a tabela completa fica no arquivo de log. |
 | Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |
 | Disco | Uso de espaço e inodes em mounts essenciais. |
 | Boot | Estado do systemd-boot, kernel/initrd e espaço no ESP. |

@@ -630,6 +630,21 @@ doctor_recurrent_coredumps() {
 }
 
 
+# Nomes dos atributos ✘ da tabela do `fwupdmgr security`, um por linha e sem
+# repetição. Serve para resumir a tabela (~55 linhas) no terminal sem perder o
+# que é acionável. Ignora o bloco de histórico no fim da saída (linhas
+# prefixadas por data): ele também usa ✘, mas descreve eventos passados, não
+# atributos do host. Puro/testável.
+fwupd_security_failed_attrs() {
+  local output="$1"
+  printf '%s\n' "$output" \
+    | grep '✘' \
+    | grep -vE '^[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' \
+    | sed -E 's/.*✘[[:space:]]*//; s/:.*$//; s/[[:space:]]+$//' \
+    | awk 'NF && !seen[$0]++'
+}
+
+
 # Verdadeiro quando um HSI:1 é causado somente pelo atributo introduzido no
 # fwupd 2.1.7 para lock de MTD, mas o firmware/hardware não fornece os dados
 # necessários. Isso é uma lacuna de medição ("not-supported"/"missing-data"),
@@ -671,7 +686,18 @@ doctor_fwupd_security() {
     return "$RC_WARN"
   fi
 
-  printf '%s\n' "$output" | grep -v '^$' | log_out || true
+  # A tabela completa já foi para o arquivo via log_raw acima. Repeti-la no
+  # terminal custava ~50 linhas por run, quase todas atributos ✔ sem ação
+  # possível — o sinal (nível HSI + itens ✘) sai resumido abaixo.
+  local attr_ok failed_attrs
+  attr_ok="$(grep -c '✔' <<<"$output" || true)"
+  failed_attrs="$(fwupd_security_failed_attrs "$output")"
+  log "  fwupd security: ${attr_ok} atributo(s) ✔ (tabela completa no log)."
+  if [[ -n "$failed_attrs" ]]; then
+    # `paste -d', '` trataria , e espaço como delimitadores alternados; o join
+    # tem que ser feito com um separador só.
+    log "  Sem suporte neste hardware: $(paste -sd',' - <<<"$failed_attrs" | sed 's/,/, /g')"
+  fi
 
   # O nível HSI agregado (0–4) é o sinal de verdade. O sufixo "!" indica apenas
   # que há medições de runtime presentes (HSI-Runtime), não insegurança. E os

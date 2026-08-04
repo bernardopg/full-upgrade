@@ -76,6 +76,28 @@ update_omz() {
 }
 
 
+# Um `pull --ff-only` falha por dois motivos bem diferentes: o upstream
+# reescreveu o histórico (force-push, comum em plugins de um mantenedor só) ou
+# há trabalho local no clone. Só o segundo exige decisão do usuário. Com a
+# árvore limpa, o clone é descartável: guarda o HEAD antigo numa ref de resgate
+# e realinha em origin/HEAD.
+plugin_realign_to_upstream() {
+  local dir="$1" plugin="$2" old_head rescue
+
+  [[ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ]] || return 1
+
+  old_head="$(git -C "$dir" rev-parse HEAD 2>/dev/null)" || return 1
+  rescue="refs/full-upgrade/pre-realign/$(date +%Y%m%d-%H%M%S)"
+  git -C "$dir" update-ref "$rescue" "$old_head" 2>>"$LOG_FILE" || return 1
+
+  # origin/HEAD já veio do fetch feito pelo chamador.
+  git -C "$dir" reset --hard --quiet origin/HEAD 2>>"$LOG_FILE" || return 1
+
+  log "  ${plugin}: histórico reescrito pelo upstream — realinhado em origin/HEAD (HEAD anterior ${old_head:0:7} salvo em ${rescue})."
+  return 0
+}
+
+
 update_omz_custom_plugins() {
   local zsh_dir="${ZSH:-$HOME/.oh-my-zsh}"
   local plugins_dir="${zsh_dir}/custom/plugins"
@@ -85,7 +107,7 @@ update_omz_custom_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=()
+  local -a updated=() failed=() skipped=() dirty=()
   local plugin dir behind fetch_err net_fail=0
 
   for dir in "$plugins_dir"/*/; do
@@ -111,9 +133,11 @@ update_omz_custom_plugins() {
     if git -C "$dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
       updated+=("$plugin")
       log "  ${plugin}: atualizado."
+    elif plugin_realign_to_upstream "$dir" "$plugin"; then
+      updated+=("$plugin")
     else
-      log "  Aviso: pull falhou para plugin ${plugin} (possível conflito local)."
-      failed+=("$plugin")
+      log "  Aviso: pull falhou para plugin ${plugin} (modificações locais)."
+      dirty+=("$plugin")
     fi
   done
 
@@ -127,6 +151,12 @@ update_omz_custom_plugins() {
       return "$RC_WARN"
     fi
     return 1
+  fi
+  # Modificações locais não são erro do run: exigem decisão de quem editou.
+  if (( ${#dirty[@]} > 0 )); then
+    log "  Plugins com modificações locais (resolva manualmente): ${dirty[*]}"
+    STEP_REASON="plugin(s) com modificações locais: ${dirty[*]}"
+    return "$RC_TODO"
   fi
   return 0
 }
