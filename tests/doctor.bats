@@ -33,6 +33,39 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+# ── resumo da tabela de security (evita despejar ~55 linhas no terminal) ─────
+
+@test "fwupd_security_failed_attrs: extrai o nome do atributo, sem o valor" {
+  local out=$'HSI-2\n✘ Locked MTD:                    Não suportado\n✔ IOMMU: Habilitado'
+  run fwupd_security_failed_attrs "$out"
+  [ "$output" = "Locked MTD" ]
+}
+
+@test "fwupd_security_failed_attrs: atributo repetido aparece uma vez só" {
+  local out=$'✘ Locked MTD: Não suportado\n✘ Locked MTD: Não suportado'
+  run fwupd_security_failed_attrs "$out"
+  [ "$output" = "Locked MTD" ]
+}
+
+@test "fwupd_security_failed_attrs: ignora o bloco de histórico com data" {
+  local out=$'✘ RAM criptografada: Não suportado\n2026-03-13 18:11:41:  ✘ Kernel está contaminado'
+  run fwupd_security_failed_attrs "$out"
+  [ "$output" = "RAM criptografada" ]
+}
+
+@test "fwupd_security_failed_attrs: tabela sem ✘ devolve vazio" {
+  local out=$'HSI-1\n✔ TPM v2.0: Encontrado\n✔ IOMMU: Habilitado'
+  run fwupd_security_failed_attrs "$out"
+  [ -z "$output" ]
+}
+
+@test "fwupd_security_failed_attrs: escapes ANSI não vazam para o nome" {
+  local out
+  out=$'\e[1mHSI-2\e[0m\n✘ Secure boot de UEFI:  \e[31m\e[1mDesabilitado\e[0m'
+  run fwupd_security_failed_attrs "$out"
+  [ "$output" = "Secure boot de UEFI" ]
+}
+
 @test "systemd_running_version: extrai versão Arch completa do parêntese" {
   run systemd_running_version "systemd 261 (261-1-arch)"
   [ "$status" -eq 0 ]

@@ -103,6 +103,7 @@ Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30|
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
 Limpar logs/relatórios antigos|cleanup|logs,reports,mutating|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
 Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
+Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,read,network|read|180||final_check_managers|Confere se sobrou update pendente nos gerenciadores de linguagem (npm/pnpm global, cargo, gem, flatpak) depois dos steps de update.
 Auto-remediar pendências finais|final|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
 Checar atualização do full-upgrade|final|self-update,read,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
 Doctor: reboot pendente|doctor|kernel,read|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.

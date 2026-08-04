@@ -3,6 +3,32 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **`Verificação final de gerenciadores`.** A verificação final cobria só
+  pacman/AUR: um update de npm/pnpm/cargo/gem/flatpak que falhasse no meio do
+  run terminava silencioso. O novo step (categoria `final`, read-only) reconsulta
+  esses gerenciadores depois dos steps de update e devolve `todo` com a lista do
+  que sobrou. Ficam de fora pipx, uv tool e go, que não expõem consulta de
+  "outdated" sem executar o upgrade.
+
+### Alterado
+
+- **`Doctor: fwupd security` deixou de repetir a tabela HSI no terminal.** A
+  tabela inteira (~55 linhas, quase toda de atributos ✔ sem ação possível) já ia
+  para o arquivo de log via `log_raw`; agora o terminal recebe só a contagem de
+  ✔ e a lista dos atributos ✘ sem suporte no hardware. O bloco de histórico do
+  fwupd (linhas com data, que também usam ✘) não é mais confundido com atributo.
+
+### Corrigido
+
+- **`Atualizar plugins customizados do Zsh` falhava quando o upstream reescrevia
+  o histórico.** Um force-push no repositório do plugin (comum em projetos de um
+  mantenedor só) deixava o clone divergente e o `git pull --ff-only` abortava com
+  `Not possible to fast-forward`, derrubando o step inteiro para `fail`. Agora,
+  com a árvore limpa, o clone é realinhado em `origin/HEAD` — o HEAD anterior
+  fica guardado em `refs/full-upgrade/pre-realign/<timestamp>`. Plugin com
+  modificação local não é tocado e vira `todo`, não `fail`.
 
 ## [3.32.1] - 2026-08-02
 ### Corrigido

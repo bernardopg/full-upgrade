@@ -638,6 +638,7 @@ run_all_steps() {
     fi
 
     run_step "Verificação final de pendências" final_check_pending
+    run_step "Verificação final de gerenciadores" final_check_managers
     run_step "Checar atualização do full-upgrade" self_update_notice
     run_step "Doctor: reboot pendente" doctor_reboot_pending
     run_step "Doctor: units systemd falhadas" doctor_failed_systemd_units
