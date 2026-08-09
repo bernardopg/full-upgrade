@@ -126,6 +126,61 @@ setup() {
   [ "$output" = "[]" ]
 }
 
+# ── news_records_json / write_news_json (Q3) ──────────────────────────────
+
+@test "news_records_json: serializa action e info" {
+  local recs
+  recs="$(printf '2025-06-21|action|linux-firmware requires manual intervention|https://archlinux.org/news/a/\n2024-06-19|info|Plasma 6.1 is now available|https://archlinux.org/news/b/\n')"
+  run news_records_json < <(printf '%s\n' '2025-06-21|action|linux-firmware requires manual intervention|https://archlinux.org/news/a/' '2024-06-19|info|Plasma 6.1 is now available|https://archlinux.org/news/b/')
+  [ "$status" -eq 0 ]
+  [[ "$output" == '[{"kind":"action","date":"2025-06-21","title":"linux-firmware requires manual intervention","link":"https://archlinux.org/news/a/"},{"kind":"info","date":"2024-06-19","title":"Plasma 6.1 is now available","link":"https://archlinux.org/news/b/"}]' ]]
+}
+
+@test "news_records_json: registros vazios viram array vazio" {
+  local empty; empty="$(mktemp)"
+  run news_records_json "$empty"
+  rm -f "$empty"
+  [ "$output" = "[]" ]
+}
+
+@test "write_news_json: no-op quando NEWS_RECORDS_FILE ausente ou vazio" {
+  NEWS_RECORDS_FILE="/caminho/que/nao/existe.news"
+  RUN_ID="x"
+  JSONL_FILE="$(mktemp)"
+  run write_news_json
+  [ "$status" -eq 0 ]
+  [ ! -s "$JSONL_FILE" ]
+  # arquivo existe mas vazio => também no-op
+  NEWS_RECORDS_FILE="$(mktemp)"
+  run write_news_json
+  [ "$status" -eq 0 ]
+  [ ! -s "$JSONL_FILE" ]
+  rm -f "$JSONL_FILE" "$NEWS_RECORDS_FILE"
+}
+
+@test "write_news_json: emite evento news válido com contagens e items" {
+  local tmp; tmp="$(mktemp -d)"
+  NEWS_RECORDS_FILE="$tmp/full-upgrade-x.news"
+  RUN_ID="x"
+  JSONL_FILE="$tmp/full-upgrade-x.jsonl"
+  printf '%s\n' '2025-06-21|action|linux-firmware requires manual intervention|https://a/' '2024-06-19|info|Plasma 6.1 is now available|https://b/' > "$NEWS_RECORDS_FILE"
+  run write_news_json
+  [ "$status" -eq 0 ]
+  [ -s "$JSONL_FILE" ]
+  # Linha válida: parseia e checa contagens + itens.
+  python3 - "$JSONL_FILE" <<'PYEOF'
+import json, sys
+ev = json.loads(open(sys.argv[1]).read())
+assert ev["event"] == "news", ev
+assert ev["run_id"] == "x", ev
+assert ev["count"] == 2, ev
+assert ev["action_count"] == 1, ev
+assert [i["kind"] for i in ev["items"]] == ["action", "info"], ev
+print("OK")
+PYEOF
+  rm -rf "$tmp"
+}
+
 # ── jsonl_is_dry_run ──────────────────────────────────────────────────────────
 
 @test "jsonl_is_dry_run: reconhece dry-run e run real pelo run_start" {

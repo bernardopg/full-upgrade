@@ -51,10 +51,12 @@ Verificado em 2026-07-02: `journalctl -p 3 -b` sem `--su` roda como usuário
 assinaturas de apps de sessão (ZapZap, antigravity-ide) aparecem no scan
 padrão do doctor. Passada `--user` separada duplicaria linhas. Nada a fazer.
 
-#### Q3 — 🟢 P ☐ Notícias: fonte informativa no relatório .md
+#### Q3 — 🟢 P ☑ Notícias: fonte informativa no relatório .md
 
-Anexar as notícias novas exibidas ao relatório `REPORT_ON_FINISH` para
-histórico auditável (hoje só saem no terminal/log).
+Implementado (PR a seguir): o step `Checar notícias do Arch Linux` agora grava
+os itens novos em `full-upgrade-<run_id>.news` e um evento `news` no JSONL;
+o relatório Markdown (`REPORT_ON_FINISH` / `--report`) ganhou a seção
+"## Notícias do Arch" com data, tipo (intervenção/informativa) e título clicável.
 
 #### Q4 — 🟢 P ☐ Acompanhar upstream ZapZap (ex-P10)
 

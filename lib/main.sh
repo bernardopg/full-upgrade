@@ -74,6 +74,7 @@ run_all_steps() {
             run_step "Backup de configs críticas" backup_critical_configs
             run_step "Snapshot pré-upgrade" preupgrade_snapshot
             run_step "Checar notícias do Arch Linux" check_arch_news
+            write_news_json   # Q3: registra as notícias novas no JSONL p/ o relatório
             run_step "Atualizar mirrors" refresh_mirrors
             capture_installed_pkgs "$PKG_SNAP_BEFORE"   # L3: estado pré-upgrade
             run_step "Atualizar pacotes do sistema e AUR" update_system_aur

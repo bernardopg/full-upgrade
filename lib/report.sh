@@ -122,6 +122,36 @@ report_markdown_from_jsonl() {
       }
     }
 
+    # Q3 — seção "## Notícias do Arch" a partir do evento news. Cada item vira
+    # uma linha da tabela; o link vira Markdown clicável. Retorna 1 se a seção
+    # foi impressa (há ≥1 item com kind), 0 caso contrário (não imprime header
+    # órfão). Espelha emit_pkg_rows: split em "{" evita parser JSON aninhado.
+    function emit_news_section(line,   nchunks, chunks, i, k, nshown, d, t, l, tipo, row) {
+      nshown = 0
+      nchunks = split(line, chunks, /\{/)
+      for (i = 1; i <= nchunks; i++) if (json_str(chunks[i], "kind") != "") nshown++
+      if (nshown == 0) return 0
+      print "## Notícias do Arch"
+      print ""
+      printf "%d notícia(s) nova(s) desde a última checagem.\n", nshown
+      print ""
+      print "| Data | Tipo | Título |"
+      print "|------|------|--------|"
+      for (i = 1; i <= nchunks; i++) {
+        k = json_str(chunks[i], "kind")
+        if (k == "") continue
+        d = json_str(chunks[i], "date")
+        t = md_cell(json_str(chunks[i], "title"))
+        l = json_str(chunks[i], "link")
+        tipo = (k == "action") ? "intervenção" : "informativa"
+        if (l != "") row = "[" t "](" l ")"
+        else row = t
+        print "| " d " | " tipo " | " row " |"
+      }
+      print ""
+      return 1
+    }
+
     BEGIN {
       # Mesma ordem/rótulos/categorias de summary_group_specs (lib/ui.sh),
       # recebida em "groupspec" como "Label1|cats1;Label2|cats2;...".
@@ -155,6 +185,12 @@ report_markdown_from_jsonl() {
       pkg_ins = json_num($0, "installed")
       pkg_rem = json_num($0, "removed")
       pkg_line = $0
+      next
+    }
+    # Q3: notícias novas do Arch exibidas no run (contexto pré-upgrade).
+    /"event":"news"/ {
+      news_line = $0
+      has_news = 1
       next
     }
     /"event":"step"/ {
@@ -206,6 +242,10 @@ report_markdown_from_jsonl() {
       print "- **Resultado:** " s_ok " ok · " s_warn " warn · " s_todo " todo · " s_fail " fail · " s_skip " skip"
       if (log_file != "") print "- **Log:** `" log_file "`"
       print ""
+
+      # Q3: notícias novas do Arch exibidas no run — contexto pré-upgrade que
+      # explica por que o run seguiu certo caminho (intervenções manuais).
+      if (has_news) emit_news_section(news_line)
 
       # Steps agrupados na mesma ordem/rótulos do resumo do terminal — um
       # header + tabela por grupo (só os que têm step não-pulado), depois
