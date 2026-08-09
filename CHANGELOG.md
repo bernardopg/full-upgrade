@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.33.0] - 2026-08-09
 ### Adicionado
 
 - **Relatório Markdown passa a incluir as notícias novas do Arch.** As notícias
