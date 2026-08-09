@@ -397,6 +397,11 @@ final_check_managers() {
 
   if has pnpm; then
     out="$(pnpm -g outdated --format list 2>/dev/null || true)"
+    # pnpm v10 emite ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND no stdout (exit 0)
+    # quando o global não tem package.json — ou seja, "sem pacotes globais",
+    # não "desatualizado". update_pnpm_globals já trata esse caso (vira ok);
+    # a checagem final precisa casar para não gerar um falso positivo de todo.
+    out="$(grep -vE 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND|No global packages found|No package\.json' <<<"$out" || true)"
     count="$(_count_lines "$out")"
     if (( count > 0 )); then
       pending+=("pnpm global")
