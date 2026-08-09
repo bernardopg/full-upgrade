@@ -177,6 +177,46 @@ JSONL
   [[ "$output" != *"## Pacotes alterados"* ]]
 }
 
+# ── Notícias do Arch (Q3) ─────────────────────────────────────────────────────
+
+@test "report: seção de notícias lista itens com data, tipo e título clicável (Q3)" {
+  local f; f="$(mktemp)"
+  {
+    head -1 "$FIXTURE"
+    printf '%s\n' '{"event":"news","run_id":"20260613-142301-900745","count":2,"action_count":1,"items":[{"kind":"action","date":"2025-06-21","title":"linux-firmware requires manual intervention","link":"https://archlinux.org/news/a/"},{"kind":"info","date":"2024-06-19","title":"Plasma 6.1 is now available","link":"https://archlinux.org/news/b/"}]}'
+    tail -n +2 "$FIXTURE"
+  } > "$f"
+
+  run report_markdown_from_jsonl "$f"
+  rm -f "$f"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"## Notícias do Arch"* ]]
+  [[ "$output" == *"2 notícia(s) nova(s) desde a última checagem."* ]]
+  [[ "$output" == *"| 2025-06-21 | intervenção | [linux-firmware requires manual intervention](https://archlinux.org/news/a/) |"* ]]
+  [[ "$output" == *"| 2024-06-19 | informativa | [Plasma 6.1 is now available](https://archlinux.org/news/b/) |"* ]]
+}
+
+@test "report: notícia sem link aparece só com o título (Q3)" {
+  local f; f="$(mktemp)"
+  {
+    head -1 "$FIXTURE"
+    printf '%s\n' '{"event":"news","run_id":"x","count":1,"action_count":0,"items":[{"kind":"info","date":"2024-06-19","title":"Plasma 6.1 is now available","link":""}]}'
+    tail -n +2 "$FIXTURE"
+  } > "$f"
+
+  run report_markdown_from_jsonl "$f"
+  rm -f "$f"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"## Notícias do Arch"* ]]
+  [[ "$output" == *"| 2024-06-19 | informativa | Plasma 6.1 is now available |"* ]]
+}
+
+@test "report: run sem notícias não cria a seção (Q3)" {
+  run report_markdown_from_jsonl "$FIXTURE"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"## Notícias do Arch"* ]]
+}
+
 @test "report: relatório de dry-run avisa que nada foi executado" {
   local f; f="$(mktemp)"
   sed '1s/"pid":"900745"/"pid":"900745","dry_run":true/' "$FIXTURE" > "$f"

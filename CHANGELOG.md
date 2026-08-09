@@ -5,6 +5,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 ### Adicionado
 
+- **Relatório Markdown passa a incluir as notícias novas do Arch.** As notícias
+  (incluindo as com flag de intervenção manual) só apareciam no terminal/log do
+  run; o relatório `REPORT_ON_FINISH` e o `--report` agora trazem uma seção
+  "## Notícias do Arch" com data, tipo (intervenção/informativa) e título
+  clicável. O step `Checar notícias do Arch Linux` grava os itens em
+  `full-upgrade-<run_id>.news` (roda em subshell por timeout do catálogo, então
+  o dado vai a arquivo, como os snapshots de pacotes) e um novo evento `news`
+  no JSONL alimenta o parser do relatório.
+
 - **`Verificação final de gerenciadores`.** A verificação final cobria só
   pacman/AUR: um update de npm/pnpm/cargo/gem/flatpak que falhasse no meio do
   run terminava silencioso. O novo step (categoria `final`, read-only) reconsulta

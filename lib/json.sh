@@ -13,6 +13,10 @@ setup_logging() {
   SUDO_KEEPALIVE_PID_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.sudo-keepalive.pid"
   PKG_SNAP_BEFORE="${LOG_DIR}/full-upgrade-${RUN_ID}.pkgs-before"  # L3: snapshot pré-upgrade
   PKG_SNAP_AFTER="${LOG_DIR}/full-upgrade-${RUN_ID}.pkgs-after"    # L3: snapshot pós-run
+  # Q3: notícias novas do Arch exibidas no run, um registro "data|kind|título|link"
+  # por linha. O step de notícias roda em subshell (timeout do catálogo), então
+  # estado em variável NÃO propagaria ao pai — espelha o padrão dos snapshots.
+  NEWS_RECORDS_FILE="${LOG_DIR}/full-upgrade-${RUN_ID}.news"
   rotate_logs
   touch "$LOG_FILE" "$JSONL_FILE"
   update_latest_links
@@ -212,6 +216,43 @@ pkg_diff_json() {
     esac
   done <<< "$diff"
   printf ']'
+}
+
+# Q3 — converte registros de notícias ("data|kind|título|link", um por linha,
+# vindos de NEWS_RECORDS_FILE) num array JSON. Pura: lê de $1 (ou stdin), não
+# toca disco. Espelha pkg_diff_json (dados de domínio → JSON aqui, para manter
+# json_escape junto dos demais formatadores).
+news_records_json() {
+  local src="${1:-/dev/stdin}" date kind title link first=1
+  printf '['
+  while IFS='|' read -r date kind title link; do
+    [[ -n "$kind" ]] || continue
+    (( first )) || printf ','
+    first=0
+    printf '{"kind":%s,"date":%s,"title":%s,"link":%s}' \
+      "$(json_escape "$kind")" "$(json_escape "$date")" \
+      "$(json_escape "$title")" "$(json_escape "$link")"
+  done < "$src"
+  printf ']'
+}
+
+# Q3 — evento jsonl com as notícias novas do Arch exibidas no run. No-op se
+# NEWS_RECORDS_FILE estiver vazio/ausente (run sem novidades, --dry-run ou step
+# pulado). Espelha write_pkg_changes_json: lê o artefato do run e emite o evento
+# que o relatório consome.
+write_news_json() {
+  [[ -n "${NEWS_RECORDS_FILE:-}" && -s "$NEWS_RECORDS_FILE" ]] || return 0
+  local items
+  items="$(news_records_json "$NEWS_RECORDS_FILE")"
+  # Sem itens (arquivo só com linhas em branco): nada a registrar.
+  [[ "$items" == *'"kind"'* ]] || return 0
+  local action_count
+  action_count="$(grep -c '|action|' "$NEWS_RECORDS_FILE" 2>/dev/null || true)"
+  write_jsonl "$(
+    printf '{"event":"news","run_id":%s,"count":%d,"action_count":%d,"items":%s}\n' \
+      "$(json_escape "$RUN_ID")" "$(grep -c '|' "$NEWS_RECORDS_FILE" 2>/dev/null || true)" \
+      "$action_count" "$items"
+  )"
 }
 
 # L2 — jsonl mais recente de um run REAL (dry_run:false). Ignora dry-runs (que

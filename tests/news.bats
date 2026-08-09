@@ -97,6 +97,27 @@ EOF
   [[ "$output" == *"Sem notícias novas"* ]]
 }
 
+@test "check_arch_news: grava NEWS_RECORDS_FILE com registros data|kind|título|link (Q3)" {
+  local tmp="$BATS_TEST_TMPDIR"
+  ARCH_NEWS_SEEN_FILE="$tmp/seen"
+  NEWS_RECORDS_FILE="$tmp/full-upgrade-x.news"
+  mkdir -p "$tmp/bin"
+  _sample_feed > "$tmp/feed.xml"
+  cat > "$tmp/bin/curl" <<EOF
+#!/usr/bin/env bash
+cat "$tmp/feed.xml"
+EOF
+  chmod +x "$tmp/bin/curl"
+  PATH="$tmp/bin:$PATH"
+  QUIET=0
+  run check_arch_news
+  [ "$status" -eq "$RC_TODO" ]
+  [ -s "$NEWS_RECORDS_FILE" ]
+  # item action (mais novo) e info (mais velho) — ambos como registros.
+  grep -q '^2025-06-21|action|linux-firmware >= 20250613 requires manual intervention|https://archlinux.org/news/linux-firmware-2025/' "$NEWS_RECORDS_FILE"
+  grep -q '^2024-06-19|info|Plasma 6.1 is now available|https://archlinux.org/news/plasma-61/' "$NEWS_RECORDS_FILE"
+}
+
 @test "check_arch_news: feed vazio => RC_WARN" {
   local tmp="$BATS_TEST_TMPDIR"
   ARCH_NEWS_SEEN_FILE="$tmp/seen"

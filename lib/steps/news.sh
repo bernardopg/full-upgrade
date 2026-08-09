@@ -79,19 +79,24 @@ check_arch_news() {
   [[ "$last_seen" =~ ^[0-9]+$ ]] || last_seen=0
 
   local newest_epoch=0 fresh_count=0 action_count=0
-  local epoch title link kind
-  local -a action_lines=() info_lines=()
+  local epoch title link kind date_str
+  local -a action_lines=() info_lines=() report_records=()
   while IFS='|' read -r epoch title link; do
     [[ "$epoch" =~ ^[0-9]+$ ]] || continue
     (( epoch > newest_epoch )) && newest_epoch=$epoch
     (( epoch > last_seen )) || continue
     (( fresh_count++ ))
     kind="$(arch_news_classify "$title")"
+    date_str="$(date -d "@${epoch}" +%Y-%m-%d 2>/dev/null)"
+    # Q3: registro estruturado para o relatório (data|kind|título|link). O
+    # link vai para todo item — no terminal só o action mostra, mas no .md o
+    # link clicável é útil até para notícias informativas.
+    report_records+=("${date_str}|${kind}|${title}|${link}")
     if [[ "$kind" == action ]]; then
       (( action_count++ ))
-      action_lines+=("$(date -d "@${epoch}" +%Y-%m-%d 2>/dev/null)  ${title}  ${link}")
+      action_lines+=("${date_str}  ${title}  ${link}")
     else
-      info_lines+=("$(date -d "@${epoch}" +%Y-%m-%d 2>/dev/null)  ${title}")
+      info_lines+=("${date_str}  ${title}")
     fi
   done <<< "$parsed"
 
@@ -113,6 +118,14 @@ check_arch_news() {
   # Marca como visto: a notícia foi exibida; não reprisar a cada run.
   mkdir -p "$(dirname "$ARCH_NEWS_SEEN_FILE")" 2>/dev/null
   printf '%s\n' "$newest_epoch" > "$ARCH_NEWS_SEEN_FILE" 2>/dev/null
+
+  # Q3: persiste os registros para o relatório (.md). write_news_json (json.sh)
+  # lê este arquivo depois do step e emite o evento no JSONL. Roda em subshell
+  # (timeout do catálogo), então o dado tem que ir a arquivo, não a variável.
+  if [[ -n "${NEWS_RECORDS_FILE:-}" && ${#report_records[@]} -gt 0 ]]; then
+    : > "$NEWS_RECORDS_FILE" 2>/dev/null || true
+    printf '%s\n' "${report_records[@]}" >> "$NEWS_RECORDS_FILE" 2>/dev/null || true
+  fi
 
   if (( action_count > 0 )); then
     remediation "leia a(s) notícia(s) acima antes de prosseguir: https://archlinux.org/news/"
