@@ -116,3 +116,22 @@ stub() {
   [[ "$STEP_REASON" == *"npm global (1)"* ]]
   [[ "$STEP_REASON" == *"flatpak (1)"* ]]
 }
+
+@test "final_check_managers: pnpm global sem manifest não vira pendência (falso positivo)" {
+  # pnpm -g outdated emite ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND no stdout (exit 0)
+  # quando o global não tem package.json: significa "sem pacotes globais",
+  # não "desatualizado".
+  stub pnpm 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND No package.json was found in "/home/u/.local/share/pnpm/global/5".'
+
+  run final_check_managers
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"pnpm global"* ]]
+}
+
+@test "final_check_managers: pnpm global realmente desatualizado continua virando pendência" {
+  # Guarda de regressão: o filtro do manifest não pode engolir uma lista real.
+  stub pnpm "foo 1.0.0 -> 2.0.0"
+
+  final_check_managers || true
+  [[ "$STEP_REASON" == *"pnpm global"* ]]
+}

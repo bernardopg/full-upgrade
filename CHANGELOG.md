@@ -33,6 +33,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **`Atualizar pnpm (self)` falhava o run quando o pnpm é gerenciado pelo
+  corepack.** Instalado via corepack (shim `corepack/dist/pnpm.js`), o `pnpm
+  self-update` é recusado com `ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK` e o step
+  caía em `fail` duro (exit 2). Agora esse caso é detectado e vira `todo` com
+  remediação (`corepack use pnpm@latest`): o self-update e o fallback via
+  npm-global não se aplicam a pnpm corepack, é uma configuração legítima.
+
+- **`Verificação final de gerenciadores` reportava `pnpm global` desatualizado
+  por engano.** O `pnpm -g outdated` emite `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`
+  no stdout (exit 0) quando o global não tem `package.json` (sem pacotes
+  globais); a checagem final contava essa linha como pendência. Agora ela é
+  filtrada — `update_pnpm_globals` já tratava o caso como "sem pacotes", a
+  checagem final passou a casar.
+
 - **`Atualizar plugins customizados do Zsh` falhava quando o upstream reescrevia
   o histórico.** Um force-push no repositório do plugin (comum em projetos de um
   mantenedor só) deixava o clone divergente e o `git pull --ff-only` abortava com
