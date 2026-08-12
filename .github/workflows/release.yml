@@ -246,7 +246,8 @@ jobs:
     name: Publish to AUR
     needs: release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Margem para a espera de até 10min por janelas de manutenção do AUR.
+    timeout-minutes: 25
     # Publica tanto em push de tag v* quanto em workflow_dispatch manual, desde
     # que a tag informada exista no repositório. Requer os secrets AUR_* configurados.
     if: always() && needs.release.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v')))
@@ -300,6 +301,24 @@ jobs:
           # Substitui o placeholder SKIP pelo checksum real.
           sed -i -E "s/^sha256sums=.*/sha256sums=('${sum}')/" "$workdir/PKGBUILD"
           echo "--- PKGBUILD final ---"; cat "$workdir/PKGBUILD"
+
+      # O AUR entra em janelas de manutenção curtas que derrubam o push SSH com
+      # "The AUR is down due to maintenance". Sem esta espera, a release fica
+      # publicada no GitHub mas nunca chega ao AUR (ver runs 30730454179 e
+      # 31337731906). Aguardamos o serviço voltar antes de tentar publicar.
+      - name: Aguardar AUR ficar disponível
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            if git ls-remote https://aur.archlinux.org/full-upgrade.git >/dev/null 2>&1; then
+              echo "AUR disponível na tentativa ${i}."
+              exit 0
+            fi
+            echo "AUR indisponível (tentativa ${i}/20); aguardando 30s..."
+            sleep 30
+          done
+          echo "AUR permaneceu indisponível após 10 minutos; abortando publicação."
+          exit 1
 
       - name: Validar PKGBUILD e gerar .SRCINFO
         uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0

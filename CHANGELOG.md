@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Publicação no AUR falhava e deixava o pacote defasado.** As janelas curtas
+  de manutenção do AUR (`The AUR is down due to maintenance`) derrubavam o push
+  SSH do job `Publish to AUR` no `release.yml`, que não tinha retry. A release
+  saía no GitHub mas nunca chegava ao AUR — as versões 3.32.0, 3.32.1, 3.33.0 e
+  3.33.1 ficaram só no GitHub, com o AUR parado em 3.31.1-1. O job agora aguarda
+  o serviço responder (`git ls-remote`, até 20 tentativas de 30s) antes de
+  publicar, e o `timeout-minutes` subiu de 15 para 25 para acomodar a espera.
+
 ## [3.33.0] - 2026-08-09
 ### Adicionado
 
