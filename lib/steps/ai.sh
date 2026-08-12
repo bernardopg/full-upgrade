@@ -138,7 +138,9 @@ update_claude_code() {
 
   # Limpa o lixo de um run anterior interrompido antes de tentar de novo; sem
   # isso o updater nativo pula o download e o CLI nunca sai da versão velha.
-  claude_prune_partial_versions
+  # O diretório vai explícito (e não pelo default do parâmetro) para o step
+  # continuar legível sobre o que está varrendo.
+  claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
 
   local output rc
   output="$(claude update 2>&1)"
@@ -146,7 +148,7 @@ update_claude_code() {
   log_raw "$output"
   printf '%s\n' "$output" | grep -v '^$' | log_out || true
 
-  claude_prune_partial_versions
+  claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
 
   # Pós-condição barata: confere o symlink no filesystem em vez de executar o
   # binário de ~300 MB só para ler a versão. Se a varredura acima apagou o alvo,
