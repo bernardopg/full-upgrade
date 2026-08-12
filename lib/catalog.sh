@@ -64,7 +64,7 @@ Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK 
 Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
 Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
-Atualizar Claude Code CLI|ai|claude,update,network|mutating|120|claude|update_claude_code|Atualiza Claude Code CLI.
+Atualizar Claude Code CLI|ai|claude,update,network,slow|mutating|600|claude|update_claude_code|Atualiza Claude Code CLI (o instalador nativo baixa ~300 MB por release).
 Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.
 Atualizar Ollama|ai|ollama,update,network|mutating|600|ollama|update_ollama|Sob OLLAMA_SELF_UPDATE=1 reexecuta o instalador oficial do Ollama; senão só reporta a versão.
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.

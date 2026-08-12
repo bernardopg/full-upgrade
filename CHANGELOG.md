@@ -6,6 +6,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **`Atualizar Claude Code CLI` estourava o timeout e deixava o CLI travado na
+  versão antiga.** O instalador nativo baixa um binário de ~300 MB por release
+  para `~/.local/share/claude/versions/<versão>` e só então move o symlink
+  `~/.local/bin/claude`. Com o timeout de 120s do catálogo, o step era morto no
+  meio do download e sobrava um arquivo truncado (0 byte, sem bit de execução) —
+  que o updater passava a tratar como "versão já baixada", nunca retentando. O
+  resultado era um `warn` de timeout a cada run enquanto o `claude` seguia
+  parado na versão anterior indefinidamente. O timeout subiu para 600s (mesmo
+  patamar dos demais steps de download pesado) e o step agora varre binários
+  truncados antes e depois do update, além de validar que o symlink aponta para
+  um binário utilizável (senão reporta `warn` acionável em vez de silenciar).
+  O step também passou a ser marcado com a tag `slow`, então `--skip slow`
+  finalmente o cobre.
+
 - **Publicação no AUR falhava e deixava o pacote defasado.** As janelas curtas
   de manutenção do AUR (`The AUR is down due to maintenance`) derrubavam o push
   SSH do job `Publish to AUR` no `release.yml`, que não tinha retry. A release
