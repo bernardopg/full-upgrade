@@ -92,7 +92,12 @@ jobs:
               sys.exit(0)
           m = re.search(r'^## \[Unreleased\]\s*\n(.*?)(?=^## \[|\Z)', text, re.M | re.S)
           if not m or not m.group(1).strip():
-              print('Seção [Unreleased] vazia; CHANGELOG inalterado.')
+              # Não é erro fatal (releases só de bump existem), mas é quase sempre
+              # sinal de que as entradas foram gravadas na seção da versão anterior
+              # em vez de [Unreleased] — foi o que deixou a 3.33.1 sem seção própria.
+              print(f'::warning::Seção [Unreleased] vazia; a release {version} não terá'
+                    ' seção no CHANGELOG. Confira se as entradas não foram parar na'
+                    ' seção da versão anterior.')
               sys.exit(0)
           today = datetime.date.today().isoformat()
           heading = f'## [Unreleased]\n\n## [{version}] - {today}\n'

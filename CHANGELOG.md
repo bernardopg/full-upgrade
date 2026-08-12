@@ -14,6 +14,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   o serviço responder (`git ls-remote`, até 20 tentativas de 30s) antes de
   publicar, e o `timeout-minutes` subiu de 15 para 25 para acomodar a espera.
 
+## [3.33.1] - 2026-08-09
+### Corrigido
+
+- **`Atualizar pnpm (self)` falhava o run quando o pnpm é gerenciado pelo
+  corepack.** Instalado via corepack (shim `corepack/dist/pnpm.js`), o `pnpm
+  self-update` é recusado com `ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK` e o step
+  caía em `fail` duro (exit 2). Agora esse caso é detectado e vira `todo` com
+  remediação (`corepack use pnpm@latest`): o self-update e o fallback via
+  npm-global não se aplicam a pnpm corepack, é uma configuração legítima.
+
+- **`Verificação final de gerenciadores` reportava `pnpm global` desatualizado
+  por engano.** O `pnpm -g outdated` emite `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`
+  no stdout (exit 0) quando o global não tem `package.json` (sem pacotes
+  globais); a checagem final contava essa linha como pendência. Agora ela é
+  filtrada — `update_pnpm_globals` já tratava o caso como "sem pacotes", a
+  checagem final passou a casar.
+
 ## [3.33.0] - 2026-08-09
 ### Adicionado
 
@@ -42,20 +59,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   fwupd (linhas com data, que também usam ✘) não é mais confundido com atributo.
 
 ### Corrigido
-
-- **`Atualizar pnpm (self)` falhava o run quando o pnpm é gerenciado pelo
-  corepack.** Instalado via corepack (shim `corepack/dist/pnpm.js`), o `pnpm
-  self-update` é recusado com `ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK` e o step
-  caía em `fail` duro (exit 2). Agora esse caso é detectado e vira `todo` com
-  remediação (`corepack use pnpm@latest`): o self-update e o fallback via
-  npm-global não se aplicam a pnpm corepack, é uma configuração legítima.
-
-- **`Verificação final de gerenciadores` reportava `pnpm global` desatualizado
-  por engano.** O `pnpm -g outdated` emite `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND`
-  no stdout (exit 0) quando o global não tem `package.json` (sem pacotes
-  globais); a checagem final contava essa linha como pendência. Agora ela é
-  filtrada — `update_pnpm_globals` já tratava o caso como "sem pacotes", a
-  checagem final passou a casar.
 
 - **`Atualizar plugins customizados do Zsh` falhava quando o upstream reescrevia
   o histórico.** Um force-push no repositório do plugin (comum em projetos de um
