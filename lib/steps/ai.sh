@@ -155,6 +155,35 @@ update_pi() {
   return 0
 }
 
+# Diretório de versões do instalador nativo do Claude Code. O updater baixa o
+# binário completo (~300 MB) para <dir>/<versão> e só no fim move o symlink
+# ~/.local/bin/claude. Parametrizável para teste.
+CLAUDE_NATIVE_VERSIONS_DIR="${CLAUDE_NATIVE_VERSIONS_DIR:-${HOME}/.local/share/claude/versions}"
+
+# Remove binários de versão truncados (vazios ou sem bit de execução) deixados
+# por um download interrompido. Quando o timeout do catálogo mata o step no meio
+# do download, o arquivo parcial sobrevive — e o instalador nativo passa a ver a
+# versão como "já baixada", nunca retentando: o CLI congela na versão antiga
+# enquanto o step reporta apenas o timeout. Varrer antes e depois torna o step
+# idempotente mesmo tendo sido morto com SIGKILL (quando nenhum trap roda).
+# Parâmetro: $1 = diretório de versões (default: CLAUDE_NATIVE_VERSIONS_DIR).
+claude_prune_partial_versions() {
+  local dir="${1:-$CLAUDE_NATIVE_VERSIONS_DIR}"
+  local f pruned=0
+  [[ -d "$dir" ]] || return 0
+  for f in "$dir"/*; do
+    [[ -f "$f" ]] || continue
+    # -s cobre o stub de 0 byte; -x cobre o download que morreu antes do chmod.
+    if [[ ! -s "$f" || ! -x "$f" ]]; then
+      rm -f -- "$f" && pruned=$((pruned + 1))
+    fi
+  done
+  if ((pruned > 0)); then
+    log "  Removido(s) ${pruned} binário(s) truncado(s) em ${dir} (download interrompido)."
+  fi
+  return 0
+}
+
 update_claude_code() {
   local claude_bin
   claude_bin="$(command -v claude || true)"
@@ -162,11 +191,32 @@ update_claude_code() {
     log "  claude não encontrado no PATH."
     return 0
   fi
+
+  # Limpa o lixo de um run anterior interrompido antes de tentar de novo; sem
+  # isso o updater nativo pula o download e o CLI nunca sai da versão velha.
+  # O diretório vai explícito (e não pelo default do parâmetro) para o step
+  # continuar legível sobre o que está varrendo.
+  claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
+
   local output rc
   output="$(claude update 2>&1)"
   rc=$?
   log_raw "$output"
   printf '%s\n' "$output" | grep -v '^$' | log_out || true
+
+  claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
+
+  # Pós-condição barata: confere o symlink no filesystem em vez de executar o
+  # binário de ~300 MB só para ler a versão. Se a varredura acima apagou o alvo,
+  # o symlink fica pendurado e cai aqui como aviso acionável.
+  local target
+  target="$(readlink -f -- "$claude_bin" 2>/dev/null || true)"
+  if [[ "$target" == "$CLAUDE_NATIVE_VERSIONS_DIR"/* ]] && [[ ! -s "$target" || ! -x "$target" ]]; then
+    log "  Instalação do Claude Code incompleta: ${claude_bin} não aponta para um binário utilizável."
+    STEP_REASON="download do Claude Code ficou incompleto; rode 'claude update' novamente"
+    return "$RC_WARN"
+  fi
+
   return "$rc"
 }
 
