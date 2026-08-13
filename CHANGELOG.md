@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.34.0] - 2026-08-13
 ### Adicionado
 
 - **Novo step `Atualizar pi (pi-coding-agent)`.** O pi (`@earendil-works/pi-coding-agent`,
