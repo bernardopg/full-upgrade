@@ -5,14 +5,36 @@ Bash puro (4+) para Arch Linux; não há artefatos compilados.
 
 ## Validação antes de qualquer commit
 
-A verificação espelha o CI e inclui testes Bats para funções puras/regressões:
+O atalho é o `scripts/preflight.sh`, que roda exatamente o que o CI reprova:
+
+```bash
+scripts/preflight.sh          # sintaxe + shellcheck + build (~13s)
+scripts/preflight.sh --full   # o acima + a suíte bats completa (~2min)
+```
+
+Como a `main` aceita push direto (sem PR), instale o hook de pre-push uma vez
+para que o portão rápido rode sozinho antes de cada `git push`:
+
+```bash
+scripts/install-hooks.sh      # pule pontualmente com: git push --no-verify
+```
+
+### Versões das ferramentas
+
+O `shellcheck` e o `bats` são **pinados** — o CI instala exatamente as mesmas
+versões do ambiente de desenvolvimento, via `scripts/install-shellcheck.sh`
+(0.11.0) e `scripts/install-bats.sh` (1.14.0). Antes disso o CI usava o pacote
+do Ubuntu (shellcheck 0.9.0) e reprovava código aprovado localmente. Ao subir
+uma versão, altere só o pin no script correspondente.
+
+### Passos individuais
 
 ```bash
 # Sintaxe
-bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Lint
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Testes unitários (bats — funções puras, sem mutação)
 bats tests/
@@ -56,32 +78,41 @@ Veja [`CLAUDE.md`](CLAUDE.md) para a arquitetura completa.
 - Comentários e textos ao usuário em **PT-BR**.
 - Para gravar saída crua de comando no log, use `log_raw` (remove ANSI), não
   `printf ... >> "$LOG_FILE"`.
-- A CI instala Bats via `scripts/install-bats.sh`, coleta cobertura dos testes
+- A CI instala Bats via `scripts/install-bats.sh` e ShellCheck via
+  `scripts/install-shellcheck.sh` (ambos pinados), coleta cobertura dos testes
   com `scripts/coverage-bats.sh` (`kcov`) e publica `coverage/bats/cobertura.xml`
-  no Codecov. O estilo Bash é checado por **shfmt** (consultivo hoje; rode
-  `shfmt -i 4 -w <arquivos>` para alinhar ao `.editorconfig`).
+  no Codecov. Não há checagem de formatação automática: siga o estilo do arquivo
+  vizinho (indentação de 2 espaços em `lib/`, conforme o `.editorconfig`).
 
 ## Commits — Conventional Commits
 
-O PR é validado por `commitlint` (`.commitlintrc.json`). Mensagens devem seguir
+Os commits são validados por `commitlint` (`.commitlintrc.json`). Mensagens devem seguir
 `tipo(escopo): descrição`, com `tipo` ∈
 `feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert`.
 Exemplos: `feat(ai): atualiza Ollama`, `fix(ui): cabeçalho duplicado`,
 `ci: adiciona Semgrep`. Isso melhora o changelog gerado automaticamente nas
 releases (`generate_release_notes`).
 
-## Pull requests
+## Enviando mudanças
 
-- Branch a partir de `main`; um PR por mudança lógica.
-- Garanta que a validação passa localmente (sintaxe + shellcheck + bats +
-  dry-run + build).
+A `main` **aceita push direto** — PR não é obrigatório. O ruleset ainda proíbe
+apagar a branch e force-push (`non_fast_forward`), que são as duas operações
+irrecuperáveis.
+
+- Rode `scripts/preflight.sh` antes de empurrar (o hook de pre-push faz isso).
 - Commits em **Conventional Commits** (acima).
 - Atualize `CHANGELOG.md` em `[Unreleased]` quando o comportamento mudar.
-- O **Labeler** rotula o PR automaticamente por caminho (`.github/labeler.yml`).
+- O CI continua rodando a cada push na `main`: ele não bloqueia mais o merge,
+  mas é quem roda a suíte completa, a cobertura e o build do standalone —
+  acompanhe o resultado depois de empurrar.
+
+Abrir um PR continua válido (e recomendado para mudanças grandes ou de terceiros):
+ramifique a partir de `main`, um PR por mudança lógica. O **Labeler** rotula o PR
+automaticamente por caminho (`.github/labeler.yml`).
 
 ## CI / Segurança (automático no GitHub Actions)
 
-- **CI** — sintaxe, shellcheck, shfmt, bats, cobertura (Codecov) e build
+- **CI** — sintaxe, shellcheck (pinado), bats, cobertura (Codecov) e build
   standalone.
 - **CodeQL** — análise dos próprios workflows (Bash não é suportado pelo CodeQL).
 - **Semgrep** — SAST para Bash; achados em *Security > Code scanning* (consultivo).
@@ -95,18 +126,19 @@ A release é disparada por `push` de tag `v*` ou por `workflow_dispatch` (input
 `tag`). No caminho `workflow_dispatch`, o workflow `release.yml`:
 
 1. **Bump** — sobe `VERSION`, atualiza os fallbacks em `full-upgrade.sh`/`build.sh`
-   e fecha a seção `[Unreleased]` do `CHANGELOG`. O commit entra no `main` via PR
-   de ciclo curto aberto com o `FU_RELEASE_TOKEN` e mesclado automaticamente após
-   os required checks passarem.
+   e fecha a seção `[Unreleased]` do `CHANGELOG`. O commit é empurrado **direto
+   no `main`** com o `FU_RELEASE_TOKEN` (o PR de ciclo curto existia só para
+   satisfazer os required checks e foi removido junto com eles).
 2. **Release** — valida (bash -n + shellcheck + bats), builda o standalone,
-   atesta proveniência, empurra a tag e cria a GitHub Release.
+   atesta proveniência, empurra a tag e cria a GitHub Release. **É aqui que está
+   o portão da release**: um bump quebrado falha nesta etapa e nada é publicado.
 3. **AUR** — recalcula o checksum do tarball da tag e publica o `PKGBUILD`.
 
 ### Secrets necessários (Settings → Secrets and variables → Actions)
 
 | Secret | Uso |
 |---|---|
-| `FU_RELEASE_TOKEN` | **PAT fine-grained** do owner (escopo `Contents: Read and write` + `Pull requests: Read and write` no repo). Usado para abrir o PR do bump. **Indispensável**: o GitHub *não* dispara workflows `on: pull_request` em PRs criados pelo `GITHUB_TOKEN` embutido (anti-loop) — sem o PAT, os required checks ("Lint & Test", "Validar Conventional Commits") nunca reportam e o merge fica `BLOCKED`. |
+| `FU_RELEASE_TOKEN` | **PAT fine-grained** do owner (escopo `Contents: Read and write` no repo; `Pull requests` não é mais necessário). Usado no push do commit de bump. **Indispensável**: pushes feitos com o `GITHUB_TOKEN` embutido não disparam workflows (anti-loop) — sem o PAT o commit de bump entraria no `main` sem rodar o CI. |
 | `AUR_USERNAME` | Usuário AUR para publicar o pacote. |
 | `AUR_EMAIL` | E-mail do committer no AUR. |
 | `AUR_SSH_PRIVATE_KEY` | Chave SSH do AUR (par AUR). |

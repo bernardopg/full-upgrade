@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${BATS_VERSION:-1.13.0}"
+# Mantenha em sincronia com o bats do ambiente de desenvolvimento (Arch): rodar
+# a suíte no CI numa versão diferente da local faz o portão divergir do que o
+# desenvolvedor vê antes de commitar.
+VERSION="${BATS_VERSION:-1.14.0}"
 DEST="${BATS_INSTALL_DIR:-${ROOT}/.ci/bats}"
 WORK="${ROOT}/.ci/bats-src"
 ARCHIVE="${ROOT}/.ci/bats-v${VERSION}.tar.gz"

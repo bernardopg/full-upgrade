@@ -66,6 +66,64 @@ setup() {
   grep -q "Step filtrado (modo doctor)" "$LOG_FILE"
 }
 
+# ── espaçamento do skip ───────────────────────────────────────────────────────
+# Regressão: o skip era impresso colado na linha de resultado do step anterior,
+# sem nenhum separador, e o output do terminal virava um bloco ilegível.
+
+@test "step_skip: abre linha em branco quando vem depois de um step executado" {
+  QUIET=0
+  LAST_OUTPUT_KIND="step"
+  LAST_SECTION_GROUP="IA"
+  _category_of() { printf 'ai'; }
+
+  run step_skip "Atualizar Kimi CLI" "cmd-ausente: kimi"
+
+  [ "$status" -eq 0 ]
+  # Primeira linha vazia, skip logo abaixo.
+  [ -z "$(printf '%s' "$output" | head -1)" ]
+  [[ "$(printf '%s' "$output" | sed -n 2p)" == *"Atualizar Kimi CLI"* ]]
+}
+
+@test "step_skip: skips consecutivos ficam compactos (--dry-run não dobra de altura)" {
+  QUIET=0
+  LAST_OUTPUT_KIND="skip"
+  LAST_SECTION_GROUP="IA"
+  _category_of() { printf 'ai'; }
+
+  run step_skip "Atualizar Ollama" "dry-run"
+
+  [ "$status" -eq 0 ]
+  # Sem linha em branco de abertura: o skip anterior já separou do bloco de cima.
+  [[ "$(printf '%s' "$output" | head -1)" == *"Atualizar Ollama"* ]]
+}
+
+@test "step_skip: logo após cabeçalho de seção não abre buraco duplo" {
+  QUIET=0
+  LAST_OUTPUT_KIND="step"
+  LAST_SECTION_GROUP=""        # força o _maybe_print_section a imprimir
+  _category_of() { printf 'ai'; }
+
+  run step_skip "Atualizar Kimi CLI" "cmd-ausente: kimi"
+
+  [ "$status" -eq 0 ]
+  # A última linha do cabeçalho é o título do grupo; o skip vem imediatamente
+  # depois, sem linha vazia entre os dois.
+  local titulo_ln skip_ln
+  titulo_ln="$(printf '%s\n' "$output" | grep -n 'IA' | tail -1 | cut -d: -f1)"
+  skip_ln="$(printf '%s\n' "$output" | grep -n 'Atualizar Kimi CLI' | head -1 | cut -d: -f1)"
+  [ "$skip_ln" -eq "$((titulo_ln + 1))" ]
+}
+
+@test "step_skip: marca LAST_OUTPUT_KIND como skip para o próximo bloco" {
+  QUIET=1
+  LAST_OUTPUT_KIND="step"
+  _category_of() { printf 'ai'; }
+
+  step_skip "Atualizar Kimi CLI" "cmd-ausente: kimi" >/dev/null
+
+  [ "$LAST_OUTPUT_KIND" = "skip" ]
+}
+
 @test "print_summary: muitos skips viram uma única linha compacta" {
   COMPACT_SKIP_OUTPUT=1
   STEP_NAMES=(A B C D E F G H I)

@@ -706,6 +706,7 @@ _maybe_print_section() {
   group="$(_group_label_for_category "$category")"
   [[ "$group" == "${LAST_SECTION_GROUP}" ]] && return 0
   LAST_SECTION_GROUP="$group"
+  LAST_OUTPUT_KIND="section"
   log ""
   log "${C_DIM}$(ui_hr "$HR_LIGHT")${C_RESET}"
   log "${C_BOLD}${C_CYAN}${SYM_ARROW}${SYM_ARROW} ${group}${C_RESET}"
@@ -732,6 +733,7 @@ step_start() {
   fi
   local available=$(( $(ui_width) - ${#prefix} - 12 ))
   (( available < 12 )) && available=12
+  LAST_OUTPUT_KIND="step"
   log ""
   log "${C_BLUE}${C_BOLD}${SYM_ARROW} ${prefix} $(ui_truncate "$name" "$available")${C_RESET}  ${C_DIM}+$(_ts)${C_RESET}"
 }
@@ -794,8 +796,12 @@ step_skip() {
   local name="$1"
   local reason="$2"
   local _cat; _cat="$(_category_of "$name")"
+  # Tipo do bloco anterior, capturado ANTES do _maybe_print_section (que pode
+  # sobrescrever LAST_OUTPUT_KIND com "section").
+  local _prev_kind="${LAST_OUTPUT_KIND}"
   if (( ! ${COMPACT_SKIP_OUTPUT:-0} )); then
     _maybe_print_section "$_cat"
+    _prev_kind="${LAST_OUTPUT_KIND}"
   fi
   STEP_NAMES+=("$name")
   STEP_CATEGORIES+=("$_cat")
@@ -807,8 +813,16 @@ step_skip() {
   if (( ${COMPACT_SKIP_OUTPUT:-0} )); then
     log_raw "${SYM_SKIP} ${name} (${reason})"
   else
+    # Linha em branco separando o skip do step ACIMA dele: sem ela o skip colava
+    # na linha de resultado do step executado e o output virava um bloco
+    # ilegível. Só vale quando o bloco anterior foi um step executado — depois de
+    # um cabeçalho de seção (que já traz o próprio espaçamento) abriria um buraco
+    # duplo, e entre skips consecutivos dobraria a altura de saídas como a do
+    # --dry-run, onde todo step vira skip.
+    [[ "$_prev_kind" == "step" ]] && log ""
     log "${C_YELLOW}${SYM_SKIP}${C_RESET} $(_step_display_name "$name") ${C_DIM}(${reason})${C_RESET}"
   fi
+  LAST_OUTPUT_KIND="skip"
 }
 
 run_step() {

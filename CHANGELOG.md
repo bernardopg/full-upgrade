@@ -29,7 +29,59 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   refresh de catálogos dos 5 provedores sozinho já estourava 180s em runs reais)
   e o step recebeu a tag `slow`, de modo que `--skip slow` passa a cobri-lo.
 
+- **`scripts/preflight.sh` e `scripts/install-hooks.sh`.** Com a `main` aceitando
+  push direto, o portão que antes vinha do PR passou a ser local: o preflight roda
+  sintaxe + shellcheck + build do standalone em ~13s (a suíte bats completa, de
+  ~1m50, fica no `--full` e no CI). O `install-hooks.sh` instala isso como hook de
+  `pre-push`; `git push --no-verify` pula quando necessário.
+
+### Alterado
+
+- **`main` aceita push direto — PR deixou de ser obrigatório.** O ruleset
+  `main-protection` exigia pull request e status checks para qualquer mudança,
+  o que impunha um ciclo de PR + espera de CI a cada commit. As duas regras
+  foram removidas; permanecem as proteções contra as operações irrecuperáveis
+  (`deletion` e `non_fast_forward`, ou seja, nada de apagar a branch nem
+  force-push). O CI continua rodando a cada push na `main` — ele deixou de ser
+  um portão de merge e passou a ser o verificador pós-push (suíte completa,
+  cobertura e build do standalone).
+
+- **O bump de release passou a ir direto para a `main`.** O `release.yml` abria
+  um PR de ciclo curto, esperava os checks e mesclava — máquina que só existia
+  para satisfazer o required check e cuja dança de PAT/anti-loop já havia travado
+  o release 3.22.0. Agora o job commita e empurra na `main`. O portão não se
+  perdeu: o job `release` revalida (bash -n + shellcheck + bats) o commit antes
+  de buildar, atestar e criar a tag, então um bump quebrado não vira release. O
+  `FU_RELEASE_TOKEN` continua necessário (push com `GITHUB_TOKEN` não dispara o
+  CI), mas agora só precisa do escopo `Contents: Read and write`.
+
+- **ShellCheck e Bats fixados na versão do ambiente de desenvolvimento.** O CI
+  usava o ShellCheck do apt do ubuntu-24.04 (0.9.0), três minor atrás do 0.11.0
+  do Arch — as versões discordam em checagens e severidades, então código
+  aprovado localmente era reprovado no CI (e vice-versa). Agora o novo
+  `scripts/install-shellcheck.sh` instala a 0.11.0 e o `scripts/install-bats.sh`
+  subiu de 1.13.0 para 1.14.0, ambos usados tanto no `ci.yml` quanto no
+  `release.yml`. O lint também passou a cobrir `scripts/*.sh`, que nenhuma etapa
+  obrigatória olhava.
+
+### Removido
+
+- **Etapa `shfmt` do CI.** Rodava com `continue-on-error: true` sobre um diff de
+  ~18k linhas: nunca reprovou nada e ninguém agia sobre a saída, só custava um
+  `apt-get install` e ruído em todo run. Formatar o projeto inteiro para
+  silenciá-la reescreveria arquivos cujo valor está justamente no alinhamento e
+  nos comentários explicativos, destruindo o `git blame`. O `.editorconfig`
+  segue documentando o estilo esperado.
+
 ### Corrigido
+
+- **Skip colava no step anterior no output do terminal.** Um step pulado era
+  impresso sem nenhum separador logo abaixo da linha de resultado do step de
+  cima, embolando os dois blocos. Agora o skip abre uma linha em branco quando
+  vem depois de um step executado — o mesmo respiro que o `step_start` já dava.
+  Sequências de skips continuam compactas (senão o `--dry-run`, onde todo step
+  vira skip, dobraria de altura) e o skip logo abaixo de um cabeçalho de seção
+  não abre buraco duplo.
 
 - **Queda de rede era classificada como falha do updater nas CLIs de IA em JS.**
   O `NETWORK_TRANSIENT_RE` só reconhecia mensagens em prosa (`could not resolve`,

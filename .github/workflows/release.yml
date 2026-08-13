@@ -19,24 +19,29 @@ concurrency:
   group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
-# Caminho workflow_dispatch: o bump de VERSION + fechamento do CHANGELOG entram
-# no `main` via PR de ciclo curto, aberto com FU_RELEASE_TOKEN (PAT do owner) e
-# não com o GITHUB_TOKEN. Motivo: o GitHub NÃO dispara workflows on:pull_request
-# em PRs criados pelo GITHUB_TOKEN (anti-loop) — os required checks ("Lint & Test",
-# "Validar Conventional Commits") nunca reportariam e o merge ficaria BLOCKED
-# (foi o que travou o release 3.22.0). Com o PAT, o CI roda e o auto-merge
-# funciona. O job valida (bash -n) antes de abrir o PR. O caminho de tag-push
-# (manual) não toca no `main`.
+# Caminho workflow_dispatch: o bump de VERSION + fechamento do CHANGELOG são
+# empurrados DIRETO no `main`. Antes iam por um PR de ciclo curto que existia só
+# para satisfazer os required status checks da branch protegida — com toda a
+# frágil dança de PAT/anti-loop que travou o release 3.22.0. A main não exige
+# mais PR, então o PR do bump virou pura cerimônia e foi removido.
+#
+# O portão não se perdeu: o job `release` logo abaixo revalida tudo (bash -n +
+# shellcheck + bats) no commit já mesclado, ANTES de buildar, atestar e criar a
+# tag. Um bump quebrado falha ali e nenhuma release é publicada.
+#
+# O push continua usando o FU_RELEASE_TOKEN (PAT), não o GITHUB_TOKEN: pushes
+# feitos com o GITHUB_TOKEN não disparam workflows (anti-loop), e queremos o CI
+# rodando no commit de bump que acabou de entrar na main.
+# O caminho de tag-push (manual) não toca no `main`.
 
 jobs:
   bump:
-    name: Bump VERSION via PR (workflow_dispatch)
+    name: Bump VERSION (workflow_dispatch)
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write      # push do branch release/*
-      pull-requests: write # abrir e mesclar o PR
+      contents: write # push do commit de bump direto na main
     outputs:
       version: ${{ steps.ver.outputs.version }}
       tag: ${{ steps.ver.outputs.tag }}
@@ -46,6 +51,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # O checkout grava estas credenciais no .git/config e o `git push` do
+          # bump as reusa. Tem que ser o PAT: push feito com o GITHUB_TOKEN não
+          # dispara workflows (anti-loop), e o commit de bump entraria na main
+          # sem CI nenhum.
+          token: ${{ secrets.FU_RELEASE_TOKEN }}
 
       - name: Resolver versão
         id: ver
@@ -56,21 +66,17 @@ jobs:
           echo "tag=${v}" >> "$GITHUB_OUTPUT"
           echo "version=${v#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Bump de VERSION + fechar CHANGELOG, abrir PR e mesclar
+      - name: Bump de VERSION + fechar CHANGELOG e empurrar na main
         env:
           VERSION: ${{ steps.ver.outputs.version }}
           TAG: ${{ steps.ver.outputs.tag }}
-          # PAT do owner (fine-grained, contents:write + pull-requests:write).
-          # Indispensável: só assim o GitHub dispara o CI no PR do bump. O
-          # GITHUB_TOKEN cria o PR, mas os workflows on:pull_request são
-          # suprimidos (anti-loop) e os required checks nunca reportam.
-          GH_TOKEN: ${{ secrets.FU_RELEASE_TOKEN }}
+          # Sem GH_TOKEN: este passo não chama mais o `gh`. O push usa as
+          # credenciais que o checkout gravou no .git/config (o PAT).
         run: |
           set -euo pipefail
-          branch="release/${TAG}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$branch"
+          git checkout main
 
           printf '%s\n' "${VERSION}" > VERSION
           # Atualiza só a linha de fallback literal (valor começa com dígito);
@@ -108,37 +114,18 @@ jobs:
 
           git add VERSION full-upgrade.sh build.sh CHANGELOG.md
           git commit -m "chore(release): bump VERSION para ${VERSION}"
-          git push origin "$branch"
 
-          pr_num=$(gh pr create --base main --head "$branch" \
-            --title "chore(release): bump VERSION para ${VERSION}" \
-            --body "Bump automático de VERSION para ${VERSION} (workflow de release).")
-          pr_num=$(gh pr view "$pr_num" --json number -q .number)
-          echo "PR #$pr_num aberto; aguardando checks serem registrados..."
-          # Os checks levam alguns segundos para aparecer após abrir o PR.
-          # `gh pr checks --watch` sai imediatamente se ainda não há checks,
-          # então primeiro esperamos pelo menos um check existir.
-          for _ in $(seq 1 60); do
-            if [ -n "$(gh pr checks "$pr_num" 2>/dev/null || true)" ]; then break; fi
-            sleep 5
-          done
-          # Aguarda todos os checks terminarem (tolera falha em NÃO-obrigatórios;
-          # se um obrigatório falhar, o merge a seguir recusa e falha o job).
-          gh pr checks "$pr_num" --watch --interval 15 || true
+          # Push direto na main. `--force-with-lease` NÃO entra aqui: o ruleset
+          # proíbe non-fast-forward e um push que não avance a main deve falhar
+          # ruidosamente (sinal de corrida com outro push) em vez de sobrescrever.
+          git push origin main
 
-          # Mescla via squash — respeita os required status checks da proteção.
-          gh pr merge "$pr_num" --squash --delete-branch \
-            --subject "chore(release): bump VERSION para ${VERSION} (#${pr_num})"
-
-      - name: Capturar SHA do commit mesclado em main
+      - name: Capturar SHA do commit de bump
         id: sha
-        env:
-          GH_TOKEN: ${{ secrets.FU_RELEASE_TOKEN }}
-          REPO: ${{ github.repository }}
         run: |
-          sleep 3
-          sha=$(gh api "repos/${REPO}/git/refs/heads/main" --jq '.object.sha')
+          sha="$(git rev-parse HEAD)"
           echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "Bump em main: ${sha}"
 
   release:
     name: Build & Publish
@@ -162,27 +149,26 @@ jobs:
           fetch-depth: 0
           ref: ${{ (github.event_name == 'workflow_dispatch' && needs.bump.outputs.sha) || github.ref }}
 
-      # Mesma toolchain do CI (ci.yml): shellcheck já vem na imagem do runner e
-      # o bats é o pinado por scripts/install-bats.sh. Usar o `bats` do apt
-      # rodava a suíte numa versão diferente da que aprovou o PR — o portão de
-      # release passava a ser mais frouxo (ou mais estrito) que o portão do CI.
+      # Mesma toolchain do CI (ci.yml): shellcheck e bats vindos dos instaladores
+      # pinados. Usar o `bats`/`shellcheck` do apt rodava o portão de release numa
+      # versão diferente da que aprovou o commit — mais frouxo (ou mais estrito)
+      # que o portão do CI, que é exatamente o que não se quer numa release.
       - name: Install shellcheck + bats
         run: |
-          command -v shellcheck >/dev/null || {
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends shellcheck
-          }
+          scripts/install-shellcheck.sh
+          echo "$PWD/.ci/shellcheck/bin" >> "$GITHUB_PATH"
           scripts/install-bats.sh
           echo "$PWD/.ci/bats/bin" >> "$GITHUB_PATH"
 
       - name: Validate before release
         run: |
           shopt -s nullglob
-          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh; do
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
             bash -n "$f"
           done
+          shellcheck --version
           shellcheck -S warning -x \
-            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
+            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
           bats tests/
 
       - name: Build standalone

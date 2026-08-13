@@ -146,4 +146,10 @@ NETWORK_GATE_CACHE_STATE=""      # up|down|"" (sem veredito ainda)
 NETWORK_GATE_CACHE_AT=0          # $SECONDS do último veredito
 NETWORK_GATE_WAITED=0            # segundos esperados no último veredito "down"
 LAST_SECTION_GROUP=""            # último cabeçalho de seção impresso ao vivo (output agrupado)
+# Tipo do último bloco impresso no terminal: "" (nada), "section" (cabeçalho de
+# grupo), "step" (step executado, com header + resultado) ou "skip". Serve só
+# para espaçamento: o skip precisa de uma linha em branco quando vem depois de
+# um step executado, mas uma sequência de skips (ex.: --dry-run, onde TODO step
+# vira skip) tem que continuar compacta.
+LAST_OUTPUT_KIND=""
 COMPACT_SKIP_OUTPUT=0           # muitos skips: detalhes só no log/JSONL

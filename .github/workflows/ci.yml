@@ -31,38 +31,33 @@ jobs:
       - name: Syntax check (bash -n)
         run: |
           shopt -s nullglob
-          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh; do
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
 
-      # shellcheck já vem na imagem do runner; instala só o que falta.
+      # shellcheck PINADO (scripts/install-shellcheck.sh): o do apt/da imagem do
+      # runner é 0.9.0 e diverge do 0.11.0 usado no desenvolvimento, então
+      # código aprovado localmente quebrava aqui. Mesma política do bats.
       # kcov não está no apt do ubuntu-24.04: compilado do fonte pelo
       # scripts/install-kcov.sh (ver INSTALL.md do kcov) só em push/dispatch.
-      - name: Install shfmt (+ kcov p/ coverage)
+      - name: Install shellcheck (+ kcov p/ coverage)
         run: |
-          pkgs=(shfmt)
-          command -v shellcheck >/dev/null || pkgs+=(shellcheck)
-          if [ "$RUN_COVERAGE" = "true" ]; then pkgs+=(python3-tomli); fi
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends "${pkgs[@]}"
+          scripts/install-shellcheck.sh
+          echo "$PWD/.ci/shellcheck/bin" >> "$GITHUB_PATH"
           if [ "$RUN_COVERAGE" = "true" ]; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends python3-tomli
             scripts/install-kcov.sh
             echo "$PWD/.ci/kcov/bin" >> "$GITHUB_PATH"
           fi
 
+      # scripts/*.sh entrou no escopo: antes só o shfmt (consultivo, removido) os
+      # olhava, ou seja, a própria tooling de CI nunca era lintada.
       - name: ShellCheck
         run: |
+          shellcheck --version
           shellcheck -S warning -x \
-            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
-
-      # Consultivo: o código ainda não está 100% no formato do shfmt (~18k
-      # linhas de diff). NÃO bloqueia o CI hoje; remova `continue-on-error`
-      # após rodar `shfmt -i 4 -w <arquivos>` para torná-lo obrigatório.
-      - name: shfmt (formatação Bash — consultivo)
-        continue-on-error: true
-        run: |
-          shfmt -i 4 -d \
             full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
       - name: Install bats
