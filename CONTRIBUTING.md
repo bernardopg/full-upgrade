@@ -13,14 +13,22 @@ scripts/preflight.sh --fast   # sem a suíte bats (~13s), p/ iteração rápida
 ```
 
 A suíte roda em paralelo (`bats --jobs $(nproc)`), o que a leva de ~1m50 para
-~35s — por isso ela cabe no portao de pre-push em vez de ficar só no CI.
+~35s — por isso ela cabe no portão de pre-push em vez de ficar só no CI.
 
-Como a `main` aceita push direto (sem PR), instale o hook de pre-push uma vez
-para que esse portão rode sozinho antes de cada `git push`:
+Como a `main` aceita push direto (sem PR), instale os hooks locais uma vez:
 
 ```bash
-scripts/install-hooks.sh      # pule pontualmente com: git push --no-verify
+scripts/install-hooks.sh
 ```
+
+O instalador cria dois portões e nunca sobrescreve hooks customizados:
+
+- `commit-msg`: valida Conventional Commits imediatamente ao criar o commit;
+- `pre-push`: revalida todos os commits pendentes (inclusive cherry-picks ou
+  commits criados com `--no-verify`) e roda o preflight completo.
+
+Para uma exceção pontual, use `git commit --no-verify` ou
+`git push --no-verify`. O workflow no GitHub ainda valida os commits enviados.
 
 ### Versões das ferramentas
 
@@ -89,7 +97,9 @@ Veja [`CLAUDE.md`](CLAUDE.md) para a arquitetura completa.
 
 ## Commits — Conventional Commits
 
-Os commits são validados por `commitlint` (`.commitlintrc.json`). Mensagens devem seguir
+Os commits são validados localmente no `commit-msg`/`pre-push` e novamente pelo
+workflow `Commit Lint` em todo push na `main` ou PR opcional. A configuração
+fonte de verdade é `.commitlintrc.json`. Mensagens devem seguir
 `tipo(escopo): descrição`, com `tipo` ∈
 `feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert`.
 Exemplos: `feat(ai): atualiza Ollama`, `fix(ui): cabeçalho duplicado`,
@@ -102,7 +112,8 @@ A `main` **aceita push direto** — PR não é obrigatório. O ruleset ainda pro
 apagar a branch e force-push (`non_fast_forward`), que são as duas operações
 irrecuperáveis.
 
-- Rode `scripts/preflight.sh` antes de empurrar (o hook de pre-push faz isso).
+- Instale `scripts/install-hooks.sh`; o `pre-push` roda o preflight e valida
+  todos os commits ainda não enviados.
 - Commits em **Conventional Commits** (acima).
 - Atualize `CHANGELOG.md` em `[Unreleased]` quando o comportamento mudar.
 - O CI continua rodando a cada push na `main`: ele não bloqueia mais o merge,

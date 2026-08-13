@@ -1,20 +1,23 @@
 name: Commit Lint
 
-# Garante Conventional Commits nos PRs — melhora o changelog gerado
-# automaticamente pelo generate_release_notes nas releases.
+# Garante Conventional Commits tanto no fluxo principal (push direto na main)
+# quanto nos PRs opcionais. Melhora o changelog gerado automaticamente pelo
+# generate_release_notes nas releases.
 
 on:
+  push:
+    branches: [main]
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
 
-# Required check: cancelar runs antigos do mesmo PR evita que um verde obsoleto
-# fique valendo depois de um force-push que trocou as mensagens de commit.
+# Um push novo na mesma ref torna o lint anterior obsoleto. A chave funciona
+# para push e PR (github.ref é refs/heads/main ou refs/pull/N/merge).
 concurrency:
-  group: commitlint-${{ github.event.pull_request.number }}
+  group: commitlint-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

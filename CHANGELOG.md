@@ -29,11 +29,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   refresh de catálogos dos 5 provedores sozinho já estourava 180s em runs reais)
   e o step recebeu a tag `slow`, de modo que `--skip slow` passa a cobri-lo.
 
-- **`scripts/preflight.sh` e `scripts/install-hooks.sh`.** Com a `main` aceitando
-  push direto, o portão que antes vinha do PR passou a ser local: o preflight roda
-  sintaxe, shellcheck, build do standalone e **a suíte bats inteira** em ~45s. O
-  `install-hooks.sh` instala isso como hook de `pre-push`; `git push --no-verify`
-  pula quando necessário, e `--fast` omite a suíte para iteração rápida.
+- **`scripts/preflight.sh`, validador de commits e `scripts/install-hooks.sh`.**
+  Com a `main` aceitando push direto, o portão que antes vinha do PR passou a ser
+  local: o preflight roda Conventional Commits, sintaxe, shellcheck, build do
+  standalone e **a suíte bats inteira** em ~45s. O instalador cria dois hooks:
+  `commit-msg` dá feedback imediato sobre a mensagem e `pre-push` revalida todos
+  os commits ainda não enviados (inclusive cherry-picks ou commits que pularam o
+  primeiro hook) antes do portão completo. Hooks customizados preexistentes nunca
+  são sobrescritos. `--fast` omite a suíte para iteração rápida.
 
 - **Suíte de testes em paralelo.** `bats --jobs $(nproc)` leva os 1137 testes de
   ~1m50 para ~35s. Foi o que tornou viável colocar a suíte inteira no portão de
@@ -59,6 +62,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   de buildar, atestar e criar a tag, então um bump quebrado não vira release. O
   `FU_RELEASE_TOKEN` continua necessário (push com `GITHUB_TOKEN` não dispara o
   CI), mas agora só precisa do escopo `Contents: Read and write`.
+
+- **Commit Lint passou a cobrir push direto na `main`.** O workflow só escutava
+  `pull_request`; quando PR deixou de ser obrigatório, a afirmação de que os
+  commits eram validados deixou de ser verdadeira. Agora roda em `push: main` e
+  nos PRs opcionais, com concorrência por evento/ref. O validador local lê tipos
+  e limite diretamente de `.commitlintrc.json`, enquanto o GitHub continua
+  usando o commitlint oficial como verificação independente.
 
 - **ShellCheck e Bats fixados na versão do ambiente de desenvolvimento.** O CI
   usava o ShellCheck do apt do ubuntu-24.04 (0.9.0), três minor atrás do 0.11.0

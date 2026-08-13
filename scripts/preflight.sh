@@ -24,6 +24,34 @@ FAST=0
 
 FILES=(full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh)
 
+# Defesa em profundidade: o commit-msg dá feedback ao criar o commit, mas pode
+# ter sido pulado com --no-verify ou o commit pode ter vindo de cherry-pick. No
+# pre-push, valida todos os commits ainda ausentes no upstream antes do portão
+# mais caro. Sem upstream (primeiro push), valida pelo menos o HEAD.
+echo "▶ conventional commits"
+if upstream="$(git rev-parse --verify '@{upstream}' 2>/dev/null)"; then
+  range="${upstream}..HEAD"
+else
+  range="HEAD^..HEAD"
+fi
+mapfile -t pending_commits < <(git rev-list --reverse "$range" 2>/dev/null || git rev-list -1 HEAD)
+if (( ${#pending_commits[@]} == 0 )); then
+  echo "  nenhum commit pendente"
+else
+  msg_tmp="$(mktemp)"
+  trap 'rm -f -- "$msg_tmp"' EXIT
+  for sha in "${pending_commits[@]}"; do
+    git show -s --format=%B "$sha" > "$msg_tmp"
+    if ! scripts/validate-commit-msg.sh "$msg_tmp"; then
+      echo "  commit: $sha" >&2
+      exit 1
+    fi
+  done
+  rm -f -- "$msg_tmp"
+  trap - EXIT
+  echo "  ${#pending_commits[@]} commit(s) válido(s)"
+fi
+
 echo "▶ sintaxe (bash -n)"
 for f in "${FILES[@]}"; do bash -n "$f"; done
 
