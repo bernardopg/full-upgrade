@@ -73,6 +73,7 @@ Atualizar servidores MCP|ai|mcp,update|mutating|180||mcp_update_servers|Sob MCP_
 Garantir Orca IDE|ai|orca,ide,desktop,aur,network,mutating|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
 Garantir Antigravity|ai|antigravity,ide,desktop,aur,network,mutating|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
 Atualizar Kimi CLI|ai|kimi,update,network|mutating|30|kimi|update_kimi|Kimi (Moonshot) via npm global (@moonshot-ai/kimi-code) já é coberto por 'Atualizar npm global'; standalone => RC_TODO.
+Atualizar pi (pi-coding-agent)|ai|pi,update,network|mutating|180|pi|update_pi|Atualiza o pi (pi-coding-agent, npm) via self-update nativo 'pi update' e refresca os catálogos de modelos (lista de IA por provedor) com 'pi update --models'.
 Atualizar Factory droid|manual|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
 Atualizar OBS (plugins e extensões)|manual|obs,git,update,network|mutating|120|git|update_obs_plugins|Atualiza plugins user-scope do OBS (~/.config/obs-studio/plugins) via git e inventaria os manuais; pacotes obs-* do repo/AUR atualizam no step do sistema.
 Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).

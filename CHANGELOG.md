@@ -4,6 +4,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Novo step `Atualizar pi (pi-coding-agent)`.** O pi (`@earendil-works/pi-coding-agent`,
+  CLI de IA multi-provedor instalada via npm global) tem self-update nativo, então
+  agora é atualizado pelo próprio `pi update` (que reexecuta o npm internamente e
+  nunca pede confiança de projeto) — mesma filosofia dos steps do opencode/claude,
+  em vez de depender do `Atualizar npm global`. O passo também refresca os
+  catálogos de modelos (a "lista de IA": modelos com ferramentas de cada provedor)
+  via `pi update --models`, baixando a lista mais recente. É idempotente (reporta
+  `already up to date` quando nada muda) e loga a versão antes/depois; falhas de
+  rede ou do updater viram `warn` (não derrubam o run). O `Doctor: AI CLIs`
+  passou a listar a versão do pi também.
+
 ### Corrigido
 
 - **`Atualizar Claude Code CLI` estourava o timeout e deixava o CLI travado na
