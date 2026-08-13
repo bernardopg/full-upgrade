@@ -99,6 +99,62 @@ update_opencode() {
   return 0
 }
 
+# H1 — atualiza o pi (pi-coding-agent, pacote npm @earendil-works/pi-coding-agent).
+# Como o pi tem self-update nativo (`pi update`, que reexecuta o npm por baixo dos
+# panos e nunca pede confiança de projeto), usamos o updater oficial em vez de
+# defir para o step 'Atualizar npm global' — mesma filosofia do opencode/claude.
+# O passo também refresca os catálogos de modelos (a "lista de IA": modelos com
+# ferramentas de cada provedor) via `pi update --models`, baixando a lista mais
+# recente. Idempotente (reporta "already up to date" quando nada muda). Falha de
+# rede => RC_WARN; outra falha do updater => RC_WARN (não derruba o run). Loga a
+# versão antes/depois.
+update_pi() {
+  if ! has pi; then
+    log "  pi não encontrado no PATH."
+    return 0
+  fi
+  local before after out rc
+  before="$(pi --version 2>/dev/null | head -1)"
+  log "  pi atual: ${before:-?}"
+
+  # 1) Self-update do binário (reinstala o pacote npm internamente).
+  out="$(run_network_cmd pi update)"
+  rc=$?
+  printf '%s\n' "$out" | grep -v '^$' | log_out || true
+  if (( rc == RC_WARN )); then
+    log "  pi: falha de rede ao atualizar."
+    STEP_REASON="rede indisponível para pi update"
+    return "$RC_WARN"
+  fi
+  if (( rc != 0 )); then
+    log "  pi: falha ao atualizar (rc=${rc})."
+    STEP_REASON="pi update falhou"
+    return "$RC_WARN"
+  fi
+
+  # 2) Refresca a "lista de IA" — catálogos de modelos com ferramentas por
+  # provedor (OpenAI, Anthropic, Google…). Idempotente; falha aqui não derruba o
+  # run (o binário já foi atualizado acima).
+  log "  Refrescando catálogos de modelos (lista de IA) via 'pi update --models'…"
+  out="$(run_network_cmd pi update --models)"
+  rc=$?
+  printf '%s\n' "$out" | grep -v '^$' | log_out || true
+  if (( rc == RC_WARN )); then
+    log "  pi: falha de rede ao refrescar catálogos de modelos (lista de IA)."
+    STEP_REASON="rede indisponível para pi update --models"
+    return "$RC_WARN"
+  fi
+  if (( rc != 0 )); then
+    log "  pi: falha ao refrescar catálogos de modelos (rc=${rc}); binário atualizado."
+    STEP_REASON="pi update --models falhou"
+    return "$RC_WARN"
+  fi
+
+  after="$(pi --version 2>/dev/null | head -1)"
+  log "  pi agora: ${after:-?}"
+  return 0
+}
+
 update_claude_code() {
   local claude_bin
   claude_bin="$(command -v claude || true)"

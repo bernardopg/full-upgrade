@@ -59,7 +59,7 @@ full-upgrade
 | Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. Elevação configurável (`sudo`/`doas`/`run0`/`sudo-rs`). |
 | Arch completo | `pacman`, AUR via `paru`/`yay`/`pikaur`, keyring, mirrors, snapshot btrfs, `.pacnew/.pacsave`, órfãos e cache. |
 | Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
-| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi), servidores **MCP**, Orca IDE (Stably AI) e extensões de IDE da família VSCode (Code/Cursor/Codium). |
+| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi, **pi**), servidores **MCP**, Orca IDE (Stably AI) e extensões de IDE da família VSCode (Code/Cursor/Codium). |
 | Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
 | Doctor | Auditorias de reboot, systemd, journal, crashes recorrentes (coredump), fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
 | Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
@@ -316,7 +316,7 @@ Status possíveis no resumo:
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent, self-update nativo `pi update` + refresh dos catálogos de modelos), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
 | Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
@@ -386,7 +386,7 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | btrfs | Erros de device acumulados e idade do último scrub em mounts btrfs (auto-remediação opcional via `AUTO_BTRFS_SCRUB`). |
 | Tempo de boot | Total via `systemd-analyze time` e as 5 piores units (`blame`). |
 | Desktop | Portais, PipeWire, WirePlumber e informações gráficas quando disponíveis. |
-| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes), marcando as com método de update conhecido. |
+| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes, pi), marcando as com método de update conhecido. |
 | MCP | Servidores MCP configurados em Claude (`~/.claude.json`) e Codex (`~/.codex/config.toml`), com escopo e runtime (`stdio:npx`, `stdio:uvx`, `remote`). |
 | Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos, conflitos npm/pnpm e diagnóstico acionável de `pip check`. |
 
@@ -565,7 +565,7 @@ rate-mirrors, snapper, timeshift, informant, arch-audit, flatpak, snap, docker,
 fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx, uv, uvx, poetry,
 rustup, cargo, cargo-install-update, cargo-audit, go, dotnet, gem, ghcup,
 arduino-cli, gcloud, claude, codex, copilot, gemini, qwen, cline, opencode,
-ollama, kimi, hermes, nvim, code, cursor, codium, hyprpm, needrestart,
+ollama, kimi, hermes, pi, nvim, code, cursor, codium, hyprpm, needrestart,
 checkservices, smartctl, nvme, notify-send, yad, python-gobject,
 libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
 ```
