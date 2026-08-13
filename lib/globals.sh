@@ -69,7 +69,11 @@ RC_TODO=11
 # Cobre libcurl/wget e também os erros do reqwest (paru/yay em Rust), que
 # reportam "error sending request ... channel closed" quando o RPC do AUR
 # corta a conexão — visto em runs reais contra https://aur.archlinux.org/rpc.
-NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado'
+# Inclui também os códigos crus do Node/undici (`fetch failed`, ENOTFOUND,
+# ENETUNREACH…): as CLIs de IA em JS (pi, codex, gemini, qwen, cline, kimi) não
+# traduzem o erro de socket, então sem esses tokens uma queda de rede era
+# classificada como falha do updater em vez de aviso transitório.
+NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado|fetch failed|socket hang up|enetunreach|eaddrnotavail|enotfound|eai_again|econnreset|econnrefused|etimedout|ehostunreach'
 
 # ── PNPM no PATH (se usado) ──
 PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"

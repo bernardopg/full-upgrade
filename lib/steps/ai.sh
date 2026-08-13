@@ -102,12 +102,19 @@ update_opencode() {
 # H1 — atualiza o pi (pi-coding-agent, pacote npm @earendil-works/pi-coding-agent).
 # Como o pi tem self-update nativo (`pi update`, que reexecuta o npm por baixo dos
 # panos e nunca pede confiança de projeto), usamos o updater oficial em vez de
-# defir para o step 'Atualizar npm global' — mesma filosofia do opencode/claude.
-# O passo também refresca os catálogos de modelos (a "lista de IA": modelos com
-# ferramentas de cada provedor) via `pi update --models`, baixando a lista mais
-# recente. Idempotente (reporta "already up to date" quando nada muda). Falha de
-# rede => RC_WARN; outra falha do updater => RC_WARN (não derruba o run). Loga a
-# versão antes/depois.
+# deferir para o step 'Atualizar npm global' — mesma filosofia do opencode/claude.
+#
+# São três fases, porque `pi update` sozinho cobre só o binário e o próprio pi
+# avisa "Extensions are skipped. Run pi update --extensions":
+#   1) `pi update`              — self-update do binário;
+#   2) `pi update --extensions` — pacotes/extensões instalados no pi;
+#   3) `pi update --models`     — catálogos de modelos (a "lista de IA": modelos
+#                                 com ferramentas de cada provedor).
+# Idempotente (reporta "already up to date" quando nada muda). Falha de rede =>
+# RC_WARN; outra falha do updater => RC_WARN (não derruba o run). As fases 2 e 3
+# não abortam uma à outra: o binário já foi atualizado na fase 1, então um
+# provedor fora do ar não pode mascarar o sucesso do self-update. Loga a versão
+# antes/depois.
 update_pi() {
   if ! has pi; then
     log "  pi não encontrado no PATH."
@@ -132,7 +139,24 @@ update_pi() {
     return "$RC_WARN"
   fi
 
-  # 2) Refresca a "lista de IA" — catálogos de modelos com ferramentas por
+  # 2) Extensões/pacotes instalados no pi. O `pi update` acima NÃO as toca (ele
+  # mesmo imprime "Extensions are skipped"), então sem esta fase as extensões
+  # ficariam permanentemente defasadas. Best-effort: registra o motivo mas não
+  # retorna ainda, para a fase 3 rodar mesmo assim.
+  local degraded=""
+  log "  Atualizando extensões do pi via 'pi update --extensions'…"
+  out="$(run_network_cmd pi update --extensions)"
+  rc=$?
+  printf '%s\n' "$out" | grep -v '^$' | log_out || true
+  if (( rc == RC_WARN )); then
+    log "  pi: falha de rede ao atualizar extensões."
+    degraded="rede indisponível para pi update --extensions"
+  elif (( rc != 0 )); then
+    log "  pi: falha ao atualizar extensões (rc=${rc}); binário atualizado."
+    degraded="pi update --extensions falhou"
+  fi
+
+  # 3) Refresca a "lista de IA" — catálogos de modelos com ferramentas por
   # provedor (OpenAI, Anthropic, Google…). Idempotente; falha aqui não derruba o
   # run (o binário já foi atualizado acima).
   log "  Refrescando catálogos de modelos (lista de IA) via 'pi update --models'…"
@@ -141,17 +165,19 @@ update_pi() {
   printf '%s\n' "$out" | grep -v '^$' | log_out || true
   if (( rc == RC_WARN )); then
     log "  pi: falha de rede ao refrescar catálogos de modelos (lista de IA)."
-    STEP_REASON="rede indisponível para pi update --models"
-    return "$RC_WARN"
-  fi
-  if (( rc != 0 )); then
+    degraded="rede indisponível para pi update --models"
+  elif (( rc != 0 )); then
     log "  pi: falha ao refrescar catálogos de modelos (rc=${rc}); binário atualizado."
-    STEP_REASON="pi update --models falhou"
-    return "$RC_WARN"
+    degraded="pi update --models falhou"
   fi
 
   after="$(pi --version 2>/dev/null | head -1)"
   log "  pi agora: ${after:-?}"
+
+  if [[ -n "$degraded" ]]; then
+    STEP_REASON="$degraded"
+    return "$RC_WARN"
+  fi
   return 0
 }
 
@@ -184,6 +210,11 @@ claude_prune_partial_versions() {
   return 0
 }
 
+# H1 — atualiza o Claude Code CLI pelo instalador nativo (`claude update`).
+# Falha de rede => RC_WARN e falha do updater => RC_WARN, alinhado aos steps
+# irmãos (opencode/pi/ollama): uma queda de rede transitória não pode marcar o
+# run inteiro como falho. Varre binários truncados antes e depois e valida o
+# symlink no fim (ver claude_prune_partial_versions).
 update_claude_code() {
   local claude_bin
   claude_bin="$(command -v claude || true)"
@@ -199,9 +230,8 @@ update_claude_code() {
   claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
 
   local output rc
-  output="$(claude update 2>&1)"
+  output="$(run_network_cmd claude update)"
   rc=$?
-  log_raw "$output"
   printf '%s\n' "$output" | grep -v '^$' | log_out || true
 
   claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
@@ -217,7 +247,21 @@ update_claude_code() {
     return "$RC_WARN"
   fi
 
-  return "$rc"
+  # O instalador nativo falha por rede com ECONNREFUSED/fetch failed cru; o
+  # run_network_cmd já traduz isso em RC_WARN. Qualquer outra falha do updater
+  # também vira aviso: o CLI antigo continua utilizável.
+  if (( rc == RC_WARN )); then
+    log "  claude: falha de rede ao atualizar."
+    STEP_REASON="rede indisponível para claude update"
+    return "$RC_WARN"
+  fi
+  if (( rc != 0 )); then
+    log "  claude: falha ao atualizar (rc=${rc})."
+    STEP_REASON="claude update falhou"
+    return "$RC_WARN"
+  fi
+
+  return 0
 }
 
 # H5 — detecta se o kimi (bin) é um pacote npm global. Retorna o spec npm

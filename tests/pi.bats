@@ -20,12 +20,13 @@ setup() {
   [[ "$output" == *"não encontrado"* ]]
 }
 
-@test "pi: self-update ok + models ok retorna 0 e loga versões e lista de IA" {
+@test "pi: self-update ok + extensões ok + models ok retorna 0 e loga as três fases" {
   has() { [[ "$1" == pi ]]; }
   pi() { [[ "$1" == --version ]] && printf '0.84.1\n'; }
   run_network_cmd() {
     case "$*" in
       *"--models") printf 'Model catalogs refreshed\n'; return 0 ;;
+      *"--extensions") printf 'Extensions are up to date\n'; return 0 ;;
       *) printf 'pi is already up to date (v0.84.1)\n'; return 0 ;;
     esac
   }
@@ -36,6 +37,39 @@ setup() {
   # Refrescamento da "lista de IA" (catálogos de modelos) foi anunciado e rodou.
   [[ "$output" == *"lista de IA"* ]]
   [[ "$output" == *"Model catalogs refreshed"* ]]
+  # Extensões: `pi update` sozinho as pula ("Extensions are skipped").
+  [[ "$output" == *"Extensions are up to date"* ]]
+}
+
+# Regressão: `pi update` imprime "Extensions are skipped. Run pi update
+# --extensions" — sem a fase própria, as extensões nunca eram atualizadas.
+@test "pi: fase de extensões é invocada explicitamente" {
+  has() { [[ "$1" == pi ]]; }
+  pi() { [[ "$1" == --version ]] && printf '0.84.1\n'; }
+  run_network_cmd() { printf 'ARGS:%s\n' "$*"; return 0; }
+  run update_pi
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ARGS:pi update --extensions"* ]]
+  [[ "$output" == *"ARGS:pi update --models"* ]]
+}
+
+# Regressão: extensões em falha não podem abortar o refresh dos catálogos — o
+# binário já foi atualizado na fase 1.
+@test "pi: falha nas extensões vira RC_WARN mas não impede o refresh de models" {
+  has() { [[ "$1" == pi ]]; }
+  pi() { [[ "$1" == --version ]] && printf '0.84.1\n'; }
+  run_network_cmd() {
+    case "$*" in
+      *"--extensions") printf 'boom\n'; return 1 ;;
+      *"--models") printf 'Model catalogs refreshed\n'; return 0 ;;
+      *) return 0 ;;
+    esac
+  }
+  run update_pi
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"falha ao atualizar extensões"* ]]
+  [[ "$output" == *"Model catalogs refreshed"* ]]
+  [[ "$output" == *"pi agora: 0.84.1"* ]]
 }
 
 @test "pi: falha de rede no self-update vira RC_WARN" {
@@ -91,9 +125,17 @@ setup() {
   [[ "$tags" == *update* ]]
 }
 
-@test "catálogo: step do pi tem timeout coerente (>= 120s p/ reinstall npm)" {
+# Três fases de rede (self + extensões + catálogos de 5 provedores) não cabem em
+# 180s: o refresh de modelos sozinho já estoura esse orçamento em runs reais.
+@test "catálogo: step do pi tem timeout p/ as três fases de rede" {
   local timeout
   timeout="$(step_catalog | awk -F'|' '$1 == "Atualizar pi (pi-coding-agent)" {print $5}')"
   [ -n "$timeout" ]
-  [ "$timeout" -ge 120 ]
+  [ "$timeout" -ge 600 ]
+}
+
+@test "catálogo: step do pi é marcado como slow (--skip slow deve cobri-lo)" {
+  local tags
+  tags="$(step_catalog | awk -F'|' '$1 == "Atualizar pi (pi-coding-agent)" {print $3}')"
+  [[ "$tags" == *slow* ]]
 }

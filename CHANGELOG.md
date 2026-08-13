@@ -17,7 +17,38 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   rede ou do updater viram `warn` (não derrubam o run). O `Doctor: AI CLIs`
   passou a listar a versão do pi também.
 
+- **O step do pi passou a atualizar também as extensões instaladas.** O
+  `pi update` cobre só o binário e o próprio pi avisa na saída
+  (`Extensions are skipped. Run pi update --extensions to update extensions`),
+  então as extensões ficavam permanentemente defasadas. O step ganhou a fase
+  `pi update --extensions`, entre o self-update e o refresh dos catálogos de
+  modelos. As fases 2 e 3 são independentes: um provedor fora do ar no refresh
+  de modelos não aborta a atualização das extensões (nem vice-versa), e o step
+  só reporta `warn` no fim — o binário já atualizado na fase 1 não é mascarado.
+  Com três fases de rede, o timeout do catálogo subiu de 180s para 600s (o
+  refresh de catálogos dos 5 provedores sozinho já estourava 180s em runs reais)
+  e o step recebeu a tag `slow`, de modo que `--skip slow` passa a cobri-lo.
+
 ### Corrigido
+
+- **Queda de rede era classificada como falha do updater nas CLIs de IA em JS.**
+  O `NETWORK_TRANSIENT_RE` só reconhecia mensagens em prosa (`could not resolve`,
+  `connection refused`…), mas as CLIs escritas em Node (pi, codex, gemini, qwen,
+  cline, kimi) e o instalador nativo do Claude Code propagam o erro cru do
+  undici — `fetch failed`, `ENETUNREACH`, `ENOTFOUND`, `connect ECONNREFUSED`,
+  `socket hang up`. Sem esses tokens, o `run_network_cmd` devolvia o rc bruto e o
+  ramo "falha de rede" desses steps era código morto: um outage transitório
+  virava `pi update falhou` (motivo enganoso) em vez de `rede indisponível`. O
+  regex passou a cobrir os códigos de erro do Node/undici.
+
+- **`Atualizar Claude Code CLI` derrubava o run inteiro numa queda de rede.** O
+  step devolvia o código de saída bruto do `claude update`, que sai com 1 quando
+  não consegue falar com `downloads.claude.ai`. Uma oscilação de rede marcava o
+  step como **falho**, divergindo dos steps irmãos (opencode/pi/ollama), que
+  reportam `warn` porque o CLI antigo continua utilizável. Agora o step passa
+  pelo `run_network_cmd` e classifica: falha de rede => `warn` com motivo
+  `rede indisponível para claude update`; qualquer outra falha do updater =>
+  `warn` com motivo `claude update falhou`.
 
 - **`Atualizar Claude Code CLI` estourava o timeout e deixava o CLI travado na
   versão antiga.** O instalador nativo baixa um binário de ~300 MB por release
@@ -31,7 +62,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   truncados antes e depois do update, além de validar que o symlink aponta para
   um binário utilizável (senão reporta `warn` acionável em vez de silenciar).
   O step também passou a ser marcado com a tag `slow`, então `--skip slow`
-  finalmente o cobre.
+  finalmente o cobre. O diretório varrido é configurável por
+  `CLAUDE_NATIVE_VERSIONS_DIR` (agora documentado na tabela de variáveis do
+  README) para instalações fora do caminho padrão.
 
 - **Publicação no AUR falhava e deixava o pacote defasado.** As janelas curtas
   de manutenção do AUR (`The AUR is down due to maintenance`) derrubavam o push

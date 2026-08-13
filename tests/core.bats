@@ -574,6 +574,22 @@ setup() {
   printf '%s\n' 'Connection timed out' | grep -qiE "$NETWORK_TRANSIENT_RE"
 }
 
+# Regressão: as CLIs de IA em JS (pi, codex, gemini, qwen, cline, kimi) e o
+# instalador nativo do Claude Code propagam o erro cru do Node/undici sem
+# traduzir. Sem esses tokens no regex, uma queda de rede era classificada como
+# "o updater falhou" e o ramo de RC_WARN de rede desses steps virava código morto.
+@test "NETWORK_TRANSIENT_RE: casa erros crus do Node/undici (fetch failed, E*)" {
+  printf '%s\n' 'Error: Could not determine latest pi version: fetch failed (ENETUNREACH, EADDRNOTAVAIL)' \
+    | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'Error: Could not refresh model catalogs: anthropic: fetch failed' \
+    | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'TelemetrySafeError: Failed to fetch version from https://downloads.claude.ai: connect ECONNREFUSED 35.190.46.17:443' \
+    | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'request to https://registry.npmjs.org failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org' \
+    | grep -qiE "$NETWORK_TRANSIENT_RE"
+  printf '%s\n' 'Error: socket hang up' | grep -qiE "$NETWORK_TRANSIENT_RE"
+}
+
 @test "NETWORK_TRANSIENT_RE: não casa erro de compilação/PKGBUILD" {
   run bash -c "printf '%s\n' 'error: os pacotes foo falharam na compilação' | grep -qiE \"\$1\"" _ "$NETWORK_TRANSIENT_RE"
   [ "$status" -ne 0 ]
