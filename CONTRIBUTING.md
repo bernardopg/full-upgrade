@@ -8,12 +8,15 @@ Bash puro (4+) para Arch Linux; não há artefatos compilados.
 O atalho é o `scripts/preflight.sh`, que roda exatamente o que o CI reprova:
 
 ```bash
-scripts/preflight.sh          # sintaxe + shellcheck + build (~13s)
-scripts/preflight.sh --full   # o acima + a suíte bats completa (~2min)
+scripts/preflight.sh          # sintaxe + shellcheck + build + bats (~45s)
+scripts/preflight.sh --fast   # sem a suíte bats (~13s), p/ iteração rápida
 ```
 
+A suíte roda em paralelo (`bats --jobs $(nproc)`), o que a leva de ~1m50 para
+~35s — por isso ela cabe no portao de pre-push em vez de ficar só no CI.
+
 Como a `main` aceita push direto (sem PR), instale o hook de pre-push uma vez
-para que o portão rápido rode sozinho antes de cada `git push`:
+para que esse portão rode sozinho antes de cada `git push`:
 
 ```bash
 scripts/install-hooks.sh      # pule pontualmente com: git push --no-verify
@@ -37,7 +40,7 @@ bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
 shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Testes unitários (bats — funções puras, sem mutação)
-bats tests/
+bats --jobs "$(nproc)" tests/
 
 # Smoke (sem mutação — seguro em qualquer máquina, inclusive CI não-Arch)
 ./full-upgrade.sh --help
@@ -103,7 +106,7 @@ irrecuperáveis.
 - Commits em **Conventional Commits** (acima).
 - Atualize `CHANGELOG.md` em `[Unreleased]` quando o comportamento mudar.
 - O CI continua rodando a cada push na `main`: ele não bloqueia mais o merge,
-  mas é quem roda a suíte completa, a cobertura e o build do standalone —
+  mas é quem roda a cobertura (Codecov), o smoke test e o build do standalone —
   acompanhe o resultado depois de empurrar.
 
 Abrir um PR continua válido (e recomendado para mudanças grandes ou de terceiros):

@@ -169,7 +169,7 @@ jobs:
           shellcheck --version
           shellcheck -S warning -x \
             full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
-          bats tests/
+          bats --jobs "$(nproc)" tests/
 
       - name: Build standalone
         env:

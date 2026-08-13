@@ -80,9 +80,12 @@ jobs:
 
       # PR: suíte pura (rápida). Push/dispatch: a suíte roda sob kcov no step
       # de coverage — rodar as duas seria executar tudo em dobro.
+      # --jobs: a suíte é isolada o bastante para rodar em paralelo (ver
+      # tests/build.bats, que builda em diretório próprio). Corta o tempo pela
+      # metade no runner e mantém o portão idêntico ao scripts/preflight.sh.
       - name: Unit tests (bats)
         if: env.RUN_COVERAGE != 'true'
-        run: bats tests/
+        run: bats --jobs "$(nproc)" tests/
 
       - name: Coverage (kcov + bats)
         if: env.RUN_COVERAGE == 'true'

@@ -31,9 +31,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 - **`scripts/preflight.sh` e `scripts/install-hooks.sh`.** Com a `main` aceitando
   push direto, o portão que antes vinha do PR passou a ser local: o preflight roda
-  sintaxe + shellcheck + build do standalone em ~13s (a suíte bats completa, de
-  ~1m50, fica no `--full` e no CI). O `install-hooks.sh` instala isso como hook de
-  `pre-push`; `git push --no-verify` pula quando necessário.
+  sintaxe, shellcheck, build do standalone e **a suíte bats inteira** em ~45s. O
+  `install-hooks.sh` instala isso como hook de `pre-push`; `git push --no-verify`
+  pula quando necessário, e `--fast` omite a suíte para iteração rápida.
+
+- **Suíte de testes em paralelo.** `bats --jobs $(nproc)` leva os 1137 testes de
+  ~1m50 para ~35s. Foi o que tornou viável colocar a suíte inteira no portão de
+  pre-push (em vez de deixá-la só no CI, quando a `main` já estaria quebrada).
+  Aplicado também no `ci.yml` e no `release.yml`.
 
 ### Alterado
 
@@ -74,6 +79,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   segue documentando o estilo esperado.
 
 ### Corrigido
+
+- **`build.sh` destruía o standalone anterior ao falhar.** A validação de
+  `FULL_UPGRADE_BUILD_VERSION` morava dentro do bloco redirecionado para o
+  arquivo de saída, então o redirect truncava o artefato **antes** de a checagem
+  rodar: um override inválido deixava para trás um `dist/full-upgrade-standalone.sh`
+  vazio, que ainda parecia um build válido. Na prática bastava rodar a suíte de
+  testes para corromper o artefato da árvore de trabalho. Agora a validação
+  acontece antes de qualquer escrita e o build é atômico (gera num temporário,
+  valida a sintaxe e só então promove com `mv`), de modo que build interrompido
+  ou inválido preserva o artefato anterior. O caminho de saída passou a ser
+  parametrizável por `FULL_UPGRADE_BUILD_OUT`, usado pelos testes para não tocar
+  no `dist/` do repo — o que também eliminou a corrida que fazia
+  `tests/build.bats` falhar de forma intermitente sob execução paralela.
 
 - **Skip colava no step anterior no output do terminal.** Um step pulado era
   impresso sem nenhum separador logo abaixo da linha de resultado do step de

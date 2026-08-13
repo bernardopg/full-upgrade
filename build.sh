@@ -6,8 +6,27 @@
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-OUT="${ROOT}/dist/full-upgrade-standalone.sh"
-mkdir -p "${ROOT}/dist"
+# Caminho de saída parametrizável: a suíte de testes builda em diretório próprio
+# em vez de sobrescrever o artefato de trabalho em dist/ (e, sob `bats --jobs`,
+# em vez de disputar o mesmo arquivo com outro teste).
+OUT="${FULL_UPGRADE_BUILD_OUT:-${ROOT}/dist/full-upgrade-standalone.sh}"
+mkdir -p "$(dirname -- "$OUT")"
+
+# Valida o override ANTES de gerar qualquer coisa. Quando essa checagem morava
+# dentro do bloco redirecionado para $OUT, o redirect já havia truncado o
+# arquivo: um override inválido destruía o standalone previamente gerado e
+# deixava um artefato vazio para trás.
+if [[ -n "${FULL_UPGRADE_BUILD_VERSION:-}" ]] \
+  && [[ ! "${FULL_UPGRADE_BUILD_VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+  printf 'build.sh: FULL_UPGRADE_BUILD_VERSION inválida: %s\n' "${FULL_UPGRADE_BUILD_VERSION}" >&2
+  exit 1
+fi
+
+# Gera num temporário e só promove no fim: um build interrompido no meio (erro,
+# Ctrl-C, disco cheio) preserva o artefato anterior em vez de deixar um arquivo
+# truncado que parece válido.
+TMP_OUT="$(mktemp "${OUT}.XXXXXX")"
+trap 'rm -f -- "$TMP_OUT"' EXIT
 
 # Ordem de dependência (igual ao entrypoint).
 ORDER=(
@@ -57,10 +76,7 @@ unset _missing _f
   _build_ver=""
   _git_top="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
   if [[ -n "${FULL_UPGRADE_BUILD_VERSION:-}" ]]; then
-    if [[ ! "${FULL_UPGRADE_BUILD_VERSION}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-      printf 'build.sh: FULL_UPGRADE_BUILD_VERSION inválida: %s\n' "${FULL_UPGRADE_BUILD_VERSION}" >&2
-      exit 1
-    fi
+    # Formato já validado no topo do script, antes de qualquer escrita.
     _build_ver="${FULL_UPGRADE_BUILD_VERSION}"
   elif [[ -n "$_git_top" && -f "${_git_top}/full-upgrade.sh" && -f "${_git_top}/build.sh" ]]; then
     _git_desc="$(git -C "$ROOT" describe --tags --always 2>/dev/null || true)"
@@ -111,8 +127,12 @@ print_banner
 run_all_steps
 finalize
 MAIN
-} > "$OUT"
+} > "$TMP_OUT"
 
-chmod +x "$OUT"
+# Valida antes de promover: nunca publicar um standalone que nem parseia.
+bash -n "$TMP_OUT"
+chmod +x "$TMP_OUT"
+mv -f -- "$TMP_OUT" "$OUT"
+trap - EXIT
 echo "Gerado: $OUT"
-bash -n "$OUT" && echo "Sintaxe OK"
+echo "Sintaxe OK"

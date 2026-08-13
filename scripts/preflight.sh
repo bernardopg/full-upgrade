@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# preflight.sh — portão local rápido, equivalente ao que o CI reprova.
+# preflight.sh — portão local completo, equivalente ao que o CI reprova.
 #
 # Existe porque a main deixou de exigir PR: sem um portão antes do `git push`,
-# um erro de sintaxe ou de lint só apareceria depois, com a main já quebrada.
-# Roda em ~13s (o `bats tests/` completo leva ~1m50 e fica para o CI, que segue
-# rodando a cada push na main).
+# uma regressão só apareceria depois, com a main já quebrada. Roda a suíte
+# INTEIRA — o que importa é que ela não passe despercebida, e em paralelo ela
+# custa ~35s (contra ~1m50 sequencial), bem abaixo do ciclo de PR + espera de CI
+# que este projeto abandonou.
 #
 # Uso:
-#   scripts/preflight.sh          # sintaxe + shellcheck + build (~13s)
-#   scripts/preflight.sh --full   # o acima + a suíte bats completa (~2min)
+#   scripts/preflight.sh          # sintaxe + shellcheck + build + bats (~45s)
+#   scripts/preflight.sh --fast   # sem a suíte bats (~13s), p/ iteração rápida
+#   BATS_JOBS=4 scripts/preflight.sh   # força o paralelismo
 #
 # Instale como hook de pre-push com: scripts/install-hooks.sh
 set -euo pipefail
@@ -17,8 +19,8 @@ ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 shopt -s nullglob
 
-FULL=0
-[[ "${1:-}" == "--full" ]] && FULL=1
+FAST=0
+[[ "${1:-}" == "--fast" ]] && FAST=1
 
 FILES=(full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh)
 
@@ -34,11 +36,29 @@ fi
 
 echo "▶ build standalone"
 ./build.sh >/dev/null
-bash -n dist/full-upgrade-standalone.sh
 ./dist/full-upgrade-standalone.sh --list-steps >/dev/null
 
-if (( FULL )); then
-  echo "▶ bats tests/"
+if (( FAST )); then
+  echo "✔ preflight ok (--fast: suíte bats NÃO executada)"
+  exit 0
+fi
+
+# `bats --jobs` precisa de GNU parallel (ou flock) para serializar a saída TAP;
+# sem eles, cai para execução sequencial em vez de falhar.
+jobs="${BATS_JOBS:-}"
+if [[ -z "$jobs" ]]; then
+  if command -v parallel >/dev/null 2>&1 || command -v flock >/dev/null 2>&1; then
+    jobs="$(nproc 2>/dev/null || echo 1)"
+  else
+    jobs=1
+  fi
+fi
+
+if (( jobs > 1 )); then
+  echo "▶ bats tests/ (--jobs ${jobs})"
+  bats --jobs "$jobs" tests/
+else
+  echo "▶ bats tests/ (sequencial: GNU parallel/flock ausente)"
   bats tests/
 fi
 
