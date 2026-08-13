@@ -349,6 +349,12 @@ run_all_steps() {
         step_skip "Atualizar opencode" "opencode não instalado"
     fi
 
+    if has pi; then
+        run_step "Atualizar pi (pi-coding-agent)" update_pi
+    else
+        step_skip "Atualizar pi (pi-coding-agent)" "pi não instalado"
+    fi
+
     if has ollama; then
         run_step "Atualizar Ollama" update_ollama
     else
