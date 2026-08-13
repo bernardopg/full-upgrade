@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Notas de release omitiam commits enviados direto à `main`.** O
+  `generate_release_notes` do GitHub privilegia PRs e, na v3.34.0, listou os PRs
+  #173–#178 mas omitiu os quatro commits posteriores feitos pelo novo fluxo de
+  push direto — justamente as correções de build, CI, extensões do pi e hooks.
+  O workflow agora extrai a seção versionada do `CHANGELOG.md` (fonte
+  autoritativa que cobre PR e push direto), falha se ela não existir/estiver
+  vazia e a usa como corpo da GitHub Release. A v3.34.0 também foi corrigida
+  retroativamente com as notas completas.
+
 ## [3.34.0] - 2026-08-13
 ### Adicionado
 

@@ -144,8 +144,11 @@ A release é disparada por `push` de tag `v*` ou por `workflow_dispatch` (input
    no `main`** com o `FU_RELEASE_TOKEN` (o PR de ciclo curto existia só para
    satisfazer os required checks e foi removido junto com eles).
 2. **Release** — valida (bash -n + shellcheck + bats), builda o standalone,
-   atesta proveniência, empurra a tag e cria a GitHub Release. **É aqui que está
-   o portão da release**: um bump quebrado falha nesta etapa e nada é publicado.
+   atesta proveniência, extrai as notas da seção versionada do `CHANGELOG.md`,
+   empurra a tag e cria a GitHub Release. **É aqui que está o portão da
+   release**: um bump quebrado ou uma seção ausente/vazia falha nesta etapa e
+   nada é publicado. Não use `generate_release_notes`: ele omite commits
+   enviados direto à `main` e só é completo num fluxo baseado em PR.
 3. **AUR** — recalcula o checksum do tarball da tag e publica o `PKGBUILD`.
 
 ### Secrets necessários (Settings → Secrets and variables → Actions)

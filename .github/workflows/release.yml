@@ -211,6 +211,22 @@ jobs:
           echo "name=${name}" >> "$GITHUB_OUTPUT"
           echo "version=${name#v}" >> "$GITHUB_OUTPUT"
 
+      # O gerador automático do GitHub privilegia PRs e omite commits enviados
+      # direto à main — justamente o fluxo principal deste repo. Usa a seção
+      # versionada do CHANGELOG como fonte autoritativa e acrescenta o compare.
+      - name: Preparar notas completas da release
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          scripts/extract-release-notes.sh "${VERSION}" > dist/release-notes.md
+          previous="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          if [ -n "${previous}" ]; then
+            printf '\n\n**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+              "${GITHUB_REPOSITORY}" "${previous}" "${TAG}" >> dist/release-notes.md
+          fi
+          test -s dist/release-notes.md
+
       # No workflow_dispatch a tag ainda não existe (foi criada só no main);
       # cria e empurra. No push de tag a tag já existe (criada por quem disparou).
       - name: Criar e empurrar tag (apenas workflow_dispatch)
@@ -228,7 +244,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: full-upgrade ${{ steps.tag.outputs.name }}
-          generate_release_notes: true
+          body_path: dist/release-notes.md
           files: |
             dist/full-upgrade-standalone.sh
             dist/full-upgrade-standalone.sh.sha256
