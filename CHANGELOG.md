@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.34.1] - 2026-08-14
 ### Corrigido
 
 - **Plugins git (DMS, Zsh, OBS) travavam num laço de falha permanente.** Um run
