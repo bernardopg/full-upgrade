@@ -115,7 +115,16 @@ update_omz_custom_plugins() {
     [[ "$plugin" == "example" ]] && continue
     [[ -d "$dir/.git" ]] || { skipped+=("$plugin"); continue; }
 
-    if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
+    # Repo travado por conflito anterior: git recusa fetch/pull/stash, então
+    # reportar a causa real em vez de falhar com mensagem enganosa a cada run.
+    if git_has_unmerged "$dir"; then
+      log "  ${plugin}: conflito pendente de resolução (arquivos unmerged) — update adiado."
+      log "  Resolva com: git -C ${dir} status"
+      dirty+=("$plugin")
+      continue
+    fi
+
+    if ! fetch_err="$(git_fetch_full "$dir")"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para plugin ${plugin}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
@@ -130,9 +139,16 @@ update_omz_custom_plugins() {
     fi
 
     log "  ${plugin}: ${behind} commit(s) atrás — atualizando..."
-    if git -C "$dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
+    if git_pull_ff_only "$dir" && ! git_has_unmerged "$dir"; then
       updated+=("$plugin")
       log "  ${plugin}: atualizado."
+    elif git_has_unmerged "$dir"; then
+      # pull "bem-sucedido" que deixou conflito (pull.rebase+autostash): restaura
+      # a árvore para o plugin seguir carregável e reporta como sujo.
+      log "  ${plugin}: pull deixou conflito — restaurando árvore."
+      git -C "$dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
+      git -C "$dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
+      dirty+=("$plugin")
     elif plugin_realign_to_upstream "$dir" "$plugin"; then
       updated+=("$plugin")
     else

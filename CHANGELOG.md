@@ -6,6 +6,38 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- **Plugins git (DMS, Zsh, OBS) travavam num laço de falha permanente.** Um run
+  real reportou `✘ Atualizar plugins DankMaterialShell` em todos os runs
+  consecutivos, sempre com `stash falhou; pulando para não arriscar mudanças
+  locais` — mensagem que escondia a causa. A cadeia tinha três defeitos
+  encadeados, todos corrigidos:
+  1. **`fetch --depth=1` impedia qualquer fast-forward.** Num repo com história,
+     cada fetch raso cria um novo graft point, e a ponta remota fica sem
+     ancestralidade conectada ao `HEAD` local. Resultado: `merge-base
+     --is-ancestor HEAD origin/HEAD` era falso mesmo com árvore limpa e zero
+     commits locais, então `pull --ff-only` **nunca** conseguia fast-forward e
+     todo update caía no caminho de exceção (auto-stash + `reset --hard`).
+     O novo `git_fetch_full` desrasa o repo uma vez (`--unshallow`) e o
+     fast-forward volta a ser real.
+  2. **`git pull --ff-only` não é determinístico.** Com `pull.rebase=true` +
+     `rebase.autostash=true` (combo comum em dotfiles) ele vira rebase, e se a
+     reaplicação do autostash conflita o git deixa marcadores de conflito no
+     working tree **e ainda sai com 0** — o step reportava "atualizado" com o
+     plugin quebrado (um `.qml`/`.zsh` com marcadores não parseia). O novo
+     `git_pull_ff_only` força `pull.rebase=false` e desliga autostash, e todo
+     caminho de sucesso verifica que o repo não ficou unmerged.
+  3. **Repo unmerged virava `fail` para sempre.** Com paths em conflito o git
+     recusa `fetch`/`pull`/`stash`, então o step falhava em todo run seguinte
+     sem nunca reportar a causa real. Agora é detectado antes (`git_has_unmerged`)
+     e classificado como `todo` com remediação, e o caminho de `stash pop`
+     conflitado restaura a árvore para o upstream (plugin volta a carregar) em
+     vez de deixar marcadores — as mudanças locais seguem intactas no stash.
+
+  Os três helpers vivem em `lib/core.sh` porque plugins Zsh
+  (`lib/steps/editor_shell.sh`), DMS (`steps.d/40-dms.sh`) e OBS
+  (`steps.d/85-obs.sh`) repetiam o mesmo par fetch/pull e carregavam os mesmos
+  bugs.
+
 - **Notas de release omitiam commits enviados direto à `main`.** O
   `generate_release_notes` do GitHub privilegia PRs e, na v3.34.0, listou os PRs
   #173–#178 mas omitiu os quatro commits posteriores feitos pelo novo fluxo de

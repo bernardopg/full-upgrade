@@ -4,6 +4,10 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
+# Os helpers git compartilhados (git_has_unmerged, git_fetch_full,
+# git_pull_ff_only) vivem em lib/core.sh — plugins Zsh, DMS e OBS repetiam o
+# mesmo par fetch/pull e por isso carregavam os mesmos dois bugs: repo raso
+# quebrando o ff-only, e pull.rebase+autostash deixando conflito com rc=0.
 update_dms_plugins() {
   local plugins_dir="${DMS_PLUGINS_DIR:-${HOME}/.config/DankMaterialShell/plugins}"
 
@@ -12,7 +16,7 @@ update_dms_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=()
+  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=()
   local plugin dir behind fetch_err net_fail=0
 
   for dir in "$plugins_dir"/*/; do
@@ -31,7 +35,16 @@ update_dms_plugins() {
       continue
     fi
 
-    if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
+    # Repo travado por conflito pendente: git recusa fetch/pull/stash. Reportar a
+    # causa real (ação do usuário) em vez de tentar e falhar com mensagem enganosa.
+    if git_has_unmerged "$dir"; then
+      log "  ${plugin}: conflito pendente de resolução (arquivos unmerged) — update adiado."
+      log "  Resolva com: git -C ${dir} status  &&  git -C ${dir} checkout -f HEAD -- ."
+      conflicted+=("$plugin")
+      continue
+    fi
+
+    if ! fetch_err="$(git_fetch_full "$dir")"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para DMS plugin ${plugin}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
@@ -45,7 +58,15 @@ update_dms_plugins() {
     fi
 
     log "  ${plugin}: ${behind} commit(s) atrás — atualizando..."
-    if git -C "$dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
+    if git_pull_ff_only "$dir"; then
+      # Cinto de segurança: nenhum caminho de sucesso pode deixar o repo unmerged.
+      if git_has_unmerged "$dir"; then
+        log "  ${plugin}: pull retornou sucesso mas deixou conflito — restaurando árvore."
+        git -C "$dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
+        git -C "$dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
+        conflicted+=("$plugin")
+        continue
+      fi
       updated+=("$plugin")
       continue
     fi
@@ -83,7 +104,15 @@ update_dms_plugins() {
       log "  ${plugin}: reset para ${remote_ref} + mudanças locais restauradas."
       updated+=("$plugin")
     else
-      log "  ${plugin}: resetado, mas o stash pop conflitou — suas mudanças continuam seguras no stash."
+      # O pop conflitado deixa marcadores de conflito no working tree. Num plugin
+      # QML isso não é só sujeira: o arquivo não parseia e o plugin quebra em
+      # runtime, além de travar todos os updates futuros deste repo. Como o git
+      # preserva a entrada do stash quando o pop conflita, dá para restaurar a
+      # árvore para o upstream (plugin funcional) sem perder nada.
+      git -C "$dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
+      git -C "$dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
+      log "  ${plugin}: resetado para ${remote_ref}; o stash pop conflitou."
+      log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
       log "  Recupere com: git -C ${dir} stash list  &&  git -C ${dir} stash pop"
       stash_conflicts+=("$plugin")
     fi
@@ -97,7 +126,14 @@ update_dms_plugins() {
     [[ -d "$repo_dir/.git" ]] || continue
     repo_name="$(basename "$repo_dir")"
 
-    if ! fetch_err="$(git -C "$repo_dir" fetch --quiet origin 2>&1)"; then
+    if git_has_unmerged "$repo_dir"; then
+      log "  monorepo ${repo_name}: conflito pendente de resolução (arquivos unmerged) — update adiado."
+      log "  Resolva com: git -C ${repo_dir} status"
+      conflicted+=(".repos/${repo_name}")
+      continue
+    fi
+
+    if ! fetch_err="$(git_fetch_full "$repo_dir")"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para monorepo DMS ${repo_name}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
@@ -109,7 +145,14 @@ update_dms_plugins() {
     (( behind == 0 )) && continue
 
     log "  monorepo ${repo_name} ($(git -C "$repo_dir" remote get-url origin 2>/dev/null)): ${behind} commit(s) atrás — atualizando..."
-    if git -C "$repo_dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
+    if git_pull_ff_only "$repo_dir"; then
+      if git_has_unmerged "$repo_dir"; then
+        log "  monorepo ${repo_name}: pull retornou sucesso mas deixou conflito — restaurando árvore."
+        git -C "$repo_dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
+        git -C "$repo_dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
+        conflicted+=(".repos/${repo_name}")
+        continue
+      fi
       updated+=(".repos/${repo_name}")
     else
       log "  Aviso: pull falhou para monorepo DMS ${repo_name} (divergência local?)."
@@ -124,6 +167,7 @@ update_dms_plugins() {
   fi
   (( ${#repo_managed[@]} > 0 )) && log "  DMS plugins via registry (.repos, atualizados como monorepo): ${repo_managed[*]}"
   (( ${#skipped[@]} > 0 )) && log "  DMS plugins sem git (ignorados): ${skipped[*]}"
+  (( ${#conflicted[@]} > 0 )) && log "  DMS plugins travados por conflito pendente: ${conflicted[*]}"
   if (( ${#failed[@]} > 0 )); then
     log "  DMS plugins com falha: ${failed[*]}"
     # GitHub inacessível é transitório: warn (contrato RC), não fail.
@@ -133,10 +177,14 @@ update_dms_plugins() {
     fi
     return 1
   fi
-  if (( ${#stash_conflicts[@]} > 0 )); then
-    # Mudanças preservadas no stash mas exigem merge manual: ação do usuário,
-    # não falha operacional — todo, não fail.
-    STEP_REASON="stash pop com conflito em: ${stash_conflicts[*]}"
+  if (( ${#stash_conflicts[@]} > 0 || ${#conflicted[@]} > 0 )); then
+    # Mudanças preservadas no stash mas exigem merge manual, ou repo já travado
+    # por conflito anterior: ação do usuário, não falha operacional — todo, não fail.
+    local -a pend=()
+    (( ${#stash_conflicts[@]} > 0 )) && pend+=("stash pop com conflito em: ${stash_conflicts[*]}")
+    (( ${#conflicted[@]} > 0 )) && pend+=("conflito pendente em: ${conflicted[*]}")
+    STEP_REASON="$(printf '%s; ' "${pend[@]}")"
+    STEP_REASON="${STEP_REASON%; }"
     return "$RC_TODO"
   fi
   return 0

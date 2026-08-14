@@ -149,6 +149,140 @@ create_repo_with_remote() {
   [ "$status" -eq "$RC_TODO" ]
 }
 
+@test "update_dms_plugins: stash pop conflito não deixa marcadores no working tree" {
+  # Regressão: marcadores de conflito num .qml quebram o plugin em runtime E
+  # travam todo update futuro (git recusa fetch/pull/stash com paths unmerged).
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet 2>/dev/null
+
+  create_dummy_repo "$DMS_PLUGINS_DIR/myplugin"
+  git -C "$DMS_PLUGINS_DIR/myplugin" remote add origin "$bare" 2>/dev/null
+  git -C "$DMS_PLUGINS_DIR/myplugin" push -u origin HEAD --quiet 2>/dev/null || true
+
+  echo "local-variant" > "$DMS_PLUGINS_DIR/myplugin/file.txt"
+
+  local clone="$MOCKDIR/remote-work"
+  git clone "$bare" "$clone" --quiet 2>/dev/null
+  configure_test_git_repo "$clone"
+  echo "remote-variant" > "$clone/file.txt"
+  git -C "$clone" add .
+  git -C "$clone" commit -m "remote change" --quiet 2>/dev/null
+  git -C "$clone" push origin HEAD --quiet 2>/dev/null || \
+    git -C "$clone" push --quiet 2>/dev/null || true
+
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  # árvore limpa (sem unmerged) e sem marcadores no arquivo
+  [ -z "$(git -C "$DMS_PLUGINS_DIR/myplugin" ls-files --unmerged)" ]
+  ! grep -q '^<<<<<<<' "$DMS_PLUGINS_DIR/myplugin/file.txt"
+  # as mudanças locais continuam recuperáveis no stash
+  [[ "$(git -C "$DMS_PLUGINS_DIR/myplugin" stash list)" == *"auto-stash myplugin"* ]]
+}
+
+@test "update_dms_plugins: pull.rebase+autostash não pode reportar sucesso com conflito" {
+  # Regressão: com pull.rebase=true + rebase.autostash=true (combo comum em
+  # dotfiles), `git pull --ff-only` vira rebase, conflita ao reaplicar o
+  # autostash, deixa marcadores no working tree e MESMO ASSIM sai com 0 — o step
+  # reportava "atualizado" com o plugin quebrado e o repo travado.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet 2>/dev/null
+
+  create_dummy_repo "$DMS_PLUGINS_DIR/myplugin"
+  git -C "$DMS_PLUGINS_DIR/myplugin" remote add origin "$bare" 2>/dev/null
+  git -C "$DMS_PLUGINS_DIR/myplugin" push -u origin HEAD --quiet 2>/dev/null || true
+  git -C "$DMS_PLUGINS_DIR/myplugin" config pull.rebase true
+  git -C "$DMS_PLUGINS_DIR/myplugin" config rebase.autostash true
+
+  echo "local-variant" > "$DMS_PLUGINS_DIR/myplugin/file.txt"
+
+  local clone="$MOCKDIR/remote-work"
+  git clone "$bare" "$clone" --quiet 2>/dev/null
+  configure_test_git_repo "$clone"
+  echo "remote-variant" > "$clone/file.txt"
+  git -C "$clone" add .
+  git -C "$clone" commit -m "remote change" --quiet 2>/dev/null
+  git -C "$clone" push origin HEAD --quiet 2>/dev/null || \
+    git -C "$clone" push --quiet 2>/dev/null || true
+
+  run update_dms_plugins
+  # o que importa: não pode terminar ok escondendo um repo travado
+  [ "$status" -ne 0 ]
+  [ -z "$(git -C "$DMS_PLUGINS_DIR/myplugin" ls-files --unmerged)" ]
+  ! grep -q '^<<<<<<<' "$DMS_PLUGINS_DIR/myplugin/file.txt"
+}
+
+# ── repo travado por conflito pendente ──────────────────────────────────
+
+@test "update_dms_plugins: repo com paths unmerged => RC_TODO, não fail" {
+  # Regressão do laço de fail permanente: com paths unmerged o git recusa
+  # fetch/pull/stash, e o código antigo virava `return 1` (fail) em TODO run.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet 2>/dev/null
+
+  create_dummy_repo "$DMS_PLUGINS_DIR/myplugin"
+  git -C "$DMS_PLUGINS_DIR/myplugin" remote add origin "$bare" 2>/dev/null
+  git -C "$DMS_PLUGINS_DIR/myplugin" push -u origin HEAD --quiet 2>/dev/null || true
+
+  # fabrica estado unmerged de verdade: merge conflitante deixado sem resolver
+  git -C "$DMS_PLUGINS_DIR/myplugin" checkout -b other --quiet
+  echo "other" > "$DMS_PLUGINS_DIR/myplugin/file.txt"
+  git -C "$DMS_PLUGINS_DIR/myplugin" commit -am "other" --quiet
+  git -C "$DMS_PLUGINS_DIR/myplugin" checkout main --quiet
+  echo "mainside" > "$DMS_PLUGINS_DIR/myplugin/file.txt"
+  git -C "$DMS_PLUGINS_DIR/myplugin" commit -am "mainside" --quiet
+  git -C "$DMS_PLUGINS_DIR/myplugin" merge other --quiet 2>/dev/null || true
+  [ -n "$(git -C "$DMS_PLUGINS_DIR/myplugin" ls-files --unmerged)" ]
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"conflito pendente"* ]]
+  [[ "$output" == *"myplugin"* ]]
+}
+
+# ── repo raso (shallow) ────────────────────────────────────────────
+
+@test "update_dms_plugins: repo shallow atualiza via ff-only (sem reset --hard)" {
+  # Regressão: fetch --depth=1 criava graft desconectado, HEAD deixava de ser
+  # ancestral de origin/HEAD e o ff-only falhava mesmo com árvore limpa e zero
+  # commits locais — empurrando todo update para o caminho stash + reset --hard.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+  # história com profundidade > 1, para o clone raso realmente truncar
+  echo "v2" >> "$work/file.txt"
+  git -C "$work" commit -am "v2" --quiet
+  git -C "$work" push origin main --quiet
+
+  mkdir -p "$DMS_PLUGINS_DIR"
+  git clone --quiet --depth=1 "file://${bare}" "$DMS_PLUGINS_DIR/myplugin"
+  configure_test_git_repo "$DMS_PLUGINS_DIR/myplugin"
+  [ -f "$(git -C "$DMS_PLUGINS_DIR/myplugin" rev-parse --absolute-git-dir)/shallow" ]
+
+  # remoto avança
+  echo "v3" >> "$work/file.txt"
+  git -C "$work" commit -am "v3" --quiet
+  git -C "$work" push origin main --quiet
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"myplugin"* ]]
+  [ "$(git -C "$DMS_PLUGINS_DIR/myplugin" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
+  # e o caminho de divergência (stash) não foi acionado
+  [ -z "$(git -C "$DMS_PLUGINS_DIR/myplugin" stash list)" ]
+}
+
 # ── múltiplos plugins ─────────────────────────────────────────────────────────
 
 @test "update_dms_plugins: mistura de plugins skipped e git" {

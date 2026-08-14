@@ -77,7 +77,14 @@ update_obs_plugins() {
       continue
     fi
 
-    if ! fetch_err="$(git -C "$dir" fetch --quiet --depth=1 origin 2>&1)"; then
+    if git_has_unmerged "$dir"; then
+      log "  ${plugin}: conflito pendente de resolução (arquivos unmerged) — update adiado."
+      log "  Resolva com: git -C ${dir} status"
+      failed+=("$plugin")
+      continue
+    fi
+
+    if ! fetch_err="$(git_fetch_full "$dir")"; then
       log_raw "$fetch_err"
       log "  Aviso: fetch falhou para plugin OBS ${plugin}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
@@ -89,9 +96,14 @@ update_obs_plugins() {
     (( behind == 0 )) && continue
 
     log "  ${plugin}: ${behind} commit(s) atrás — atualizando..."
-    if git -C "$dir" pull --ff-only --quiet origin 2>>"$LOG_FILE"; then
+    if git_pull_ff_only "$dir" && ! git_has_unmerged "$dir"; then
       updated+=("$plugin")
     else
+      if git_has_unmerged "$dir"; then
+        log "  ${plugin}: pull deixou conflito — restaurando árvore."
+        git -C "$dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
+        git -C "$dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
+      fi
       log "  Aviso: pull falhou para plugin OBS ${plugin} (divergência local?)."
       failed+=("$plugin")
     fi

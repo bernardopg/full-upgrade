@@ -345,6 +345,65 @@ aur_ignore_args() {
   done
 }
 
+# ── Helpers git compartilhados por steps que atualizam plugins clonados ───────
+# (plugins Zsh em lib/steps/editor_shell.sh, DMS em steps.d/40-dms.sh, OBS em
+# steps.d/85-obs.sh). Os três repetiam o mesmo par fetch/pull e por isso os
+# mesmos dois bugs; centralizar aqui é o que impede a terceira cópia divergir.
+
+# Repo com merge/stash-pop pendente tem paths "unmerged" (UU). Nesse estado o git
+# recusa fetch/pull/stash, então toda tentativa de update vira fail em TODO run
+# seguinte até alguém resolver à mão. Detectar antes é o que quebra esse laço.
+git_has_unmerged() {
+  [[ -n "$(git -C "$1" ls-files --unmerged 2>/dev/null)" ]]
+}
+
+# Fetch que garante história completa.
+#
+# `fetch --depth=1` num repo com história cria um novo graft point a cada
+# execução: a ponta remota fica sem ancestralidade conectada ao HEAD local, então
+# `merge-base --is-ancestor HEAD origin/HEAD` é FALSO mesmo sem nenhum commit
+# local. Observado em máquina real: `pull --ff-only` nunca conseguia fast-forward
+# e todo update caía no caminho de "divergência" (stash + reset --hard), que por
+# sua vez podia conflitar e travar o plugin permanentemente. Repo raso é desraso
+# uma única vez; depois o fast-forward volta a ser real. Ecoa stdout+stderr para
+# o chamador classificar erro de rede.
+git_fetch_full() {
+  local dir="$1" git_dir
+  git_dir="$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -n "$git_dir" && -f "${git_dir}/shallow" ]]; then
+    git -C "$dir" fetch --quiet --unshallow origin 2>&1 && return 0
+    # --unshallow falha se o remoto não suporta ou se já foi desraso em corrida;
+    # cair para fetch completo normal (sem --depth) preserva a correção.
+  fi
+  git -C "$dir" fetch --quiet origin 2>&1
+}
+
+# Fast-forward determinístico, imune à config global do usuário.
+#
+# `git pull --ff-only` NÃO é determinístico: com `pull.rebase=true` ele vira
+# rebase e, com `rebase.autostash=true` (combo comum em dotfiles), guarda as
+# mudanças locais, rebaseia e tenta reaplicar. Se a reaplicação conflita, o git
+# deixa marcadores de conflito no working tree e ainda assim SAI COM 0 — o step
+# reportaria "atualizado" com o plugin quebrado (um .qml/.zsh com marcadores não
+# parseia) e o repo travado para todos os updates seguintes. Forçar merge sem
+# autostash mantém o contrato: ou fast-forward limpo, ou falha — e aí o caminho
+# controlado de stash/reset do chamador assume.
+git_pull_ff_only() {
+  git -C "$1" \
+    -c pull.rebase=false -c rebase.autostash=false -c merge.autostash=false \
+    pull --ff-only --quiet origin 2>>"${LOG_FILE:-/dev/null}"
+}
+
+# Caminho do sidecar com os pacotes AUR que falharam build()/download NESTE run.
+# Steps rodam em subshell (veja run_step), então estado global não propaga entre
+# eles — arquivo por RUN_ID é o idioma do projeto para estado cross-step
+# (mesma forma de .aur-out-of-date e .pacfiles-todo). A rotação em lib/json.sh é
+# agnóstica de extensão, então este artefato é limpo junto com o resto do run.
+aur_build_failed_file() {
+  printf '%s/full-upgrade-%s.aur-build-failed' \
+    "${LOG_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/system-upgrade}" "${RUN_ID:-unknown}"
+}
+
 # Extrai pacotes AUR marcados pelo mantenedor como out-of-date da saída de
 # helpers (paru/yay). Isso não significa update aplicável; é sinal informativo.
 aur_out_of_date_pkgs() {
