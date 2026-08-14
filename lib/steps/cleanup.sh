@@ -500,9 +500,43 @@ autofix_final_pending() {
     fi
   fi
 
+  # Pacote que já falhou em build() neste run não cura com retry: erro de
+  # compilação é determinístico. Sem este filtro, um único PKGBUILD quebrado
+  # upstream fazia o step recompilar o pacote inteiro do zero (1m43s medidos com
+  # pcsx2 vs ffmpeg 8) para falhar exatamente igual. O step de pacman grava a
+  # lista em $(aur_build_failed_file).
+  local -a _known_failed=()
+  local _abf_file
+  _abf_file="$(aur_build_failed_file)"
+  if [[ -n "${aur_pending//[[:space:]]/}" && -s "$_abf_file" ]]; then
+    mapfile -t _known_failed < <(grep -E '[^[:space:]]' "$_abf_file" 2>/dev/null | sort -u)
+    if (( ${#_known_failed[@]} > 0 )); then
+      local _remaining=""
+      _remaining="$(
+        printf '%s\n' "$aur_pending" | grep -E '[^[:space:]]' | awk -v list="${_known_failed[*]}" '
+          BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) failed[a[i]] = 1 }
+          !($1 in failed)
+        ' || true
+      )"
+      if [[ -z "${_remaining//[[:space:]]/}" ]]; then
+        log "  Pendência AUR restrita a pacote(s) que já falharam build neste run: ${_known_failed[*]}"
+        log "  Falha de compilação é determinística — retry pulado (economiza rebuild garantido a falhar)."
+        remediation "paru -S ${_known_failed[*]}  # ou aguarde o mantenedor corrigir o PKGBUILD"
+        STEP_REASON="retry AUR pulado: ${#_known_failed[@]} pacote(s) com falha de build determinística"
+        return "$RC_TODO"
+      fi
+      log "  Ignorando no retry ${#_known_failed[@]} pacote(s) com falha de build determinística: ${_known_failed[*]}"
+      aur_pending="$_remaining"
+    fi
+  fi
+
   if [[ -n "${aur_pending//[[:space:]]/}" ]]; then
     local -a ignore_args=() aur_cmd=()
     mapfile -t ignore_args < <(aur_ignore_args)
+    local _kf
+    for _kf in "${_known_failed[@]}"; do
+      ignore_args+=("--ignore=${_kf}")
+    done
     case "${AUR_HELPER:-}" in
       paru) has paru && aur_cmd=(paru -Sua --skipreview --noconfirm) ;;
       yay)  has yay  && aur_cmd=(yay -Sua --noconfirm --answerclean None --answerdiff None --answeredit None --answerupgrade None) ;;

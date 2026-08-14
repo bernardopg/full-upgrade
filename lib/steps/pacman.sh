@@ -241,6 +241,14 @@ update_system_aur() {
         )
         if (( ${#_failed_aur[@]} > 0 )); then
           log "  ${C_YELLOW}Falha isolada em ${#_failed_aur[@]} pacote(s) AUR: ${_failed_aur[*]}${C_RESET}"
+          # Persiste os que falharam em build()/download para o run inteiro:
+          # falha de compilação é determinística, então `autofix_final_pending`
+          # (lib/steps/cleanup.sh) lê este arquivo e não os recompila em vez de
+          # queimar minutos num retry com resultado garantido. Mesmo critério que
+          # o loop de retry acima já aplica internamente.
+          if [[ -n "${RUN_ID:-}" ]]; then
+            printf '%s\n' "${_failed_aur[@]}" > "$(aur_build_failed_file)"
+          fi
         fi
         log "  Sistema (repos oficiais) atualizado; falha restrita ao AUR — marcando como ação manual, não erro fatal."
         remediation "paru -S ${_failed_aur[*]:-<pacote>}  # ou aguarde o mantenedor corrigir o PKGBUILD"

@@ -38,6 +38,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   (`steps.d/85-obs.sh`) repetiam o mesmo par fetch/pull e carregavam os mesmos
   bugs.
 
+- **`Auto-remediar pendências finais` recompilava pacote AUR com falha
+  determinística.** Quando um PKGBUILD quebra upstream (caso real: `pcsx2` vs a
+  API do ffmpeg 8), o step de pacman já classificava como `todo` e seguia — mas
+  a remediação final disparava `paru -Sua` às cegas e recompilava o mesmo pacote
+  do zero, **1m43s medidos** para falhar exatamente igual. O loop de retry
+  interno do pacman já sabia que "erro de PKGBUILD, conflito ou compilação não
+  cura com retry"; agora essa informação atravessa os steps por um sidecar
+  `.aur-build-failed` por `RUN_ID` (mesmo idioma de `.aur-out-of-date`, já que
+  steps rodam em subshell e globais não propagam). Se toda a pendência AUR já
+  falhou build no run, o retry é pulado; se sobra algo, os quebrados entram como
+  `--ignore`.
+
 - **Notas de release omitiam commits enviados direto à `main`.** O
   `generate_release_notes` do GitHub privilegia PRs e, na v3.34.0, listou os PRs
   #173–#178 mas omitiu os quatro commits posteriores feitos pelo novo fluxo de
