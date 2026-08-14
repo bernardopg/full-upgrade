@@ -356,6 +356,20 @@ snapshots manuais/de outras origens.
   limpa, o clone é realinhado em `origin/HEAD` e o HEAD anterior fica guardado em
   `refs/full-upgrade/pre-realign/<timestamp>`. Plugin com modificação local não é
   tocado e vira `todo`, nunca `fail`.
+- **Atualização de plugins clonados (Zsh, DMS, OBS):** os três steps usam os
+  mesmos helpers (`git_fetch_full`, `git_pull_ff_only`, `git_has_unmerged`), que
+  desarmam três armadilhas do git. **(a)** Clone raso: `fetch --depth=1` cria um
+  novo graft point a cada execução, a ponta remota perde ancestralidade com o
+  `HEAD` local e o fast-forward passa a ser impossível *mesmo com árvore limpa* —
+  o repo é desraso uma vez e volta a atualizar por ff. **(b)** `pull --ff-only`
+  não é determinístico: sob `pull.rebase=true` + `rebase.autostash=true` ele vira
+  rebase e, se a reaplicação conflita, deixa marcadores no working tree e **sai
+  com 0** — o pull é forçado a ignorar essa config e todo caminho de sucesso
+  confere que o repo não ficou unmerged. **(c)** Repo com conflito pendente: o
+  git recusa `fetch`/`pull`/`stash`, então o estado é detectado antes e vira
+  `todo` com remediação, em vez de `fail` repetido a cada run. Quando um `stash
+  pop` conflita, a árvore é restaurada para o upstream (o plugin continua
+  carregável) e suas mudanças ficam intactas no stash.
 - **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
   `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
   compartilham um único bloco **Shell / Editor**. Cada grupo mostra tempo total,
@@ -402,7 +416,12 @@ Arquivos ficam em:
   latest.jsonl -> último log estruturado
 ```
 
-O script mantém os 20 logs mais recentes de cada tipo.
+O script mantém os 20 logs mais recentes de cada tipo. Alguns steps ainda gravam
+artefatos auxiliares com o mesmo `<run_id>` (relatório `.md`, `.pkgs-before`,
+`.aur-out-of-date`, `.aur-build-failed`, `.pacfiles-todo`): steps com timeout
+rodam em subshell, então estado que precisa chegar a um step posterior viaja por
+arquivo, não por variável. A rotação agrupa por `run_id` e não depende de uma
+lista de extensões, então esses artefatos são limpos junto com o run.
 
 JSONL registra eventos de run e step. Campos importantes:
 
@@ -647,6 +666,9 @@ jq -r 'select(.event == "step" and .status == "fail")' ~/.cache/system-upgrade/l
 | Um step demora demais | Timeout por step foi atingido e o status vira `warn`. | Veja `latest.log` e rode `--explain-step` para entender timeout/deps. |
 | JSONL parece incompleto | Execução foi interrompida antes do resumo. | Confira eventos `run_start`, `step` e `run_end` em `latest.jsonl`. |
 | Doctor retorna `todo` | O script encontrou ação manual, não necessariamente uma falha. | Leia o bloco do step no log e decida a correção. |
+| Step de plugins reporta `conflito pendente` | O clone do plugin tem arquivos unmerged (merge ou `stash pop` interrompido); o git recusa `fetch`/`pull`/`stash` nesse estado. | `git -C <plugin> status`; resolva ou descarte com `git -C <plugin> checkout -f HEAD -- .`. O log traz o caminho exato. |
+| Plugin resetado com `stash pop` conflitado | Suas mudanças locais divergiram do upstream. A árvore é restaurada para o upstream (o plugin segue carregável) e nada é perdido. | `git -C <plugin> stash list` e `git -C <plugin> stash pop` para reconciliar quando quiser. |
+| Pacote AUR pendente run após run | PKGBUILD quebrado upstream. O retry é pulado de propósito: falha de compilação é determinística. | Acompanhe o pacote no AUR ou coloque em `FULL_UPGRADE_AUR_IGNORE` até o mantenedor corrigir. |
 
 ## Desenvolvimento
 

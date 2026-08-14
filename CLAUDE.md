@@ -75,6 +75,20 @@ Two consequences for contributors: **(a)** a step that talks to the network must
 3. Call it from the correct point in `lib/main.sh` `run_all_steps()`.
 4. Use `RC_WARN`/`RC_TODO` for non-fatal outcomes; let a missing dependency become `skip`, not `fail`.
 
+### Cross-step state: sidecar files, not globals
+
+A step with a catalog timeout runs in a **subshell**, so any global it sets is lost (only `STEP_REASON` survives, via a temp file — see `run_step`). State that must reach a later step is written to a file named by `RUN_ID` under `LOG_DIR`: `.pkgs-before` (`lib/json.sh`), `.pacfiles-todo` (`lib/core.sh`), `.aur-out-of-date` and `.aur-build-failed` (both `lib/steps/pacman.sh` → read by `lib/steps/cleanup.sh`). `rotate_logs` groups artifacts by `RUN_ID` and is extension-agnostic, so a new sidecar is cleaned up automatically — no list to register in.
+
+`.aur-build-failed` is the reason `autofix_final_pending` does not rebuild a package that already failed `build()` earlier in the same run: a compile error is deterministic, and the blind retry burned minutes to fail identically.
+
+### Updating cloned plugins (Zsh, DMS, OBS)
+
+Three steps update git clones — `update_omz_custom_plugins` (`lib/steps/editor_shell.sh`), `update_dms_plugins` (`steps.d/40-dms.sh`), `update_obs_plugins` (`steps.d/85-obs.sh`). They share three helpers in `lib/core.sh`; use them instead of calling `git fetch`/`git pull` directly, because each one encodes a trap that produced a real permanent-failure loop:
+
+- `git_fetch_full` — never `--depth=1`. On a repo with history, a shallow fetch creates a fresh graft point every run, so `merge-base --is-ancestor HEAD origin/HEAD` is false even with a clean tree and zero local commits. Fast-forward then becomes impossible and *every* update falls into the stash + `reset --hard` exception path.
+- `git_pull_ff_only` — `git pull --ff-only` is **not** deterministic: under `pull.rebase=true` + `rebase.autostash=true` it becomes a rebase, and a conflicting autostash reapply leaves conflict markers in the tree **while exiting 0**. The helper forces `pull.rebase=false` and disables autostash; callers must still verify with `git_has_unmerged` before counting a pull as success.
+- `git_has_unmerged` — a repo with unmerged paths makes git refuse `fetch`/`pull`/`stash`, so the step failed on every subsequent run. Detect it up front and return `RC_TODO` with remediation; never leave conflict markers behind (a `.qml`/`.zsh` with markers does not parse, so the plugin breaks at runtime).
+
 ### Modes & filters
 
 `--mode full|update|doctor|repair` and `--only`/`--skip-category` are resolved in `apply_mode_and_early_exits` (`lib/cli.sh`) by populating `FULL_UPGRADE_SKIP` before the run. `--only`/`--skip-category` always keep `core` and `final` category steps. `--mode doctor` additionally calls `add_skip_mutating_steps` so every step with `efeito=mutating` is skipped — doctor mode is guaranteed read-only even for core/final steps. So filtering is implemented entirely as "add to the skip list," and `run_all_steps` itself is filter-agnostic.
