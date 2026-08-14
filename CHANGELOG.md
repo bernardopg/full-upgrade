@@ -50,6 +50,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   falhou build no run, o retry é pulado; se sobra algo, os quebrados entram como
   `--ignore`.
 
+- **`pi update --models` com timeout reportava razão genérica.** O pi emite
+  `Model catalog refresh timed out`, texto que não casa com `NETWORK_TRANSIENT_RE`
+  (que exige `connection`/`operation`/`request timed out`), então caía no ramo
+  "falha do updater". Timeout de catálogo remoto é transitório por definição e
+  agora é reconhecido como tal — sem alargar a regex global, que passaria a
+  classificar timeout de qualquer step como falha de rede.
+
 - **Notas de release omitiam commits enviados direto à `main`.** O
   `generate_release_notes` do GitHub privilegia PRs e, na v3.34.0, listou os PRs
   #173–#178 mas omitiu os quatro commits posteriores feitos pelo novo fluxo de

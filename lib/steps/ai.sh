@@ -167,8 +167,19 @@ update_pi() {
     log "  pi: falha de rede ao refrescar catálogos de modelos (lista de IA)."
     degraded="rede indisponível para pi update --models"
   elif (( rc != 0 )); then
-    log "  pi: falha ao refrescar catálogos de modelos (rc=${rc}); binário atualizado."
-    degraded="pi update --models falhou"
+    # O pi reporta timeout do refresh como "Model catalog refresh timed out" —
+    # texto que NÃO casa com NETWORK_TRANSIENT_RE (que exige "connection/operation
+    # /request timed out"), então run_network_cmd não o classifica como rede.
+    # Timeout de catálogo remoto é transitório por definição; reconhecer aqui dá a
+    # razão certa sem alargar a regex global (que classificaria timeout de
+    # qualquer step como falha de rede).
+    if grep -qiE 'timed out|timeout|tempo esgotado' <<<"$out"; then
+      log "  pi: timeout ao refrescar catálogos de modelos (transitório); binário atualizado."
+      degraded="timeout no refresh de catálogos do pi (transitório)"
+    else
+      log "  pi: falha ao refrescar catálogos de modelos (rc=${rc}); binário atualizado."
+      degraded="pi update --models falhou"
+    fi
   fi
 
   after="$(pi --version 2>/dev/null | head -1)"
