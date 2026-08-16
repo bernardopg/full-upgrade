@@ -406,10 +406,11 @@ FULL_UPGRADE_AUR_IGNORE=""
 FULL_UPGRADE_PIP_USER_IGNORE=""
 # IDs estáveis de integrações opcionais desabilitadas (ex.: openclaw,coderabbit).
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
-# Units que NUNCA devem ser reportadas/reiniciadas pela auditoria de libs antigas
-# (needrestart/checkservices). Ex.: "NetworkManager.service" para quem roda o
-# upgrade por SSH/Wi-Fi — a unidade segura libs velhas até o reboot por decisão
-# do usuário, sem virar TODO eterno. Globs permitidos (ex.: 'dnsmasq*.service').
+# Units systemd saciadas da auditoria de libs antigas (needrestart/checkservices):
+# não são reportadas como pendência nem candidatas a reinício. Use para units cujo
+# reinício quebraria sessão/rede (ex.: upgrade por SSH/Wi-Fi) e que ficarão com
+# libs velhas até reboot por decisão consciente. Globs permitidos.
+# Ex: STALE_SERVICES_IGNORE="NetworkManager.service"
 STALE_SERVICES_IGNORE=""
 
 # ── Overrides de path (vazio = auto-detecta) ──

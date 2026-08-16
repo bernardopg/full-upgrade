@@ -58,6 +58,7 @@ FULL_UPGRADE_AUR_IGNORE="${FULL_UPGRADE_AUR_IGNORE:-}"
 FULL_UPGRADE_PIP_USER_IGNORE="${FULL_UPGRADE_PIP_USER_IGNORE:-}"
 FULL_UPGRADE_SKIP="${FULL_UPGRADE_SKIP:-}"   # nomes de steps separados por vírgula
 FULL_UPGRADE_DISABLED_INTEGRATIONS="${FULL_UPGRADE_DISABLED_INTEGRATIONS:-}" # IDs estáveis, separados por vírgula
+STALE_SERVICES_IGNORE="${STALE_SERVICES_IGNORE:-}" # units saciadas da auditoria de libs antigas (globs permitidos)
 FULL_UPGRADE_PACFILES_TODO_REPORTED=0         # evita duplicar TODO de pacfiles no mesmo run
 
 HAS_FAIL=0
