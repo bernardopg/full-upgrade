@@ -85,6 +85,12 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # Integrações opcionais desabilitadas por ID estável (não depende do nome do
 # step). Ex.: FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw,coderabbit"
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
+# Units systemd saciadas da auditoria de libs antigas (needrestart/checkservices):
+# não são reportadas como pendência nem candidatas a reinício. Use para units cujo
+# reinício quebraria sessão/rede (ex.: upgrade por SSH/Wi-Fi) e que ficarão com
+# libs velhas até reboot por decisão consciente. Globs permitidos.
+# Ex: STALE_SERVICES_IGNORE="NetworkManager.service"
+STALE_SERVICES_IGNORE=""
 
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"

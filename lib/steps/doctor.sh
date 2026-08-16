@@ -1191,13 +1191,21 @@ doctor_stale_services() {
       log "  needrestart retornou código ${rc}."
       return "$RC_WARN"
     fi
-    local svc_count
-    svc_count="$(printf '%s\n' "$output" | grep -c 'NEEDRESTART-SVC' || true)"
+    local -a svc_list=() svc_ignored=()
+    local svc
+    while IFS= read -r svc; do
+      [[ -n "$svc" ]] || continue
+      if stale_service_is_ignored "$svc"; then svc_ignored+=("$svc"); else svc_list+=("$svc"); fi
+    done < <(printf '%s\n' "$output" | sed -nE 's/^NEEDRESTART-SVC:?[[:space:]]*//p')
+    if (( ${#svc_ignored[@]} > 0 )); then
+      log "  Ignorado(s) por STALE_SERVICES_IGNORE (libs antigas até reboot/logout, por decisão do usuário): ${svc_ignored[*]}"
+    fi
+    local svc_count="${#svc_list[@]}"
     local kstat
     kstat="$(printf '%s\n' "$output" | awk -F'=' '/NEEDRESTART-KSTA/{print $2; exit}')"
     if (( svc_count > 0 )); then
       log "  needrestart: ${svc_count} serviço(s) usando bibliotecas antigas:"
-      printf '%s\n' "$output" | grep 'NEEDRESTART-SVC' | awk -F'=' '{print "    " $2}' | log_stream
+      printf '%s\n' "${svc_list[@]}" | sed 's/^/    /' | log_stream
       status="$RC_TODO"
       STEP_REASON="${svc_count} serviço(s) com bibliotecas antigas (needrestart)"
     else
@@ -1229,15 +1237,22 @@ doctor_stale_services() {
     # (ex.: 14 itens reportados para 10 serviços reais). Extraímos apenas as
     # somente as linhas de unit reconhecidas — o conjunto canônico de serviços
     # que o checkservices recomenda reiniciar.
-    local -a _affected_services=()
+    local -a _affected_services=() _kept_services=() _ignored_services=()
     mapfile -t _affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
-    if (( ${#_affected_services[@]} == 0 )); then
-      log "  checkservices: nenhum serviço com bibliotecas antigas."
+    local _svc
+    for _svc in "${_affected_services[@]}"; do
+      if stale_service_is_ignored "$_svc"; then _ignored_services+=("$_svc"); else _kept_services+=("$_svc"); fi
+    done
+    if (( ${#_ignored_services[@]} > 0 )); then
+      log "  Ignorado(s) por STALE_SERVICES_IGNORE (libs antigas até reboot/logout, por decisão do usuário): ${_ignored_services[*]}"
+    fi
+    if (( ${#_kept_services[@]} == 0 )); then
+      log "  checkservices: nenhum serviço com bibliotecas antigas (após ignores de config)."
       return 0
     fi
-    local svc_count="${#_affected_services[@]}"
+    local svc_count="${#_kept_services[@]}"
     log "  checkservices: ${svc_count} serviço(s) usando bibliotecas substituídas (reinício recomendado):"
-    printf '%s\n' "${_affected_services[@]}" | log_stream
+    printf '%s\n' "${_kept_services[@]}" | log_stream
     STEP_REASON="${svc_count} serviço(s) com libs antigas (reinício pendente)"
 
     if (( RESTART_SERVICES )); then
@@ -1272,8 +1287,17 @@ restart_stale_services() {
     return "$RC_WARN"
   fi
 
-  local -a affected_services=()
+  local -a affected_services=() ignored_services=() kept_services=()
   mapfile -t affected_services < <(printf '%s\n' "$output" | parse_checkservices_units)
+
+  local svc
+  for svc in "${affected_services[@]}"; do
+    if stale_service_is_ignored "$svc"; then ignored_services+=("$svc"); else kept_services+=("$svc"); fi
+  done
+  if (( ${#ignored_services[@]} > 0 )); then
+    log "  Ignorando por STALE_SERVICES_IGNORE (não serão reiniciados nem reportados): ${ignored_services[*]}"
+  fi
+  affected_services=("${kept_services[@]}")
 
   local display_manager_units=""
   if has systemctl; then
@@ -1281,7 +1305,6 @@ restart_stale_services() {
   fi
 
   local -a restart_cmds=() protected_services=()
-  local svc
   for svc in "${affected_services[@]}"; do
     # O checkservices enumera somente services. Restringir também aqui evita
     # que um fallback malformado faça restart de mount/target/socket.

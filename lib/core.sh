@@ -530,6 +530,24 @@ service_restart_is_session_critical() {
   return 1
 }
 
+# Units que o usuário saciou explicitamente da auditoria de libs antigas via
+# STALE_SERVICES_IGNORE (config; globs permitidos, ex. '*.service'). Caso de uso
+# canônico: NetworkManager.service num upgrade rodado por SSH — reiniciar derruba
+# a conexão no meio do run, e a unidade fica segurando libs velhas até reboot
+# por decisão do usuário, não por pendência esquecida. Sem esta válvula, o
+# Doctor e o step de restart reportam TODO eterno para uma unidade que o usuário
+# decidiu conscientemente não tocar (service_restart_is_session_critical já a
+# protege do reinício; isto além disso a tira da contagem/reporte).
+stale_service_is_ignored() {
+  local unit="$1" pat
+  [[ -n "${STALE_SERVICES_IGNORE:-}" ]] || return 1
+  for pat in $STALE_SERVICES_IGNORE; do
+    # shellcheck disable=SC2053  # glob matching é intencional (padrões tipo '*.service')
+    [[ "$unit" == $pat ]] && return 0
+  done
+  return 1
+}
+
 # Motivo de um step que deixou units críticas sem reiniciar. Nomeia as units:
 # "2 unit(s) protegida(s)" não diz ao usuário o que reiniciar, e este texto vira
 # também o rodapé "Reboot recomendado: …" do resumo (ver step_todo).

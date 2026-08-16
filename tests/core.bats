@@ -264,6 +264,32 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+# ── stale_service_is_ignored ───────────────────────────────────────────────────
+
+@test "stale_service_is_ignored: lista vazia não ignora nada" {
+  STALE_SERVICES_IGNORE=""
+  run stale_service_is_ignored NetworkManager.service
+  [ "$status" -ne 0 ]
+}
+
+@test "stale_service_is_ignored: match exato pelo nome da unit" {
+  STALE_SERVICES_IGNORE="NetworkManager.service"
+  run stale_service_is_ignored NetworkManager.service
+  [ "$status" -eq 0 ]
+  run stale_service_is_ignored postgresql.service
+  [ "$status" -ne 0 ]
+}
+
+@test "stale_service_is_ignored: globs são suportados" {
+  STALE_SERVICES_IGNORE="dnsmasq*.service systemd-networkd.service"
+  run stale_service_is_ignored dnsmasq@lan.service
+  [ "$status" -eq 0 ]
+  run stale_service_is_ignored systemd-networkd.service
+  [ "$status" -eq 0 ]
+  run stale_service_is_ignored NetworkManager.service
+  [ "$status" -ne 0 ]
+}
+
 # ── parse_cargo_vuln_bins ───────────────────────────────────────────────────────
 
 @test "parse_cargo_vuln_bins: extrai basename dos binários vulneráveis" {

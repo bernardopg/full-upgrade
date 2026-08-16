@@ -91,6 +91,9 @@ Ambiente:
                            (padrão: poetry poetry-core chardet uvicorn urwid redis)
   FULL_UPGRADE_SKIP        Nomes de steps para pular, separados por vírgula
                            Ex: FULL_UPGRADE_SKIP="Atualizar ghcup,Atualizar gems"
+  STALE_SERVICES_IGNORE    Units saciadas da auditoria de libs antigas
+                           (needrestart/checkservices): sem TODO/reinício
+                           Ex: STALE_SERVICES_IGNORE="NetworkManager.service"
 EOF
 }
 

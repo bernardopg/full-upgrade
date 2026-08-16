@@ -131,6 +131,7 @@ FULL_UPGRADE_AUR_IGNORE
 FULL_UPGRADE_PIP_USER_IGNORE
 FULL_UPGRADE_SKIP
 FULL_UPGRADE_DISABLED_INTEGRATIONS
+STALE_SERVICES_IGNORE
 GCLOUD_BIN
 COPILOT_BIN
 ADGUARD_BIN
@@ -255,7 +256,7 @@ load_config() {
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
-  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS
+  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
   config_warn_typos
@@ -405,6 +406,11 @@ FULL_UPGRADE_AUR_IGNORE=""
 FULL_UPGRADE_PIP_USER_IGNORE=""
 # IDs estáveis de integrações opcionais desabilitadas (ex.: openclaw,coderabbit).
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
+# Units que NUNCA devem ser reportadas/reiniciadas pela auditoria de libs antigas
+# (needrestart/checkservices). Ex.: "NetworkManager.service" para quem roda o
+# upgrade por SSH/Wi-Fi — a unidade segura libs velhas até o reboot por decisão
+# do usuário, sem virar TODO eterno. Globs permitidos (ex.: 'dnsmasq*.service').
+STALE_SERVICES_IGNORE=""
 
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
@@ -505,6 +511,7 @@ show_config() {
   _cfg_kv "FULL_UPGRADE_PIP_USER_IGNORE" "$FULL_UPGRADE_PIP_USER_IGNORE" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_SKIP" "$FULL_UPGRADE_SKIP" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_DISABLED_INTEGRATIONS" "$FULL_UPGRADE_DISABLED_INTEGRATIONS" "<nenhuma>"
+  _cfg_kv "STALE_SERVICES_IGNORE" "$STALE_SERVICES_IGNORE" "<nenhum>"
   printf '\n'
 
   # ── Paths de tools (auto-detectados ou via override) ──
