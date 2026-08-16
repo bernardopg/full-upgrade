@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.35.1] - 2026-08-16
 ### Corrigido
 
 - **Linhas coloridas perto da largura do terminal perdiam o alinhamento.** O
