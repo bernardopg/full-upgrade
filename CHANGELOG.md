@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.35.0] - 2026-08-16
 ### Adicionado
 
 - **`STALE_SERVICES_IGNORE` — units saciadas da auditoria de libs antigas.**
