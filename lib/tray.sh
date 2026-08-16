@@ -324,6 +324,21 @@ tray_self_bin() {
 # Camada 3 — coleta de updates, estado, notificações, daemon yad
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Filtra do stdin (linhas "pkg ver -> ver" de <helper> -Qua) os pacotes listados
+# em FULL_UPGRADE_AUR_IGNORE, emitindo as demais linhas intactas — a linha
+# completa é o que o submenu Pendências exibe. Puro; lista vazia = passthrough.
+tray_filter_aur_ignore() {
+  [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]] || { cat; return 0; }
+  local -A _ig=()
+  local _p _line _pkg
+  for _p in $FULL_UPGRADE_AUR_IGNORE; do [[ -n "$_p" ]] && _ig["$_p"]=1; done
+  while IFS= read -r _line; do
+    [[ -n "$_line" ]] || continue
+    _pkg="${_line%%[[:space:]]*}"
+    [[ -n "${_ig[${_pkg}]:-}" ]] || printf '%s\n' "$_line"
+  done
+}
+
 # Coleta listas de updates (repo + AUR; flatpak best-effort). Faz rede.
 # Uso: tray_gather_updates_detail <repo_file> <aur_file> <flatpak_file>
 # Emite "repo aur flatpak". Não muta o sistema.
@@ -339,6 +354,17 @@ tray_gather_updates_detail() {
   fi
   if h=$(detect_aur_helper 2>/dev/null); then
     [[ -n "$h" ]] && "$h" -Qua > "$aur_file" 2>/dev/null || true
+    # Pacotes que o update ignora por decisão do usuário (FULL_UPGRADE_AUR_IGNORE,
+    # ex.: build quebrado upstream) não são pendência do tray: sem o filtro o
+    # applet fica em updates/attention para sempre mesmo com runs limpos, e o
+    # badge conta algo que o próprio update se recusa a instalar.
+    if [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
+      if tray_filter_aur_ignore < "$aur_file" > "${aur_file}.filtered" 2>/dev/null; then
+        mv -f "${aur_file}.filtered" "$aur_file"
+      else
+        rm -f "${aur_file}.filtered"
+      fi
+    fi
     aur=$(tray_count_list < "$aur_file")
   fi
   # Flatpak: `remote-ls --updates` é read-only (só consulta os remotes).

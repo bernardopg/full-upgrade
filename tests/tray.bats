@@ -726,3 +726,32 @@ EOF
   [ ! -e "$(tray_systemd_unit_file)" ]
   [[ "$output" == *"removida"* ]]
 }
+
+# ── tray_filter_aur_ignore ────────────────────────────────────────────────────
+
+@test "tray_filter_aur_ignore: lista de ignore vazia é passthrough" {
+  FULL_UPGRADE_AUR_IGNORE=""
+  mapfile -t result < <(printf '%s\n' "pcsx2 2.6.3-2 -> 2.6.3-3" "foo 1 -> 2" | tray_filter_aur_ignore)
+  [ "${#result[@]}" -eq 2 ]
+}
+
+@test "tray_filter_aur_ignore: remove pacote ignorado preservando a linha inteira" {
+  FULL_UPGRADE_AUR_IGNORE="pcsx2"
+  mapfile -t result < <(printf '%s\n' "pcsx2 2.6.3-2 -> 2.6.3-3" "foo 1 -> 2" | tray_filter_aur_ignore)
+  [ "${#result[@]}" -eq 1 ]
+  [ "${result[0]}" = "foo 1 -> 2" ]
+}
+
+@test "tray_filter_aur_ignore: casa o nome inteiro, não prefixo" {
+  FULL_UPGRADE_AUR_IGNORE="pcsx2"
+  mapfile -t result < <(printf '%s\n' "pcsx2-git 1 -> 2" | tray_filter_aur_ignore)
+  [ "${#result[@]}" -eq 1 ]
+  [ "${result[0]}" = "pcsx2-git 1 -> 2" ]
+}
+
+@test "tray_filter_aur_ignore: vários ignorados na mesma lista" {
+  FULL_UPGRADE_AUR_IGNORE="pcsx2 burpsuite"
+  mapfile -t result < <(printf '%s\n' "pcsx2 1 -> 2" "burpsuite 1 -> 2" "zed 1 -> 2" | tray_filter_aur_ignore)
+  [ "${#result[@]}" -eq 1 ]
+  [ "${result[0]}" = "zed 1 -> 2" ]
+}
