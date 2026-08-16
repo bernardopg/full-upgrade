@@ -66,3 +66,58 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "café  " ]
 }
+
+# ── rodapé "Próximos passos" (alinhamento) ────────────────────────────────────
+
+_summary_footer_fixture() {
+  QUIET=0; LOG_FILE=/dev/null; COLUMNS=80; JSON_SUMMARY=0
+  JSONL_FILE="${BATS_TEST_TMPDIR}/run.jsonl"; : > "$JSONL_FILE"
+  STEP_NAMES=("Doctor: crashes recorrentes (coredump)" "Verificação final de gerenciadores")
+  STEP_RESULTS=("todo" "todo")
+  STEP_TIMES=(0 10)
+  STEP_REASONS=("crash recorrente: WebKitWebProcess (3x) e outros processos para forçar a quebra" "pendências após update: pnpm global")
+  STEP_CATEGORIES=("doctor" "final")
+  STEP_START=(0 0)
+}
+
+@test "print_summary: itens de próximos passos mantêm o alinhamento do marcador" {
+  _summary_footer_fixture
+  run print_summary
+  [ "$status" -eq 0 ]
+  plain="$(printf '%s\n' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  # só a seção do rodapé (o corpo agrupado usa o mesmo marcador)
+  footer="$(printf '%s\n' "$plain" | sed -n '/Próximos passos:/,$p')"
+  # todo item começa com "    →  " (marcador + DOIS espaços), inclusive os que quebram
+  count_ok="$(printf '%s\n' "$footer" | grep -c '^    →  ')"
+  [ "$count_ok" -eq 2 ]
+  count_bad="$(printf '%s\n' "$footer" | grep -c '^    → [^ ]' || true)"
+  [ "$count_bad" -eq 0 ]
+}
+
+@test "print_summary: continuação da quebra alinha sob o nome do step" {
+  _summary_footer_fixture
+  run print_summary
+  [ "$status" -eq 0 ]
+  plain="$(printf '%s\n' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  footer="$(printf '%s\n' "$plain" | sed -n '/Próximos passos:/,$p')"
+  # a continuação do motivo longo fica recuada em 7 (largura de "    →  ")
+  cont="$(printf '%s\n' "$footer" | grep -E '^ {7}[^ ]' | head -1)"
+  [ -n "$cont" ]
+  [[ "$cont" == *"WebKitWebProcess"* ]]
+}
+
+# ── print_pkg_changes (alinhamento da coluna de versões) ──────────────────────
+
+@test "print_pkg_changes: nomes padronizados alinham a coluna de versões" {
+  QUIET=0; LOG_FILE=/dev/null; COLUMNS=100
+  before="${BATS_TEST_TMPDIR}/before"; after="${BATS_TEST_TMPDIR}/after"
+  printf '%s\n' "lld 22.1.8-1" "extra-cmake-modules 6.28.0-1" "containerd 2.3.3-1" > "$before"
+  printf '%s\n' "containerd 2.3.4-1" > "$after"
+  run print_pkg_changes "$before" "$after"
+  [ "$status" -eq 0 ]
+  plain="$(printf '%s\n' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  # coluna da versão idêntica em todas as linhas de pacote (nome curto e longo)
+  cols="$(printf '%s\n' "$plain" | grep -E '^    [↑+−] ' \
+    | awk '{ i = index($0, $3); print i }' | sort -u | wc -l)"
+  [ "$cols" -eq 1 ]
+}

@@ -109,7 +109,12 @@ skip_step_count() {
 # exibição, então quem passa nele com certeza cabe e sai sem trabalho extra.
 _log_to_terminal() {
   local _w; _w="$(ui_width)"
-  if (( ${#1} <= _w )); then
+  # Largura VISÍVEL (ANSI não conta): o caminho rápido por comprimento cru
+  # falhava para qualquer linha colorida perto da largura do terminal (os
+  # escapes somam bytes), mandando-a para o ui_wrap — que re-tokeniza e colapsa
+  # espaços deliberados de alinhamento (o "→  " do rodapé virava "→ ").
+  local _vis; _vis="$(ui_strip_ansi "$1")"
+  if (( ${#_vis} <= _w )); then
     printf '%b\n' "$1"
     return 0
   fi

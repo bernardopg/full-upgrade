@@ -70,6 +70,43 @@ ui_pad_left() {
   printf '%s%s' "$pad" "$s"
 }
 
+# Quebra $2 em no máximo $3 colunas de exibição com RECUO PENDENTE (hanging
+# indent): a 1ª linha sai prefixada com $1 e as continuações alinham sob o
+# início do texto (coluna = largura visível do prefixo). O ui_wrap puro
+# re-tokeniza a linha inteira e por isso colapsa espaços deliberados do
+# prefixo (o "→  " do rodapé de próximos passos virava "→ " em linhas longas)
+# e indenta a continuação na coluna do marcador, não do texto. Prefixo deve
+# virar sem ANSI (a versão colorida é aplicada pelo chamador ao imprimir).
+# Token maior que a largura fica sozinho e intacto, como no ui_wrap.
+ui_wrap_hang() {
+  local prefix="$1" text="$2" w="${3:-0}" tokw tok line="" linew=0
+  local pw=${#prefix}
+  (( w <= 0 )) && w="$(ui_width)"
+  (( ${#prefix} + ${#text} <= w )) && { printf '%s%s\n' "$prefix" "$text"; return 0; }
+
+  local -a toks=() lines=()
+  local _restore_glob=0
+  [[ -o noglob ]] || { set -f; _restore_glob=1; }
+  read -ra toks <<< "$text"
+  (( _restore_glob )) && set +f
+
+  for tok in "${toks[@]}"; do
+    tokw=${#tok}
+    if [[ -z "$line" ]]; then
+      line="${prefix}${tok}"; linew=$(( pw + tokw ))
+    elif (( linew + 1 + tokw <= w )); then
+      line+=" ${tok}"; linew=$(( linew + 1 + tokw ))
+    else
+      lines+=("$line")
+      line="$(printf '%*s' "$pw" '')${tok}"
+      linew=$(( pw + tokw ))
+    fi
+  done
+  (( ${#lines[@]} == 0 )) && { printf '%s\n' "$line"; return 0; }
+  lines+=("$line")
+  printf '%s\n' "${lines[@]}"
+}
+
 # Corta texto pela largura de exibição, usando reticências quando necessário.
 # Larguras muito pequenas ainda produzem uma saída determinística.
 ui_truncate() {
@@ -523,11 +560,41 @@ print_summary() {
       fi
       act_symcolor="$(_status_sym "$act_status")"
       act_sym="${act_symcolor%%|*}"; act_color="${act_symcolor##*|}"
-      if [[ -n "${act_reason//[[:space:]]/}" ]]; then
-        log_always "    ${act_color}${act_sym}${C_RESET}  ${act_name} — ${C_DIM}${act_reason}${C_RESET}"
-      else
-        log_always "    ${act_color}${act_sym}${C_RESET}  ${act_name}"
-      fi
+      # Item quebrado com recuo pendente (ui_wrap_hang): linhas longas mantêm o
+      # alinhamento "→  " e a continuação fica sob o nome, não sob o marcador —
+      # pelo ui_wrap puro a linha colapsava para "→ " e a continuação voltava
+      # para a coluna do marcador, destoando das linhas curtas ao redor.
+      local act_text="$act_name" act_pad=$(( 4 + ${#act_sym} + 2 ))
+      [[ -n "${act_reason//[[:space:]]/}" ]] && act_text="${act_name} — ${act_reason}"
+      local act_prefix="    ${act_sym}  " act_indent
+      act_indent="$(printf '%*s' "$act_pad" '')"
+      local -a act_lines=()
+      mapfile -t act_lines < <(ui_wrap_hang "$act_prefix" "$act_text" "$(ui_width)")
+      local li=0 in_reason=0 li_line li_body li_out l_left l_right
+      for li_line in "${act_lines[@]}"; do
+        # ui_wrap_hang já devolve a linha montada (prefixo na 1ª, recuo nas
+        # demais); aqui só trocamos essa moldura pela versão colorida.
+        if (( li == 0 )); then
+          li_body="${li_line#"$act_prefix"}"
+          li_out="    ${act_color}${act_sym}${C_RESET}  "
+        else
+          li_body="${li_line#"$act_indent"}"
+          li_out="$act_indent"
+        fi
+        # Pinta a partir do separador " — " (nome em cor normal, motivo em dim);
+        # linhas de continuação são motivo, então inteiras em dim. Nome de step
+        # não contém " — ", então o primeiro separador é sempre o do join.
+        if (( in_reason == 0 )) && [[ "$li_body" == *" — "* ]]; then
+          l_left="${li_body%% — *}"; l_right="${li_body#* — }"
+          log_always "${li_out}${l_left} — ${C_DIM}${l_right}${C_RESET}"
+          in_reason=1
+        elif (( in_reason )); then
+          log_always "${li_out}${C_DIM}${li_body}${C_RESET}"
+        else
+          log_always "${li_out}${li_body}"
+        fi
+        (( li++ ))
+      done
     done < <(summary_action_items)
   fi
 
@@ -558,7 +625,14 @@ print_pkg_changes() {
   local up_color="$C_DIM"; (( up > 0 )) && up_color="$C_GREEN"
   log_always "  ${C_BOLD}Pacotes alterados${C_RESET} (${up_color}${up} atualizados${C_RESET}, ${ins} instalados, ${rem} removidos)"
 
-  local shown=0 max=30 tag a b c
+  local shown=0 max=30 tag a b c namew=0
+  # Alinhar a coluna de versões pela maior nome da lista (o catálogo de steps
+  # alinha por ui_fit; aqui "lld" e "extra-codem-modules" no mesmo bloco
+  # deixavam as versões em colunas tortas).
+  while read -r tag a b c; do
+    [[ -n "$tag" ]] || continue
+    (( ${#a} > namew )) && namew=${#a}
+  done <<< "$diff"
   while read -r tag a b c; do
     [[ -n "$tag" ]] || continue
     if (( shown >= max )); then
@@ -566,9 +640,9 @@ print_pkg_changes() {
       break
     fi
     case "$tag" in
-      U) log_always "    ${C_GREEN}↑${C_RESET} ${a}  ${C_DIM}${b} → ${c}${C_RESET}" ;;
-      I) log_always "    ${C_CYAN}+${C_RESET} ${a}  ${C_DIM}${b}${C_RESET}" ;;
-      R) log_always "    ${C_RED}−${C_RESET} ${a}  ${C_DIM}${b}${C_RESET}" ;;
+      U) log_always "    ${C_GREEN}↑${C_RESET} $(ui_pad "${a}" "$namew")  ${C_DIM}${b} → ${c}${C_RESET}" ;;
+      I) log_always "    ${C_CYAN}+${C_RESET} $(ui_pad "${a}" "$namew")  ${C_DIM}${b}${C_RESET}" ;;
+      R) log_always "    ${C_RED}−${C_RESET} $(ui_pad "${a}" "$namew")  ${C_DIM}${b}${C_RESET}" ;;
     esac
     (( shown++ ))
   done <<< "$diff"

@@ -180,3 +180,30 @@ setup() {
   run ui_wrap "$colored" 12
   [ "${#lines[@]}" -eq 1 ]
 }
+
+# ── ui_wrap_hang (recuo pendente) ─────────────────────────────────────────────
+
+@test "ui_wrap_hang: linha que cabe sai numa só, com o prefixo intacto" {
+  run ui_wrap_hang "    →  " "Step curto — motivo" 80
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [ "${lines[0]}" = "    →  Step curto — motivo" ]
+}
+
+@test "ui_wrap_hang: continuação alinha sob o texto, não sob o marcador" {
+  run ui_wrap_hang "    →  " "alfa beta gama delta epsilon zeta" 20
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -gt 1 ]
+  # 1ª linha preserva os dois espaços do prefixo (o ui_wrap puro colapsava)
+  [[ "${lines[0]}" == "    →  alfa"* ]]
+  # continuações recuadas na largura do prefixo (7), não em 4
+  local cont="${lines[1]}"
+  [ "${cont:0:7}" = "       " ]
+  [ "${cont:7:1}" != " " ]
+}
+
+@test "ui_wrap_hang: token maior que a largura sai inteiro em vez de cortado" {
+  run ui_wrap_hang "  ↳ " "https://exemplo.test/um/caminho/absurdamente/longo/que/nao/cabe" 20
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"https://exemplo.test/um/caminho/absurdamente/longo/que/nao/cabe"* ]]
+}

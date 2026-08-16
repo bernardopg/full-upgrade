@@ -87,3 +87,16 @@ setup() {
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+@test "_log_to_terminal: linha colorida que cabe na largura visível não é re-quebrada" {
+  # Regressão: o fast-path media o comprimento CRU, então os escapes ANSI
+  # empurravam qualquer linha colorida perto da largura para o ui_wrap — que
+  # re-tokeniza e colapsa espaços de alinhamento deliberados ("→  " → "→ ").
+  QUIET=0 LOG_FILE=/dev/null COLUMNS=80
+  local line="    \e[36m→\e[0m  Doctor: item com nome longo — motivo textual aqui"
+  run _log_to_terminal "$line"
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  plain="$(printf '%s' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  [[ "$plain" == "    →  Doctor: item com nome longo — motivo textual aqui" ]]
+}
