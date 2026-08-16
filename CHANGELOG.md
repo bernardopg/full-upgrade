@@ -3,6 +3,49 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **`STALE_SERVICES_IGNORE` — units saciadas da auditoria de libs antigas.**
+  Units listadas nesta config (globs permitidos, ex.: `NetworkManager.service`)
+  saem da contagem/reporte do `Doctor: serviços com libs antigas` e da lista de
+  reinício de `Reiniciar serviços com libs antigas`. Caso real: quem roda o
+  upgrade por SSH/Wi-Fi não pode reiniciar o NetworkManager no meio do run — a
+  proteção de sessão já evitava o reinício, mas a unidade virava TODO eterno em
+  todo relatório. Com a config, a decisão consciente de “libs velhas até o
+  reboot” fica registrada e o sinal volta a ser limpo.
+
+### Corrigido
+
+- **Monorepos DMS (`.repos/`) sem paridade de recuperação com plugins.** O loop
+  de plugins tinha auto-recuperação de divergência (stash incondicional →
+  `reset --hard` → pop), mas o loop de monorepos só logava “divergência local?”
+  e virava `fail` duro do step. Caso real: `.repos/dankmail` com HEAD num
+  branch `local` sem upstream configurado — `git pull origin` recusa por não
+  saber o que mergear, e todo run falhava embora o conteúdo já estivesse
+  mergeado upstream. A recuperação agora é a mesma dos plugins, centralizada
+  em `git_recover_plugin_repo` (`lib/core.sh`).
+- **“Behind” medido contra o upstream do branch em checkout.** `git rev-list
+  HEAD..origin/HEAD` anunciava “9 commits atrás” para um repo deliberadamente
+  mantido num branch próprio já sincronizado com o SEU upstream (forks de
+  monorepos DMS). O novo `git_tracking_ref` mede e puxa contra
+  `branch.<name>.merge` quando configurado.
+- **`stash pop` em conflito poluía o contrato do helper.** Em conflito, o git
+  imprime “The stash entry is kept…” no **stdout** — capturado pelo chamador,
+  corrompia o parse “`<status> <ref>`” de `git_recover_plugin_repo` e o case
+  caía no vazio (repo realinhado, mas classificado como nada). Stdout do pop
+  agora vai para o log.
+
+### Alterado
+
+- **pnpm gerenciado pelo corepack agora é atualizado pelo próprio step.** Ao
+  detectar `ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK`, o step roda
+  `corepack install -g pnpm@latest` (fallback `prepare --activate`) em vez de
+  só virar pendência manual — `corepack use` não serve (reescreve o
+  `package.json` do cwd).
+- **Motivo do timeout do `pi update --models` corrigido.** Não é transitório:
+  é o limite interno de 15 s hardcoded no `package-manager-cli.js` do pi para
+  refrescar todos os catálogos. O wording do warn agora diz isso (binário e
+  extensões seguem atualizados).
 
 ## [3.34.1] - 2026-08-14
 ### Corrigido

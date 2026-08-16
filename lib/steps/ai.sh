@@ -170,12 +170,14 @@ update_pi() {
     # O pi reporta timeout do refresh como "Model catalog refresh timed out" —
     # texto que NÃO casa com NETWORK_TRANSIENT_RE (que exige "connection/operation
     # /request timed out"), então run_network_cmd não o classifica como rede.
-    # Timeout de catálogo remoto é transitório por definição; reconhecer aqui dá a
-    # razão certa sem alargar a regex global (que classificaria timeout de
-    # qualquer step como falha de rede).
+    # Não é transitório nem de rede: é o limite interno de 15s hardcoded do
+    # 'pi update --models' (package-manager-cli.js do pi, AbortController) para
+    # refrescar TODOS os catálogos de provedores — máquinas com vários provedores
+    # estouram sempre. Binário e extensões já foram atualizados acima; o catálogo
+    # fica levemente defasado até o upstream do pi subir o limite.
     if grep -qiE 'timed out|timeout|tempo esgotado' <<<"$out"; then
-      log "  pi: timeout ao refrescar catálogos de modelos (transitório); binário atualizado."
-      degraded="timeout no refresh de catálogos do pi (transitório)"
+      log "  pi: timeout ao refrescar catálogos de modelos (limite interno de 15s do pi); binário atualizado."
+      degraded="timeout no refresh de catálogos do pi (limite interno de 15s do pi; conhecido upstream)"
     else
       log "  pi: falha ao refrescar catálogos de modelos (rc=${rc}); binário atualizado."
       degraded="pi update --models falhou"
