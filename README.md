@@ -511,6 +511,7 @@ Principais chaves:
 | `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit`; evita depender do texto do step. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
+| `STALE_SERVICES_IGNORE` | vazio | Units systemd (globs permitidos, ex. `NetworkManager.service`) saciadas da auditoria de libs antigas: saem do TODO do `Doctor: serviços com libs antigas` e da lista de reinício de `--restart-services`. Para units cujo reinício quebraria sessão/rede (upgrade por SSH/Wi-Fi) e que segurarão libs velhas até o reboot por decisão consciente. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
 | `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |
