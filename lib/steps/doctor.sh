@@ -1763,6 +1763,31 @@ doctor_ai_clis() {
 }
 
 
+# Puro: lê `pnpm list -g --json` no stdin e emite, um por linha, os gerenciadores
+# de pacote instalados como dependência no store global do pnpm (pnpm/npm/yarn)
+# — sempre instalação-sombra quando o corepack já fornece o shim ativo. JSON
+# inválido ou vazio => saída vazia (best-effort; nunca derruba o step).
+pnpm_global_shadow_managers() {
+  python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+if isinstance(data, dict):
+    data = [data]
+seen = []
+for entry in data or []:
+    if not isinstance(entry, dict):
+        continue
+    for key in ('dependencies', 'devDependencies'):
+        for name in (entry.get(key) or {}):
+            if name in ('pnpm', 'npm', 'yarn') and name not in seen:
+                seen.append(name)
+print('\\n'.join(seen))
+" 2>/dev/null || true
+}
+
 doctor_js_conflicts() {
   local status=0
 
@@ -1838,14 +1863,30 @@ PYEOF
     fi
   fi
 
-  # Corepack ativo + pnpm gerenciado externamente = possível conflito
-  if has corepack && has pnpm; then
-    local cp_pnpm pnpm_bin
+  # Gerenciador instalado como PACOTE enquanto o corepack versiona o shim ativo.
+  #
+  # A checagem anterior chamava `corepack list`, subcomando que não existe
+  # (corepack ≥0.30 responde "Unknown Syntax Error"), então ela nunca disparava.
+  # O sinal confiável é a resolução do próprio shim: se `pnpm` resolve para o
+  # dist do corepack, quem versiona o pnpm é o corepack — e um pnpm instalado
+  # dentro do store global do próprio pnpm (resíduo típico de instalação via
+  # `npm --prefix <global project>`) vira sombra: recoloca um shim antigo no
+  # PATH, faz `pnpm --version` depender do diretório e aparece para sempre em
+  # `pnpm outdated -g` — pendência que update nenhum resolve, porque o pnpm
+  # recusa atualizar a si mesmo por essa via.
+  if has pnpm; then
+    local pnpm_bin pnpm_real shadow
     pnpm_bin="$(command -v pnpm 2>/dev/null || true)"
-    cp_pnpm="$(corepack list 2>/dev/null | grep -i '^pnpm' || true)"
-    if [[ -n "$cp_pnpm" && -n "$pnpm_bin" ]]; then
-      log "  Corepack gerencia pnpm (${cp_pnpm}) e pnpm externo em ${pnpm_bin} — verifique qual está ativo."
-      (( status == 0 )) && status="$RC_WARN"
+    pnpm_real="$(readlink -f "$pnpm_bin" 2>/dev/null || printf '%s' "$pnpm_bin")"
+    if [[ "$pnpm_real" == */corepack/* ]]; then
+      shadow="$(pnpm list -g --json 2>/dev/null | pnpm_global_shadow_managers)"
+      shadow="${shadow//$'\n'/ }"
+      if [[ -n "${shadow//[[:space:]]/}" ]]; then
+        log "  pnpm ativo vem do corepack (${pnpm_real}), mas o store global do pnpm contém: ${shadow}"
+        log "  Instalação-sombra: devolve um shim antigo ao PATH e fica eterna em 'pnpm outdated -g'."
+        remediation "remova a sombra do store global do pnpm: pnpm remove -g ${shadow}"
+        status="$RC_TODO"
+      fi
     fi
   fi
 

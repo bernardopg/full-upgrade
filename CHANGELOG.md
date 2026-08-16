@@ -3,6 +3,47 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Linhas coloridas perto da largura do terminal perdiam o alinhamento.** O
+  fast-path de `_log_to_terminal` media o comprimento CRU da string, então os
+  escapes ANSI empurravam qualquer linha colorida um pouco longa para o
+  `ui_wrap` — que re-tokeniza e junta com um espaço só, colapsando espaços de
+  alinhamento deliberados. Efeito visível num run real: no rodapé "Próximos
+  passos", itens curtos saíam como `→  Step` e os longos como `→ Step`, na
+  mesma lista. A medição agora é pela largura VISÍVEL (`ui_strip_ansi`).
+- **Continuação de item quebrado voltava para a coluna do marcador.** O rodapé
+  de próximos passos usa agora `ui_wrap_hang` (recuo pendente): a continuação
+  alinha sob o nome do step, e não sob o `→`, mantendo o bloco legível quando
+  o motivo é longo.
+- **Checagem de corepack no Doctor de JavaScript nunca disparava.** O bloco
+  chamava `corepack list`, subcomando inexistente (corepack ≥0.30 responde
+  "Unknown Syntax Error"), então a condição era sempre falsa. Agora a detecção
+  usa a resolução real do shim (`readlink -f` no `pnpm` do PATH).
+
+### Adicionado
+
+- **Doctor detecta instalação-sombra de gerenciador no store global do pnpm.**
+  Com o corepack fornecendo o shim ativo, um `pnpm` (ou npm/yarn) instalado
+  como pacote dentro do próprio store global — resíduo típico de instalação via
+  `npm --prefix <global project>` — recoloca um shim antigo no PATH, faz
+  `pnpm --version` depender do diretório e aparece para sempre em
+  `pnpm outdated -g`. Era exatamente o caso real que mantinha
+  "Verificação final de gerenciadores" em `todo` a cada run, sem que nada
+  explicasse a causa; agora vira `todo` com a remediação exata
+  (`pnpm remove -g pnpm`).
+
+### Alterado
+
+- **Tray respeita `FULL_UPGRADE_AUR_IGNORE`.** O applet contava e listava todo
+  pacote de `<helper> -Qua`, inclusive os que o update ignora por decisão do
+  usuário (ex.: build quebrado upstream). Resultado: badge aceso e estado
+  `updates`/`attention` permanentes mesmo com runs limpos, e o submenu
+  "Pendências" listando algo que o próprio update se recusa a instalar.
+- **Bloco "Pacotes alterados" alinha a coluna de versões.** Nomes de tamanhos
+  diferentes (`lld` e `extra-cmake-modules` na mesma lista) deixavam as versões
+  em colunas tortas; agora são preenchidos pela maior largura, como já acontece
+  na lista de steps.
 
 ## [3.35.0] - 2026-08-16
 ### Adicionado

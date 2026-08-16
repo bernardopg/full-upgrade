@@ -517,3 +517,27 @@ _mock_coredumpctl() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"coredumpctl não encontrado"* ]]
 }
+
+# ── pnpm_global_shadow_managers ───────────────────────────────────────────────
+
+@test "pnpm_global_shadow_managers: detecta pnpm instalado no próprio store global" {
+  out="$(printf '%s' '[{"dependencies":{"pnpm":{"version":"11.21.0"}}}]' | pnpm_global_shadow_managers)"
+  [ "$out" = "pnpm" ]
+}
+
+@test "pnpm_global_shadow_managers: store global sem gerenciador não acusa nada" {
+  out="$(printf '%s' '[{"dependencies":{"tsx":{"version":"4.0.0"},"vercel":{"version":"1"}}}]' | pnpm_global_shadow_managers)"
+  [ -z "$out" ]
+}
+
+@test "pnpm_global_shadow_managers: JSON inválido ou vazio não quebra o step" {
+  out="$(printf '%s' 'not json' | pnpm_global_shadow_managers)"
+  [ -z "$out" ]
+  out="$(printf '%s' '' | pnpm_global_shadow_managers)"
+  [ -z "$out" ]
+}
+
+@test "pnpm_global_shadow_managers: aceita objeto único e lista, deduplicando" {
+  out="$(printf '%s' '{"dependencies":{"yarn":{"version":"1"}},"devDependencies":{"yarn":{"version":"1"}}}' | pnpm_global_shadow_managers)"
+  [ "$out" = "yarn" ]
+}
