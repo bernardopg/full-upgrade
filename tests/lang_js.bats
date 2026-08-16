@@ -218,3 +218,28 @@ setup() {
   [ "$status" -eq "$RC_TODO" ]
   grep -q 'corepack' "$msgf"
 }
+
+@test "update_pnpm_self: corepack-managed é atualizado via 'corepack install -g'" {
+  # Com corepack disponível, o step resolve a pendência sozinho em vez de
+  # delegar ao usuário: corepack install -g pnpm@latest e verificação de versão.
+  local verf="$BATS_TEST_TMPDIR/pnpm-ver"; printf '10.33.0\n' > "$verf"
+  local cppf="$BATS_TEST_TMPDIR/corepack-calls"; : > "$cppf"
+  npm() { [[ "${1:-}" == "view" ]] && { printf '11.12.0\n'; return 0; }; }
+  pnpm() {
+    if [[ "${1:-}" == "--version" ]]; then cat "$verf"; return 0; fi
+    if [[ "${1:-}" == "self-update" ]]; then
+      printf 'ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK  You should update pnpm with corepack\n'
+      return 1
+    fi
+    return 99
+  }
+  corepack() {
+    printf '%s\n' "$*" >> "$cppf"
+    [[ "${1:-} ${2:-}" == "install -g" ]] && { printf '11.12.0\n' > "$verf"; return 0; }
+    return 1
+  }
+  has() { [[ "${1:-}" == "corepack" ]] && return 0; return 1; }
+  run update_pnpm_self
+  [ "$status" -eq 0 ]
+  grep -q '^install -g pnpm@11.12.0$' "$cppf"
+}

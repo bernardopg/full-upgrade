@@ -400,11 +400,31 @@ update_pnpm_self() {
   # pnpm gerenciado pelo corepack: o próprio pnpm recusa o self-update
   # (ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK). Não é falha do run — é uma
   # configuração legítima (corepack é o caminho oficial de versionar pnpm por
-  # projeto), e nem o self-update nem o fallback via npm-global se aplicam.
-  # Vira pendência manual com a remediação certa em vez de fail duro.
+  # projeto) — mas a versão default global ainda é atualizável por aqui: a
+  # forma oficial é 'corepack install -g pnpm@X' (corepack moderno; o 'corepack
+  # use' NÃO serve — reescreve o package.json do cwd). Fallback 'prepare
+  # --activate' cobre corepacks antigos. Best-effort: se o corepack não
+  # entregar, segue pendência manual com a remediação certa em vez de fail duro.
   if grep -q 'ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK' <<<"$output"; then
     log "  pnpm ${installed} é gerenciado pelo corepack; self-update não se aplica."
-    remediation "atualize o pnpm via corepack: corepack use pnpm@latest (ou 'corepack prepare pnpm@latest --activate')"
+    local cp_out cp_rc
+    if has corepack; then
+      cp_out="$(corepack install -g "pnpm@${latest}" 2>&1)"
+      cp_rc=$?
+      if (( cp_rc != 0 )); then
+        cp_out="${cp_out}"$'\n'"$(corepack prepare "pnpm@${latest}" --activate 2>&1)"
+        cp_rc=$?
+      fi
+      log_raw "$cp_out"
+      hash -r 2>/dev/null || true
+      current="$(pnpm --version 2>/dev/null || true)"
+      if (( cp_rc == 0 )) && [[ -n "$current" ]] && ! version_is_outdated "$current" "$latest"; then
+        log "  pnpm atualizado via corepack: ${installed} → ${current}."
+        return 0
+      fi
+      log "  Aviso: corepack não ativou o pnpm ${latest}; ficou como pendência manual."
+    fi
+    remediation "atualize o pnpm default do corepack: corepack install -g pnpm@latest"
     STEP_REASON="pnpm gerenciado pelo corepack (${installed} → ${latest}); atualize via corepack"
     return "$RC_TODO"
   fi
