@@ -394,6 +394,82 @@ git_pull_ff_only() {
     pull --ff-only --quiet origin 2>>"${LOG_FILE:-/dev/null}"
 }
 
+# Ref que um repo de plugin deve acompanhar: o upstream do branch em checkout
+# (branch.<name>.remote/merge) quando configurado, senão o HEAD do origin.
+# Medir "behind" — e puxar — contra esta ref, em vez de sempre contra
+# origin/HEAD, evita anunciar "9 commits atrás" para um repo deliberadamente
+# mantido num branch próprio já sincronizado com o seu upstream (forks de
+# monorepos DMS são o caso real: o branch relevante não é o default do origin).
+git_tracking_ref() {
+  local ref
+  ref="$(git -C "$1" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  if [[ -n "$ref" && "$ref" != "@{u}" ]]; then
+    printf '%s' "$ref"
+    return 0
+  fi
+  ref="$(git -C "$1" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || echo "origin/HEAD")"
+  printf '%s' "${ref#refs/remotes/}"
+}
+
+# Recuperação de divergência para repos de plugins/monorepos atualizados pelos
+# steps (DMS, Zsh, OBS): o pull --ff-only falhou — o branch local divergiu do
+# remoto (commits locais não-fast-forward, tipicamente um HEAD deixado num
+# branch de PR depois mergeado upstream, ou um branch sem upstream configurado,
+# onde o próprio `git pull origin` recusa por não saber o que mergear).
+# Auto-recuperação: stash INCONDICIONAL (no-op em tree limpo) -> reset --hard
+# para o HEAD do origin -> pop se algo foi guardado. O stash incondicional
+# elimina a janela TOCTOU entre "checar se há mudanças" e "agir": o que
+# existir no momento do stash é exatamente o que será restaurado.
+#
+# Centralizada aqui porque DMS (plugins E monorepos de .repos/) repetia este
+# fluxo em duas cópias que já divergiram uma vez — o loop de monorepos não tinha
+# recuperação nenhuma e transformava divergência em fail duro do step.
+#
+# Imprime no stdout "<status> <remote_ref>", onde status é:
+#   clean    — nada estava sujo; repo realinhado ao HEAD do origin
+#   restored — mudanças locais realinhadas e restauradas por cima
+#   conflict — o pop conflitou; árvore restaurada ao upstream (funcional) e as
+#             mudanças do usuário seguem intactas no stash (o git preserva a
+#             entrada quando o pop conflita)
+# Retorna 0 nos três casos; 1 apenas em falha operacional (stash/reset falhou).
+git_recover_plugin_repo() {
+  local dir="$1" label="$2" remote_ref stash_before stash_after status
+  remote_ref="$(git -C "$dir" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || echo "origin/HEAD")"
+  remote_ref="${remote_ref#refs/remotes/}"
+
+  stash_before="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
+  if ! git -C "$dir" stash push --quiet --include-untracked \
+       -m "full-upgrade: auto-stash ${label}" 2>>"${LOG_FILE:-/dev/null}"; then
+    return 1
+  fi
+  stash_after="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
+
+  if ! git -C "$dir" reset --hard --quiet "$remote_ref" 2>>"${LOG_FILE:-/dev/null}"; then
+    # pop com stdout redirecionado: em conflito o git imprime "The stash entry
+    # is kept..." no STDOUT, e este helper só pode emitir "<status> <ref>".
+    [[ "$stash_after" != "$stash_before" ]] && \
+      git -C "$dir" stash pop --quiet >>"${LOG_FILE:-/dev/null}" 2>&1 || true
+    return 1
+  fi
+
+  if [[ "$stash_after" == "$stash_before" ]]; then
+    status="clean"
+  elif git -C "$dir" stash pop --quiet >>"${LOG_FILE:-/dev/null}" 2>&1; then
+    status="restored"
+  else
+    # O pop conflitado deixa marcadores de conflito no working tree. Num plugin
+    # QML isso não é só sujeira: o arquivo não parseia e o plugin quebra em
+    # runtime, além de travar todos os updates futuros deste repo. Como o git
+    # preserva a entrada do stash quando o pop conflita, dá para restaurar a
+    # árvore para o upstream (plugin funcional) sem perder nada.
+    git -C "$dir" checkout -f HEAD -- . 2>>"${LOG_FILE:-/dev/null}" || true
+    git -C "$dir" reset --quiet HEAD -- . 2>>"${LOG_FILE:-/dev/null}" || true
+    status="conflict"
+  fi
+  printf '%s %s\n' "$status" "$remote_ref"
+  return 0
+}
+
 # Caminho do sidecar com os pacotes AUR que falharam build()/download NESTE run.
 # Steps rodam em subshell (veja run_step), então estado global não propaga entre
 # eles — arquivo por RUN_ID é o idioma do projeto para estado cross-step

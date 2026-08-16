@@ -337,3 +337,62 @@ create_repo_with_remote() {
   [[ "$output" == *".repos/deadbeef"* ]]
   [ "$(git -C "$DMS_PLUGINS_DIR/.repos/deadbeef" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
 }
+
+@test "update_dms_plugins: monorepo em branch sem upstream é recuperado, não fail" {
+  # Caso real (.repos/dankmail): HEAD num branch local sem upstream configurado
+  # — o `git pull origin` recusa por não saber o que mergear. Antes da
+  # recuperação de paridade isto era fail duro do step; agora o monorepo é
+  # realinhado ao HEAD do origin (conteúdo já mergeado upstream) como o loop
+  # de plugins faz.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+
+  mkdir -p "$DMS_PLUGINS_DIR/.repos"
+  git clone --quiet "$bare" "$DMS_PLUGINS_DIR/.repos/dankmail"
+  # branch local sem upstream, como o 'local' do dankmail real
+  git -C "$DMS_PLUGINS_DIR/.repos/dankmail" switch -c local --quiet
+  # avança o remoto (o conteúdo do branch local já foi mergeado upstream)
+  echo "v2" >> "$work/file.txt"
+  git -C "$work" commit -am "update" --quiet
+  git -C "$work" push origin main --quiet
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"reset --hard"* ]]
+  # realinhado ao HEAD do origin
+  [ "$(git -C "$DMS_PLUGINS_DIR/.repos/dankmail" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
+  # tree limpa após a recuperação
+  [ -z "$(git -C "$DMS_PLUGINS_DIR/.repos/dankmail" status --porcelain)" ]
+}
+
+@test "update_dms_plugins: monorepo com mudanças locais sujas preserva-as via stash" {
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+
+  mkdir -p "$DMS_PLUGINS_DIR/.repos"
+  git clone --quiet "$bare" "$DMS_PLUGINS_DIR/.repos/dankmail"
+  git -C "$DMS_PLUGINS_DIR/.repos/dankmail" switch -c local --quiet
+  echo "v2" >> "$work/file.txt"
+  git -C "$work" commit -am "update" --quiet
+  git -C "$work" push origin main --quiet
+  # mudança não-commitada em arquivo não-conflitante: stash + realinha + pop
+  echo "ajuste local" > "$DMS_PLUGINS_DIR/.repos/dankmail/local.txt"
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$DMS_PLUGINS_DIR/.repos/dankmail" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
+  [ -f "$DMS_PLUGINS_DIR/.repos/dankmail/local.txt" ]
+  grep -q "ajuste local" "$DMS_PLUGINS_DIR/.repos/dankmail/local.txt"
+}

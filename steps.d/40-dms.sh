@@ -17,7 +17,7 @@ update_dms_plugins() {
   fi
 
   local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=()
-  local plugin dir behind fetch_err net_fail=0
+  local plugin dir behind fetch_err net_fail=0 track_ref recovery rec_status rec_ref
 
   for dir in "$plugins_dir"/*/; do
     [[ -d "$dir" ]] || continue
@@ -52,7 +52,8 @@ update_dms_plugins() {
       continue
     fi
 
-    behind="$(git -C "$dir" rev-list HEAD..origin/HEAD --count 2>/dev/null || echo 0)"
+    track_ref="$(git_tracking_ref "$dir")"
+    behind="$(git -C "$dir" rev-list "HEAD..${track_ref}" --count 2>/dev/null || echo 0)"
     if (( behind == 0 )); then
       continue
     fi
@@ -72,56 +73,38 @@ update_dms_plugins() {
     fi
 
     # ff-only falhou: branch local divergiu do remoto (commits locais não-fast-forward,
-    # tipicamente porque o HEAD apontava para um branch de PR depois mergeado upstream).
-    # Auto-recuperação: stash INCONDICIONAL (no-op em tree limpo) -> reset --hard
-    # -> pop se algo foi guardado. O stash incondicional elimina a janela TOCTOU
-    # entre "checar se há mudanças" e "agir": o que existir no momento do stash
-    # é exatamente o que será restaurado.
-    local remote_ref stash_before stash_after
-    remote_ref="$(git -C "$dir" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || echo "origin/HEAD")"
-    remote_ref="${remote_ref#refs/remotes/}"
-
-    stash_before="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
-    if ! git -C "$dir" stash push --quiet --include-untracked \
-         -m "full-upgrade: auto-stash ${plugin}" 2>>"$LOG_FILE"; then
-      log "  Aviso: ${plugin} — stash falhou; pulando para não arriscar mudanças locais."
+    # tipicamente porque o HEAD apontava para um branch de PR depois mergeado upstream)
+    # ou branch sem upstream configurado (o `git pull origin` recusa sem saber o que
+    # mergear). Recuperação centralizada em git_recover_plugin_repo (lib/core.sh):
+    # stash incondicional -> reset --hard para o HEAD do origin -> pop.
+    if ! recovery="$(git_recover_plugin_repo "$dir" "$plugin")"; then
+      log "  Aviso: ${plugin} — recuperação de divergência falhou (stash/reset); pulando para não arriscar mudanças locais."
       failed+=("$plugin")
       continue
     fi
-    stash_after="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
-
-    if ! git -C "$dir" reset --hard --quiet "$remote_ref" 2>>"$LOG_FILE"; then
-      log "  Aviso: pull falhou para DMS plugin ${plugin} (reset falhou)."
-      [[ "$stash_after" != "$stash_before" ]] && git -C "$dir" stash pop --quiet 2>>"$LOG_FILE"
-      failed+=("$plugin")
-      continue
-    fi
-
-    if [[ "$stash_after" == "$stash_before" ]]; then
-      log "  ${plugin}: divergência sem mudanças locais — reset --hard para ${remote_ref}."
-      updated+=("$plugin")
-    elif git -C "$dir" stash pop --quiet 2>>"$LOG_FILE"; then
-      log "  ${plugin}: reset para ${remote_ref} + mudanças locais restauradas."
-      updated+=("$plugin")
-    else
-      # O pop conflitado deixa marcadores de conflito no working tree. Num plugin
-      # QML isso não é só sujeira: o arquivo não parseia e o plugin quebra em
-      # runtime, além de travar todos os updates futuros deste repo. Como o git
-      # preserva a entrada do stash quando o pop conflita, dá para restaurar a
-      # árvore para o upstream (plugin funcional) sem perder nada.
-      git -C "$dir" checkout -f HEAD -- . 2>>"$LOG_FILE" || true
-      git -C "$dir" reset --quiet HEAD -- . 2>>"$LOG_FILE" || true
-      log "  ${plugin}: resetado para ${remote_ref}; o stash pop conflitou."
-      log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
-      log "  Recupere com: git -C ${dir} stash list  &&  git -C ${dir} stash pop"
-      stash_conflicts+=("$plugin")
-    fi
+    read -r rec_status rec_ref <<<"$recovery"
+    case "$rec_status" in
+      clean)
+        log "  ${plugin}: divergência sem mudanças locais — reset --hard para ${rec_ref}."
+        updated+=("$plugin")
+        ;;
+      restored)
+        log "  ${plugin}: reset para ${rec_ref} + mudanças locais restauradas."
+        updated+=("$plugin")
+        ;;
+      conflict)
+        log "  ${plugin}: resetado para ${rec_ref}; o stash pop conflitou."
+        log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
+        log "  Recupere com: git -C ${dir} stash list  &&  git -C ${dir} stash pop"
+        stash_conflicts+=("$plugin")
+        ;;
+    esac
   done
 
   # Monorepos do registry DMS (.repos/<hash>/): plugins como dankBatteryAlerts,
   # dankKDEConnect, githubHeatmap e grimblast vivem como symlink -> subpasta
   # destes clones. Atualizá-los aqui cobre o que o loop acima não vê.
-  local repo_dir repo_name
+  local repo_dir repo_name m_recovery m_status m_ref
   for repo_dir in "$plugins_dir"/.repos/*/; do
     [[ -d "$repo_dir/.git" ]] || continue
     repo_name="$(basename "$repo_dir")"
@@ -141,7 +124,8 @@ update_dms_plugins() {
       continue
     fi
 
-    behind="$(git -C "$repo_dir" rev-list HEAD..origin/HEAD --count 2>/dev/null || echo 0)"
+    track_ref="$(git_tracking_ref "$repo_dir")"
+    behind="$(git -C "$repo_dir" rev-list "HEAD..${track_ref}" --count 2>/dev/null || echo 0)"
     (( behind == 0 )) && continue
 
     log "  monorepo ${repo_name} ($(git -C "$repo_dir" remote get-url origin 2>/dev/null)): ${behind} commit(s) atrás — atualizando..."
@@ -155,8 +139,34 @@ update_dms_plugins() {
       fi
       updated+=(".repos/${repo_name}")
     else
-      log "  Aviso: pull falhou para monorepo DMS ${repo_name} (divergência local?)."
-      failed+=(".repos/${repo_name}")
+      # Paridade com o loop de plugins: mesma recuperação centralizada de
+      # divergência (branch de PR mergeado upstream, branch sem upstream...).
+      # Antes o monorepo só logava "divergência local?" e virava fail duro do
+      # step — caso real: .repos/dankmail com HEAD num branch 'local' sem
+      # upstream, todo run falhava embora o conteúdo já estivesse mergeado
+      # upstream e a recuperação fosse a mesma do loop de plugins.
+      if ! m_recovery="$(git_recover_plugin_repo "$repo_dir" ".repos/${repo_name}")"; then
+        log "  Aviso: pull falhou para monorepo DMS ${repo_name} (stash/reset falhou)."
+        failed+=(".repos/${repo_name}")
+        continue
+      fi
+      read -r m_status m_ref <<<"$m_recovery"
+      case "$m_status" in
+        clean)
+          log "  monorepo ${repo_name}: divergência sem mudanças locais — reset --hard para ${m_ref}."
+          updated+=(".repos/${repo_name}")
+          ;;
+        restored)
+          log "  monorepo ${repo_name}: reset para ${m_ref} + mudanças locais restauradas."
+          updated+=(".repos/${repo_name}")
+          ;;
+        conflict)
+          log "  monorepo ${repo_name}: resetado para ${m_ref}; o stash pop conflitou."
+          log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
+          log "  Recupere com: git -C ${repo_dir} stash list  &&  git -C ${repo_dir} stash pop"
+          stash_conflicts+=(".repos/${repo_name}")
+          ;;
+      esac
     fi
   done
 
