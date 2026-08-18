@@ -496,6 +496,7 @@ Principais chaves:
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
 | `AUTO_MERGE_PACNEW` | `0` | `1` = mescla sozinho os `.pacnew` cujo merge preserva **exatamente** a configuração ativa do arquivo atual (com backup `.full-upgrade.bak.<timestamp>` e hook de pós-merge, ex. `locale-gen`); `0` = só reporta. `sudoers`, `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram. |
+| `AUTO_FIX_PIP_DEPS` | `0` | `1` = o step `Auto-remediar deps Python ausentes` instala com `pip install --user` as dependências **ausentes** de pacotes pip `--user` apontadas pelo `pip check` (aditivo — a dep não existe em nenhum site, nunca toca o pacman; conflitos de versão seguem manuais); `0` = só reporta. |
 | `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
 | `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
 | `TRAY_CHECK_INTERVAL_M` | `30` | Intervalo, em minutos, entre checagens do systray daemon. O daemon impõe mínimo efetivo de 1 minuto. |

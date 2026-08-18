@@ -65,9 +65,13 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 # AUTO_BTRFS_SCRUB        1 = inicia btrfs scrub quando vencido/ausente
 # AUTO_FIX_FINAL_PENDING  1 = pacman -Syu (e retry paru -Sua) quando a
 #                         verificação final achar pendências acionáveis
+# AUTO_FIX_PIP_DEPS       1 = instala deps AUSENTES de pacotes pip --user
+#                         apontadas pelo pip check (aditivo; conflitos de
+#                         versão seguem manuais)
 AUTO_FIX_RUST_CVES=0
 AUTO_BTRFS_SCRUB=0
 AUTO_FIX_FINAL_PENDING=0
+AUTO_FIX_PIP_DEPS=0
 
 # ── Política de segurança / Security policy ───────────────────────────────────
 # 0 = Secure Boot desabilitado no --audit é informativo (default; postura/política)

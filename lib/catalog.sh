@@ -130,6 +130,7 @@ Doctor: módulos OBS|doctor|obs,read|read|30||doctor_obs_modules|Lê o log da ú
 Doctor: AI CLIs|doctor|ai,read|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
 Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
+Auto-remediar deps Python ausentes|doctor|python,pip,update,network|mutating|120||autofix_pip_user_deps|Sob AUTO_FIX_PIP_DEPS=1, instala com 'pip install --user' as dependências AUSENTES de pacotes pip --user apontadas pelo pip check (aditivo; conflitos de versão seguem manuais; pacotes de origem system são intocáveis).
 Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.
 Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem,read|read|30|gem|doctor_gem_shadow|Detecta gems do usuário que sombreiam uma gem real do Arch com versão divergente (ex.: rdoc); sugere gem uninstall.
 Doctor: saúde do btrfs|doctor|btrfs,disk,read,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.

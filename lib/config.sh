@@ -28,6 +28,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${AUTO_FIX_FINAL_PENDING:=0}"    # 1 = aplica pacman -Syu (e retry paru -Sua) quando a verificação final achar pendências acionáveis; 0 = só reporta
+: "${AUTO_FIX_PIP_DEPS:=0}"          # 1 = instala com 'pip install --user' as deps AUSENTES de pacotes pip --user apontadas pelo pip check; 0 = só reporta
 : "${AUTO_MERGE_PACNEW:=0}"        # 1 = mescla sozinho os .pacnew cujo merge preserva 100% das linhas ativas do arquivo atual (com backup); 0 = só reporta
 : "${SECURE_BOOT_STRICT:=0}"        # 1 = --audit classifica Secure Boot desabilitado como média severidade; 0 = postura informativa
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
@@ -114,6 +115,7 @@ ORPHAN_CLEANUP_MAX_ROUNDS
 AUTO_FIX_RUST_CVES
 AUTO_BTRFS_SCRUB
 AUTO_FIX_FINAL_PENDING
+AUTO_FIX_PIP_DEPS
 AUTO_MERGE_PACNEW
 SECURE_BOOT_STRICT
 REPORT_ON_FINISH
@@ -252,7 +254,7 @@ load_config() {
   export ENABLE_CUSTOM_TOOLS LANG_OVERRIDE SNAPSHOT_TOOL MIRROR_TOOL MIRROR_MAX_AGE_DAYS MIN_FREE_GIB MIN_BOOT_FREE_MIB
   export SNAPSHOT_MIN_FREE_GIB SNAPSHOT_KEEP BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
@@ -358,6 +360,15 @@ AUTO_BTRFS_SCRUB=0
 # pendências AUR, aplica pacman -Syu --noconfirm (e retry paru -Sua).
 # Nunca roda sob --mode doctor/--dry-run/--no-repair.
 AUTO_FIX_FINAL_PENDING=0
+
+# ── Auto-remediação de deps Python ausentes ──
+# 0 = só reporta (default). 1 = o step 'Auto-remediar deps Python ausentes'
+# instala com 'pip install --user' as dependências AUSENTES de pacotes pip
+# --user apontadas pelo pip check (ex.: 'fvs requires orjson, which is not
+# installed'). Aditivo — a dep não existe em nenhum site, nunca toca o pacman.
+# Conflitos de versão ('requires X, but you have Y') seguem manuais.
+# Nunca roda sob --mode doctor/--dry-run/--no-repair.
+AUTO_FIX_PIP_DEPS=0
 
 # ── Merge automático de .pacnew ──
 # 0 = só reporta (default). 1 = mescla sozinho os .pacnew em que a configuração
@@ -491,6 +502,7 @@ show_config() {
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
   _cfg_kv "AUTO_FIX_FINAL_PENDING" "$AUTO_FIX_FINAL_PENDING"
+  _cfg_kv "AUTO_FIX_PIP_DEPS" "$AUTO_FIX_PIP_DEPS"
   _cfg_kv "AUTO_MERGE_PACNEW" "$AUTO_MERGE_PACNEW"
   _cfg_kv "SECURE_BOOT_STRICT" "$SECURE_BOOT_STRICT"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"

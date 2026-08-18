@@ -692,6 +692,16 @@ run_all_steps() {
         step_skip "Doctor: servidores MCP" "nenhuma fonte MCP (claude.json/codex)"
     fi
     run_step "Doctor: ambiente Python" doctor_python_env
+    # Auto-remediação opcional: deps pip --user AUSENTES apontadas pelo pip
+    # check. Só sob AUTO_FIX_PIP_DEPS=1, e nunca sob --no-repair (efeito
+    # mutating; --mode doctor/--dry-run já a pulam).
+    if (( ${AUTO_FIX_PIP_DEPS:-0} == 0 )); then
+        step_skip "Auto-remediar deps Python ausentes" "AUTO_FIX_PIP_DEPS=0"
+    elif (( NO_REPAIR )); then
+        step_skip "Auto-remediar deps Python ausentes" "--no-repair"
+    else
+        run_step "Auto-remediar deps Python ausentes" autofix_pip_user_deps
+    fi
     run_step "Doctor: conflitos JavaScript global" doctor_js_conflicts
     if has gem; then
         run_step "Doctor: gems do usuário sombreando o sistema" doctor_gem_shadow

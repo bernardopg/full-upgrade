@@ -1982,6 +1982,11 @@ doctor_python_env() {
         log "  Remediação sugerida (sem auto-instalação):"
         (( sys == 1 )) && log "    • [pacman/AUR]: NÃO use 'pip install' (quebra o pacman) — atualize via 'sudo pacman -Syu' ou rebuild do pacote AUR."
         (( usr == 1 )) && log "    • [pip --user]: isole com 'pipx install <ferramenta>' (venv) ou corrija o pin com 'pip install --user <dep>==<ver>'."
+        # Deps AUSENTES de pacotes pip --user têm auto-remediação opcional;
+        # conflitos de versão (pin) seguem manuais por decisão de design.
+        if (( usr == 1 )) && (( ${AUTO_FIX_PIP_DEPS:-0} == 0 )); then
+          log "    • AUTO_FIX_PIP_DEPS=1 instala sozinho as deps AUSENTES de pacotes pip --user (step 'Auto-remediar deps Python ausentes')."
+        fi
       else
         # Parser não casou — preserva o dump bruto.
         log "  pip check encontrou dependências Python quebradas:"
@@ -2057,6 +2062,84 @@ for tool in (data if isinstance(data, list) else []):
 
 
   return "$status"
+}
+
+# Auto-remediação opcional de dependências pip --user AUSENTES. O doctor
+# 'ambiente Python' reporta pacotes pip --user com dependência ausente (ex.:
+# 'fvs 0.3.4 requires orjson, which is not installed'). Sob AUTO_FIX_PIP_DEPS=1,
+# instala cada requisito ausente com 'pip install --user' — aditivo por
+# construção: se a dependência existisse em qualquer site visível (inclusive o
+# do pacman), o pip check não a teria listado como ausente —, logo nunca
+# sobrepõe arquivo gerenciado pelo pacman. Conflitos de VERSÃO ('requires X,
+# but you have Y') seguem manuais: a correção certa depende de pin/downgrade e
+# o doctor segue sugerindo. Pacotes de origem system são intocáveis. Re-executa
+# o pip check ao final e reporta antes→depois. Gate de wiring em main.sh (nunca
+# sob --no-repair; --mode doctor/--dry-run pulam steps mutating).
+autofix_pip_user_deps() {
+  if (( ${AUTO_FIX_PIP_DEPS:-0} == 0 )); then
+    log "  AUTO_FIX_PIP_DEPS desligado; nada a remediar."
+    return 0
+  fi
+  if ! has python || ! python -m pip --version >/dev/null 2>&1; then
+    log "  pip indisponível; nada a remediar."
+    return 0
+  fi
+
+  # Mesma triagem do doctor: summary "pkg\tdetail" + origem via dist-info.
+  local summary pkg detail origin entry req d
+  local -a reqs=() failed_installs=()
+  summary="$(python -m pip check 2>&1 | summarize_pip_check)"
+  if [[ -z "${summary//[[:space:]]/}" ]]; then
+    log "  pip check limpo; nada a remediar."
+    return 0
+  fi
+
+  while IFS=$'\t' read -r pkg detail; do
+    [[ -n "$pkg" ]] || continue
+    origin="$(_classify_pip_origins <<<"$pkg" | cut -f2)"
+    [[ "$origin" == "user" ]] || continue  # system/pacman: NUNCA pip install
+    # Só requisitos AUSENTES ('dep (ausente)'); conflito de versão é pin manual.
+    while IFS=$'\n' read -r d; do
+      d="${d#"${d%%[![:space:]]*}"}"; d="${d%"${d##*[![:space:]]}"}"  # trim
+      [[ "$d" == *"(ausente)" ]] || continue
+      req="${d% (ausente)}"
+      [[ -n "$req" ]] && reqs+=("${pkg}"$'\t'"${req}")
+    done <<< "${detail//;/$'\n'}"
+  done <<< "$summary"
+
+  if (( ${#reqs[@]} == 0 )); then
+    log "  Sem dependências ausentes em pacotes pip --user; nada a remediar."
+    return 0
+  fi
+
+  log "  Instalando ${#reqs[@]} dependência(s) ausente(s) de pacotes pip --user…"
+  local pkg_log
+  for entry in "${reqs[@]}"; do
+    req="${entry#*$'\t'}"
+    pkg_log="${entry%%$'\t'*}"
+    log "  [${pkg_log}] pip install --user ${req}"
+    if run_logged python -m pip install --user --break-system-packages "$req"; then
+      continue
+    fi
+    failed_installs+=("$req")
+  done
+
+  if (( ${#failed_installs[@]} > 0 )); then
+    log "  Falha ao instalar: ${failed_installs[*]}"
+    STEP_REASON="pip install falhou para ${#failed_installs[@]} dep(s)"
+    return "$RC_WARN"
+  fi
+
+  local after
+  after="$(python -m pip check 2>&1 | summarize_pip_check)"
+  if [[ -z "${after//[[:space:]]/}" ]]; then
+    log "  ${C_GREEN}pip check limpo após remediação.${C_RESET}"
+    return 0
+  fi
+  log "  pip check ainda reporta pendências (conflitos de versão exigem pin manual):"
+  printf '%s\n' "$after" | log_stream
+  log "  Consulte 'Doctor: ambiente Python' para as sugestões."
+  return 0
 }
 
 

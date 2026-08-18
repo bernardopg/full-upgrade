@@ -19,6 +19,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   global). Instalações standalone
   usam o updater oficial; se ele não reconhecer o layout, RC_TODO com
   remediação em vez de ok silencioso.
+- **Step `Auto-remediar deps Python ausentes` (AUTO_FIX_PIP_DEPS, default 0).**
+  O doctor `ambiente Python` reporta pacotes pip `--user` com dependência
+  ausente (ex.: `fvs 0.3.4 requires orjson, which is not installed`) sem ação
+  além da sugestão. Sob `AUTO_FIX_PIP_DEPS=1`, o novo step instala cada
+  requisito ausente com `pip install --user --break-system-packages` — aditivo
+  por construção (se a dep existisse em qualquer site, inclusive o do pacman,
+  o pip check não a teria listado como ausente) — e re-executa o pip check ao
+  final. Conflitos de versão (`requires X, but you have Y`) e pacotes de
+  origem system continuam manuais, por decisão de design. Nunca roda sob
+  `--mode doctor`/`--dry-run`/`--no-repair`.
 
 ## [3.35.1] - 2026-08-16
 ### Corrigido
