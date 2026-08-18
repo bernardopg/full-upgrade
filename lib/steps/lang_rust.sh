@@ -32,6 +32,42 @@ rustup_check_has_update() {
 }
 
 
+# Puro. rc 0 (true) somente quando a saída do rustup afirma, POSITIVAMENTE, que
+# nada mudou: há pelo menos uma linha "<alvo> unchanged - <ver>" e nenhuma de
+# "updated"/"installed". Qualquer formato não reconhecido (inclusive vazio, erro
+# de rede ou "self-update is disabled for this build") → rc 1, ou seja, "assuma
+# que mudou". O viés é deliberado: quem consome isto usa o resultado para PULAR
+# uma re-auditoria de segurança, e pular indevidamente esconderia CVE.
+rustup_output_unchanged() {
+  local out="$1"
+  grep -qE '(^|[[:space:]])unchanged[[:space:]]+-' <<<"$out" || return 1
+  grep -qE '(^|[[:space:]])(updated|installed)[[:space:]]+-' <<<"$out" && return 1
+  return 0
+}
+
+
+# Puro. rc 0 (true) quando `cargo install-update -a` reporta que nenhum pacote
+# precisava de update. Mesmo viés conservador de rustup_output_unchanged:
+# formato desconhecido → rc 1 (assume que mudou).
+cargo_install_update_unchanged() {
+  grep -qiE 'no packages need updating|all packages are up to date' <<<"$1"
+}
+
+
+# Executa um comando de remediação preservando o streaming para terminal+log
+# (como run_logged) e ainda ecoando a saída em stdout, para o chamador decidir
+# via $( ) se houve mudança real. Existe porque run_logged consome a saída no
+# pipe e só devolve o rc.
+_rust_run_capture() {
+  local out rc
+  out="$("$@" 2>&1)"
+  rc=$?
+  printf '%s\n' "$out" | log_stream
+  printf '%s' "$out"
+  return "$rc"
+}
+
+
 audit_cargo_bins() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   if [[ ! -d "$cargo_bin" ]]; then
@@ -218,18 +254,28 @@ autofix_rust_cves() {
     fi
   fi
 
-  local applied=0
+  # `noop` só cai para 0 quando alguma ferramenta relata mudança real. Serve
+  # para dispensar a re-auditoria no caso comum (máquina já atualizada), em que
+  # ela repetiria um sweep de `cargo audit bin` idêntico — advisory DB + índice
+  # do crates.io pela rede — sobre binários que ninguém reescreveu.
+  local applied=0 noop=1
   if (( ${#toolchain[@]} > 0 )) && has rustup; then
     log "  Atualizando toolchain/rustup..."
-    run_logged rustup self update || true
-    run_logged rustup update || true
+    local _self_out _upd_out
+    _self_out="$(_rust_run_capture rustup self update)" || true
+    _upd_out="$(_rust_run_capture rustup update)" || true
     applied=1
+    if ! rustup_output_unchanged "$_self_out" || ! rustup_output_unchanged "$_upd_out"; then
+      noop=0
+    fi
   fi
   if (( ${#cargobins[@]} > 0 )); then
     if has cargo-install-update; then
       log "  Atualizando binários cargo-installed..."
-      run_logged cargo install-update -a || true
+      local _ciu_out
+      _ciu_out="$(_rust_run_capture cargo install-update -a)" || true
       applied=1
+      cargo_install_update_unchanged "$_ciu_out" || noop=0
     else
       log "  cargo-update ausente; binários cargo-installed não puderam ser atualizados."
     fi
@@ -241,18 +287,23 @@ autofix_rust_cves() {
     return "$RC_WARN"
   fi
 
-  log "  Re-auditando após remediação..."
-  local after_list after_rc
-  after_list="$(_rust_collect_vuln_bins)"
-  after_rc=$?
-  if (( after_rc == RC_WARN )); then
-    log "  Re-auditoria falhou por rede; resultado inconclusivo."
-    STEP_REASON="re-auditoria sem rede"
-    return "$RC_WARN"
-  fi
-
   local -a after=()
-  mapfile -t after < <(printf '%s\n' "$after_list" | grep -v '^[[:space:]]*$')
+  local after_list after_rc
+  if (( noop == 1 )); then
+    log "  Remediação foi no-op: tudo já na última versão, nenhum binário reescrito."
+    log "  Re-auditoria dispensada — a mesma entrada em disco daria o mesmo veredito."
+    after=("${vuln[@]}")
+  else
+    log "  Re-auditando após remediação..."
+    after_list="$(_rust_collect_vuln_bins)"
+    after_rc=$?
+    if (( after_rc == RC_WARN )); then
+      log "  Re-auditoria falhou por rede; resultado inconclusivo."
+      STEP_REASON="re-auditoria sem rede"
+      return "$RC_WARN"
+    fi
+    mapfile -t after < <(printf '%s\n' "$after_list" | grep -v '^[[:space:]]*$')
+  fi
   log "  CVEs antes: ${#vuln[@]} → depois: ${#after[@]}."
   if (( ${#after[@]} == 0 )); then
     log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"

@@ -47,6 +47,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   bloqueados mesmo com scripts de native addons sendo pulados. O parser agora
   aceita os dois formatos.
 
+### Alterado
+
+- **`Auto-remediar CVEs de toolchain Rust` não re-audita quando a remediação
+  foi no-op.** O step media as CVEs, rodava `rustup self update`/`rustup update`
+  (e/ou `cargo install-update -a`) e re-auditava incondicionalmente. Numa
+  máquina já em dia — o caso comum de quem roda o full-upgrade com frequência —
+  o rustup responde `unchanged` e nenhum binário é reescrito, mas o sweep de
+  `cargo audit bin` rodava de novo mesmo assim: advisory DB via git + índice do
+  crates.io pela rede, para reler bytes idênticos e chegar ao mesmo veredito.
+  Agora a saída das ferramentas de remediação é inspecionada e, quando todas
+  relatam "nada mudou", a re-auditoria é dispensada (o "depois" é deduzido do
+  "antes"). Saída não reconhecida — vazia, erro de rede,
+  `self-update is disabled for this build` — conta como "mudou" e mantém a
+  re-auditoria: pular indevidamente esconderia CVE. Na prática o step caiu de
+  8s para 5s e o run perdeu uma ida à rede.
+
 ### Segurança
 
 - **Lock do Semgrep atualizado para 1.173.0 (mcp 1.23.3 → 1.29.0).** As três
