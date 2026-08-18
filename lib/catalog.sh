@@ -39,6 +39,7 @@ Atualizar firmware (fwupd)|firmware|update,network,slow,sudo|mutating|300|fwupdm
 Atualizar systemd-boot (bootctl)|firmware|boot,sudo,mutating|mutating|60|bootctl|update_bootctl|Atualiza systemd-boot quando instalado no ESP.
 Atualizar npm (self)|lang|javascript,npm,update,network|mutating|120|npm|update_npm_self|Atualiza o próprio npm global.
 Atualizar npm global|lang|javascript,npm,update,network,slow|mutating|300|npm|update_npm_globals|Atualiza pacotes npm globais com tratamento de links e deps locais.
+Atualizar npm global secundário|lang|javascript,npm,update,network,slow|mutating|900|npm|update_npm_globals_secondary|Atualiza pacotes npm globais do prefixo secundário (~/.npm-global ou $NPM_CONFIG_PREFIX) invisíveis ao npm ativo (ex.: nvm), via npm install -g --prefix; scripts bloqueados pelo allowScripts viram RC_TODO com remediação.
 Atualizar corepack|lang|javascript,corepack,update,network|mutating|120|npm|update_corepack|Atualiza corepack via npm.
 Atualizar pnpm (self)|lang|javascript,pnpm,update,network|mutating|120|pnpm|update_pnpm_self|Atualiza o próprio pnpm.
 Atualizar pnpm global|lang|javascript,pnpm,update,network|mutating|300|pnpm|update_pnpm_globals|Atualiza pacotes pnpm globais e remove deps locais quebradas.

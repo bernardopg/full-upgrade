@@ -311,7 +311,7 @@ Status possíveis no resumo:
 | Apps | Flatpak e Snap quando presentes. |
 | Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
 | Firmware e boot | `fwupdmgr` e `bootctl`. |
-| JavaScript | `npm`, pacotes npm globais, `corepack`, `pnpm` e pacotes pnpm globais; runtimes `Bun` e `Deno` (auto-gerenciados, pulam quando gerenciados pelo pacman). |
+| JavaScript | `npm`, pacotes npm globais, pacotes do prefixo secundário `~/.npm-global` (`NPM_CONFIG_PREFIX`, invisível ao npm do nvm), `corepack`, `pnpm` e pacotes pnpm globais; runtimes `Bun` e `Deno` (auto-gerenciados, pulam quando gerenciados pelo pacman). |
 | Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry, com proteção contra conflito `poetry-core` fixado pelo Poetry. |
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |

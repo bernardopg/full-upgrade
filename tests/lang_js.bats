@@ -129,6 +129,20 @@ setup() {
   [ -z "$output" ]
 }
 
+@test "npm_allow_scripts_packages: formato npm 12 (install-scripts) com header e recuo" {
+  in=$'npm warn install-scripts 2 packages had install scripts blocked because they are not covered by allowScripts:\nnpm warn install-scripts   @moonshot-ai/kimi-code@0.37.1 (postinstall: node scripts/postinstall.mjs)\nnpm warn install-scripts   node-pty@1.1.0 (install: node scripts/prebuild.js || node-gyp rebuild)\nnpm warn install-scripts\nRun `npm install -g --allow-scripts=...` to allow these scripts once.'
+  run npm_allow_scripts_packages <<<"$in"
+  [ "${lines[0]}" = "@moonshot-ai/kimi-code" ]
+  [ "${lines[1]}" = "node-pty" ]
+  [ "${#lines[@]}" -eq 2 ]
+}
+
+@test "npm_allow_scripts_packages: header do install-scripts não vira pacote" {
+  in='npm warn install-scripts 2 packages had install scripts blocked because they are not covered by allowScripts:'
+  run npm_allow_scripts_packages <<<"$in"
+  [ -z "$output" ]
+}
+
 # ── npm_global_writable ───────────────────────────────────────────────────────
 @test "npm_global_writable: prefixo desconhecido => 0 (não bloqueia)" {
   npm_global_prefix() { echo ""; }

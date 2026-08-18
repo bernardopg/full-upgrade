@@ -63,12 +63,14 @@ npm_global_writable() {
 }
 
 
-# Extrai pacotes citados por `npm warn allow-scripts`, quando o npm bloqueia
-# scripts de install (ex.: native addons como better-sqlite3). Lê stdin e emite
+# Extrai pacotes citados por `npm warn allow-scripts` ou `npm warn
+# install-scripts`, quando o npm bloqueia scripts de install (ex.: native
+# addons como better-sqlite3). O npm ≥12 emite `install-scripts`; o parser
+# aceita ambos para não regredir se o formato mudar de volta. Lê stdin e emite
 # um nome por linha, sem versão. Puro/testável.
 npm_allow_scripts_packages() {
   awk '
-    $1 == "npm" && $2 == "warn" && $3 == "allow-scripts" && $4 ~ /^(@[^[:space:]@]+\/)?[^[:space:]@]+@[0-9]/ {
+    $1 == "npm" && $2 == "warn" && ($3 == "allow-scripts" || $3 == "install-scripts") && $4 ~ /^(@[^[:space:]@]+\/)?[^[:space:]@]+@[0-9]/ {
       pkg = $4
       sub(/@[0-9].*$/, "", pkg)
       if (pkg != "") print pkg
@@ -331,6 +333,91 @@ for name in sorted(data.keys()):
 
   (( todo_rc == RC_TODO )) && return "$RC_TODO"
   (( prefix_rc == RC_WARN )) && return "$RC_WARN"
+  return 0
+}
+
+# H6 — atualiza pacotes npm globais de um prefixo SECUNDÁRIO. O 'npm outdated
+# -g' do step anterior só enxerga o prefixo do npm ATIVO (ex.: node do nvm);
+# instalações em ~/.npm-global — o prefixo clássico de NPM_CONFIG_PREFIX, comum
+# para CLIs de IA (kimi, cline, gemini, codex, qwen, 9router…) — ficavam sem
+# via de update e derivavam para sempre (o 'Atualizar Kimi CLI' foi o primeiro
+# caso coberto; este step generaliza). Varre esse prefixo com 'npm outdated -g
+# --prefix' e atualiza cada pacote com 'npm install -g --prefix'. Sem os
+# safeguards de links/file: do prefixo ativo: installs ali são installs
+# normais do usuário (sem links de monorepo); scripts bloqueados pelo
+# allowScripts seguem reportados como RC_TODO com remediação, igual ao step do
+# prefixo ativo.
+update_npm_globals_secondary() {
+  local sec="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}"
+  if [[ ! -d "${sec}/lib/node_modules" ]]; then
+    log "  Prefixo secundário ${sec} não encontrado; nada a fazer."
+    return 0
+  fi
+  local primary
+  primary="$(npm_global_prefix)"
+  if [[ -n "$primary" && "$sec" == "$primary" ]]; then
+    log "  ${sec} é o prefixo global ativo; já coberto por 'Atualizar npm global'."
+    return 0
+  fi
+  if ! [[ -w "${sec}/lib/node_modules" ]]; then
+    log "  Prefixo secundário ${sec} não é gravável pelo usuário; pulando."
+    return 0
+  fi
+
+  local outdated
+  outdated="$(npm outdated -g --prefix "$sec" --depth=0 --json 2>/dev/null || true)"
+  if [[ -z "${outdated//[[:space:]]/}" || "$outdated" == "{}" ]]; then
+    log "  Sem pacotes npm globais pendentes em ${sec}."
+    return 0
+  fi
+  log "  Pacotes npm globais desatualizados em ${sec}:"
+  npm outdated -g --prefix "$sec" --depth=0 2>/dev/null | log_stream || true
+
+  local -a pkg_specs=() failed=() script_blocked=() _blocked=()
+  mapfile -t pkg_specs < <(
+    printf '%s' "$outdated" | python -c '
+import json,sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    data = {}
+for name in sorted(data.keys()):
+    latest = data.get(name, {}).get("latest") or "latest"
+    print(f"{name}\t{latest}")
+'
+  )
+  if (( ${#pkg_specs[@]} == 0 )); then
+    log "  Não foi possível extrair a lista de pacotes desatualizados de ${sec}."
+    return 1
+  fi
+
+  local entry pkg latest spec out rc
+  for entry in "${pkg_specs[@]}"; do
+    IFS=$'\t' read -r pkg latest <<<"$entry"
+    [[ -n "$pkg" ]] || continue
+    spec="${pkg}@${latest:-latest}"
+    log "  Atualizando npm global [${sec}]: ${spec}"
+    out="$(npm install -g --prefix "$sec" "$spec" 2>&1)"
+    rc=$?
+    log_raw "$out"
+    printf '%s\n' "$out" | grep -v '^$' | log_out || true
+    mapfile -t _blocked < <(printf '%s\n' "$out" | npm_allow_scripts_packages)
+    (( ${#_blocked[@]} == 0 )) || script_blocked+=("${_blocked[@]}")
+    (( rc == 0 )) || failed+=("$pkg")
+  done
+
+  if (( ${#failed[@]} > 0 )); then
+    log "  Falha final em pacote(s) npm [${sec}]: ${failed[*]}"
+    STEP_REASON="falha ao atualizar ${#failed[@]} pacote(s) em ${sec}"
+    return 1
+  fi
+  if (( ${#script_blocked[@]} > 0 )); then
+    log "  npm bloqueou script(s) de install em: ${script_blocked[*]}"
+    remediation "npm config set allow-scripts <pkg> --location=user  # depois reinstale: npm install -g --prefix ${sec} <pkg>@latest"
+    STEP_REASON="${#script_blocked[@]} pacote(s) com script de install bloqueado em ${sec}"
+    return "$RC_TODO"
+  fi
+  log "  Prefixo secundário ${sec} atualizado."
   return 0
 }
 

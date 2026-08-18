@@ -142,9 +142,11 @@ run_all_steps() {
     if has npm; then
         run_step "Atualizar npm (self)" update_npm_self
         run_step "Atualizar npm global" update_npm_globals
+        run_step "Atualizar npm global secundário" update_npm_globals_secondary
     else
         step_skip "Atualizar npm (self)" "npm não instalado"
         step_skip "Atualizar npm global" "npm não instalado"
+        step_skip "Atualizar npm global secundário" "npm não instalado"
     fi
     
     if has corepack; then

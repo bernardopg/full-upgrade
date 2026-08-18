@@ -29,6 +29,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   final. Conflitos de versão (`requires X, but you have Y`) e pacotes de
   origem system continuam manuais, por decisão de design. Nunca roda sob
   `--mode doctor`/`--dry-run`/`--no-repair`.
+- **Step `Atualizar npm global secundário`.** O 'Atualizar npm global' só
+  enxerga o prefixo do npm ativo (ex.: node do nvm); pacotes instalados em
+  `~/.npm-global` — o prefixo clássico de `NPM_CONFIG_PREFIX`, comum para
+  CLIs de IA (kimi, cline, gemini, codex, qwen, 9router…) — não tinham via
+  de update e derivavam para sempre. O novo step varre esse prefixo com
+  `npm outdated -g --prefix` e atualiza cada pacote com
+  `npm install -g --prefix`; scripts bloqueados pelo allowScripts viram
+  RC_TODO com remediação (`npm config set allow-scripts …`).
+
+### Corrigido
+
+- **Parser de scripts bloqueados do npm nunca casava.**
+  `npm_allow_scripts_packages` esperava `npm warn allow-scripts <pkg>@<ver>`,
+  mas o npm ≥12 emite `npm warn install-scripts <pkg>@<ver> (script: …)` — o
+  step 'Atualizar npm global' (e o novo passo secundário) reportariam zero
+  bloqueados mesmo com scripts de native addons sendo pulados. O parser agora
+  aceita os dois formatos.
 
 ## [3.35.1] - 2026-08-16
 ### Corrigido
