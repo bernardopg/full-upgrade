@@ -64,16 +64,11 @@ jobs:
       # O próprio pip-audit vem do mesmo lock, sem instalação ad-hoc não fixada.
       - name: Audit locked Python dependencies
         run: |
-          # Semgrep 1.170.1 fixa mcp==1.23.3 e click~=8.1.8. As quatro CVEs
-          # abaixo atingem exclusivamente servidores MCP ou click.edit(); este
-          # job só executa `semgrep scan` e não expõe esses code paths. Mantemos
-          # exceções explícitas até o pin upstream ser atualizado; qualquer
-          # vulnerabilidade adicional continua bloqueando o workflow.
+          # Semgrep 1.173.0 fixa mcp==1.29.0 e click==8.4.2, que já corrigem as
+          # CVEs de servidor MCP (CVE-2026-52869/52870/59950) e de click.edit()
+          # (PYSEC-2026-2132) antes ignoradas aqui. Sem exceções: qualquer
+          # vulnerabilidade conhecida no lock bloqueia o workflow.
           python3 -m pip_audit --strict --require-hashes --disable-pip \
-            --ignore-vuln CVE-2026-52870 \
-            --ignore-vuln CVE-2026-52869 \
-            --ignore-vuln CVE-2026-59950 \
-            --ignore-vuln PYSEC-2026-2132 \
             -r .github/requirements-semgrep.txt
 
       - name: Upload SARIF to GitHub code scanning
