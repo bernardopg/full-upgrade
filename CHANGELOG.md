@@ -3,6 +3,22 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **`Atualizar Kimi CLI` cobre npm global em prefixo estrangeiro.** O kimi
+  instalado via npm em `~/.npm-global` (prefixo próprio, comum com
+  `NPM_CONFIG_PREFIX`) é invisível para o `npm ls -g` do run — o step caía em
+  RC_TODO eterno ("método de update não detectado"), e o updater oficial
+  `kimi update` também não suporta esse layout ("unsupported package manager
+  or layout"). Agora o step resolve o caminho real do bin: instalações em
+  `<prefixo>/lib/node_modules/@moonshot-ai/kimi-code` são atualizadas com
+  `npm install -g --prefix <prefixo> @moonshot-ai/kimi-code@latest` (com
+  no-op quando já está na versão do registry — `npm install -g pkg@latest`
+  reinstala mesmo na mesma versão — e RC_TODO + remediação `--allow-scripts`
+  quando o allowScripts bloqueia o postinstall do node-pty, igual ao step npm
+  global). Instalações standalone
+  usam o updater oficial; se ele não reconhecer o layout, RC_TODO com
+  remediação em vez de ok silencioso.
 
 ## [3.35.1] - 2026-08-16
 ### Corrigido

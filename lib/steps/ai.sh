@@ -277,32 +277,129 @@ update_claude_code() {
   return 0
 }
 
-# H5 — detecta se o kimi (bin) é um pacote npm global. Retorna o spec npm
-# ("@moonshot-ai/kimi-code") ou vazio. Impuro (consulta `npm ls -g`).
+# H5 — detecta se o kimi (bin) é um pacote npm global do prefixo npm ATIVO (o
+# que `npm ls -g` enxerga — tipicamente o node gerenciado pelo nvm). Retorna o
+# spec npm ("@moonshot-ai/kimi-code") ou vazio. Impuro (consulta `npm ls -g`).
 kimi_npm_package() {
   npm ls -g --depth=0 2>/dev/null | grep -oE '@moonshot-ai/kimi-code' | head -1
 }
 
+# H5 — detecta instalação npm global em prefixo ESTRANGEIRO ao npm ativo.
+# `npm ls -g` só enxerga o prefixo do npm em uso; uma instalação em
+# ~/.npm-global (prefixo próprio, comum com NPM_CONFIG_PREFIX) passa
+# despercebida e o kimi ficava parado para sempre (o updater oficial `kimi
+# update` detecta esse layout como "unsupported package manager or layout").
+# Resolve o caminho real do bin: se vive em
+# <prefixo>/lib/node_modules/@moonshot-ai/kimi-code/…, emite o prefixo;
+# caso contrário, vazio. Impuro (command -v + readlink).
+kimi_foreign_npm_prefix() {
+  local bin real
+  bin="$(command -v kimi 2>/dev/null)" || return 0
+  real="$(readlink -f "$bin" 2>/dev/null)" || return 0
+  [[ "$real" =~ ^(.*)/lib/node_modules/@moonshot-ai/kimi-code/ ]] || return 0
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# Extrai, da saída de `npm install -g`, os pacotes cujos scripts de install
+# foram bloqueados pelo allowScripts (linhas "npm warn install-scripts
+# <pkg>@<ver> (script: …)"). Um por linha, sem a versão. Entrada: stdin.
+_npm_blocked_script_pkgs() {
+  grep -oE 'install-scripts[[:space:]]+[^ ]+@[0-9][^ ]*' \
+    | awk '{print $2}' | sed -E 's/@[^/@]+$//' | sort -u
+}
+
 # H5 — atualiza o kimi (Moonshot Kimi Code CLI). O kimi é publicado no npm como
-# @moonshot-ai/kimi-code (bin "kimi"), então quando instalado via npm global JÁ
-# É coberto pelo step "Atualizar npm global" — este step evita duplicar o
-# 'npm install' e apenas confirma a cobertura. Para instalações standalone
-# futuras (sem método conhecido), retorna RC_TODO.
+# @moonshot-ai/kimi-code (bin "kimi"), então quando instalado via npm global
+# no prefixo ATIVO já é coberto por 'Atualizar npm global' — este step evita
+# duplicar o 'npm install' e apenas confirma a cobertura. Instalações em OUTRO
+# prefixo npm (ex.: ~/.npm-global) não são vistas pelo npm do run: são
+# atualizadas aqui com 'npm install -g --prefix' — exatamente o que o próprio
+# `kimi update` recomenda quando não reconhece o layout. Instalações
+# standalone caem no updater oficial `kimi update`; se ele também não souber
+# como foi instalado, RC_TODO com remediação manual.
 update_kimi() {
   if ! has kimi; then
     log "  kimi não encontrado no PATH."
     return 0
   fi
-  local before
+  local before after
   before="$(kimi --version 2>/dev/null | head -1)"
   log "  kimi atual: ${before:-?}"
   if [[ -n "$(kimi_npm_package)" ]]; then
     log "  kimi é pacote npm global (@moonshot-ai/kimi-code); já coberto por 'Atualizar npm global'."
     return 0
   fi
-  log "  kimi instalado fora do npm; sem método de update automático conhecido."
-  STEP_REASON="método de update do kimi não detectado (não-npm)"
-  return "$RC_TODO"
+
+  local foreign_prefix out rc
+  foreign_prefix="$(kimi_foreign_npm_prefix)"
+  if [[ -n "$foreign_prefix" ]]; then
+    log "  kimi é npm global no prefixo ${foreign_prefix} (fora do npm ativo); verificando registry…"
+    # No-op quando já está na latest: `npm install -g pkg@latest` REINSTALA
+    # mesmo na mesma versão (re-download + postinstall bloqueável pelo
+    # allowScripts) — sem este short-circuito o step reinstalaria a cada run.
+    local latest
+    latest="$(npm view @moonshot-ai/kimi-code version 2>/dev/null | head -1)"
+    if [[ -n "$latest" && "${before//[[:space:]]/}" == "${latest//[[:space:]]/}" ]]; then
+      log "  kimi já na versão mais recente (${latest}); nada a fazer."
+      return 0
+    fi
+    log "  atualizando ${before:-?} → ${latest:-latest}"
+    out="$(run_network_cmd npm install -g --prefix "$foreign_prefix" @moonshot-ai/kimi-code@latest)"
+    rc=$?
+    printf '%s\n' "$out" | grep -v '^$' | log_out || true
+    if (( rc == RC_WARN )); then
+      log "  kimi: falha de rede ao atualizar."
+      STEP_REASON="rede indisponível para npm install do kimi"
+      return "$RC_WARN"
+    fi
+    if (( rc != 0 )); then
+      log "  kimi: falha ao atualizar (rc=${rc})."
+      STEP_REASON="npm install do kimi falhou"
+      return "$RC_WARN"
+    fi
+    # allowScripts pode bloquear o postinstall (node-pty fica sem binding
+    # nativo). Igual ao step 'Atualizar npm global': reporta e deixa a decisão
+    # de --allow-scripts para o usuário.
+    local -a blocked=()
+    mapfile -t blocked < <(printf '%s\n' "$out" | _npm_blocked_script_pkgs)
+    if (( ${#blocked[@]} > 0 )); then
+      log "  npm bloqueou script(s) de install em: ${blocked[*]}"
+      remediation "npm install -g --prefix ${foreign_prefix} --allow-scripts=$(IFS=,; echo "${blocked[*]}") @moonshot-ai/kimi-code@latest  # revise antes; executa scripts do pacote"
+      STEP_REASON="script(s) de install do kimi bloqueado(s) pelo allowScripts"
+      after="$(kimi --version 2>/dev/null | head -1)"
+      log "  kimi agora: ${after:-?} (rebuild manual recomendado)"
+      return "$RC_TODO"
+    fi
+    after="$(kimi --version 2>/dev/null | head -1)"
+    log "  kimi agora: ${after:-?}"
+    return 0
+  fi
+
+  log "  kimi instalado fora do npm; usando updater oficial 'kimi update'."
+  out="$(run_network_cmd kimi update)"
+  rc=$?
+  printf '%s\n' "$out" | grep -v '^$' | log_out || true
+  if (( rc == RC_WARN )); then
+    log "  kimi: falha de rede ao atualizar."
+    STEP_REASON="rede indisponível para kimi update"
+    return "$RC_WARN"
+  fi
+  if (( rc != 0 )); then
+    log "  kimi: falha ao atualizar (rc=${rc})."
+    STEP_REASON="kimi update falhou"
+    return "$RC_WARN"
+  fi
+  # O updater sai 0 mesmo quando não reconhece a instalação ("unsupported
+  # package manager or layout") — trata como pendência manual, não como ok.
+  if grep -qiE 'unsupported (package manager|install)|to update manually' <<<"$out"; then
+    log "  kimi update não reconhece esta instalação; método de update manual necessário."
+    remediation "reinstale com o instalador oficial ou: npm install -g @moonshot-ai/kimi-code@latest"
+    STEP_REASON="updater do kimi não suporta este layout de instalação"
+    return "$RC_TODO"
+  fi
+  after="$(kimi --version 2>/dev/null | head -1)"
+  log "  kimi agora: ${after:-?}"
+  return 0
 }
 
 
