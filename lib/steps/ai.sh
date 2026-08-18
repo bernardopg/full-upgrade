@@ -363,8 +363,11 @@ update_kimi() {
     local -a blocked=()
     mapfile -t blocked < <(printf '%s\n' "$out" | _npm_blocked_script_pkgs)
     if (( ${#blocked[@]} > 0 )); then
+      local blocked_csv
+      # Junta com vírgula sem mexer no IFS (evita efeito colateral de escopo).
+      blocked_csv="$(printf '%s\n' "${blocked[@]}" | paste -sd, -)"
       log "  npm bloqueou script(s) de install em: ${blocked[*]}"
-      remediation "npm install -g --prefix ${foreign_prefix} --allow-scripts=$(IFS=,; echo "${blocked[*]}") @moonshot-ai/kimi-code@latest  # revise antes; executa scripts do pacote"
+      remediation "npm install -g --prefix ${foreign_prefix} --allow-scripts=${blocked_csv} @moonshot-ai/kimi-code@latest  # revise antes; executa scripts do pacote"
       STEP_REASON="script(s) de install do kimi bloqueado(s) pelo allowScripts"
       after="$(kimi --version 2>/dev/null | head -1)"
       log "  kimi agora: ${after:-?} (rebuild manual recomendado)"

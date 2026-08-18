@@ -47,6 +47,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   bloqueados mesmo com scripts de native addons sendo pulados. O parser agora
   aceita os dois formatos.
 
+### Segurança
+
+- **Lock do Semgrep atualizado para 1.173.0 (mcp 1.23.3 → 1.29.0).** As três
+  advisories high do MCP Python SDK (task handlers experimentais expondo tasks
+  de outros clientes, transporte WebSocket sem validação de Host/Origin e
+  transportes HTTP servindo sessões sem verificar o principal autenticado)
+  vinham do `mcp==1.23.3` que o semgrep 1.172.0 fixava. O semgrep 1.173.0 fixa
+  `mcp==1.29.0` e `click==8.4.2`, o que também cobre a PYSEC-2026-2132 do
+  `click.edit()`. Com isso o `pip-audit` do workflow perdeu as quatro exceções
+  `--ignore-vuln`: qualquer CVE conhecida no lock volta a bloquear o CI.
+- **`Atualizar Kimi CLI` não mexe mais no `IFS` para montar a remediação.** A
+  lista de pacotes com script bloqueado era juntada com `$(IFS=,; echo
+  "${blocked[*]}")` (semgrep `bash.lang.security.ifs-tampering`); agora usa
+  `printf | paste -sd,`, sem reatribuir `IFS`.
+
 ## [3.35.1] - 2026-08-16
 ### Corrigido
 
