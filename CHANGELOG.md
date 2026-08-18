@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.36.0] - 2026-08-18
 ### Adicionado
 
 - **`Atualizar Kimi CLI` cobre npm global em prefixo estrangeiro.** O kimi
