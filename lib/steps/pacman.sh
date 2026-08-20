@@ -139,7 +139,7 @@ _aur_syu_with_retry_and_fallback() {
       log "  ${cmd[0]}: tentativa ${attempt}/${max} após falha de rede..."
       sleep $(( 5 * (attempt - 1) ))
     }
-    out="$("${cmd[@]}" 2>&1)"
+    out="$(env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}" 2>&1)"
     rc=$?
     printf '%s\n' "$out" | log_stream
     (( rc == 0 )) && return 0
@@ -180,7 +180,7 @@ update_system_aur() {
         _purge_aur_partial_sources
         sleep $(( 5 * (_paru_attempt - 1) ))
       }
-      _paru_out="$("${cmd[@]}" 2>&1)"
+      _paru_out="$(env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}" 2>&1)"
       _paru_rc=$?
       printf '%s\n' "$_paru_out" | log_stream
       if [[ -n "${RUN_ID:-}" ]]; then

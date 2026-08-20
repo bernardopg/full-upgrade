@@ -400,8 +400,8 @@ O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
 | btrfs | Erros de device acumulados e idade do último scrub em mounts btrfs (auto-remediação opcional via `AUTO_BTRFS_SCRUB`). |
 | Tempo de boot | Total via `systemd-analyze time` e as 5 piores units (`blame`). |
 | Desktop | Portais, PipeWire, WirePlumber e informações gráficas quando disponíveis. |
-| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes, pi), marcando as com método de update conhecido. |
-| MCP | Servidores MCP configurados em Claude (`~/.claude.json`) e Codex (`~/.codex/config.toml`), com escopo e runtime (`stdio:npx`, `stdio:uvx`, `remote`). |
+| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes, pi, Headroom e TokenSave). |
+| MCP | Servidores MCP de Claude, Codex, OpenCode, hub central e Hermes, com escopo/runtime e validação de executáveis, configurações e variáveis obrigatórias sem imprimir segredos. |
 | Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos, conflitos npm/pnpm e diagnóstico acionável de `pip check`. |
 
 ## Logs e Automação

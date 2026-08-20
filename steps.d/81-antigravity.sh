@@ -102,8 +102,14 @@ install_antigravity_aur() {
     cmd+=("$@")
 
     log " Instalando/atualizando via AUR: $*"
-    if ! run_logged "${cmd[@]}"; then
+    _retry 2 env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}"
+    local rc=$?
+    if (( rc != 0 )); then
         log " Falha no helper AUR ao processar Antigravity."
+        if (( rc == RC_WARN )); then
+            STEP_REASON="rede indisponível para atualizar Antigravity"
+            return "$RC_WARN"
+        fi
         STEP_REASON="falha no AUR helper para Antigravity"
         return "$RC_TODO"
     fi

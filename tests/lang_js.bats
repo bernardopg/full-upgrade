@@ -13,6 +13,19 @@ setup() {
   log() { :; }
 }
 
+@test "update_deno: queda durante upgrade vira warning transitório" {
+  local fake_dir="${BATS_TEST_TMPDIR}/bin"
+  mkdir -p "$fake_dir"
+  printf '#!/usr/bin/env bash\necho "deno 2.9.5"\n' > "${fake_dir}/deno"
+  chmod +x "${fake_dir}/deno"
+  PATH="${fake_dir}:${PATH}"
+  _retry() { printf '%s\n' 'Network is unreachable'; return "$RC_WARN"; }
+
+  run update_deno
+
+  [ "$status" -eq "$RC_WARN" ]
+}
+
 @test "npm_global_writable: true quando lib/node_modules é gravável em \$HOME" {
   _npm_prefix="$BATS_TEST_TMPDIR/npm-home"
   mkdir -p "$_npm_prefix/lib/node_modules"

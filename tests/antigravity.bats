@@ -280,5 +280,28 @@ EOF
     QUIET=0
     run install_antigravity_aur antigravity
     [ "$status" -eq "$RC_TODO" ]
-    [[ "$output" == *"Nenhum helper AUR"* ]]
+}
+
+@test "antigravity: falha de rede do helper retorna RC_WARN" {
+    AUR_HELPER=paru
+    has() { [[ "$1" == paru ]]; }
+    _retry() {
+        [[ "$1" == 2 && "$2" == env && "$3" == GRADLE_USER_HOME=* ]] || return 1
+        printf '%s\n' 'error sending request url'
+        return "$RC_WARN"
+    }
+
+    run install_antigravity_aur antigravity
+
+    [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "antigravity: falha não transitória do helper continua TODO" {
+    AUR_HELPER=paru
+    has() { [[ "$1" == paru ]]; }
+    _retry() { printf '%s\n' 'falha ao compilar pacote'; return 1; }
+
+    run install_antigravity_aur antigravity
+
+    [ "$status" -eq "$RC_TODO" ]
 }

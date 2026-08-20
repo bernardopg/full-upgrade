@@ -32,6 +32,24 @@ setup() {
   [ "$output" = "chardet" ]
 }
 
+@test "headroom compat: emite somente flag ausente no help da CLI" {
+  local unit help
+  unit='ExecStart=/usr/bin/headroom proxy --port 8787 --flag-removida'
+  help=$'Options:\n  --port INTEGER\n  --memory'
+  run headroom_unit_unsupported_flags "$unit" "$help"
+  [ "$status" -eq 0 ]
+  [ "$output" = "--flag-removida" ]
+}
+
+@test "headroom compat: unit compatível não emite nada" {
+  local unit help
+  unit='ExecStart=/usr/bin/headroom proxy --port 8787 --memory'
+  help=$'Options:\n  --port INTEGER\n  --memory'
+  run headroom_unit_unsupported_flags "$unit" "$help"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 # ── update_* (caminhos com mocks) ─────────────────────────────────────────────
 @test "update_pipx: nada a atualizar => propaga rc" {
   log() { :; }; log_raw() { :; }

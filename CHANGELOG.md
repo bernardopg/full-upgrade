@@ -4,6 +4,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- O Doctor MCP agora cobre Claude, Codex, OpenCode, o hub central e Hermes, preserva o escopo de projeto do Claude, identifica runtimes remotos do Codex e avisa sobre executáveis ou variáveis obrigatórias ausentes sem expor valores secretos.
+- MCPs com o mesmo nome em clientes diferentes não se mascaram mais durante o refresh `uvx`; a deduplicação ocorre apenas pelo pacote final do cache.
+- Após `uv tool upgrade --all`, a unit do Headroom é comparada com as flags suportadas pela CLI recém-instalada. Incompatibilidades viram `todo` antes do próximo restart, sem derrubar sessões Codex/Claude ativas.
+- Falhas de rede durante `deno upgrade`, `tokensave upgrade` e a atualização do Antigravity agora recebem retry e viram aviso transitório, em vez de falha ou pendência manual enganosa.
+- `rustup check` não interpreta mais uma consulta que falhou como “toolchain já atualizado”; erros de rede/upstream ficam explícitos como warning.
+- Builds AUR usam um `GRADLE_USER_HOME` isolado e persistente, evitando reutilizar bytecode de um daemon Gradle iniciado por outro JDK (por exemplo, host em Java 26 e PKGBUILD exigindo Java 17).
+
 ## [3.36.0] - 2026-08-18
 ### Adicionado
 

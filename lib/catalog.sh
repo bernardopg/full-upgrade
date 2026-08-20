@@ -128,8 +128,8 @@ Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Ve
 Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
 Doctor: apps manuais (fora de pacote)|doctor|manual,inventory,read|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
 Doctor: módulos OBS|doctor|obs,read|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
-Doctor: AI CLIs|doctor|ai,read|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA (claude, copilot, codex, gemini, qwen, cline, opencode, 9router, ollama, kimi, hermes).
-Doctor: servidores MCP|doctor|mcp,ai,read|read|15||doctor_mcp_servers|Enumera servidores MCP configurados (Claude Code ~/.claude.json + Codex config.toml) com escopo e runtime.
+Doctor: AI CLIs|doctor|ai,read|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA e otimização (Claude, Codex, OpenCode, Pi, Hermes, Headroom, TokenSave e demais CLIs conhecidas).
+Doctor: servidores MCP|doctor|mcp,ai,read|read|30||doctor_mcp_servers|Enumera e valida MCPs de Claude, Codex, OpenCode, hub central e Hermes, incluindo runtime, comandos e env obrigatórias.
 Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
 Auto-remediar deps Python ausentes|doctor|python,pip,update,network|mutating|120||autofix_pip_user_deps|Sob AUTO_FIX_PIP_DEPS=1, instala com 'pip install --user' as dependências AUSENTES de pacotes pip --user apontadas pelo pip check (aditivo; conflitos de versão seguem manuais; pacotes de origem system são intocáveis).
 Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.

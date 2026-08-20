@@ -604,6 +604,10 @@ setup() {
 # instalador nativo do Claude Code propagam o erro cru do Node/undici sem
 # traduzir. Sem esses tokens no regex, uma queda de rede era classificada como
 # "o updater falhou" e o ramo de RC_WARN de rede desses steps virava código morto.
+@test "NETWORK_TRANSIENT_RE: casa self-updater sem detalhe de socket" {
+  printf '%s\n' 'failed check updates — could not reach GitHub' | grep -qiE "$NETWORK_TRANSIENT_RE"
+}
+
 @test "NETWORK_TRANSIENT_RE: casa erros crus do Node/undici (fetch failed, E*)" {
   printf '%s\n' 'Error: Could not determine latest pi version: fetch failed (ENETUNREACH, EADDRNOTAVAIL)' \
     | grep -qiE "$NETWORK_TRANSIENT_RE"

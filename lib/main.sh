@@ -370,7 +370,10 @@ run_all_steps() {
     fi
 
     if (( ${MCP_AUTO_UPDATE:-0} == 1 )) \
-       && { [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]]; }; then
+       && { [[ -r "${HOME}/.claude.json" ]] \
+         || [[ -r "${HOME}/.codex/config.toml" ]] \
+         || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
+         || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]]; }; then
         run_step "Atualizar servidores MCP" mcp_update_servers
     else
         step_skip "Atualizar servidores MCP" "MCP_AUTO_UPDATE!=1 ou sem fonte MCP"
@@ -688,10 +691,12 @@ run_all_steps() {
     fi
     run_step "Doctor: AI CLIs" doctor_ai_clis
     if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
+       || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
+       || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]] \
        || has claude || has codex || has opencode; then
         run_step "Doctor: servidores MCP" doctor_mcp_servers
     else
-        step_skip "Doctor: servidores MCP" "nenhuma fonte MCP (claude.json/codex)"
+        step_skip "Doctor: servidores MCP" "nenhuma fonte MCP conhecida"
     fi
     run_step "Doctor: ambiente Python" doctor_python_env
     # Auto-remediação opcional: deps pip --user AUSENTES apontadas pelo pip

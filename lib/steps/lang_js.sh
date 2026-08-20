@@ -656,7 +656,7 @@ update_deno() {
   fi
 
   log "  deno atual: $(deno --version 2>/dev/null | awk 'NR==1{print $2}' || echo '?')"
-  output="$(deno upgrade 2>&1)"
+  output="$(_retry 2 deno upgrade 2>&1)"
   rc=$?
   log_raw "$output"
   if grep -qiE "already.*latest|is the most recent|up to date" <<<"$output"; then

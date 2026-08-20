@@ -9,6 +9,7 @@ setup() {
   source "${FU_LIB}/steps/mcp.sh"
   QUIET=0
   HOME="$(mktemp -d)"
+  XDG_CONFIG_HOME="$HOME/.config"
 }
 
 teardown() {
@@ -97,6 +98,25 @@ TOML
   [ "$out" == "foo" ]
 }
 
+@test "codex entries: preserva remote e aponta env obrigatória ausente sem expor valor" {
+  cat > "$HOME/config.toml" <<'TOML'
+[mcp_servers.github]
+url = "https://example.com/mcp"
+bearer_token_env_var = "TEST_MCP_TOKEN_AUSENTE"
+TOML
+  out="$(parse_mcp_codex_entries "$HOME/config.toml")"
+  [[ "$out" == "github"$'\t'"remote"$'\t'"env ausente: TEST_MCP_TOKEN_AUSENTE" ]]
+}
+
+@test "json entries: cobre OpenCode e hub central" {
+  cat > "$HOME/opencode.json" <<'JSON'
+{"mcp":{"local":{"type":"local","command":["npx","pkg"]},"remote":{"type":"remote","url":"https://example.com/mcp"}}}
+JSON
+  out="$(parse_mcp_json_entries "$HOME/opencode.json")"
+  [[ "$out" == *"local"$'\t'"stdio:npx"* ]]
+  [[ "$out" == *"remote"$'\t'"remote"* ]]
+}
+
 # ── doctor_mcp_servers (agregador) ───────────────────────────────────────────
 
 @test "doctor: sem fontes => mensagem de nenhuma fonte (RC 0)" {
@@ -123,6 +143,18 @@ TOML
   [[ "$output" == *"shared [claude, codex"* ]]
   [[ "$output" == *"only-c [claude"* ]]
   [[ "$output" == *"only-x [codex"* ]]
+}
+
+@test "doctor: problema de configuração MCP vira warning acionável" {
+  mkdir -p "$HOME/.codex"
+  cat > "$HOME/.codex/config.toml" <<'TOML'
+[mcp_servers.github]
+url = "https://example.com/mcp"
+bearer_token_env_var = "TEST_MCP_TOKEN_AUSENTE"
+TOML
+  run doctor_mcp_servers
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"codex:github: env ausente: TEST_MCP_TOKEN_AUSENTE"* ]]
 }
 
 # ── mcp_update_plan (K1) ─────────────────────────────────────────────────────
@@ -198,6 +230,14 @@ TOML
   [[ "$out" == *"serena"$'\t'"refresh"$'\t'"serena"* ]]
 }
 
+@test "plan: JSON classifica comando array do OpenCode" {
+  cat > "$HOME/open.json" <<'JSON'
+{"mcp":{"md":{"enabled":true,"command":["uvx","markitdown-mcp"]}}}
+JSON
+  out="$(mcp_update_plan json "$HOME/open.json")"
+  [[ "$out" == "md"$'\t'"refresh"$'\t'"markitdown-mcp" ]]
+}
+
 # ── mcp_update_servers (K1) ──────────────────────────────────────────────────
 
 @test "update: só npx => nada a refrescar, RC 0, não chama uv" {
@@ -210,6 +250,24 @@ JSON
   [ "$status" -eq 0 ]
   [[ "$output" == *"Nada a refrescar"* ]]
   [[ "$output" != *"NAO DEVERIA"* ]]
+}
+
+@test "update: mesmo nome em clientes diferentes não mascara runtime uvx" {
+  cat > "$HOME/.claude.json" <<'JSON'
+{"mcpServers":{"same":{"command":"npx","args":["pkg"]}}}
+JSON
+  mkdir -p "$HOME/.codex"
+  cat > "$HOME/.codex/config.toml" <<'TOML'
+[mcp_servers.same]
+command = "uvx"
+args = ["markitdown-mcp"]
+TOML
+  has() { return 0; }
+  uv() { printf '%s\n' "$*" >> "$HOME/uv.calls"; return 0; }
+  run mcp_update_servers
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"refresh(uvx): 1"* ]]
+  grep -q 'cache clean markitdown-mcp' "$HOME/uv.calls"
 }
 
 @test "update: uvx presente mas uv ausente => RC_TODO" {

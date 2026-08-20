@@ -1732,7 +1732,7 @@ _ai_cli_first_version() {
 
 # H4 — inventário read-only das CLIs de IA instaladas e suas versões. Cobre o
 # conjunto moderno (claude, copilot, codex, gemini, qwen, cline, opencode,
-# 9router, ollama, kimi, hermes, pi). Apenas reporta — nunca muta nem falha o run;
+# 9router, ollama, kimi, hermes, pi, headroom, tokensave). Apenas reporta — nunca muta nem falha o run;
 # CLIs ausentes são omitidas para reduzir ruído. Conta quantas foram detectadas.
 doctor_ai_clis() {
   # Lista "rótulo:comando". A maioria aceita `--version`.
@@ -1740,6 +1740,7 @@ doctor_ai_clis() {
     "claude:claude" "copilot:copilot" "codex:codex" "gemini:gemini"
     "qwen:qwen" "cline:cline" "opencode:opencode" "9router:9router"
     "ollama:ollama" "kimi:kimi" "hermes:hermes" "pi:pi"
+    "headroom:headroom" "tokensave:tokensave"
   )
   local entry label cmd ver found=0
   for entry in "${clis[@]}"; do

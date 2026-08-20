@@ -12,7 +12,7 @@ setup() {
   printf '#!/usr/bin/env bash\n[[ "$1" == "--version" ]] && { echo "tokensave 7.6.0"; exit 0; }\n' > "$fake"
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
-  run_network_cmd() { printf '%s\n' "$*" >> "$calls"; return 0; }
+  _retry() { shift; printf '%s\n' "$*" >> "$calls"; return 0; }
   export TOKENSAVE_BIN calls
 
   run update_tokensave
@@ -26,7 +26,7 @@ setup() {
   printf '#!/usr/bin/env bash\necho "tokensave 7.6.0"\n' > "$fake"
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
-  run_network_cmd() { return "$RC_WARN"; }
+  _retry() { return "$RC_WARN"; }
   export TOKENSAVE_BIN
 
   run update_tokensave

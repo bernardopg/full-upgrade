@@ -2,6 +2,7 @@
 # steps/lang_py.sh — pip, pipx, uv, poetry
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
+# shellcheck disable=SC2034  # STEP_REASON é consumido pelo framework em core.sh
 
 poetry_core_requirement() {
   python - <<'PY'
@@ -206,6 +207,43 @@ update_uv_python() {
 }
 
 
+# Compara as flags longas do ExecStart da unit Headroom com o help da CLI
+# recém-instalada. Emite uma flag incompatível por linha; não executa/reinicia
+# o serviço, portanto é seguro durante sessões Codex/Claude ativas.
+headroom_unit_unsupported_flags() {
+  local unit_text="$1" help_text="$2" flag
+  while IFS= read -r flag; do
+    [[ -n "$flag" ]] || continue
+    grep -qF -- "$flag" <<<"$help_text" || printf '%s\n' "$flag"
+  done < <(sed -n 's/^ExecStart=//p' <<<"$unit_text" | grep -oE -- '--[a-z][a-z0-9-]*' | sort -u)
+}
+
+check_headroom_unit_compat() {
+  local unit="${HEADROOM_USER_UNIT:-${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user/headroom.service}"
+  [[ -r "$unit" ]] || return 0
+  has headroom || return 0
+
+  local help_text unit_text
+  help_text="$(headroom proxy --help 2>/dev/null)" || {
+    log "  Headroom: não foi possível consultar 'proxy --help' após o upgrade."
+    STEP_REASON="não foi possível validar compatibilidade da unit Headroom"
+    return "$RC_WARN"
+  }
+  unit_text="$(<"$unit")"
+
+  local -a unsupported=()
+  mapfile -t unsupported < <(headroom_unit_unsupported_flags "$unit_text" "$help_text")
+  if (( ${#unsupported[@]} == 0 )); then
+    log "  Headroom: ExecStart compatível com a CLI instalada."
+    return 0
+  fi
+
+  log "  Headroom: a unit usa flag(s) não suportada(s): ${unsupported[*]}"
+  log "  Serviço não reiniciado para preservar sessões ativas; corrija a unit antes do próximo restart."
+  STEP_REASON="unit Headroom incompatível com a CLI: ${unsupported[*]}"
+  return "$RC_TODO"
+}
+
 update_uv_tools() {
   local output rc
 
@@ -221,7 +259,7 @@ update_uv_tools() {
     return "$rc"
   fi
 
-  return 0
+  check_headroom_unit_compat
 }
 
 
@@ -253,5 +291,3 @@ for pkg in data:
     run_logged python -m pip install --user --break-system-packages "$core_req"
   fi
 }
-
-

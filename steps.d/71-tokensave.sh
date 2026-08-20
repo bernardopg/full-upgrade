@@ -15,9 +15,9 @@ update_tokensave() {
   before="$("$tokensave_bin" --version 2>/dev/null | head -1 || true)"
   log "  TokenSave em: ${tokensave_bin} (versão atual: ${before:-desconhecida})"
 
-  output="$(run_network_cmd "$tokensave_bin" upgrade 2>&1)"
+  output="$(_retry 2 "$tokensave_bin" upgrade 2>&1)"
   rc=$?
-  # run_network_cmd já gravou a saída crua no log; aqui é só exibição.
+  # _retry já gravou a saída crua no log; aqui é só exibição.
   [[ -n "${output//[[:space:]]/}" ]] && printf '%s\n' "$output" | _strip_ansi | log_out
 
   if (( rc == RC_WARN )); then

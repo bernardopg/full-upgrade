@@ -5,9 +5,15 @@
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 update_rustup() {
-  local check_out
-  check_out="$(rustup check 2>&1)"
+  local check_out check_rc
+  check_out="$(run_network_cmd rustup check 2>&1)"
+  check_rc=$?
   printf '%s\n' "$check_out" | log_stream
+
+  if (( check_rc != 0 )); then
+    STEP_REASON="não foi possível verificar atualizações do rustup"
+    return "$RC_WARN"
+  fi
 
   if ! grep -qi 'update available\|needs updating' <<<"$check_out"; then
     log "  rustup: toolchain já atualizado, pulando sync."
@@ -394,4 +400,3 @@ autofix_rust_cves() {
   STEP_REASON="${#after_cargo[@]} CVE(s) acionável(is) remanescente(s) após remediação"
   return "$RC_WARN"
 }
-
