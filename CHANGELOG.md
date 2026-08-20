@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.37.0] - 2026-08-20
 ### Corrigido
 
 - O Doctor MCP agora cobre Claude, Codex, OpenCode, o hub central e Hermes, preserva o escopo de projeto do Claude, identifica runtimes remotos do Codex e avisa sobre executáveis ou variáveis obrigatórias ausentes sem expor valores secretos.
