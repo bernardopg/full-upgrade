@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.37.1] - 2026-08-23
 ### Corrigido
 
 - **Upstream git removido não é mais falha permanente do step.** Um clone de
