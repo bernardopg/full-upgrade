@@ -27,6 +27,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   existe; sem a verificação, o "behind" seria medido contra uma ref inexistente
   e o plugin ficaria congelado, sem updates e sem aviso. O fallback para
   `origin/HEAD` devolve o repo ao branch vivo.
+- **`pip` do lock do Semgrep subiu para 26.2 (PYSEC-2026-3721).** O passo
+  "Audit locked Python dependencies" roda `pip_audit --strict` sobre o lock
+  hash-pinned, então uma CVE recém-divulgada em qualquer pacote do lock —
+  inclusive no próprio `pip`, que entra via `pip-api` sob `--allow-unsafe` —
+  reprova o workflow em commits que nem tocam em Python. Bump cirúrgico só do
+  pin do `pip`, com os hashes oficiais do PyPI.
+
+### Documentação
+
+- A seção de plugins clonados (README e `CLAUDE.md`) passou de três para cinco
+  armadilhas do git, cobrindo poda de refs mortas, validação da ref de upstream
+  e a terceira classe de erro de fetch (upstream removido de vez).
 
 ## [3.37.0] - 2026-08-20
 ### Corrigido

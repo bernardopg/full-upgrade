@@ -357,8 +357,9 @@ snapshots manuais/de outras origens.
   `refs/full-upgrade/pre-realign/<timestamp>`. Plugin com modificação local não é
   tocado e vira `todo`, nunca `fail`.
 - **Atualização de plugins clonados (Zsh, DMS, OBS):** os três steps usam os
-  mesmos helpers (`git_fetch_full`, `git_pull_ff_only`, `git_has_unmerged`), que
-  desarmam três armadilhas do git. **(a)** Clone raso: `fetch --depth=1` cria um
+  mesmos helpers (`git_fetch_full`, `git_pull_ff_only`, `git_has_unmerged`,
+  `git_tracking_ref`, `git_remote_gone`), que desarmam cinco armadilhas do git.
+  **(a)** Clone raso: `fetch --depth=1` cria um
   novo graft point a cada execução, a ponta remota perde ancestralidade com o
   `HEAD` local e o fast-forward passa a ser impossível *mesmo com árvore limpa* —
   o repo é desraso uma vez e volta a atualizar por ff. **(b)** `pull --ff-only`
@@ -369,7 +370,16 @@ snapshots manuais/de outras origens.
   git recusa `fetch`/`pull`/`stash`, então o estado é detectado antes e vira
   `todo` com remediação, em vez de `fail` repetido a cada run. Quando um `stash
   pop` conflita, a árvore é restaurada para o upstream (o plugin continua
-  carregável) e suas mudanças ficam intactas no stash.
+  carregável) e suas mudanças ficam intactas no stash. **(d)** Branch apagado no
+  remoto: sem `--prune` a ref remota morta sobrevive local, o "behind" é medido
+  contra o fantasma e o plugin "atualiza" em todo run, para sempre — o fetch
+  agora poda, e a ref de upstream é conferida antes de virar referência de
+  comparação (cai para `origin/HEAD` se sumiu). **(e)** Upstream removido de vez
+  (repo apagado, privado, renomeado sem redirect ou credencial revogada): isso
+  responde "Repository not found" em todo run e nunca se resolve sozinho, então
+  vira `todo` com remediação (corrigir o `remote set-url` ou remover o clone
+  órfão) em vez de `fail` eterno — o `fail` duro fica reservado a erro que de
+  fato indica defeito.
 - **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
   `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
   compartilham um único bloco **Shell / Editor**. Cada grupo mostra tempo total,
@@ -692,7 +702,12 @@ Ao criar ou alterar steps:
 3. chame o step em `lib/main.sh`;
 4. defina timeout realista;
 5. use `RC_WARN` para problema não bloqueante e `RC_TODO` para ação manual;
-6. garanta que dependências ausentes gerem `skip`, não falha desnecessária.
+6. garanta que dependências ausentes gerem `skip`, não falha desnecessária;
+7. **nunca deixe uma condição permanente virar `fail`.** Se o step não tem como
+   se recuperar sozinho — upstream removido, credencial revogada, layout não
+   suportado — o `fail` vai se repetir em todo run, para sempre, sem nada que o
+   full-upgrade possa fazer. Isso é pendência do usuário: use `RC_TODO` com
+   remediação acionável e reserve o `fail` para erro que de fato indica defeito.
 
 ## Apoie o projeto
 
