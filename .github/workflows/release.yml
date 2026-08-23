@@ -327,7 +327,11 @@ jobs:
           echo "AUR permaneceu indisponível após 10 minutos; abortando publicação."
           exit 1
 
-      - name: Validar PKGBUILD e gerar .SRCINFO
+      # Este passo PUBLICA: a action valida o PKGBUILD, gera o .SRCINFO e faz o
+      # commit/push no git do AUR. O nome anterior ("Validar PKGBUILD e gerar
+      # .SRCINFO") descrevia só os efeitos colaterais e escondia a publicação —
+      # ao auditar a release 3.37.1 a lista de steps parecia não ter deploy nenhum.
+      - name: Publicar no AUR (valida PKGBUILD, gera .SRCINFO e faz push)
         uses: KSXGitHub/github-actions-deploy-aur@084b0d9b15415bf9cdb65d44dad1efe37a354050 # v4.2.0
         with:
           pkgname: full-upgrade
