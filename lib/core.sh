@@ -372,15 +372,34 @@ git_has_unmerged() {
 # sua vez podia conflitar e travar o plugin permanentemente. Repo raso é desraso
 # uma única vez; depois o fast-forward volta a ser real. Ecoa stdout+stderr para
 # o chamador classificar erro de rede.
+# `--prune` não é cosmético: sem ele, um branch apagado no remoto sobrevive para
+# sempre como remote-tracking ref local. O step então mede "behind" contra uma
+# ref morta, tenta o pull (que falha com "no such ref was fetched"), cai na
+# recuperação por reset --hard — e no run seguinte encontra a MESMA ref morta e
+# repete tudo. Caso real: homeAssistantMonitor em
+# agent/dms-1-5-homeassistant-stability (branch de PR já mergeado e apagado
+# upstream) "atualizava" em todo run, para sempre. Prune fecha o laço.
 git_fetch_full() {
   local dir="$1" git_dir
   git_dir="$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null || true)"
   if [[ -n "$git_dir" && -f "${git_dir}/shallow" ]]; then
-    git -C "$dir" fetch --quiet --unshallow origin 2>&1 && return 0
+    git -C "$dir" fetch --quiet --prune --unshallow origin 2>&1 && return 0
     # --unshallow falha se o remoto não suporta ou se já foi desraso em corrida;
     # cair para fetch completo normal (sem --depth) preserva a correção.
   fi
-  git -C "$dir" fetch --quiet origin 2>&1
+  git -C "$dir" fetch --quiet --prune origin 2>&1
+}
+
+# Classifica a saída de um fetch que falhou como "upstream morto" (permanente).
+#
+# Existem TRÊS classes de falha de fetch, não duas: transitória (rede caiu →
+# warn), permanente do lado do remoto (repo deletado/privado/renomeado, credencial
+# revogada → pendência do usuário) e falha operacional real (→ fail). Sem esta
+# terceira classe, um clone órfão apontando para um repo apagado no GitHub fazia
+# o step falhar em TODO run, indefinidamente, sem nenhuma ação possível pelo
+# próprio full-upgrade — exatamente o laço que o contrato de RC existe para evitar.
+git_remote_gone() {
+  grep -qiE "$GIT_REMOTE_GONE_RE" <<<"${1-}"
 }
 
 # Fast-forward determinístico, imune à config global do usuário.
@@ -405,10 +424,18 @@ git_pull_ff_only() {
 # origin/HEAD, evita anunciar "9 commits atrás" para um repo deliberadamente
 # mantido num branch próprio já sincronizado com o seu upstream (forks de
 # monorepos DMS são o caso real: o branch relevante não é o default do origin).
+#
+# A ref do upstream precisa EXISTIR de fato: com `fetch --prune`, um branch
+# apagado no remoto some das remote-tracking refs, mas branch.<name>.merge
+# continua na config apontando para o fantasma. Sem verificar, o "behind" era
+# medido contra uma ref inexistente (rev-list falha → 0) e o plugin ficava
+# congelado, sem nunca mais atualizar e sem nenhum aviso. Cair para origin/HEAD
+# nesse caso é o que devolve o repo ao branch vivo.
 git_tracking_ref() {
   local ref
   ref="$(git -C "$1" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
-  if [[ -n "$ref" && "$ref" != "@{u}" ]]; then
+  if [[ -n "$ref" && "$ref" != "@{u}" ]] && \
+     git -C "$1" rev-parse --verify --quiet "${ref}^{commit}" >/dev/null 2>&1; then
     printf '%s' "$ref"
     return 0
   fi

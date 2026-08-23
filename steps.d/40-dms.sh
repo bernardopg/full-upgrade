@@ -16,7 +16,7 @@ update_dms_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=()
+  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=() gone=()
   local plugin dir behind fetch_err net_fail=0 track_ref recovery rec_status rec_ref
 
   for dir in "$plugins_dir"/*/; do
@@ -46,6 +46,14 @@ update_dms_plugins() {
 
     if ! fetch_err="$(git_fetch_full "$dir")"; then
       log_raw "$fetch_err"
+      # Upstream morto (404/privado/credencial revogada) antes de rede: um repo
+      # apagado no GitHub nunca volta, então insistir como "falha" quebraria o
+      # step em todo run futuro. Vira pendência acionável do usuário.
+      if git_remote_gone "$fetch_err"; then
+        log "  ${plugin}: upstream inacessível permanentemente ($(git -C "$dir" remote get-url origin 2>/dev/null))"
+        gone+=("$plugin")
+        continue
+      fi
       log "  Aviso: fetch falhou para DMS plugin ${plugin}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
       failed+=("$plugin")
@@ -118,6 +126,11 @@ update_dms_plugins() {
 
     if ! fetch_err="$(git_fetch_full "$repo_dir")"; then
       log_raw "$fetch_err"
+      if git_remote_gone "$fetch_err"; then
+        log "  monorepo ${repo_name}: upstream inacessível permanentemente ($(git -C "$repo_dir" remote get-url origin 2>/dev/null))"
+        gone+=(".repos/${repo_name}")
+        continue
+      fi
       log "  Aviso: fetch falhou para monorepo DMS ${repo_name}"
       grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$fetch_err" && net_fail=1
       failed+=(".repos/${repo_name}")
@@ -178,6 +191,12 @@ update_dms_plugins() {
   (( ${#repo_managed[@]} > 0 )) && log "  DMS plugins via registry (.repos, atualizados como monorepo): ${repo_managed[*]}"
   (( ${#skipped[@]} > 0 )) && log "  DMS plugins sem git (ignorados): ${skipped[*]}"
   (( ${#conflicted[@]} > 0 )) && log "  DMS plugins travados por conflito pendente: ${conflicted[*]}"
+  if (( ${#gone[@]} > 0 )); then
+    log "  DMS plugins com upstream removido/inacessível: ${gone[*]}"
+    log "  O plugin segue funcional com o código já clonado; só não recebe updates."
+    log "  Resolva apontando o remote para o novo endereço (git -C <dir> remote set-url origin <url>)"
+    log "  ou removendo o clone órfão — confira antes quais plugins fazem symlink para ele."
+  fi
   if (( ${#failed[@]} > 0 )); then
     log "  DMS plugins com falha: ${failed[*]}"
     # GitHub inacessível é transitório: warn (contrato RC), não fail.
@@ -187,12 +206,14 @@ update_dms_plugins() {
     fi
     return 1
   fi
-  if (( ${#stash_conflicts[@]} > 0 || ${#conflicted[@]} > 0 )); then
-    # Mudanças preservadas no stash mas exigem merge manual, ou repo já travado
-    # por conflito anterior: ação do usuário, não falha operacional — todo, não fail.
+  if (( ${#stash_conflicts[@]} > 0 || ${#conflicted[@]} > 0 || ${#gone[@]} > 0 )); then
+    # Mudanças preservadas no stash mas exigem merge manual, repo já travado por
+    # conflito anterior, ou upstream que deixou de existir: ação do usuário, não
+    # falha operacional — todo, não fail. Fail aqui seria permanente e inútil.
     local -a pend=()
     (( ${#stash_conflicts[@]} > 0 )) && pend+=("stash pop com conflito em: ${stash_conflicts[*]}")
     (( ${#conflicted[@]} > 0 )) && pend+=("conflito pendente em: ${conflicted[*]}")
+    (( ${#gone[@]} > 0 )) && pend+=("upstream removido/inacessível em: ${gone[*]}")
     STEP_REASON="$(printf '%s; ' "${pend[@]}")"
     STEP_REASON="${STEP_REASON%; }"
     return "$RC_TODO"

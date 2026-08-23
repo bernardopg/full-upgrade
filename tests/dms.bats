@@ -64,12 +64,24 @@ create_repo_with_remote() {
 
 # ── plugin com .git mas sem remote ─────────────────────────────────────────────
 
-@test "update_dms_plugins: fetch falha => failed" {
+@test "update_dms_plugins: repo sem remote => RC_TODO (permanente), não fail" {
+  # Sem origin configurado o fetch nunca vai funcionar sozinho: é pendência do
+  # usuário, não falha operacional. Como fail, o step quebraria em todo run.
   DMS_PLUGINS_DIR="$MOCKDIR/plugins"
   mkdir -p "$DMS_PLUGINS_DIR/myplugin"
   create_dummy_repo "$DMS_PLUGINS_DIR/myplugin"
   # remove remote para forçar fetch a falhar
   git -C "$DMS_PLUGINS_DIR/myplugin" remote remove origin 2>/dev/null || true
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+}
+
+@test "update_dms_plugins: fetch com erro operacional => failed (fail duro)" {
+  # Erro que não é nem rede transitória nem upstream morto continua sendo fail.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  mkdir -p "$DMS_PLUGINS_DIR/myplugin"
+  create_dummy_repo "$DMS_PLUGINS_DIR/myplugin"
+  git -C "$DMS_PLUGINS_DIR/myplugin" remote add origin "nosuchproto://host/repo.git"
   run update_dms_plugins
   [ "$status" -eq 1 ]
 }
@@ -395,4 +407,107 @@ create_repo_with_remote() {
   [ "$(git -C "$DMS_PLUGINS_DIR/.repos/dankmail" rev-list HEAD..origin/HEAD --count)" -eq 0 ]
   [ -f "$DMS_PLUGINS_DIR/.repos/dankmail/local.txt" ]
   grep -q "ajuste local" "$DMS_PLUGINS_DIR/.repos/dankmail/local.txt"
+}
+
+# ── upstream removido permanentemente (repo 404/privado) ──────────────────────
+
+@test "update_dms_plugins: monorepo com upstream deletado => RC_TODO, não fail" {
+  # Caso real: .repos/9fc715c3c021190e -> github.com/TaylanTatli/dms-plugins,
+  # repo apagado upstream. O fetch responde "Repository not found" em TODO run;
+  # como fail duro isso quebrava o step para sempre, sem ação possível pelo
+  # próprio full-upgrade. Deve virar pendência do usuário (RC_TODO).
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+
+  mkdir -p "$DMS_PLUGINS_DIR/.repos"
+  git clone --quiet "$bare" "$DMS_PLUGINS_DIR/.repos/deadupstream" 2>/dev/null || {
+    mkdir -p "$DMS_PLUGINS_DIR/.repos/deadupstream"
+    create_dummy_repo "$DMS_PLUGINS_DIR/.repos/deadupstream"
+    git -C "$DMS_PLUGINS_DIR/.repos/deadupstream" remote add origin "$bare"
+  }
+  # simula o upstream que deixou de existir
+  rm -rf "$bare"
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"upstream inacessível permanentemente"* ]]
+  [[ "$output" != *"DMS plugins com falha"* ]]
+}
+
+@test "update_dms_plugins: plugin com upstream deletado => RC_TODO, não fail" {
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  mkdir -p "$DMS_PLUGINS_DIR"
+  create_dummy_repo "$MOCKDIR/seed"
+  git -C "$MOCKDIR/seed" remote add origin "$bare"
+  git -C "$MOCKDIR/seed" push -u origin main --quiet
+  git clone --quiet "$bare" "$DMS_PLUGINS_DIR/myplugin"
+  rm -rf "$bare"
+
+  QUIET=0
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"upstream inacessível permanentemente"* ]]
+}
+
+@test "git_remote_gone: classifica 404 do GitHub, não erro de rede" {
+  run git_remote_gone "remote: Repository not found.
+fatal: repository 'https://github.com/x/y/' not found"
+  [ "$status" -eq 0 ]
+
+  run git_remote_gone "fatal: unable to access 'https://github.com/x/y/': Could not resolve host: github.com"
+  [ "$status" -ne 0 ]
+}
+
+@test "git_fetch_full: poda remote-tracking de branch apagado upstream" {
+  # Sem --prune, um branch de PR já mergeado e apagado no remoto sobrevive como
+  # ref local, fazendo o step medir "behind" contra um fantasma e "atualizar"
+  # em todo run, para sempre (caso real: homeAssistantMonitor).
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work" clone="$MOCKDIR/clone"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+  git -C "$work" switch -c feature/pr --quiet
+  git -C "$work" commit --allow-empty -m "pr" --quiet
+  git -C "$work" push -u origin feature/pr --quiet
+
+  git clone --quiet "$bare" "$clone"
+  git -C "$clone" rev-parse --verify --quiet origin/feature/pr >/dev/null
+
+  # upstream apaga o branch do PR após o merge
+  git -C "$work" push origin --delete feature/pr --quiet
+
+  run git_fetch_full "$clone"
+  [ "$status" -eq 0 ]
+  run git -C "$clone" rev-parse --verify --quiet origin/feature/pr
+  [ "$status" -ne 0 ]
+}
+
+@test "git_tracking_ref: cai para origin/HEAD quando o upstream sumiu" {
+  local bare="$MOCKDIR/bare.git" work="$MOCKDIR/work" clone="$MOCKDIR/clone"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$work"
+  git -C "$work" remote add origin "$bare"
+  git -C "$work" push -u origin main --quiet
+  git -C "$work" switch -c feature/pr --quiet
+  git -C "$work" commit --allow-empty -m "pr" --quiet
+  git -C "$work" push -u origin feature/pr --quiet
+
+  git clone --quiet "$bare" "$clone"
+  git -C "$clone" switch feature/pr --quiet
+  git -C "$work" push origin --delete feature/pr --quiet
+  git_fetch_full "$clone" >/dev/null
+
+  # branch.feature/pr.merge ainda aponta para o fantasma; a ref não existe mais
+  run git_tracking_ref "$clone"
+  [ "$status" -eq 0 ]
+  [ "$output" = "origin/main" ]
 }

@@ -3,6 +3,30 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Upstream git removido não é mais falha permanente do step.** Um clone de
+  plugin/monorepo cujo repositório foi apagado, tornado privado ou renomeado no
+  GitHub responde `remote: Repository not found` em todo `fetch`. O step
+  `Atualizar plugins DankMaterialShell` classificava isso como falha dura, então
+  falhava em 100% dos runs, para sempre, sem nenhuma ação possível pelo próprio
+  full-upgrade (caso real: `.repos/9fc715c3c021190e` →
+  `github.com/TaylanTatli/dms-plugins`, 404). Agora existe uma terceira classe de
+  erro de fetch (`GIT_REMOTE_GONE_RE` + `git_remote_gone`), entre "rede
+  transitória" e "falha operacional": upstream permanentemente inacessível vira
+  `RC_TODO` com instrução acionável (corrigir o `remote set-url` ou remover o
+  clone órfão), preservando o fail duro para erros que realmente indicam defeito.
+- **`git_fetch_full` passa a podar (`--prune`) refs remotas mortas.** Sem prune,
+  um branch apagado no remoto sobrevivia como remote-tracking ref local: o step
+  media "behind" contra o fantasma, o `pull` falhava com `no such ref was
+  fetched`, a recuperação fazia `reset --hard` — e o run seguinte repetia tudo,
+  indefinidamente (caso real: plugin `homeAssistantMonitor` num branch de PR já
+  mergeado e apagado upstream, "atualizando" em todo run).
+- **`git_tracking_ref` valida que a ref de upstream existe.** Com o prune acima,
+  `branch.<name>.merge` pode continuar apontando para um branch que já não
+  existe; sem a verificação, o "behind" seria medido contra uma ref inexistente
+  e o plugin ficaria congelado, sem updates e sem aviso. O fallback para
+  `origin/HEAD` devolve o repo ao branch vivo.
 
 ## [3.37.0] - 2026-08-20
 ### Corrigido

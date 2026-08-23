@@ -76,6 +76,17 @@ RC_TODO=11
 # classificada como falha do updater em vez de aviso transitório.
 NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|could not reach|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado|fetch failed|socket hang up|enetunreach|eaddrnotavail|enotfound|eai_again|econnreset|econnrefused|etimedout|ehostunreach'
 
+# ── Regex de upstream git PERMANENTEMENTE inacessível (grep -E -i) ──
+# Terceira categoria de falha de fetch, entre "transitório" e "falha do tool".
+# Repo deletado, tornado privado, renomeado sem redirect ou com credencial
+# revogada NUNCA volta sozinho: reclassificar como fail duro fazia o step falhar
+# em todo run, para sempre, sem nada que o full-upgrade pudesse fazer.
+# Caso real: .repos/9fc715c3c021190e (github.com/TaylanTatli/dms-plugins, 404)
+# quebrava o step "Atualizar plugins DankMaterialShell" em 100% dos runs.
+# Isto é pendência do usuário (remover o clone órfão ou corrigir o remote), não
+# erro operacional — por isso vira RC_TODO com instrução acionável, não fail.
+GIT_REMOTE_GONE_RE='repository not found|not found: did you run git update-server-info|remote: not found|does not appear to be a git repository|could not read username|could not read password|authentication failed|permission denied \(publickey|access denied|requested url returned error: 40|returned error: 403|returned error: 404|http code = 40|repository is archived'
+
 # Isola builds AUR de daemons/caches Gradle criados pelo Java padrão do usuário.
 # PKGBUILDs que exigem outro JDK (ex.: 17 com host em 26) deixam de reutilizar
 # bytecode incompatível, mantendo o cache persistente entre runs.
