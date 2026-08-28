@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.37.2] - 2026-08-28
 ### Corrigido
 
 - **Updaters Node/Electron recuperam o timeout de IPv6 sem sacrificar redes
