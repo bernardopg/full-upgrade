@@ -316,7 +316,7 @@ Status possíveis no resumo:
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
 | Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent: self-update nativo `pi update`, extensões instaladas via `pi update --extensions` e refresh dos catálogos de modelos via `pi update --models`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). |
+| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent: self-update nativo `pi update`, extensões instaladas via `pi update --extensions` e refresh dos catálogos de modelos via `pi update --models`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). Updaters Node/Electron repetem uma vez só após `ETIMEDOUT`, sem a auto-seleção de família; TokenSave confirma read-only a release atual quando apenas seu updater não alcança o GitHub. |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
 | Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
@@ -341,6 +341,15 @@ snapshots manuais/de outras origens.
   (`DOCKER_INFO_TIMEOUT_S`, default `5`) antes de decidir que o daemon está
   inacessível. Isso evita runs presos por dezenas de segundos em máquinas com
   Docker instalado, mas parado ou sem permissão.
+- **Node/Electron e TokenSave:** quando um updater Node/Electron falha com
+  `ETIMEDOUT`, a tentativa original é preservada e há apenas um retry com a
+  auto-seleção IPv6/IPv4 desativada — útil em interfaces sem rota IPv6, sem
+  quebrar redes IPv6-only. Se o self-updater do TokenSave não alcançar o
+  GitHub, a API de releases é consultada apenas para comparar versões: match
+  confirma `ok`, mas esse caminho nunca instala nem baixa nada.
+- **Inventário de CLIs de IA:** cada `<cli> --version` externo é limitado por
+  `AI_CLI_VERSION_TIMEOUT_S` (default `5`), para uma CLI travada não consumir o
+  timeout do step nem ocultar as demais versões.
 - **Poetry / `poetry-core`:** quando o Poetry instalado declara requisito fixo
   para `poetry-core`, o update genérico de `pip --user` adiciona `poetry-core`
   ao ignore efetivo. Isso evita o ping-pong de versão entre o step de pip e o
@@ -502,6 +511,7 @@ Principais chaves:
 | `BTRFS_SCRUB_MAX_DAYS` | `30` | Alerta no doctor se o último scrub btrfs em `/` for mais antigo que isso. |
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
+| `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |

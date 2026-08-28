@@ -158,6 +158,7 @@ NETWORK_GATE_HOST="${NETWORK_GATE_HOST:-archlinux.org}"  # nome resolvido na son
 NETWORK_GATE_WAIT_S="${NETWORK_GATE_WAIT_S:-20}"   # espera máx. pela volta da rede
 NETWORK_GATE_PROBE_TIMEOUT_S="${NETWORK_GATE_PROBE_TIMEOUT_S:-2}"  # teto de cada sonda
 NETWORK_GATE_UP_TTL_S="${NETWORK_GATE_UP_TTL_S:-30}"     # validade do veredito "up"
+AI_CLI_VERSION_TIMEOUT_S="${AI_CLI_VERSION_TIMEOUT_S:-5}" # teto individual do --version no Doctor
 NETWORK_GATE_DOWN_TTL_S="${NETWORK_GATE_DOWN_TTL_S:-10}" # validade do veredito "down"
 NETWORK_GATE_CACHE_STATE=""      # up|down|"" (sem veredito ainda)
 NETWORK_GATE_CACHE_AT=0          # $SECONDS do último veredito

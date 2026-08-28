@@ -72,6 +72,32 @@ setup() {
   [[ "$output" == *"pi agora: 0.84.1"* ]]
 }
 
+@test "pi: retry Node sem auto-seleção de família recupera timeout IPv6" {
+  local calls_file="$BATS_TEST_TMPDIR/pi-network-calls"
+  : > "$calls_file"
+  has() { [[ "$1" == pi ]]; }
+  pi() { [[ "$1" == --version ]] && printf '0.84.1\n'; }
+  run_network_cmd() {
+    local calls
+    calls="$(wc -l < "$calls_file")"
+    printf '%s\n' x >> "$calls_file"
+    if (( calls == 0 )); then
+      printf 'AggregateError [ETIMEDOUT]\n'
+      return "$RC_WARN"
+    fi
+    if (( calls == 1 )); then
+      [[ "${NODE_OPTIONS:-}" == *"--no-network-family-autoselection"* ]]
+    fi
+    printf 'ok\n'
+  }
+
+  run update_pi
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"repetindo sem auto-seleção IPv6/IPv4"* ]]
+  [ "$(wc -l < "$calls_file")" -eq 4 ]
+}
+
 @test "pi: falha de rede no self-update vira RC_WARN" {
   has() { [[ "$1" == pi ]]; }
   pi() { [[ "$1" == --version ]] && printf '0.84.1\n'; }

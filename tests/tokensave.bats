@@ -27,9 +27,26 @@ setup() {
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
   _retry() { return "$RC_WARN"; }
+  curl() { return 1; }
   export TOKENSAVE_BIN
 
   run update_tokensave
   [ "$status" -eq "$RC_WARN" ]
   [ -x "$fake" ]
+}
+
+@test "update_tokensave: updater offline mas API confirma versão atual retorna 0" {
+  local fake="${BATS_TEST_TMPDIR}/tokensave"
+  printf '#!/usr/bin/env bash\necho "tokensave 7.6.0"\n' > "$fake"
+  chmod +x "$fake"
+  TOKENSAVE_BIN="$fake"
+  _retry() { return "$RC_WARN"; }
+  curl() { printf '%s\n' '{"tag_name":"v7.6.0"}'; }
+  export TOKENSAVE_BIN
+
+  run update_tokensave
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"API oficial confirma"* ]]
+  [[ "$output" == *"7.6.0 já é a versão"* ]]
 }

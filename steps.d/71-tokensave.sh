@@ -3,8 +3,26 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034 # STEP_REASON é consumido pelo framework em core.sh
 
+# Extrai somente a versão semântica de uma linha de versão ou tag GitHub.
+_tokensave_version() {
+  [[ "$1" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# Fallback read-only para quando o updater Rust não alcança GitHub, mas curl sim.
+# Não instala nada por este caminho: só evita um aviso falso quando a API oficial
+# confirma que o binário local já é a release atual.
+_tokensave_latest_version() {
+  local payload
+  payload="$(curl -fsSL --connect-timeout 10 --max-time 30 \
+    'https://api.github.com/repos/aovestdipaperino/tokensave/releases/latest')" || return 1
+  [[ "$payload" =~ \"tag_name\"[[:space:]]*:[[:space:]]*\"v?([0-9]+\.[0-9]+\.[0-9]+)\" ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
 update_tokensave() {
-  local tokensave_bin before after output rc
+  local tokensave_bin before after output rc installed latest
+
   tokensave_bin="${TOKENSAVE_BIN:-$(command -v tokensave 2>/dev/null || true)}"
 
   if [[ -z "$tokensave_bin" || ! -x "$tokensave_bin" ]]; then
@@ -21,6 +39,12 @@ update_tokensave() {
   [[ -n "${output//[[:space:]]/}" ]] && printf '%s\n' "$output" | _strip_ansi | log_out
 
   if (( rc == RC_WARN )); then
+    installed="$(_tokensave_version "$before" 2>/dev/null || true)"
+    latest="$(_tokensave_latest_version 2>/dev/null || true)"
+    if [[ -n "$installed" && "$installed" == "$latest" ]]; then
+      log "  Updater do TokenSave sem acesso ao GitHub, mas a API oficial confirma que ${installed} já é a versão atual."
+      return 0
+    fi
     STEP_REASON="rede indisponível para tokensave upgrade"
     return "$RC_WARN"
   fi

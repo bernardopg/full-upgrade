@@ -125,7 +125,7 @@ update_pi() {
   log "  pi atual: ${before:-?}"
 
   # 1) Self-update do binário (reinstala o pacote npm internamente).
-  out="$(run_network_cmd pi update)"
+  out="$(run_node_network_cmd pi update)"
   rc=$?
   printf '%s\n' "$out" | grep -v '^$' | log_out || true
   if (( rc == RC_WARN )); then
@@ -145,7 +145,7 @@ update_pi() {
   # retorna ainda, para a fase 3 rodar mesmo assim.
   local degraded=""
   log "  Atualizando extensões do pi via 'pi update --extensions'…"
-  out="$(run_network_cmd pi update --extensions)"
+  out="$(run_node_network_cmd pi update --extensions)"
   rc=$?
   printf '%s\n' "$out" | grep -v '^$' | log_out || true
   if (( rc == RC_WARN )); then
@@ -160,7 +160,7 @@ update_pi() {
   # provedor (OpenAI, Anthropic, Google…). Idempotente; falha aqui não derruba o
   # run (o binário já foi atualizado acima).
   log "  Refrescando catálogos de modelos (lista de IA) via 'pi update --models'…"
-  out="$(run_network_cmd pi update --models)"
+  out="$(run_node_network_cmd pi update --models)"
   rc=$?
   printf '%s\n' "$out" | grep -v '^$' | log_out || true
   if (( rc == RC_WARN )); then

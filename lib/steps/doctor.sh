@@ -1742,12 +1742,30 @@ doctor_ai_clis() {
     "ollama:ollama" "kimi:kimi" "hermes:hermes" "pi:pi"
     "headroom:headroom" "tokensave:tokensave"
   )
-  local entry label cmd ver found=0
+  local version_timeout="${AI_CLI_VERSION_TIMEOUT_S:-5}"
+  [[ "$version_timeout" =~ ^[1-9][0-9]*$ ]] || version_timeout=5
+
+  local entry label cmd ver out rc found=0
   for entry in "${clis[@]}"; do
     label="${entry%%:*}"; cmd="${entry#*:}"
     has "$cmd" || continue
     found=$((found + 1))
-    ver="$("$cmd" --version 2>/dev/null | _ai_cli_first_version)"
+    # Uma CLI pode consultar a rede ou travar durante a inicialização. Um teto
+    # individual preserva o inventário das demais e evita estourar o timeout do
+    # step inteiro por causa de uma só ferramenta. Funções são usadas apenas
+    # como doubles nos testes; binários reais sempre passam pelo timeout.
+    if [[ "$(type -t "$cmd")" == function ]]; then
+      out="$("$cmd" --version 2>/dev/null)"
+      rc=$?
+    else
+      out="$(timeout "${version_timeout}s" "$cmd" --version 2>/dev/null)"
+      rc=$?
+    fi
+    if (( rc == 124 )); then
+      log "  ${label}: verificação de versão excedeu ${version_timeout}s."
+      continue
+    fi
+    ver="$(printf '%s\n' "$out" | _ai_cli_first_version)"
     if [[ -n "$ver" ]]; then
       log "  ${label}: ${ver}"
     else

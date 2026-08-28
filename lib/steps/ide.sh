@@ -37,7 +37,7 @@ update_ide_extensions() {
     has "$cli" || continue
     found=1
     log "  Atualizando extensões de ${cli}..."
-    out="$(run_network_cmd "$cli" --update-extensions)"
+    out="$(run_node_network_cmd "$cli" --update-extensions)"
     rc=$?
     if (( rc == RC_WARN )); then
       log "  ${cli}: falha de rede ao atualizar extensões."

@@ -80,7 +80,9 @@ try:
     with open(sys.argv[1], "rb") as fh:
         data = tomllib.load(fh)
 except Exception as exc:
-    print("__CONFIG_ERROR__\t?\tTOML inválido: " + type(exc).__name__)
+    # str(exc) é estrutural (chave/linha/coluna), não expõe valores de config.
+    detail = " ".join(str(exc).split()) or type(exc).__name__
+    print("__CONFIG_ERROR__\t?\tTOML inválido: " + type(exc).__name__ + ": " + detail)
     sys.exit(0)
 
 def inspect(name, cfg):
@@ -133,7 +135,8 @@ import json, os, shutil, sys
 try:
     data = json.load(open(sys.argv[1]))
 except Exception as exc:
-    print("__CONFIG_ERROR__\t?\tJSON inválido: " + type(exc).__name__)
+    detail = " ".join(str(exc).split()) or type(exc).__name__
+    print("__CONFIG_ERROR__\t?\tJSON inválido: " + type(exc).__name__ + ": " + detail)
     sys.exit(0)
 servers = data.get("mcp") or data.get("servers") or data.get("mcpServers") or data.get("mcp_servers") or {}
 if not isinstance(servers, dict):

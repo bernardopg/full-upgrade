@@ -240,6 +240,29 @@ run_network_cmd() {
   return "$_rc"
 }
 
+# Executa uma CLI Node/Electron em rede. Node 24 pode selecionar IPv6 mesmo
+# quando a interface ativa não tem rota IPv6; em ETIMEDOUT, repete uma vez sem
+# a auto-seleção de família. O primeiro comando preserva o comportamento normal
+# (inclusive em redes somente IPv6); o fallback só é aplicado ao timeout.
+run_node_network_cmd() {
+  local _out _rc _node_options
+  _out="$(run_network_cmd "$@")"
+  _rc=$?
+
+  if (( _rc == RC_WARN )) && grep -qiE 'ETIMEDOUT' <<<"$_out"; then
+    _node_options="${NODE_OPTIONS:-}"
+    if [[ " $_node_options " != *' --no-network-family-autoselection '* ]]; then
+      _node_options="${_node_options:+${_node_options} }--no-network-family-autoselection"
+    fi
+    log "  Timeout Node/Electron; repetindo sem auto-seleção IPv6/IPv4..."
+    _out="$(NODE_OPTIONS="$_node_options" run_network_cmd "$@")"
+    _rc=$?
+  fi
+
+  printf '%s\n' "$_out"
+  return "$_rc"
+}
+
 # Sonda de conectividade barata e SEMPRE limitada no tempo — uma sonda que
 # pendura seria o próprio bug que o portão existe para evitar. Duas camadas:
 #   1) rota: `ip route get` não gera tráfego e responde em ~1ms. Testa IPv4 e
