@@ -47,3 +47,19 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"cline: instalado (versão indisponível)"* ]]
 }
+
+@test "doctor: limita a consulta de versão de cada CLI" {
+  local fake_bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$fake_bin"
+  printf '#!/usr/bin/env bash\nsleep 2\n' > "$fake_bin/9router"
+  chmod +x "$fake_bin/9router"
+  PATH="$fake_bin:$PATH"
+  AI_CLI_VERSION_TIMEOUT_S=1
+  has() { [[ "$1" == 9router ]]; }
+
+  run doctor_ai_clis
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"9router: verificação de versão excedeu 1s."* ]]
+  [[ "$output" == *"1 CLI(s) de IA detectada(s)"* ]]
+}

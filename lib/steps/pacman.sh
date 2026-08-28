@@ -423,9 +423,11 @@ pacnew_auto_merge() {
     fi
     if ! sudo test -f "$cur"; then printf '%s\n' "$f" >>"$out"; continue; fi
 
-    cur_tmp="$(mktemp)" && new_tmp="$(mktemp)" && merged_tmp="$(mktemp)" || {
-      printf '%s\n' "$f" >>"$out"; continue
-    }
+    if ! cur_tmp="$(mktemp)" || ! new_tmp="$(mktemp)" || ! merged_tmp="$(mktemp)"; then
+      rm -f "${cur_tmp:-}" "${new_tmp:-}" "${merged_tmp:-}"
+      printf '%s\n' "$f" >>"$out"
+      continue
+    fi
     # shellcheck disable=SC2024  # o redirect é para tmp do usuário; sudo só precisa LER
     if ! sudo cat "$cur" >"$cur_tmp" 2>/dev/null || ! sudo cat "$f" >"$new_tmp" 2>/dev/null; then
       rm -f "$cur_tmp" "$new_tmp" "$merged_tmp"

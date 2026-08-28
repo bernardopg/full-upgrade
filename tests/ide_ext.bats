@@ -66,6 +66,30 @@ setup() {
   [[ "$output" == *"Total de extensões atualizadas: 2"* ]]
 }
 
+@test "step: retry Node sem auto-seleção de família recupera timeout IPv6" {
+  local calls_file="$BATS_TEST_TMPDIR/ide-network-calls"
+  : > "$calls_file"
+  IDE_EXT_CLIS="code"
+  has() { [[ "$1" == code ]]; }
+  run_network_cmd() {
+    local calls
+    calls="$(wc -l < "$calls_file")"
+    printf '%s\n' x >> "$calls_file"
+    if (( calls == 0 )); then
+      printf 'AggregateError [ETIMEDOUT]\n'
+      return "$RC_WARN"
+    fi
+    [[ "${NODE_OPTIONS:-}" == *"--no-network-family-autoselection"* ]]
+    printf "Extension 'a.b' v1 was successfully updated.\n"
+  }
+
+  run update_ide_extensions
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Total de extensões atualizadas: 1"* ]]
+  [ "$(wc -l < "$calls_file")" -eq 2 ]
+}
+
 @test "step: falha de rede num CLI vira RC_WARN" {
   IDE_EXT_CLIS="code"
   has() { [[ "$1" == code ]]; }

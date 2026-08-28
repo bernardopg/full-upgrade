@@ -4,6 +4,37 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Updaters Node/Electron recuperam o timeout de IPv6 sem sacrificar redes
+  IPv6-only.** `pi update` (binário, extensões e catálogos de modelos) e as
+  extensões de IDE agora fazem a primeira tentativa normalmente. Só quando a
+  saída contém `ETIMEDOUT` repetem uma única vez com
+  `NODE_OPTIONS=--no-network-family-autoselection`, evitando que o Node 24
+  escolha uma rota IPv6 inexistente; outros erros, redes IPv6-only e o
+  comportamento normal continuam inalterados.
+- **Falha de rede do self-updater do TokenSave não gera falso aviso quando o
+  binário já está atual.** Se `tokensave upgrade` não alcança o GitHub, o step
+  consulta somente leitura a API oficial de releases com `curl`; versão local
+  igual à latest fecha como `ok`. Esse fallback nunca baixa nem instala nada,
+  e divergência ou nova falha de rede continuam como `warn`.
+- **O inventário `Doctor: AI CLIs` não pode mais prender o run inteiro por uma
+  CLI travada.** Cada `--version` de binário externo tem timeout configurável
+  (`AI_CLI_VERSION_TIMEOUT_S`, default `5`); o timeout é reportado e as demais
+  CLIs continuam sendo inventariadas.
+- **Erros de sintaxe de configuração MCP trazem posição/causa sem mostrar
+  valores secretos.** JSON e TOML inválidos agora preservam o detalhe
+  estrutural do parser (linha, coluna ou chave) no diagnóstico sanitizado.
+- **Falha ao criar temporários no merge automático de `.pacnew` limpa os
+  arquivos já criados e preserva a pendência.** A lógica agora testa cada
+  `mktemp` explicitamente, em vez de depender de uma cadeia `&&`/`||` ambígua.
+
+### Documentação
+
+- A cobertura de IA/IDE documenta o retry específico de `ETIMEDOUT`, o
+  fallback read-only do TokenSave e o limite configurável por CLI do Doctor.
+
+
 ## [3.37.1] - 2026-08-23
 ### Corrigido
 
