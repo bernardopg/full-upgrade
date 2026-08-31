@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.38.0] - 2026-08-31
 ### Adicionado
 
 - **Cache de páginas Tealdeer.** O novo step `Atualizar cache do tldr` executa
