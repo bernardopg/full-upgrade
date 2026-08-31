@@ -259,10 +259,17 @@ jobs:
     # que a tag informada exista no repositório. Requer os secrets AUR_* configurados.
     if: always() && needs.release.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v')))
     steps:
-      - name: Checkout
+      # Empacota a tag publicada, não o SHA que iniciou o workflow_dispatch.
+      # O job bump cria um commit depois que o evento já começou; sem ref explícita
+      # este checkout poderia usar o commit anterior e misturar PKGBUILD/ícones/
+      # unit de outra revisão com o tarball da release.
+      - name: Checkout da tag publicada
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ needs.release.outputs.tag }}
+          fetch-depth: 1
 
-      - name: Validar existência da tag informada
+      - name: Validar tag e checkout imutável
         env:
           TAG: ${{ needs.release.outputs.tag }}
         run: |
@@ -272,7 +279,12 @@ jobs:
             echo "Tag ${TAG} não encontrada no repositório remoto; abortando publicação no AUR."
             exit 1
           }
-          echo "Tag ${TAG} validada no repositório."
+          checked_out="$(git describe --exact-match --tags HEAD 2>/dev/null || true)"
+          test "${checked_out}" = "${TAG}" || {
+            echo "Checkout ${checked_out:-sem tag} não corresponde à tag publicada ${TAG}; abortando AUR."
+            exit 1
+          }
+          echo "Checkout confirmado na tag imutável ${TAG} ($(git rev-parse --short HEAD))."
 
       - name: Preparar PKGBUILD com a versão da release
         id: pkg

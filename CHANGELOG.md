@@ -10,6 +10,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   `tldr --update` apenas quando a CLI existe; falhas de rede ou do cliente não
   derrubam o run e preservam o cache offline anterior.
 
+### Corrigido
+
+- **Publicação AUR usa a revisão imutável da release.** O job agora faz checkout
+  explícito da tag publicada e confirma que `HEAD` está exatamente nela antes de
+  montar o `PKGBUILD`; um dispatch que cria o bump durante o workflow não pode
+  misturar arquivos de outro commit com o tarball da tag.
+
 ## [3.37.2] - 2026-08-28
 ### Corrigido
 
