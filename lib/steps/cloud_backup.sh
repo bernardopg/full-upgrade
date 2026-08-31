@@ -132,6 +132,11 @@ backup_timeshift_cloud() {
   fi
   sudo -n rmdir "$mount_dir" 2>/dev/null || true
 
+  # O rclone roda como root via sudo e reescreve o rclone.conf ao renovar o
+  # token do remote (dono vira root). Devolve a posse ao usuário para não
+  # quebrar os próximos runs do rclone fora do full-upgrade.
+  sudo -n chown "$(id -u):$(id -g)" "$rclone_config" 2>/dev/null || true
+
   if (( rc == 0 )); then
     keep="$(timeshift_cloud_keep_count)"
     log "  Aplicando retenção remota: manter as ${keep} versões mais recentes."
