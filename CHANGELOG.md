@@ -4,6 +4,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Cache de páginas Tealdeer.** O novo step `Atualizar cache do tldr` executa
+  `tldr --update` apenas quando a CLI existe; falhas de rede ou do cliente não
+  derrubam o run e preservam o cache offline anterior.
+
 ## [3.37.2] - 2026-08-28
 ### Corrigido
 

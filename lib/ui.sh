@@ -305,6 +305,7 @@ Reparos|repair
 Sistema / Pacman|pacman
 Contêineres|containers flatpak docker snap
 Linguagens|lang
+Referência|reference
 Firmware / Boot|firmware
 IA|ai
 Apps manuais|manual
@@ -353,6 +354,7 @@ _category_label() {
     pacman)   printf 'Sistema / Pacman' ;;
     flatpak|docker|containers) printf 'Contêineres' ;;
     lang)     printf 'Linguagens' ;;
+    reference) printf 'Referência' ;;
     firmware) printf 'Firmware / Boot' ;;
     editor|shell) printf 'Shell / Editor' ;;
     hyprland) printf 'Hyprland' ;;

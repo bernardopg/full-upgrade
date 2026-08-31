@@ -280,6 +280,14 @@ run_all_steps() {
     else
         step_skip "Atualizar ghcup" "ghcup não instalado"
     fi
+
+    # ── Referência ────────────────────────────────────────────────────────────────
+
+    if has tldr; then
+        run_step "Atualizar cache do tldr" update_tldr_cache
+    else
+        step_skip "Atualizar cache do tldr" "tldr não instalado"
+    fi
     
     # ── Firmware / Boot ───────────────────────────────────────────────────────────
 
