@@ -24,6 +24,8 @@ setup() {
   for m in pnpm cargo-install-update gem flatpak; do
     stub "$m" ""
   done
+  # Isola o prefixo secundário do ~/.npm-global real da máquina de teste.
+  NPM_CONFIG_PREFIX="${BATS_TEST_TMPDIR}/npm-sec"
   stub_npm
 }
 
@@ -34,10 +36,12 @@ stub_npm() {
   NPM_PREFIX="${BATS_TEST_TMPDIR}/npm-prefix"
   mkdir -p "${NPM_PREFIX}/lib/node_modules"
   : > "${BIN}/npm-outdated.txt"
+  : > "${BIN}/npm-outdated-sec.txt"
   {
     echo '#!/usr/bin/env bash'
     echo 'case "$*" in'
     echo "  *'config get prefix'*) printf '%s\\n' \"${NPM_PREFIX}\" ;;"
+    echo "  *'--prefix'*) cat \"${BIN}/npm-outdated-sec.txt\" ;;"
     echo "  *outdated*) cat \"${BIN}/npm-outdated.txt\" ;;"
     echo 'esac'
   } > "${BIN}/npm"
@@ -46,6 +50,12 @@ stub_npm() {
 
 npm_outdated_lines() {
   printf '%s\n' "$1" > "${BIN}/npm-outdated.txt"
+}
+
+# Cria o prefixo secundário stubado e define as linhas de outdated dele.
+npm_sec_outdated_lines() {
+  mkdir -p "${NPM_CONFIG_PREFIX}/lib/node_modules"
+  printf '%s\n' "$1" > "${BIN}/npm-outdated-sec.txt"
 }
 
 # Cria um executável fake que imprime $2 e sai com $3 (default 0).
@@ -92,6 +102,31 @@ stub() {
 
   final_check_managers || true
   [[ "$STEP_REASON" == *"npm global (1)"* ]]
+}
+
+@test "final_check_managers: prefixo secundário desatualizado vira todo" {
+  npm_sec_outdated_lines "/home/u/.npm-global/lib/node_modules/kimi:kimi@2:kimi@1:kimi@2"
+
+  local rc=0
+  final_check_managers || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *"npm global secundário (1)"* ]]
+}
+
+@test "final_check_managers: prefixo secundário igual ao ativo não duplica aviso" {
+  NPM_CONFIG_PREFIX="${NPM_PREFIX}"
+  npm_outdated_lines "/x/foo:foo@2:foo@1:foo@2"
+
+  final_check_managers || true
+  [[ "$STEP_REASON" == *"npm global (1)"* ]]
+  [[ "$STEP_REASON" != *"secundário"* ]]
+}
+
+@test "final_check_managers: prefixo secundário inexistente é ignorado" {
+  rm -rf "${NPM_CONFIG_PREFIX}"
+
+  run final_check_managers
+  [ "$status" -eq 0 ]
 }
 
 @test "final_check_managers: cargo conta só binários com 'Needs update' Yes" {

@@ -395,6 +395,25 @@ final_check_managers() {
     fi
   fi
 
+  # Prefixo secundário (~/.npm-global): o step 'Atualizar npm global
+  # secundário' cuida do update, mas sem esta checagem o relatório final daria
+  # ok falso se aquele prefixo ainda tivesse pendências. Espelha os guards do
+  # step: só verifica se existir, ser gravável e difere do prefixo ativo.
+  if has npm; then
+    local sec="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}" primary
+    primary="$(npm_global_prefix)"
+    if [[ -d "${sec}/lib/node_modules" && -w "${sec}/lib/node_modules" && "$sec" != "$primary" ]]; then
+      out="$(npm outdated -g --prefix "$sec" --depth=0 --parseable 2>/dev/null || true)"
+      count="$(_count_lines "$out")"
+      if (( count > 0 )); then
+        pending+=("npm global secundário (${count})")
+        log "  npm global [${sec}] ainda com ${count} pacote(s) desatualizado(s):"
+        log_stream <<< "$out"
+        remediation "npm install -g --prefix ${sec} <pacote>@latest"
+      fi
+    fi
+  fi
+
   if has pnpm; then
     out="$(pnpm -g outdated --format list 2>/dev/null || true)"
     # pnpm v10 emite ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND no stdout (exit 0)
@@ -449,7 +468,7 @@ final_check_managers() {
   fi
 
   if (( ${#pending[@]} == 0 )); then
-    log "  Nenhuma pendência nos gerenciadores de linguagem verificados (npm, pnpm, cargo, gem, flatpak)."
+    log "  Nenhuma pendência nos gerenciadores de linguagem verificados (npm, npm secundário, pnpm, cargo, gem, flatpak)."
     return 0
   fi
 
