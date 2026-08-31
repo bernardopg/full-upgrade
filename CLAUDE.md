@@ -9,10 +9,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Validation (run before any commit — mirrors CI)
-bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
-shfmt -i 4 -d full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh   # advisory (consultivo)
+# Gate local canônico (antes de todo commit/push): sintaxe + ShellCheck + build + Bats.
+scripts/preflight.sh
+
+# Diagnóstico por etapa (o mesmo escopo de sintaxe/lint do CI).
+bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+# shfmt é consultivo e local; não é gate de CI.
+shfmt -i 4 -d full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Unit tests (bats — pure functions only; safe anywhere, no mutation)
 bats tests/
@@ -34,7 +38,7 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 ./install.sh
 ```
 
-Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, snapshot retention, summary category totals/top slow steps, shared version compare, final pending reasons, per-manager final check, fwupd security summary, build-warning filtering, tray state helpers, and reboot footer formatting) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → catalog`; tray tests additionally source `lib/tray.sh`). Tests that need a git repository (Zsh plugin realignment) build throwaway repos under `$BATS_TEST_TMPDIR` with `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_NOSYSTEM` pointing there, so they touch nothing outside the tmpdir; tests that shell out to package managers stub every one of them on `PATH` (an unstubbed manager would run for real and hit the network). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
+Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-run`. The `bats` suite covers pure functions and regression helpers (catalog parser, RC/skip helpers, catalog integrity, Docker timeout parsing, pip/Poetry ignore logic, mirrorlist validation, systemd user-scope detection, recursive orphan cleanup, snapshot retention, summary category totals/top slow steps, shared version compare, final pending reasons, per-manager final check, fwupd security summary, build-warning filtering, tray state helpers, and reboot footer formatting) and never mutates; see `tests/` and `tests/test_helper.bash` (which sources `globals → ui → core → json → catalog`; tray tests additionally source `lib/tray.sh`). Tests that need a git repository (Zsh plugin realignment) build throwaway repos under `$BATS_TEST_TMPDIR` with `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_NOSYSTEM` pointing there, so they touch nothing outside the tmpdir; tests that shell out to package managers stub every one of them on `PATH` (an unstubbed manager would run for real and hit the network). `--dry-run` registers every step as `skip` without running mutating commands, so it is the primary way to exercise the full flow safely.
 
 ## Architecture
 
@@ -113,9 +117,9 @@ Column 0 belongs to full-upgrade's own status lines. Output captured from an ext
 
 GitHub Actions workflows in `.github/workflows/` (all pinned by SHA, least-privilege, `timeout-minutes`):
 
-- **CI** (`ci.yml`) — `bash -n` + `shellcheck` + `shfmt` (advisory) + smoke flags + `bats tests/` + standalone build verification. On PRs the bats suite runs plain (fast feedback); kcov coverage → Codecov and the standalone artifact upload run only on push/dispatch (the suite would otherwise run twice). Mirrors the local validation above.
+- **CI** (`ci.yml`) — `bash -n` + `shellcheck` + smoke flags + `bats tests/` + standalone build verification. `shfmt` é consultivo local, não um gate de CI. On PRs the bats suite runs plain (fast feedback); kcov coverage → Codecov and the standalone artifact upload run only on push/dispatch (the suite would otherwise run twice). Mirrors the local validation above.
 - **CodeQL** (`codeql.yml`) — analyzes the workflow files themselves (`language: actions`); **CodeQL does not support Bash**, so Bash SAST is handled by Semgrep. Path-filtered to `.github/workflows/**` + weekly schedule; NOT a required check (PRs that don't touch workflows never produce it).
-- **Semgrep** (`semgrep.yml`) — SAST for Bash (`p/default`); uploads SARIF to Code Scanning. Advisory (`continue-on-error`) until findings are triaged — then drop `continue-on-error`. Path-filtered to `**.sh`/`**.bash` + its own setup files + weekly schedule.
+- **Semgrep** (`semgrep.yml`) — SAST bloqueante para Bash (`p/default`), com SARIF em Code Scanning. Também bloqueia vulnerabilidades no lock Python via `pip-audit --strict`. Path-filtered para `**.sh`/`**.bash` + seu setup e varredura semanal.
 - **OpenSSF Scorecard** (`scorecard.yml`) — publishes the repo security score (feeds the README badge) + SARIF.
 - **Stale** (`stale.yml`) — marks/closes inactive issues & PRs (60 days → stale, +14 → close); weekly cron.
 - **Labeler** (`labeler.yml` + `.github/labeler.yml`) — auto-labels PRs by changed path (`ci`, `lib`, `tests`, `steps`, `scripts`, `packaging`, `documentation`). The labels must exist in the repo.
@@ -123,7 +127,7 @@ GitHub Actions workflows in `.github/workflows/` (all pinned by SHA, least-privi
 - **Dependabot** (`.github/dependabot.yml`) — `github-actions` ecosystem only (the project has no package manifests); groups minor/patch, opens majors individually, keeps the SHA-pinned actions current.
 - **Release** (`release.yml`) — on `v*` tag push (or `workflow_dispatch`): validates, builds standalone + sha256, publishes a GitHub Release with auto notes, and publishes to the AUR (`KSXGitHub/github-actions-deploy-aur`).
 
-Branch protection (`main-protection` ruleset): PR required; required checks are `Lint & Test` + `Validar Conventional Commits` only; no forced branch-up-to-date, no thread-resolution requirement, no bot reviewers.
+Entrega padrão: `main` aceita push direto protegido contra force-push; os hooks locais `commit-msg` e `pre-push` aplicam Conventional Commits e `scripts/preflight.sh`, e CI/Commitlint revalidam após o push. PRs são recomendados para mudanças grandes ou externas, mas não são obrigatórios.
 
 Coverage (`codecov.yml`): kcov measures only what `bats` executes; orchestration/entrypoint files with side-effects (`install.sh`, `build.sh`, `full-upgrade.sh`, `lib/main.sh`, `lib/cli.sh`, `lib/sudo.sh`) are `ignore`d — they are not unit-testable by design (see `tests/test_helper.bash`). The `flags.bats` uses `carryforward`. `.editorconfig` pins the canonical `shfmt` style (`-i 4`, 4-space indent). Travis CI was removed (defunct free OSS tier; redundant with GitHub Actions).
 

@@ -1,8 +1,7 @@
 name: Semgrep
 
 # SAST para Bash — preenche a lacuna do CodeQL, que NÃO suporta Bash.
-# Achados aparecem em Security > Code scanning alerts. Hoje consultivo
-# (continue-on-error): triagem primeiro, promover a bloqueante depois.
+# Achados aparecem em Security > Code scanning alerts e bloqueiam o workflow.
 # Path-filtered: só roda quando código Bash (ou o próprio setup do Semgrep)
 # muda; a varredura semanal cobre regressões de regras novas.
 
@@ -45,20 +44,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Consultivo: não quebra o CI em achados; eles viram alerts no GitHub
-      # (Security > Code scanning). Rodamos a CLI direto (não a action Docker)
-      # para garantir a geração do SARIF em semgrep.sarif.
-      # Remova `continue-on-error` (+ adicione --error) após triar os findings.
-      #
-      # Instalação com --require-hashes (lockfile gerado por
-      # `pip-compile --generate-hashes`): bump de versão exige regenerar
-      # .github/requirements-semgrep.txt, não só trocar o número.
+      # Bloqueante: regra encontrada é regressão de segurança. Rodamos a CLI
+      # direto (não a action Docker) para gerar o SARIF e falhar com --error.
+      # A instalação usa --require-hashes; bump exige regenerar o lock inteiro.
       - name: Semgrep scan
         id: semgrep
-        continue-on-error: true
         run: |
           python3 -m pip install --user --require-hashes -r .github/requirements-semgrep.txt
-          semgrep scan --config p/default --sarif --output semgrep.sarif
+          semgrep scan --config p/default --error --sarif --output semgrep.sarif
 
       # Bloqueante: o lock hash-pinned não pode introduzir CVE conhecida.
       # O próprio pip-audit vem do mesmo lock, sem instalação ad-hoc não fixada.

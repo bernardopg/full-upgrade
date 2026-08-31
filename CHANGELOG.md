@@ -17,6 +17,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   montar o `PKGBUILD`; um dispatch que cria o bump durante o workflow não pode
   misturar arquivos de outro commit com o tarball da tag.
 
+### Alterado
+
+- **Semgrep passou a ser bloqueante** após varredura limpa com as regras atuais;
+  o gate local canônico, os limites de `no-mistakes` e o fluxo de push direto
+  foram alinhados entre README, CONTRIBUTING e CLAUDE.
+
 ## [3.37.2] - 2026-08-28
 ### Corrigido
 

@@ -30,6 +30,25 @@ O instalador cria dois portões e nunca sobrescreve hooks customizados:
 Para uma exceção pontual, use `git commit --no-verify` ou
 `git push --no-verify`. O workflow no GitHub ainda valida os commits enviados.
 
+### Gate adicional para mudanças de alto risco: no-mistakes
+
+O fluxo padrão continua sendo hooks + preflight + CI, pois o repositório aceita
+push direto na `main`. Para mudança de release, segurança, build, distribuição
+ou step mutante, use `no-mistakes` como revisão adicional **em uma branch de
+feature já commitada** — ele cria/acompanha o PR e seus gates, portanto não é
+compatível com entregar diretamente na `main`.
+
+```bash
+git switch -c fix/minha-mudanca
+# implemente e valide com scripts/preflight.sh
+git commit -m "fix(escopo): descrição"
+no-mistakes axi run --intent "Objetivo do usuário, restrições e critérios de aceite."
+```
+
+Não use `--yes` sem autorização explícita: findings `ask-user` podem alterar
+comportamento de produto. O no-mistakes complementa, e não substitui, os hooks,
+o CI e a validação de release.
+
 ### Versões das ferramentas
 
 O `shellcheck` e o `bats` são **pinados** — o CI instala exatamente as mesmas
@@ -129,7 +148,7 @@ automaticamente por caminho (`.github/labeler.yml`).
 - **CI** — sintaxe, shellcheck (pinado), bats, cobertura (Codecov) e build
   standalone.
 - **CodeQL** — análise dos próprios workflows (Bash não é suportado pelo CodeQL).
-- **Semgrep** — SAST para Bash; achados em *Security > Code scanning* (consultivo).
+- **Semgrep** — SAST bloqueante para Bash; achados também vão para *Security > Code scanning*. O `pip-audit --strict` bloqueia CVEs no lock Python usado pelo scanner.
 - **OpenSSF Scorecard** — postura de segurança do repo (badge no README).
 - **Stale / Greeting** — fechamento de inativos e boas-vindas a novos contribuidores.
 - **Dependabot** — mantém as GitHub Actions atualizadas (pinadas por SHA).
@@ -149,7 +168,9 @@ A release é disparada por `push` de tag `v*` ou por `workflow_dispatch` (input
    release**: um bump quebrado ou uma seção ausente/vazia falha nesta etapa e
    nada é publicado. Não use `generate_release_notes`: ele omite commits
    enviados direto à `main` e só é completo num fluxo baseado em PR.
-3. **AUR** — recalcula o checksum do tarball da tag e publica o `PKGBUILD`.
+3. **AUR** — faz checkout explícito da mesma tag publicada, confirma que `HEAD`
+   está exatamente nela, recalcula o checksum do tarball e publica o `PKGBUILD`.
+   Assim, `PKGBUILD`, ícones, desktop file e unit não podem vir de outro commit.
 
 ### Secrets necessários (Settings → Secrets and variables → Actions)
 

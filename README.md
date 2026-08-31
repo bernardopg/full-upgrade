@@ -695,16 +695,28 @@ jq -r 'select(.event == "step" and .status == "fail")' ~/.cache/system-upgrade/l
 
 ## Desenvolvimento
 
-Validações rápidas:
+O gate local canônico, equivalente aos checks bloqueantes do CI, é:
 
 ```bash
-bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh steps.d/*.sh
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh
-bats tests/                 # testes unitários (funções puras, sem mutação)
+scripts/preflight.sh  # Conventional Commits pendentes + bash -n + ShellCheck + build + Bats
+```
+
+Para diagnosticar uma etapa isolada, use o mesmo escopo do CI:
+
+```bash
+bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh steps.d/*.sh scripts/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+bats --jobs "$(nproc)" tests/  # testes unitários, funções puras e sem mutação
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps
-./build.sh
+XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
+./build.sh && ./dist/full-upgrade-standalone.sh --list-steps
 ```
+
+`shfmt -i 4 -d …` é uma verificação local consultiva; não é gate de CI.
+Para alterações de alto risco em branch/PR, o `no-mistakes` é um gate adicional;
+veja o fluxo e a restrição de não usar `--yes` sem consentimento em
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 Ao criar ou alterar steps:
 
