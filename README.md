@@ -335,6 +335,10 @@ apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo 
 `SNAPSHOT_KEEP` mais recentes. A listagem Timeshift usa privilégio administrativo
 e falha de leitura é reportada como warning, nunca como lista vazia. Não toca
 snapshots manuais/de outras origens.
+- **Cópia off-site do Timeshift:** `TIMESHIFT_CLOUD_BACKUP=1` replica o snapshot
+Timeshift mais recente (`@` + `@home`) para um repositório Restic criptografado
+via rclone. `TIMESHIFT_CLOUD_KEEP` controla a retenção remota; falha da nuvem
+vira aviso e nunca remove a cópia local.
 - **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
   restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
   comentado não sobrescreve a mirrorlist corrente.
@@ -503,6 +507,12 @@ Principais chaves:
 | `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
 | `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
 | `SNAPSHOT_KEEP` | `5` | Quantos snapshots `full-upgrade pré-upgrade` manter na limpeza automática. |
+| `TIMESHIFT_CLOUD_BACKUP` | `0` | `1` replica o snapshot Timeshift mais recente (`@` + `@home`) para um repositório Restic criptografado ao final do run (pós-upgrade, fase de limpeza). |
+| `TIMESHIFT_CLOUD_KEEP` | `3` | Quantas versões mais recentes preservar no repositório remoto. |
+| `TIMESHIFT_CLOUD_REPOSITORY` | `rclone:onedrive:full-upgrade/timeshift` | Repositório Restic remoto; aceita qualquer backend suportado pelo Restic/rclone. |
+| `TIMESHIFT_CLOUD_PASSWORD_FILE` | `~/.config/full-upgrade/restic-timeshift-password` | Arquivo privado com a senha do Restic. Perder essa senha torna o backup irrecuperável. |
+| `TIMESHIFT_CLOUD_RCLONE_CONFIG` | `~/.config/rclone/rclone.conf` | Configuração rclone que contém o remote usado pelo repositório. |
+| `TIMESHIFT_CLOUD_EXCLUDE_FILE` | `~/.config/full-upgrade/restic-timeshift-excludes` | Arquivo opcional de padrões Restic para omitir caches e artefatos reproduzíveis do envio. |
 | `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
 | `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
 | `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |

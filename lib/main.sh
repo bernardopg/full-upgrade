@@ -631,6 +631,18 @@ run_all_steps() {
         run_step "Limpar logs/relatórios antigos" cleanup_old_reports
     fi
 
+    # O upload é deliberadamente pós-upgrade: snapshots locais continuam sendo
+    # criados antes das mutações, mas uma primeira cópia grande não atrasa updates.
+    if [[ "${TIMESHIFT_CLOUD_BACKUP:-0}" == "1" ]]; then
+        if (( SUDO_READY )); then
+            run_step "Backup Timeshift em nuvem" backup_timeshift_cloud
+        else
+            step_skip "Backup Timeshift em nuvem" "sudo indisponível"
+        fi
+    else
+        step_skip "Backup Timeshift em nuvem" "TIMESHIFT_CLOUD_BACKUP=0"
+    fi
+
     # ── Verificação final ─────────────────────────────────────────────────────────
 
     # Auto-remediação opcional: só sob AUTO_FIX_FINAL_PENDING=1, nunca sob

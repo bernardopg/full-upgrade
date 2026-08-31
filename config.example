@@ -27,6 +27,16 @@ SNAPSHOT_TOOL=auto
 SNAPSHOT_MIN_FREE_GIB=2  # mínimo livre em / para criar snapshot; 0 desliga checagem
 SNAPSHOT_KEEP=5          # snapshots full-upgrade antigos a manter na limpeza
 
+# Réplica off-site criptografada do snapshot Timeshift mais recente (@ + @home).
+# Requer Restic, rclone e um remote configurado (ex.: onedrive:).
+TIMESHIFT_CLOUD_BACKUP=0
+TIMESHIFT_CLOUD_KEEP=3
+TIMESHIFT_CLOUD_REPOSITORY="rclone:onedrive:full-upgrade/timeshift"
+TIMESHIFT_CLOUD_PASSWORD_FILE="$HOME/.config/full-upgrade/restic-timeshift-password"
+TIMESHIFT_CLOUD_RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
+# Opcional: padrões Restic para não enviar caches e artefatos reproduzíveis.
+TIMESHIFT_CLOUD_EXCLUDE_FILE="$HOME/.config/full-upgrade/restic-timeshift-excludes"
+
 # ── Backup de configs críticas / Critical config backup ─────────────────────────
 # Arquiva configs essenciais de /etc em tar.zst antes das mutações, com rotação.
 BACKUP_CONFIGS=1        # 1 = ativo | 0 = desliga

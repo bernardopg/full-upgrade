@@ -9,6 +9,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Cache de páginas Tealdeer.** O novo step `Atualizar cache do tldr` executa
   `tldr --update` apenas quando a CLI existe; falhas de rede ou do cliente não
   derrubam o run e preservam o cache offline anterior.
+- **Backup Timeshift em nuvem.** Um step opt-in replica o snapshot Btrfs mais
+  recente (`@` + `@home`) para um repositório Restic criptografado via rclone,
+  com retenção remota configurável e falha não bloqueante.
 
 ### Corrigido
 
