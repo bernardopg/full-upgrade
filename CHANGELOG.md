@@ -3,6 +3,29 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Rate limit HTTP não derruba mais o run.** `NETWORK_TRANSIENT_RE` passa a
+  cobrir 429 e os 5xx de gateway. Um `hermes update` recusado pelo rate limit do
+  GitHub (`RPC failed; HTTP 429`) fechava como `fail` duro, tingindo o run
+  inteiro de vermelho por uma condição transitória que o full-upgrade não tem
+  como corrigir. Agora vira `warn`, como qualquer outra falha de rede. Os 4xx
+  permanentes (401/403/404) seguem em `GIT_REMOTE_GONE_RE` e continuam sendo
+  pendência do usuário.
+- **Reboot pendente respeita a variante do kernel.** `Doctor: reboot pendente`
+  comparava o kernel em execução com o pacote `linux` fixo. Numa máquina que
+  boota `linux-lts` e tem `linux` instalado em paralelo, isso cravava
+  "reboot pendente" em todo run e envenenava `REBOOT_RECOMMENDATION` com um
+  motivo falso. O step agora identifica o pacote de origem pelo
+  `pkgbase` que o Arch grava em `/usr/lib/modules/<release>/`, cobrindo
+  `linux-lts`, `-zen` e `-hardened`; kernel em execução sem módulos instalados
+  passa a ser reboot pendente legítimo.
+- **Backup em nuvem se recupera de `rclone.conf` root-owned.** O rclone roda sob
+  `sudo` e reescreve o arquivo ao renovar o token do remote. O `chown` de volta
+  só existia no fim do step, então um run interrompido no meio travava o backup
+  para sempre: a guarda de credenciais barrava com "credenciais Restic/rclone
+  ausentes" antes de o conserto ser alcançado, e só este step conserta. O reparo
+  de posse passou para a entrada do step.
 
 ## [3.38.0] - 2026-08-31
 ### Adicionado

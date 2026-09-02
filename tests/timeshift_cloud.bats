@@ -56,3 +56,41 @@ setup() {
 
   [ "$status" -eq 0 ]
 }
+
+# ── Reparo de posse do rclone.conf na ENTRADA do step ────────────────────────
+# Regressão real: o rclone roda sob sudo e reescreve o rclone.conf ao renovar o
+# token, deixando-o root-owned. O chown de volta só existia no FIM do step, de
+# modo que um run interrompido entre a reescrita e o conserto travava o backup
+# para sempre: a guarda de credenciais barrava com "credenciais ausentes" antes
+# de a linha de conserto ser alcançada, e só este step conserta.
+@test "timeshift cloud: rclone.conf ilegível dispara chown antes da guarda" {
+  local cfg="${BATS_TEST_TMPDIR}/rclone.conf"
+  local pwf="${BATS_TEST_TMPDIR}/restic-pass"
+  local marker="${BATS_TEST_TMPDIR}/chown-chamado"
+  printf 'segredo\n' >"$pwf"
+  printf '[onedrive]\n' >"$cfg"
+  chmod 000 "$cfg"
+
+  # Stub de sudo: registra o chown pedido e o executa de verdade no tmpdir.
+  sudo() {
+    if [[ "$1" == "-n" && "$2" == "chown" ]]; then
+      printf '%s\n' "$4" >>"$marker"
+      chmod 600 "$4"
+      return 0
+    fi
+    return 1
+  }
+  export -f sudo 2>/dev/null || true
+
+  TIMESHIFT_CLOUD_BACKUP=1 \
+  TIMESHIFT_CLOUD_REPOSITORY="rclone:teste:repo" \
+  TIMESHIFT_CLOUD_PASSWORD_FILE="$pwf" \
+  TIMESHIFT_CLOUD_RCLONE_CONFIG="$cfg" \
+    run backup_timeshift_cloud
+
+  # O chown foi tentado no arquivo certo — é o que este teste protege.
+  [ -s "$marker" ]
+  grep -qF "$cfg" "$marker"
+  # E o step não pode mais fechar com "credenciais ausentes" por posse.
+  [[ "$output" != *"credenciais Restic/rclone ausentes"* ]]
+}

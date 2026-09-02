@@ -26,16 +26,61 @@ systemd_running_version() {
   printf '%s' "$v"
 }
 
+# Nome do pacote do kernel EM EXECUÇÃO. Arch grava o pkgbase de cada kernel em
+# /usr/lib/modules/<release>/pkgbase — é a fonte canônica (a mesma usada por
+# kernel-modules-hook) e a única que distingue as variantes. Sem ela o Doctor
+# comparava o kernel rodando contra o pacote `linux` fixo: numa máquina que
+# BOOTA linux-lts e tem `linux` instalado em paralelo, "6.18.48-1-lts" nunca
+# igualava "7.2.2-arch1-1", então "reboot pendente" ficava cravado em todo run
+# e envenenava REBOOT_RECOMMENDATION com um motivo falso. Puro: recebe o
+# release e o diretório-raiz dos módulos, para ser testável sem tocar o host.
+kernel_running_pkgbase() {
+  local release="$1" modules_root="${2:-/usr/lib/modules}" pkgbase_file
+  pkgbase_file="${modules_root}/${release}/pkgbase"
+  if [[ -r "$pkgbase_file" ]]; then
+    tr -d '[:space:]' <"$pkgbase_file"
+    return 0
+  fi
+  # Sem diretório de módulos, o kernel em execução já foi desinstalado ou
+  # substituído — o pacote de origem é indeterminável, mas isso por si só já
+  # significa reboot pendente. Emite nada (rc 1) e deixa o chamador decidir.
+  return 1
+}
+
 doctor_reboot_pending() {
-  if ! has pacman || ! pacman -Q linux >/dev/null 2>&1; then
-    log "  Pacote linux não encontrado; pulando checagem de reboot do kernel."
+  if ! has pacman; then
+    log "  pacman indisponível; pulando checagem de reboot do kernel."
     return 0
   fi
 
-  local running installed expected
+  local running installed expected pkgbase
   running="$(uname -r)"
-  installed="$(pacman -Q linux 2>/dev/null | awk '{print $2}' || true)"
+
+  if ! pkgbase="$(kernel_running_pkgbase "$running")"; then
+    log "  Kernel em execução ${running} não tem mais módulos instalados — reboot pendente."
+    remediation "systemctl reboot"
+    STEP_REASON="kernel ${running} sem módulos instalados"
+    return "$RC_TODO"
+  fi
+
+  if ! pacman -Q "$pkgbase" >/dev/null 2>&1; then
+    log "  Pacote ${pkgbase} não encontrado; pulando checagem de reboot do kernel."
+    return 0
+  fi
+
+  installed="$(pacman -Q "$pkgbase" 2>/dev/null | awk '{print $2}' || true)"
+  # `pacman -Q linux` diz "7.2.2.arch1-1" e o `uname -r` diz "7.2.2-arch1-1";
+  # as variantes com sufixo (lts/zen/hardened/rt) ainda anexam o flavour ao
+  # release. Normaliza os dois efeitos para comparar maçã com maçã.
   expected="${installed/.arch/-arch}"
+  case "$pkgbase" in
+    linux) ;;
+    linux-*)
+      local flavour="${pkgbase#linux-}"
+      expected="${expected/.${flavour}/-${flavour}}"
+      [[ "$expected" == *"-${flavour}" ]] || expected="${expected}-${flavour}"
+      ;;
+  esac
 
   if [[ -z "$installed" || -z "$expected" ]]; then
     log "  Não foi possível determinar versão instalada do kernel."
@@ -46,9 +91,9 @@ doctor_reboot_pending() {
   local -a reboot_reasons=()
 
   if [[ "$running" == "$expected" ]]; then
-    log "  Kernel em execução corresponde ao pacote instalado: ${running}."
+    log "  Kernel em execução corresponde ao pacote instalado: ${running} (${pkgbase})."
   else
-    log "  Reboot pendente: kernel em execução=${running}; pacote linux instalado=${expected}."
+    log "  Reboot pendente: kernel em execução=${running}; pacote ${pkgbase} instalado=${expected}."
     remediation "systemctl reboot"
     reboot_reasons+=("kernel ${running} → ${expected}")
     status="$RC_TODO"

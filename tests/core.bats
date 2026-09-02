@@ -788,3 +788,35 @@ setup() {
   step_todo
   [ "$REBOOT_RECOMMENDATION" = "kernel 7.0.11 => 7.0.12" ]
 }
+
+# ── NETWORK_TRANSIENT_RE: respostas HTTP transitórias (429 / 5xx) ────────────
+# Regressão real: `hermes update` recusado pelo rate limit do GitHub emitia
+# "error: RPC failed; HTTP 429 curl 22 The requested URL returned error: 429"
+# e o step fechava como fail duro. 429 e os 5xx de gateway são transitórios por
+# definição — o servidor pede retry e o full-upgrade não tem o que corrigir.
+
+@test "NETWORK_TRANSIENT_RE: casa o rate limit HTTP 429 do GitHub (hermes)" {
+  local msg='error: RPC failed; HTTP 429 curl 22 The requested URL returned error: 429'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$msg"
+}
+
+@test "NETWORK_TRANSIENT_RE: casa rate limit textual e 5xx de gateway" {
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'API rate limit exceeded for user'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'You have exceeded a secondary rate limit'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'HTTP 503 Service Unavailable'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'The requested URL returned error: 502'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'504 Gateway Timeout'
+}
+
+@test "NETWORK_TRANSIENT_RE: NÃO casa os 4xx permanentes de GIT_REMOTE_GONE_RE" {
+  # 401/403/404 continuam sendo pendência do usuário (remote morto/credencial
+  # revogada), nunca retry automático — senão o step "recupera" para sempre.
+  ! grep -qiE "$NETWORK_TRANSIENT_RE" <<<'The requested URL returned error: 403'
+  ! grep -qiE "$NETWORK_TRANSIENT_RE" <<<'The requested URL returned error: 404'
+  ! grep -qiE "$NETWORK_TRANSIENT_RE" <<<'remote: Repository not found'
+}
+
+@test "GIT_REMOTE_GONE_RE: continua casando os 4xx permanentes" {
+  grep -qiE "$GIT_REMOTE_GONE_RE" <<<'The requested URL returned error: 403'
+  grep -qiE "$GIT_REMOTE_GONE_RE" <<<'remote: Repository not found'
+}

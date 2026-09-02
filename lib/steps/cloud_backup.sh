@@ -61,6 +61,17 @@ backup_timeshift_cloud() {
     log "  Configure TIMESHIFT_CLOUD_REPOSITORY, TIMESHIFT_CLOUD_PASSWORD_FILE e TIMESHIFT_CLOUD_RCLONE_CONFIG."
     return "$RC_TODO"
   fi
+  # O rclone roda sob sudo neste step e reescreve o rclone.conf ao renovar o
+  # token do remote, deixando o arquivo root-owned. O chown de volta no fim da
+  # execução não bastava: se o run anterior foi interrompido depois da
+  # reescrita e antes do chown, a guarda abaixo passava a barrar o step com
+  # "credenciais ausentes" ANTES de chegar ao conserto — e como só este step
+  # conserta, o backup ficava travado para sempre. Repara aqui, na entrada.
+  if [[ -e "$rclone_config" && ! -r "$rclone_config" ]]; then
+    log "  ${rclone_config} ilegível pelo usuário; tentando devolver a posse..."
+    sudo -n chown "$(id -u):$(id -g)" "$rclone_config" 2>/dev/null || true
+  fi
+
   if [[ ! -s "$password_file" || ! -r "$rclone_config" ]]; then
     STEP_REASON="credenciais Restic/rclone ausentes"
     log "  Password file do Restic ou configuração do rclone ausente/ilegível."

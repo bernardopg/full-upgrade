@@ -541,3 +541,35 @@ _mock_coredumpctl() {
   out="$(printf '%s' '{"dependencies":{"yarn":{"version":"1"}},"devDependencies":{"yarn":{"version":"1"}}}' | pnpm_global_shadow_managers)"
   [ "$out" = "yarn" ]
 }
+
+# ── kernel_running_pkgbase: variante do kernel em execução ───────────────────
+# Regressão real: a máquina BOOTA linux-lts (6.18.48-1-lts) e tem `linux`
+# (7.2.2.arch1-1) instalado em paralelo. Comparar contra o pacote `linux` fixo
+# cravava "reboot pendente: 6.18.48-1-lts → 7.2.2-arch1-1" em todo run e
+# envenenava REBOOT_RECOMMENDATION com um motivo falso.
+
+@test "kernel_running_pkgbase: lê o pkgbase gravado pelo Arch" {
+  local root="${BATS_TEST_TMPDIR}/modules"
+  mkdir -p "${root}/6.18.48-1-lts"
+  printf 'linux-lts\n' >"${root}/6.18.48-1-lts/pkgbase"
+  run kernel_running_pkgbase "6.18.48-1-lts" "$root"
+  [ "$status" -eq 0 ]
+  [ "$output" = "linux-lts" ]
+}
+
+@test "kernel_running_pkgbase: distingue variantes coexistentes" {
+  local root="${BATS_TEST_TMPDIR}/modules"
+  mkdir -p "${root}/6.18.48-1-lts" "${root}/7.2.2-arch1-1"
+  printf 'linux-lts\n' >"${root}/6.18.48-1-lts/pkgbase"
+  printf 'linux\n' >"${root}/7.2.2-arch1-1/pkgbase"
+  run kernel_running_pkgbase "7.2.2-arch1-1" "$root"
+  [ "$status" -eq 0 ]
+  [ "$output" = "linux" ]
+}
+
+@test "kernel_running_pkgbase: sem diretório de módulos falha (rc 1)" {
+  # Kernel em execução já desinstalado — o chamador trata como reboot pendente.
+  run kernel_running_pkgbase "9.9.9-1-inexistente" "${BATS_TEST_TMPDIR}/vazio"
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}

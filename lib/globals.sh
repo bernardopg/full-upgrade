@@ -74,7 +74,15 @@ RC_TODO=11
 # ENETUNREACH…): as CLIs de IA em JS (pi, codex, gemini, qwen, cline, kimi) não
 # traduzem o erro de socket, então sem esses tokens uma queda de rede era
 # classificada como falha do updater em vez de aviso transitório.
-NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|could not reach|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado|fetch failed|socket hang up|enetunreach|eaddrnotavail|enotfound|eai_again|econnreset|econnrefused|etimedout|ehostunreach'
+# Inclui ainda as respostas HTTP que são transitórias POR DEFINIÇÃO — 429
+# (rate limit) e 5xx de gateway/indisponibilidade: o servidor pede para tentar
+# de novo mais tarde, e nada no full-upgrade pode "corrigir" o outro lado.
+# Sem isto, um `hermes update` recusado pelo rate limit do GitHub
+# ("RPC failed; HTTP 429 ... returned error: 429") era classificado como fail
+# duro, tingindo de vermelho um run inteiro por uma condição que se resolve
+# sozinha em minutos. Os 4xx permanentes (401/403/404) seguem em
+# GIT_REMOTE_GONE_RE, que é avaliado ANTES deste nos steps de git.
+NETWORK_TRANSIENT_RE='name or service not known|name resolution|could not resolve|could not reach|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed|connection reset|operation timed out|request timed out|tls handshake|dns error|falha temporária|tempo de conexão esgotado|fetch failed|socket hang up|enetunreach|eaddrnotavail|enotfound|eai_again|econnreset|econnrefused|etimedout|ehostunreach|rate limit|rate-limit|too many requests|returned error: 429|returned error: 50[0234]|http 429|http 50[0234]|status code 429|status code 50[0234]|service unavailable|bad gateway|gateway time-?out|secondary rate'
 
 # ── Regex de upstream git PERMANENTEMENTE inacessível (grep -E -i) ──
 # Terceira categoria de falha de fetch, entre "transitório" e "falha do tool".
