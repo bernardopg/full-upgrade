@@ -525,7 +525,7 @@ Principais chaves:
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
-| `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir o rebuild caro de um binário Cargo cuja CVE persistiu sem versão corrigida compatível; `0` desliga o atalho. |
+| `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um `cargo install --force` cujo rebuild anterior não corrigiu a CVE (memo em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv`); versão nova do crate ou `0` reabrem a tentativa. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
 | `AUTO_MERGE_PACNEW` | `0` | `1` = mescla sozinho os `.pacnew` cujo merge preserva **exatamente** a configuração ativa do arquivo atual (com backup `.full-upgrade.bak.<timestamp>` e hook de pós-merge, ex. `locale-gen`); `0` = só reporta. `sudoers`, `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram. |
 | `AUTO_FIX_PIP_DEPS` | `0` | `1` = o step `Auto-remediar deps Python ausentes` instala com `pip install --user` as dependências **ausentes** de pacotes pip `--user` apontadas pelo `pip check` (aditivo — a dep não existe em nenhum site, nunca toca o pacman; conflitos de versão seguem manuais); `0` = só reporta. |
