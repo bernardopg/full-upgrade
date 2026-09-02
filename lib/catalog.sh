@@ -65,7 +65,6 @@ Atualizar cache do tldr|reference|tldr,reference,cache,update,network|mutating|1
 Atualizar Hermes|ai|hermes,update,network|mutating|300|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
 Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK (Rust Token Killer) para a última release publicada no GitHub.
 Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
-Atualizar AdGuard VPN CLI|network|adguard,update,network|mutating|120||update_adguardvpn|Atualiza AdGuard VPN CLI instalado em /usr/local/bin.
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
 Atualizar Claude Code CLI|ai|claude,update,network,slow|mutating|600|claude|update_claude_code|Atualiza Claude Code CLI (o instalador nativo baixa ~300 MB por release).
 Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.

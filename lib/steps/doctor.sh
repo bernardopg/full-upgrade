@@ -333,13 +333,6 @@ journal_full_upgrade_tray_exec_self_healed() {
   systemctl --user is-active full-upgrade-tray.service >/dev/null 2>&1
 }
 
-journal_adguard_start_self_healed() {
-  local l="$1"
-  [[ "$l" == *"Failed to start AdGuard VPN Service."* ]] || return 1
-  has systemctl || return 1
-  systemctl is-active adguardvpn-svc.service >/dev/null 2>&1
-}
-
 journal_dmail_exec_self_healed() {
   local l="$1"
   [[ "$l" == *"dmail.service:"*"Neither a valid executable name nor an absolute path:"* ]] || return 1
@@ -361,7 +354,6 @@ journal_effective_signature_class() {
   class="$(journal_signature_class "$l")"
   if [[ "$class" == "unknown" ]] && {
     journal_full_upgrade_tray_exec_self_healed "$l" ||
-      journal_adguard_start_self_healed "$l" ||
       journal_dmail_exec_self_healed "$l" ||
       journal_battery_warning_self_healed "$l"
   }; then

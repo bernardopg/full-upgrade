@@ -74,6 +74,29 @@ _kill_tree() {
   kill -s "$sig" "$pid" 2>/dev/null || true
 }
 
+# Une duas listas de skip (CSV de nomes de step) preservando a ordem e
+# descartando duplicatas e entradas vazias. Pura: usada por load_config para
+# somar o FULL_UPGRADE_SKIP do config ao que veio do ambiente, em vez de deixar
+# um sobrescrever o outro.
+merge_skip_lists() {
+  local -a items=()
+  local -A seen=()
+  local list item out=""
+  for list in "$@"; do
+    [[ -z "${list//[[:space:]]/}" ]] && continue
+    IFS=',' read -ra items <<< "$list"
+    for item in "${items[@]}"; do
+      item="${item#"${item%%[![:space:]]*}"}"
+      item="${item%"${item##*[![:space:]]}"}"
+      [[ -n "$item" ]] || continue
+      [[ -n "${seen[$item]+x}" ]] && continue
+      seen["$item"]=1
+      if [[ -z "$out" ]]; then out="$item"; else out="${out},${item}"; fi
+    done
+  done
+  printf '%s' "$out"
+}
+
 add_skip_step() {
   local name="$1"
   if [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
@@ -719,6 +742,15 @@ cargo_crate_for_bin() {
     /^[^[:space:]]/ { crate = $1 }
     /^[[:space:]]/  { name = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
                       if (name == bin) { print crate; exit } }
+  '
+}
+
+# Versão instalada de um crate na saída de `cargo install --list` (linhas
+# "crate vX.Y.Z:"). Vazio quando o crate não aparece na lista.
+cargo_crate_version() {
+  local crate="$1" list="$2"
+  printf '%s\n' "$list" | awk -v c="$crate" '
+    /^[^[:space:]]/ { if ($1 == c) { v = $2; sub(/^v/, "", v); sub(/:$/, "", v); print v; exit } }
   '
 }
 

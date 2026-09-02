@@ -33,6 +33,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
+: "${RUST_CVE_REBUILD_TTL_D:=7}"   # dias antes de repetir um `cargo install --force` que já não corrigiu a CVE
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${AUTO_FIX_FINAL_PENDING:=0}"    # 1 = aplica pacman -Syu (e retry paru -Sua) quando a verificação final achar pendências acionáveis; 0 = só reporta
 : "${AUTO_FIX_PIP_DEPS:=0}"          # 1 = instala com 'pip install --user' as deps AUSENTES de pacotes pip --user apontadas pelo pip check; 0 = só reporta
@@ -60,7 +61,6 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 # Overrides de path (vazio = auto-detecta via command -v / locais conhecidos)
 : "${GCLOUD_BIN:=}"
 : "${COPILOT_BIN:=}"
-: "${ADGUARD_BIN:=}"
 : "${DMS_PLUGINS_DIR:=}"
 : "${OPENCLAW_BIN:=}"
 : "${ORCA_IDE_BIN:=}"
@@ -126,6 +126,7 @@ NETWORK_GATE_WAIT_S
 DOCKER_INFO_TIMEOUT_S
 ORPHAN_CLEANUP_MAX_ROUNDS
 AUTO_FIX_RUST_CVES
+RUST_CVE_REBUILD_TTL_D
 AUTO_BTRFS_SCRUB
 AUTO_FIX_FINAL_PENDING
 AUTO_FIX_PIP_DEPS
@@ -149,7 +150,6 @@ FULL_UPGRADE_DISABLED_INTEGRATIONS
 STALE_SERVICES_IGNORE
 GCLOUD_BIN
 COPILOT_BIN
-ADGUARD_BIN
 DMS_PLUGINS_DIR
 OPENCLAW_BIN
 ORCA_IDE_BIN
@@ -233,6 +233,13 @@ config_warn_typos() {
 }
 
 load_config() {
+  # O config é bash sourceado *depois* do ambiente, então uma atribuição direta
+  # (FULL_UPGRADE_SKIP="a,b" no arquivo) apagava a lista vinda do ambiente — e a
+  # interface documentada em --help (`FULL_UPGRADE_SKIP="X" full-upgrade`) virava
+  # no-op silencioso em qualquer máquina que já tivesse a chave no config.
+  # Guarda o valor do ambiente e reintroduz como união depois do source.
+  local _skip_from_env="${FULL_UPGRADE_SKIP:-}"
+
   if [[ -f "$FU_CONFIG_FILE" ]]; then
     # Config é bash sourced. Validação leve: só permite num arquivo regular do usuário.
     if [[ -r "$FU_CONFIG_FILE" ]]; then
@@ -241,10 +248,11 @@ load_config() {
     fi
   fi
 
+  FULL_UPGRADE_SKIP="$(merge_skip_lists "${FULL_UPGRADE_SKIP:-}" "$_skip_from_env")"
+
   # Auto-detecção de paths quando não definidos no config.
   [[ -z "$GCLOUD_BIN"  ]] && GCLOUD_BIN="$(command -v gcloud 2>/dev/null || true)"
   [[ -z "$COPILOT_BIN" ]] && COPILOT_BIN="$(command -v copilot 2>/dev/null || true)"
-  [[ -z "$ADGUARD_BIN" ]] && ADGUARD_BIN="$(command -v adguardvpn-cli 2>/dev/null || true)"
   [[ -z "$OPENCLAW_BIN" ]] && OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
   [[ -z "$ORCA_IDE_BIN" ]] && ORCA_IDE_BIN="$(command -v stably-orca 2>/dev/null || true)"
   [[ -z "$ANTIGRAVITY_BIN" ]] && ANTIGRAVITY_BIN="$(command -v antigravity 2>/dev/null || true)"
@@ -270,10 +278,10 @@ load_config() {
   export TIMESHIFT_CLOUD_EXCLUDE_FILE
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
-  export AUTO_FIX_RUST_CVES AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
-  export GCLOUD_BIN COPILOT_BIN ADGUARD_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
+  export GCLOUD_BIN COPILOT_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
@@ -371,6 +379,7 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5
 # cargo install-update quando a auditoria achar CVEs corrigíveis. A aplicação
 # exige confirmação interativa ou --yes; nunca roda sob --mode doctor/--dry-run.
 AUTO_FIX_RUST_CVES=0
+RUST_CVE_REBUILD_TTL_D=7
 
 # ── Auto-remediação de scrub btrfs (G1) ──
 # 0 = só reporta (default). 1 = oferece iniciar `btrfs scrub start` quando o
@@ -451,7 +460,6 @@ STALE_SERVICES_IGNORE=""
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
-# ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"
@@ -530,6 +538,7 @@ show_config() {
   _cfg_kv "DOCKER_INFO_TIMEOUT_S" "$DOCKER_INFO_TIMEOUT_S"
   _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
+  _cfg_kv "RUST_CVE_REBUILD_TTL_D" "$RUST_CVE_REBUILD_TTL_D"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
   _cfg_kv "AUTO_FIX_FINAL_PENDING" "$AUTO_FIX_FINAL_PENDING"
   _cfg_kv "AUTO_FIX_PIP_DEPS" "$AUTO_FIX_PIP_DEPS"
@@ -562,7 +571,6 @@ show_config() {
     "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
   _cfg_kv "GCLOUD_BIN" "$GCLOUD_BIN" "<não encontrado>"
   _cfg_kv "COPILOT_BIN" "$COPILOT_BIN" "<não encontrado>"
-  _cfg_kv "ADGUARD_BIN" "$ADGUARD_BIN" "<não encontrado>"
   _cfg_kv "OPENCLAW_BIN" "$OPENCLAW_BIN" "<não encontrado>"
   _cfg_kv "ORCA_IDE_BIN" "$ORCA_IDE_BIN" "<não encontrado>"
   _cfg_kv "ANTIGRAVITY_BIN" "$ANTIGRAVITY_BIN" "<não encontrado>"

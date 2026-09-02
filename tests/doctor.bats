@@ -301,20 +301,6 @@ setup() {
   [ "$output" = "unknown" ]
 }
 
-@test "journal_effective_signature_class: falha antiga do AdGuard ativo vira benigno" {
-  has() { [[ "$1" == systemctl ]]; }
-  systemctl() { [[ "$*" == "is-active adguardvpn-svc.service" ]]; }
-  run journal_effective_signature_class '2 Failed to start AdGuard VPN Service.'
-  [ "$output" = "benign" ]
-}
-
-@test "journal_effective_signature_class: AdGuard ainda inativo permanece unknown" {
-  has() { [[ "$1" == systemctl ]]; }
-  systemctl() { return 3; }
-  run journal_effective_signature_class '2 Failed to start AdGuard VPN Service.'
-  [ "$output" = "unknown" ]
-}
-
 @test "journal_effective_signature_class: erro antigo do dmail ativo vira benigno" {
   has() { [[ "$1" == systemctl ]]; }
   systemctl() { [[ "$*" == "--user is-active dmail.service" ]]; }

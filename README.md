@@ -318,7 +318,7 @@ Status possíveis no resumo:
 | Referência | Atualiza o cache local do Tealdeer (`tldr --update`) quando instalado; a falha preserva o cache anterior e vira `warn`. |
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
 | IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent: self-update nativo `pi update`, extensões instaladas via `pi update --extensions` e refresh dos catálogos de modelos via `pi update --models`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (`~/.agents/skills`: caveman, cavecrew, 9router-*… via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). Updaters Node/Electron repetem uma vez só após `ETIMEDOUT`, sem a auto-seleção de família; TokenSave confirma read-only a release atual quando apenas seu updater não alcança o GitHub. |
-| CLIs e extras | Claude Code, Hermes, GitHub Copilot, AdGuard VPN, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
+| CLIs e extras | Claude Code, Hermes, GitHub Copilot, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
 | Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
@@ -502,7 +502,7 @@ Principais chaves:
 
 | Chave | Default | Descrição |
 | --- | --- | --- |
-| `ENABLE_CUSTOM_TOOLS` | `0` | Só necessário para Burp/Wireshark (que instala `burpsuite`) e para carregar seus plugins de `~/.config/full-upgrade/steps.d/`. As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK) rodam por presença da ferramenta, sem flag. |
+| `ENABLE_CUSTOM_TOOLS` | `0` | Só necessário para Burp/Wireshark (que instala `burpsuite`) e para carregar seus plugins de `~/.config/full-upgrade/steps.d/`. As integrações empacotadas (Hermes, Copilot, DMS, OpenClaw, RTK) rodam por presença da ferramenta, sem flag. |
 | `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
 | `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
 | `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
@@ -546,7 +546,6 @@ Principais chaves:
 | `STALE_SERVICES_IGNORE` | vazio | Units systemd (globs permitidos, ex. `NetworkManager.service`) saciadas da auditoria de libs antigas: saem do TODO do `Doctor: serviços com libs antigas` e da lista de reinício de `--restart-services`. Para units cujo reinício quebraria sessão/rede (upgrade por SSH/Wi-Fi) e que segurarão libs velhas até o reboot por decisão consciente. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
-| `ADGUARD_BIN` | auto | Override do `adguardvpn-cli`. |
 | `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
 | `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
 | `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |
@@ -580,7 +579,6 @@ aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
 | Arquivo | Hook | Roda quando |
 | --- | --- | --- |
 | `steps.d/10-hermes.sh` | `update_hermes` | `hermes` no PATH |
-| `steps.d/20-adguardvpn.sh` | `update_adguardvpn` | `adguardvpn-cli` no PATH ou `ADGUARD_BIN` |
 | `steps.d/30-copilot.sh` | `update_copilot_cli` | `copilot` no PATH ou `COPILOT_BIN` |
 | `steps.d/40-dms.sh` | `update_dms_plugins` | diretório `DMS_PLUGINS_DIR` existe |
 | `steps.d/60-openclaw.sh` | `update_openclaw` | `openclaw` no PATH ou `OPENCLAW_BIN` |

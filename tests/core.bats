@@ -820,3 +820,26 @@ setup() {
   grep -qiE "$GIT_REMOTE_GONE_RE" <<<'The requested URL returned error: 403'
   grep -qiE "$GIT_REMOTE_GONE_RE" <<<'remote: Repository not found'
 }
+
+# ── merge_skip_lists / cargo_crate_version ────────────────────────────────────
+
+@test "merge_skip_lists: une config e ambiente sem duplicar" {
+  run merge_skip_lists "Atualizar A,Atualizar B" "Atualizar B,Backup em nuvem"
+  [ "$status" -eq 0 ]
+  [ "$output" = "Atualizar A,Atualizar B,Backup em nuvem" ]
+}
+
+@test "merge_skip_lists: listas vazias somem e espaços são aparados" {
+  run merge_skip_lists "" "  Atualizar A , , Atualizar B  "
+  [ "$output" = "Atualizar A,Atualizar B" ]
+  run merge_skip_lists "" ""
+  [ "$output" = "" ]
+}
+
+@test "cargo_crate_version: lê a versão da linha do crate" {
+  list="$(printf 'cargo-outdated v0.19.0:\n    cargo-outdated\nripgrep v14.1.0:\n    rg\n')"
+  run cargo_crate_version cargo-outdated "$list"
+  [ "$output" = "0.19.0" ]
+  run cargo_crate_version rg "$list"
+  [ "$output" = "" ]
+}

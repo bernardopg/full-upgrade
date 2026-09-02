@@ -12,7 +12,7 @@
 LANG_OVERRIDE=auto
 
 # ── Tools custom / Custom tools ─────────────────────────────────────────────────
-# As integrações empacotadas (Hermes, AdGuard, Copilot, DMS, OpenClaw, RTK,
+# As integrações empacotadas (Hermes, Copilot, DMS, OpenClaw, RTK,
 # TokenSave) rodam
 # POR PRESENÇA da ferramenta — não precisam desta flag. ENABLE_CUSTOM_TOOLS=1 só é
 # necessário para: (a) Burp/Wireshark, que INSTALA o pacote burpsuite; (b) carregar
@@ -73,6 +73,7 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 
 # ── Auto-remediações / Auto-remediation (opt-in; nunca sob doctor/dry-run) ─────
 # AUTO_FIX_RUST_CVES      1 = rustup self/update p/ CVEs de toolchain Rust
+# RUST_CVE_REBUILD_TTL_D  dias antes de repetir um rebuild cargo que não corrigiu a CVE
 # AUTO_BTRFS_SCRUB        1 = inicia btrfs scrub quando vencido/ausente
 # AUTO_FIX_FINAL_PENDING  1 = pacman -Syu (e retry paru -Sua) quando a
 #                         verificação final achar pendências acionáveis
@@ -80,6 +81,7 @@ ORPHAN_CLEANUP_MAX_ROUNDS=5  # rodadas máximas para remover órfãos recursivos
 #                         apontadas pelo pip check (aditivo; conflitos de
 #                         versão seguem manuais)
 AUTO_FIX_RUST_CVES=0
+RUST_CVE_REBUILD_TTL_D=7
 AUTO_BTRFS_SCRUB=0
 AUTO_FIX_FINAL_PENDING=0
 AUTO_FIX_PIP_DEPS=0
@@ -110,7 +112,6 @@ STALE_SERVICES_IGNORE=""
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
-# ADGUARD_BIN="/usr/local/bin/adguardvpn-cli"
 # DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"

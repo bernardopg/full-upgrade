@@ -3,6 +3,34 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`FULL_UPGRADE_SKIP` do ambiente parava de funcionar quando a chave existia
+  no config.** O config é `source`ado depois do ambiente, então
+  `FULL_UPGRADE_SKIP="..."` no arquivo apagava a lista passada na linha de
+  comando — a interface documentada em `--help` virava no-op silencioso (um
+  `FULL_UPGRADE_SKIP="Backup Timeshift em nuvem" full-upgrade` rodou o backup
+  assim mesmo). `load_config` agora preserva o valor do ambiente e o une ao do
+  config via `merge_skip_lists` (união, sem duplicatas).
+- **Rebuild Rust sem fix deixa de repetir todo run.** A fase 2 de
+  `autofix_rust_cves` refazia `cargo install --force` de um crate cujo CVE não
+  tem correção publicada — 14m19s por run num caso real (`cargo-outdated`), para
+  reencontrar exatamente as mesmas CVEs. O resultado passa a ser memorizado por
+  `crate@versão` em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv` e o
+  rebuild é pulado dentro de `RUST_CVE_REBUILD_TTL_D` dias (padrão 7); uma
+  versão nova do crate ou o fim do prazo reabrem a tentativa.
+
+### Removido
+
+- **Integração AdGuard VPN CLI.** O step `Atualizar AdGuard VPN CLI`
+  (`steps.d/20-adguardvpn.sh`), a chave de config `ADGUARD_BIN`, a linha de
+  catálogo, o wiring em `run_all_steps` e a exceção de journal
+  `journal_adguard_start_self_healed` foram removidos. A ferramenta deixou de
+  ser usada na máquina de referência (substituída por Mullvad VPN) e a
+  integração só sobrevivia como código morto: sem a CLI instalada, o step já
+  fechava sempre como `skip`, mas o catálogo, a config e o Doctor continuavam
+  carregando a exceção. Quem ainda usa a CLI pode manter um plugin próprio em
+  `~/.config/full-upgrade/steps.d/` com `ENABLE_CUSTOM_TOOLS=1`.
 
 ## [3.38.1] - 2026-09-02
 ### Corrigido

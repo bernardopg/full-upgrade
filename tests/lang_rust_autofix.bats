@@ -157,3 +157,56 @@ stable-x86_64-unknown-linux-gnu updated - rustc 1.98.0 (from rustc 1.97.1)'
   [[ "$output" == *"CVEs antes: 1 → depois: 1"* ]]
   [[ "$output" == *"não acionável"* ]]
 }
+
+# ── memo do rebuild sem fix ───────────────────────────────────────────────────
+
+@test "memo: entrada dentro do TTL é fresca" {
+  memo="$(printf 'cargo-outdated\t0.19.0\t1000\n')"
+  run rust_rebuild_memo_is_fresh "$memo" cargo-outdated 0.19.0 $((1000 + 86400)) 7
+  [ "$status" -eq 0 ]
+}
+
+@test "memo: entrada além do TTL deixa de valer (rebuild tenta de novo)" {
+  memo="$(printf 'cargo-outdated\t0.19.0\t1000\n')"
+  run rust_rebuild_memo_is_fresh "$memo" cargo-outdated 0.19.0 $((1000 + 8 * 86400)) 7
+  [ "$status" -eq 1 ]
+}
+
+@test "memo: versão nova do crate invalida a entrada" {
+  memo="$(printf 'cargo-outdated\t0.19.0\t1000\n')"
+  run rust_rebuild_memo_is_fresh "$memo" cargo-outdated 0.20.0 1001 7
+  [ "$status" -eq 1 ]
+}
+
+@test "memo: TTL zero desliga o atalho" {
+  memo="$(printf 'cargo-outdated\t0.19.0\t1000\n')"
+  run rust_rebuild_memo_is_fresh "$memo" cargo-outdated 0.19.0 1001 0
+  [ "$status" -eq 1 ]
+}
+
+@test "memo: memo vazio ou lixo nunca é fresco" {
+  run rust_rebuild_memo_is_fresh "" cargo-outdated 0.19.0 1001 7
+  [ "$status" -eq 1 ]
+  run rust_rebuild_memo_is_fresh "linha solta sem tabs" cargo-outdated 0.19.0 1001 7
+  [ "$status" -eq 1 ]
+}
+
+@test "memo: upsert mantém uma linha por crate e atualiza versão/timestamp" {
+  memo="$(printf 'cargo-outdated\t0.19.0\t1000\nripgrep\t14.1.0\t900\n')"
+  run rust_rebuild_memo_upsert "$memo" cargo-outdated 0.20.0 2000
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ripgrep"$'\t'"14.1.0"$'\t'"900"* ]]
+  [[ "$output" == *"cargo-outdated"$'\t'"0.20.0"$'\t'"2000"* ]]
+  [[ "$output" != *"0.19.0"* ]]
+  [ "$(printf '%s\n' "$output" | grep -c 'cargo-outdated')" -eq 1 ]
+}
+
+@test "memo: gravado em disco pula o rebuild no run seguinte" {
+  LOG_DIR="$(mktemp -d)"
+  _rust_rebuild_memo_record cargo-outdated 0.19.0
+  run _rust_rebuild_memo_skip cargo-outdated 0.19.0
+  [ "$status" -eq 0 ]
+  run _rust_rebuild_memo_skip cargo-outdated 0.20.0
+  [ "$status" -eq 1 ]
+  rm -rf "$LOG_DIR"
+}

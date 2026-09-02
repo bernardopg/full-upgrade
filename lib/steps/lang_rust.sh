@@ -197,6 +197,62 @@ _rust_collect_vuln_bins() {
   return 0
 }
 
+# ── Memo do rebuild sem fix (fase 2 do F7) ───────────────────────────────────
+# `cargo install --force` de um crate grande custa minutos (cargo-outdated levou
+# 14m19s num run real) e é determinístico enquanto nem o crate nem as deps dele
+# publicarem versão corrigida: cada run pagava o mesmo rebuild para reencontrar
+# exatamente as mesmas CVEs e fechar com a mesma nota informativa. O memo grava
+# "crate@versão foi rebuildado e a CVE persistiu" e pula o rebuild dentro da
+# janela de RUST_CVE_REBUILD_TTL_D dias.
+# ponytail: janela por tempo em vez de invalidação exata — o fix pode chegar por
+# uma dependência nova sem o crate mudar de versão, então o TTL garante uma nova
+# tentativa periódica sem precisar rastrear o grafo de deps.
+_rust_rebuild_memo_file() {
+  printf '%s/rust-cve-rebuild-nofix.tsv' "${LOG_DIR:-$HOME/.cache/system-upgrade}"
+}
+
+# Puro: existe entrada <crate>\t<versão>\t<epoch> dentro do TTL?
+# $1=conteúdo do memo  $2=crate  $3=versão  $4=agora(epoch)  $5=ttl em dias
+rust_rebuild_memo_is_fresh() {
+  local memo="$1" crate="$2" ver="$3" now="$4" ttl="$5" c v ts
+  [[ -n "$crate" && -n "$ver" ]] || return 1
+  [[ "$now" =~ ^[0-9]+$ && "$ttl" =~ ^[0-9]+$ ]] || return 1
+  (( ttl > 0 )) || return 1
+  while IFS=$'\t' read -r c v ts; do
+    [[ "$c" == "$crate" && "$v" == "$ver" ]] || continue
+    [[ "$ts" =~ ^[0-9]+$ ]] || continue
+    (( now - ts < ttl * 86400 )) && return 0
+  done <<< "$memo"
+  return 1
+}
+
+# Puro: devolve o memo com a entrada do crate substituída pela atual (uma linha
+# por crate — versões antigas não se acumulam).
+rust_rebuild_memo_upsert() {
+  local memo="$1" crate="$2" ver="$3" now="$4" c v ts
+  while IFS=$'\t' read -r c v ts; do
+    [[ -n "$c" && "$c" != "$crate" && -n "$ts" ]] || continue
+    printf '%s\t%s\t%s\n' "$c" "$v" "$ts"
+  done <<< "$memo"
+  printf '%s\t%s\t%s\n' "$crate" "$ver" "$now"
+}
+
+_rust_rebuild_memo_skip() {
+  local f; f="$(_rust_rebuild_memo_file)"
+  [[ -r "$f" ]] || return 1
+  rust_rebuild_memo_is_fresh "$(cat "$f" 2>/dev/null)" "$1" "$2" \
+    "$(date +%s)" "${RUST_CVE_REBUILD_TTL_D:-7}"
+}
+
+_rust_rebuild_memo_record() {
+  local f cur=""
+  f="$(_rust_rebuild_memo_file)"
+  [[ -r "$f" ]] && cur="$(cat "$f" 2>/dev/null)"
+  rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)" > "${f}.tmp" 2>/dev/null &&
+    mv -f "${f}.tmp" "$f" 2>/dev/null || rm -f "${f}.tmp" 2>/dev/null
+  return 0
+}
+
 # F7 — auto-remediação opcional de CVEs de toolchain/cargo.
 # O gate de config (AUTO_FIX_RUST_CVES) é aplicado em main.sh; aqui também é
 # defensivo. Mede CVEs antes, aplica `rustup self update && rustup update`
@@ -339,8 +395,9 @@ autofix_rust_cves() {
   # binstall ou Cargo.lock empacotado do release), `cargo install --force`
   # re-resolve as dependências para as versões compatíveis mais novas e remove
   # a CVE sem depender de release novo do upstream.
-  local install_list crate rebuilt=0
-  local -a rebuild_failed=()
+  local install_list crate crate_ver rebuilt=0
+  local -a rebuild_failed=() memo_skipped=()
+  local -A rebuilt_ver=()
   install_list="$(cargo install --list 2>/dev/null)"
   for b in "${after_cargo[@]}"; do
     crate="$(cargo_crate_for_bin "$b" "$install_list")"
@@ -349,9 +406,16 @@ autofix_rust_cves() {
       rebuild_failed+=("$b")
       continue
     fi
+    crate_ver="$(cargo_crate_version "$crate" "$install_list")"
+    if _rust_rebuild_memo_skip "$crate" "$crate_ver"; then
+      log "    ${crate} v${crate_ver}: rebuild com resolução fresca já tentado nos últimos ${RUST_CVE_REBUILD_TTL_D:-7}d e a CVE persistiu; pulando o rebuild."
+      memo_skipped+=("$b")
+      continue
+    fi
     log "  Rebuild com resolução fresca de dependências: cargo install --force ${crate}"
     if run_logged cargo install --force "$crate"; then
       rebuilt=1
+      rebuilt_ver["$b"]="${crate}"$'\t'"$crate_ver"
     else
       rebuild_failed+=("$b")
     fi
@@ -388,8 +452,20 @@ autofix_rust_cves() {
 
   # Rebuild aplicado e a CVE persiste: nem a resolução fresca tem versão
   # corrigida compatível — nada acionável localmente até o upstream publicar.
+  # Memoriza o par crate@versão para não repetir o mesmo rebuild caro no próximo
+  # run enquanto o upstream não se mexer.
+  for b in "${after_cargo[@]}"; do
+    [[ -n "${rebuilt_ver[$b]+x}" ]] || continue
+    IFS=$'\t' read -r crate crate_ver <<< "${rebuilt_ver[$b]}"
+    [[ -n "$crate" && -n "$crate_ver" ]] && _rust_rebuild_memo_record "$crate" "$crate_ver"
+  done
+
   if (( ${#rebuild_failed[@]} == 0 )); then
-    log "  CVEs persistem após rebuild com resolução fresca (${after_cargo[*]}): sem versão corrigida compatível publicada — aguarda upstream (informativo)."
+    if (( ${#memo_skipped[@]} > 0 )); then
+      log "  CVEs seguem em ${after_cargo[*]}: rebuild com resolução fresca já foi tentado sem fix (memo de ${RUST_CVE_REBUILD_TTL_D:-7}d) — aguarda upstream (informativo)."
+    else
+      log "  CVEs persistem após rebuild com resolução fresca (${after_cargo[*]}): sem versão corrigida compatível publicada — aguarda upstream (informativo)."
+    fi
     return 0
   fi
 

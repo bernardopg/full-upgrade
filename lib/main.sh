@@ -494,14 +494,6 @@ run_all_steps() {
         step_skip "Atualizar GitKraken CLI (gk)" "gk não instalado"
     fi
 
-    # ── Rede ─────────────────────────────────────────────────────────────────────
-
-    if has adguardvpn-cli || [[ -x "${ADGUARD_BIN:-}" ]]; then
-        run_step "Atualizar AdGuard VPN CLI" update_adguardvpn
-    else
-        step_skip "Atualizar AdGuard VPN CLI" "adguardvpn-cli não instalado"
-    fi
-
     # ── Shell ─────────────────────────────────────────────────────────────────────
     
     if [[ -f "${ZSH:-$HOME/.oh-my-zsh}/tools/upgrade.sh" ]]; then
