@@ -64,12 +64,36 @@ setup() {
 # para sempre: a guarda de credenciais barrava com "credenciais ausentes" antes
 # de a linha de conserto ser alcançada, e só este step conserta.
 @test "timeshift cloud: rclone.conf ilegível dispara chown antes da guarda" {
+  # root lê arquivo 000 e o reparo nunca dispararia: o cenário não existe.
+  [ "$(id -u)" -ne 0 ] || skip "root ignora o modo 000 que este teste depende"
+
   local cfg="${BATS_TEST_TMPDIR}/rclone.conf"
   local pwf="${BATS_TEST_TMPDIR}/restic-pass"
   local marker="${BATS_TEST_TMPDIR}/chown-chamado"
   printf 'segredo\n' >"$pwf"
   printf '[onedrive]\n' >"$cfg"
   chmod 000 "$cfg"
+
+  # As guardas de dependência e de Btrfs vêm antes do reparo de posse: sem os
+  # stubs, uma máquina sem restic/rclone/timeshift (todo runner de CI) sai do
+  # step em RC_TODO e o trecho sob teste nunca roda — foi assim que este teste
+  # passou localmente e quebrou no CI.
+  local bin="${BATS_TEST_TMPDIR}/bin"
+  mkdir -p "$bin"
+  local tool
+  for tool in restic rclone timeshift; do
+    printf '#!/usr/bin/env bash\nexit 0\n' >"${bin}/${tool}"
+    chmod +x "${bin}/${tool}"
+  done
+  # FSTYPE precisa dizer btrfs; SOURCE volta vazio de propósito para encerrar o
+  # step logo depois do trecho sob teste, sem montar nada.
+  cat >"${bin}/findmnt" <<'STUB'
+#!/usr/bin/env bash
+[[ " $* " == *" FSTYPE "* ]] && { printf 'btrfs\n'; exit 0; }
+exit 0
+STUB
+  chmod +x "${bin}/findmnt"
+  PATH="${bin}:${PATH}"
 
   # Stub de sudo: registra o chown pedido e o executa de verdade no tmpdir.
   sudo() {
