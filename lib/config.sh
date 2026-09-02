@@ -33,7 +33,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
-: "${RUST_CVE_REBUILD_TTL_D:=7}"   # dias antes de repetir um `cargo install --force` que já não corrigiu a CVE
+: "${RUST_CVE_REBUILD_TTL_D:=7}"    # dias antes de repetir um `cargo install --force` que já não corrigiu a CVE
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${AUTO_FIX_FINAL_PENDING:=0}"    # 1 = aplica pacman -Syu (e retry paru -Sua) quando a verificação final achar pendências acionáveis; 0 = só reporta
 : "${AUTO_FIX_PIP_DEPS:=0}"          # 1 = instala com 'pip install --user' as deps AUSENTES de pacotes pip --user apontadas pelo pip check; 0 = só reporta
