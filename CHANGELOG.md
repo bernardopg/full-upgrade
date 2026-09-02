@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.38.1] - 2026-09-02
 ### Corrigido
 
 - **Rate limit HTTP não derruba mais o run.** `NETWORK_TRANSIENT_RE` passa a

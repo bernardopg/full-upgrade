@@ -29,7 +29,7 @@ fi
 # pois o VERSION file é autoritativo — setado explicitamente por commits de release.
 # Sem isto, um dev tree com tag local desatualizada reportava "update disponível"
 # mesmo já estando no commit da release (falso TODO no self-update check).
-SCRIPT_VERSION="3.38.0"
+SCRIPT_VERSION="3.38.1"
 _git_ver="$(git -C "$FU_ROOT" describe --tags --always 2>/dev/null || true)"
 if [[ "$_git_ver" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   SCRIPT_VERSION="${_git_ver#v}"
