@@ -19,6 +19,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   `crate@versão` em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv` e o
   rebuild é pulado dentro de `RUST_CVE_REBUILD_TTL_D` dias (padrão 7); uma
   versão nova do crate ou o fim do prazo reabrem a tentativa.
+- **Audit de CVEs cargo trata rebuild sem cura como "conhecido" (K4).**
+  `audit_cargo_bins` warnava em todo run por CVEs que o próprio autofix já
+  tentou curar via `cargo install --force` sem sucesso (memo
+  `rust-cve-rebuild-nofix.tsv`) — caso real: `cargo-outdated` com `gix-date`
+  pinado, somado ao `rustup` com `h2` vendorizado. Estende a filosofia do K3:
+  se todo bin vulnerável é toolchain-no-latest ou cargo com memo fresco, vira
+  nota informativa em vez de warn recorrente no systray. CVE nova (sem memo)
+  continua warnando e o autofix tenta o rebuild.
 
 ### Removido
 

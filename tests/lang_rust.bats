@@ -43,3 +43,42 @@ rustup - Up to date : 1.29.0'
 
   [ "$status" -eq 0 ]
 }
+
+@test "K4: bin com memo nofix fresco => conhecido (rc 0)" {
+  install_list='cargo-outdated v0.19.0:
+    cargo-outdated
+cargo-audit v0.22.2:
+    cargo-audit'
+  memo='cargo-outdated	0.19.0	1000'
+  run cargo_cve_bins_all_memo_known "cargo-outdated" "$install_list" "$memo" 1001 7
+  [ "$status" -eq 0 ]
+}
+
+@test "K4: versão nova sem memo => desconhecido (rc 1)" {
+  install_list='cargo-outdated v0.20.0:
+    cargo-outdated'
+  memo='cargo-outdated	0.19.0	1000'
+  run cargo_cve_bins_all_memo_known "cargo-outdated" "$install_list" "$memo" 1001 7
+  [ "$status" -ne 0 ]
+}
+
+@test "K4: memo expirado => desconhecido (rc 1)" {
+  install_list='cargo-outdated v0.19.0:
+    cargo-outdated'
+  memo='cargo-outdated	0.19.0	1000'
+  run cargo_cve_bins_all_memo_known "cargo-outdated" "$install_list" "$memo" $((1000 + 8 * 86400)) 7
+  [ "$status" -ne 0 ]
+}
+
+@test "K4: bin sem crate correspondente => desconhecido (rc 1)" {
+  install_list='cargo-audit v0.22.2:
+    cargo-audit'
+  memo='cargo-outdated	0.19.0	1000'
+  run cargo_cve_bins_all_memo_known "cargo-outdated" "$install_list" "$memo" 1001 7
+  [ "$status" -ne 0 ]
+}
+
+@test "K4: lista vazia => conhecido (rc 0)" {
+  run cargo_cve_bins_all_memo_known "" "" "" 1001 7
+  [ "$status" -eq 0 ]
+}

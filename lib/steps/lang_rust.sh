@@ -151,6 +151,37 @@ audit_cargo_bins() {
     fi
   fi
 
+  # K4 — "conhecidas": todo bin cargo-installed com CVE coberto pelo memo nofix
+  # fresco (rebuild com resolução fresca já tentado para este crate@versão e a
+  # CVE persistiu — determinístico até upstream publicar) e toolchain (se houver)
+  # já no latest. Mesma filosofia do K3: sem ação local possível, vira nota
+  # informativa em vez de warn recorrente no systray. CVE nova (sem memo)
+  # continua warnando e o autofix tenta o rebuild.
+  if (( ${#cargo_bins[@]} > 0 )); then
+    local _k4_install _k4_memo
+    _k4_install="$(cargo install --list 2>/dev/null || true)"
+    _k4_memo=""
+    [[ -r "$(_rust_rebuild_memo_file)" ]] && _k4_memo="$(cat "$(_rust_rebuild_memo_file)" 2>/dev/null)"
+    if cargo_cve_bins_all_memo_known "$(printf '%s\n' "${cargo_bins[@]}")" \
+        "$_k4_install" "$_k4_memo" "$(date +%s)" "${RUST_CVE_REBUILD_TTL_D:-7}"; then
+      local _k4_tc_known=1
+      if (( ${#toolchain_bins[@]} > 0 )); then
+        _k4_tc_known=0
+        if has rustup; then
+          local _k4_out _k4_rc
+          _k4_out="$(run_network_cmd rustup check 2>/dev/null)"
+          _k4_rc=$?
+          (( _k4_rc != RC_WARN )) && ! rustup_check_has_update "$_k4_out" && _k4_tc_known=1
+        fi
+      fi
+      if (( _k4_tc_known )); then
+        log "  ${vuln_count} binário(s) com CVE conhecida: ${vuln_bins[*]}"
+        log "  Rebuild com resolução fresca já tentado sem cura (memo ${RUST_CVE_REBUILD_TTL_D:-7}d) + toolchain no latest — aguarda upstream (informativo)."
+        return 0
+      fi
+    fi
+  fi
+
   # Exibe detalhes somente quando há uma ação local possível. A saída bruta já
   # foi gravada no log, então CVEs upstream-only não parecem falha do run.
   printf '%s\n' "$output" \
@@ -250,6 +281,27 @@ _rust_rebuild_memo_record() {
   [[ -r "$f" ]] && cur="$(cat "$f" 2>/dev/null)"
   rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)" > "${f}.tmp" 2>/dev/null &&
     mv -f "${f}.tmp" "$f" 2>/dev/null || rm -f "${f}.tmp" 2>/dev/null
+  return 0
+}
+
+# Puro (K4): rc 0 se TODO bin da lista (um por linha em $1) tem crate@versão
+# com memo nofix fresco — ou seja, o rebuild com resolução fresca já foi
+# tentado para este crate@versão e a CVE persistiu ("conhecida", como o K3 faz
+# para a toolchain no latest). $2=saída de `cargo install --list`,
+# $3=conteúdo do memo, $4=now (epoch), $5=ttl em dias. Bin sem crate
+# correspondente → desconhecido (rc 1), para o warn continuar até o autofix
+# tentar o rebuild ao menos uma vez.
+cargo_cve_bins_all_memo_known() {
+  local bins_nl="$1" install_list="$2" memo="$3" now="$4" ttl="$5"
+  local b crate ver
+  [[ -n "${bins_nl//[[:space:]]/}" ]] || return 0
+  while IFS= read -r b; do
+    [[ -n "${b//[[:space:]]/}" ]] || continue
+    crate="$(cargo_crate_for_bin "$b" "$install_list")"
+    [[ -n "$crate" ]] || return 1
+    ver="$(cargo_crate_version "$crate" "$install_list")"
+    rust_rebuild_memo_is_fresh "$memo" "$crate" "$ver" "$now" "$ttl" || return 1
+  done <<< "$bins_nl"
   return 0
 }
 
