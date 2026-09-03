@@ -1856,6 +1856,7 @@ doctor_js_conflicts() {
         /|/usr|/usr/local)
           log "  npm: prefixo global em ${prefix} — risco de conflito com pacotes do sistema (pacman)."
           log "  Configure: npm config set prefix ~/.local"
+          STEP_REASON="npm global em ${prefix} (prefixo gerenciado pelo pacman)"
           (( status == 0 )) && status="$RC_WARN"
           ;;
         "$HOME"*|/home/*)
@@ -1863,6 +1864,7 @@ doctor_js_conflicts() {
           ;;
         *)
           log "  npm: prefixo global incomum (${prefix}) — verifique se é intencional."
+          STEP_REASON="npm prefixo global incomum (${prefix})"
           (( status == 0 )) && status="$RC_WARN"
           ;;
       esac

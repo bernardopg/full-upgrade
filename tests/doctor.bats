@@ -559,3 +559,25 @@ _mock_coredumpctl() {
   [ "$status" -eq 1 ]
   [ -z "$output" ]
 }
+
+@test "doctor_js_conflicts: npm global em /usr => warn com STEP_REASON" {
+  QUIET=1 LOG_FILE=/dev/null
+  STEP_REASON=""
+  has() { [[ "$1" == npm ]]; }
+  npm_global_prefix() { printf '%s' "/usr"; }
+  local rc=0
+  doctor_js_conflicts || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"npm global em /usr"* ]]
+}
+
+@test "doctor_js_conflicts: npm global no home => ok, sem STEP_REASON" {
+  QUIET=0 LOG_FILE=/dev/null
+  STEP_REASON=""
+  has() { [[ "$1" == npm ]]; }
+  npm_global_prefix() { printf '%s' "$HOME/.local"; }
+  run doctor_js_conflicts
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"prefixo global ok"* ]]
+  [ -z "$STEP_REASON" ]
+}

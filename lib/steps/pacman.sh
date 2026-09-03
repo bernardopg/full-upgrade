@@ -301,7 +301,7 @@ cleanup_orphans() {
 
     if (( ${#orphans[@]} == 0 )); then
       if (( removed_any == 0 )); then
-        log "  Nenhum pacote orfao encontrado."
+        log "  Nenhum pacote órfão encontrado."
       else
         log "  Limpeza de órfãos concluída; nenhuma dependência órfã remanescente."
       fi
