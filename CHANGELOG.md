@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.38.2] - 2026-09-03
 ### Corrigido
 
 - **`FULL_UPGRADE_SKIP` do ambiente parava de funcionar quando a chave existia
