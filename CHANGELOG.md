@@ -4,6 +4,28 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Progresso do upload do backup em nuvem.** O envio do snapshot Timeshift leva ~95 min sem
+  emitir linha alguma e o run parecia travado. O step agora consome `restic backup --json` e
+  emite heartbeats a cada `TIMESHIFT_CLOUD_PROGRESS_INTERVAL` (default `60`): %, GiB
+  enviados/total, arquivos, velocidade da janela e ETA, com fases nomeadas onde a porcentagem
+  do restic enganaria (escaneando; enviando packs após 100% de leitura) e linha `summary`
+  final com o volume efetivamente subido. Texto cru do restic/rclone (lock, token, rede)
+  chega ao log em vez de morrer no terminal. Testes em `tests/timeshift_cloud.bats`.
+
+### Corrigido
+
+- **Locks stale do Restic e retenção que nunca retinha.** `restic unlock` (remove só lock de
+  processo morto) roda antes do backup e da retenção — o `forget --prune` exige lock
+  exclusivo, então um lock stale de um run interrompido deixava o upload passar e falhava só
+  a retenção (warn de 2026-09-03, lock de 31h de PID inexistente). A retenção também nunca
+  tinha apagado uma versão: o `forget` agrupa por host+paths por padrão e os paths carregam o
+  nome do snapshot Timeshift, que muda a cada run — cada backup virava um grupo de um
+  elemento e `--keep-last` nunca descartava; corrigido com `--group-by ''`. E o cache
+  `~/.cache/restic` populado como root pelo sudo tem a posse devolvida ao usuário, que via
+  "permission denied" ao rodar `restic snapshots` com o repositório parecendo quebrado.
+
 ## [3.38.2] - 2026-09-03
 ### Corrigido
 

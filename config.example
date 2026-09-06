@@ -36,6 +36,10 @@ TIMESHIFT_CLOUD_PASSWORD_FILE="$HOME/.config/full-upgrade/restic-timeshift-passw
 TIMESHIFT_CLOUD_RCLONE_CONFIG="$HOME/.config/rclone/rclone.conf"
 # Opcional: padrões Restic para não enviar caches e artefatos reproduzíveis.
 TIMESHIFT_CLOUD_EXCLUDE_FILE="$HOME/.config/full-upgrade/restic-timeshift-excludes"
+# Intervalo (s) entre linhas de progresso do upload: %, GiB enviados/total,
+# arquivos, velocidade da janela e ETA. O upload dura horas na primeira carga;
+# sem isso o step fica mudo. Menor = mais linhas no log. 0/inválido → 60.
+TIMESHIFT_CLOUD_PROGRESS_INTERVAL=60
 
 # ── Backup de configs críticas / Critical config backup ─────────────────────────
 # Arquiva configs essenciais de /etc em tar.zst antes das mutações, com rotação.

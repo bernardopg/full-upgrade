@@ -513,6 +513,7 @@ Principais chaves:
 | `TIMESHIFT_CLOUD_PASSWORD_FILE` | `~/.config/full-upgrade/restic-timeshift-password` | Arquivo privado com a senha do Restic. Perder essa senha torna o backup irrecuperável. |
 | `TIMESHIFT_CLOUD_RCLONE_CONFIG` | `~/.config/rclone/rclone.conf` | Configuração rclone que contém o remote usado pelo repositório. |
 | `TIMESHIFT_CLOUD_EXCLUDE_FILE` | `~/.config/full-upgrade/restic-timeshift-excludes` | Arquivo opcional de padrões Restic para omitir caches e artefatos reproduzíveis do envio. |
+| `TIMESHIFT_CLOUD_PROGRESS_INTERVAL` | `60` | Intervalo (s) entre heartbeats do upload (% , GiB, arquivos, velocidade, ETA); `0`/inválido volta a `60`. |
 | `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
 | `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
 | `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |
