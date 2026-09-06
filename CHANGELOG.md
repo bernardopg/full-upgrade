@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.39.0] - 2026-09-06
 ### Adicionado
 
 - **Step `Limpar coredumps antigos` (cleanup).** Dumps transitórios acumulavam
