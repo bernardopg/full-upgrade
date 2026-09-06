@@ -79,6 +79,60 @@ cleanup_journal() {
 }
 
 
+# Lista arquivos de coredump mais antigos que N dias (um por linha). Pura: só
+# enumera, não remove — a remoção com sudo vive em cleanup_old_coredumps.
+# Uso: coredump_files_to_delete <dir> <keep_days>
+coredump_files_to_delete() {
+  local dir="$1" keep="$2"
+  [[ -d "$dir" ]] || return 0
+  [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=7
+  find "$dir" -maxdepth 1 -type f -mtime "+$keep" -print 2>/dev/null
+}
+
+
+# Remove dumps de crash em /var/lib/systemd/coredump mais antigos que
+# COREDUMP_KEEP_DAYS (default 7). Crashes transitórios acumulam GB sem limite e
+# o Doctor de recorrência lê o journal (não os arquivos), então limpar o disco
+# nunca apaga a auditoria: os metadados seguem em `coredumpctl list` até o
+# vacuum do journal. Sem dumps velhos retorna ok; falha operacional real
+# (remoção) vira warn, nunca todo/fail — dump transitório não é erro do run.
+cleanup_old_coredumps() {
+  if ! has coredumpctl; then
+    log "  coredumpctl não encontrado; nada a limpar."
+    return 0
+  fi
+  local dir="${COREDUMP_DIR:-/var/lib/systemd/coredump}"
+  local keep="${COREDUMP_KEEP_DAYS:-7}"
+  [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=7
+  if [[ ! -d "$dir" ]]; then
+    log "  Diretório de coredumps ${dir} não existe; nada a limpar."
+    return 0
+  fi
+  local before
+  before="$(du -sb "$dir" 2>/dev/null | awk '{print $1}')"
+  local -a victims=()
+  mapfile -t victims < <(coredump_files_to_delete "$dir" "$keep")
+  if (( ${#victims[@]} == 0 )); then
+    log "  Nenhum coredump com mais de ${keep} dias em ${dir}."
+    return 0
+  fi
+  log "  Removendo ${#victims[@]} coredump(s) com mais de ${keep} dias em ${dir}..."
+  if ! run_logged sudo rm -f -- "${victims[@]}"; then
+    STEP_REASON="falha ao remover coredumps antigos em ${dir}"
+    return "$RC_WARN"
+  fi
+  local after freed_mib
+  after="$(du -sb "$dir" 2>/dev/null | awk '{print $1}')"
+  if [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then
+    freed_mib="$(awk -v b="$before" -v a="$after" 'BEGIN { printf "%.1f", (b - a) / 1048576 }')"
+    log "  Coredumps antigos removidos: ${#victims[@]} arquivo(s), liberado ${freed_mib}MiB."
+  else
+    log "  Coredumps antigos removidos: ${#victims[@]} arquivo(s)."
+  fi
+  return 0
+}
+
+
 # Limpa o cache de BUILD do AUR (clones + artefatos de makepkg), que paru/yay
 # acumulam sem limite — facilmente dezenas de GB. Remove pacotes construídos,
 # fontes baixadas e os diretórios src/ e pkg/ do makepkg; preserva o git clone

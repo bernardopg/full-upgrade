@@ -33,6 +33,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
+: "${COREDUMP_KEEP_DAYS:=7}"        # dias de retenção de dumps em /var/lib/systemd/coredump (0/inválido = 7)
 : "${AUTO_FIX_RUST_CVES:=0}"        # 1 = oferece remediar CVEs de toolchain Rust (rustup self update/update + cargo install-update) sob --yes/confirmação; 0 = só reporta
 : "${RUST_CVE_REBUILD_TTL_D:=7}"    # dias antes de repetir um `cargo install --force` que já não corrigiu a CVE
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
@@ -127,6 +128,7 @@ NETWORK_GATE_HOST
 NETWORK_GATE_WAIT_S
 DOCKER_INFO_TIMEOUT_S
 ORPHAN_CLEANUP_MAX_ROUNDS
+COREDUMP_KEEP_DAYS
 AUTO_FIX_RUST_CVES
 RUST_CVE_REBUILD_TTL_D
 AUTO_BTRFS_SCRUB
@@ -279,7 +281,7 @@ load_config() {
   export TIMESHIFT_CLOUD_REPOSITORY TIMESHIFT_CLOUD_PASSWORD_FILE TIMESHIFT_CLOUD_RCLONE_CONFIG
   export TIMESHIFT_CLOUD_EXCLUDE_FILE TIMESHIFT_CLOUD_PROGRESS_INTERVAL
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
-  export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS
+  export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS
   export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
@@ -541,6 +543,7 @@ show_config() {
   _cfg_kv "NETWORK_GATE_WAIT_S" "${NETWORK_GATE_WAIT_S:-20}"
   _cfg_kv "DOCKER_INFO_TIMEOUT_S" "$DOCKER_INFO_TIMEOUT_S"
   _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
+  _cfg_kv "COREDUMP_KEEP_DAYS" "$COREDUMP_KEEP_DAYS"
   _cfg_kv "AUTO_FIX_RUST_CVES" "$AUTO_FIX_RUST_CVES"
   _cfg_kv "RUST_CVE_REBUILD_TTL_D" "$RUST_CVE_REBUILD_TTL_D"
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"

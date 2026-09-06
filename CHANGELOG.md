@@ -6,6 +6,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
+- **Step `Limpar coredumps antigos` (cleanup).** Dumps transitórios acumulavam
+  GB em `/var/lib/systemd/coredump` sem limite e o `todo` do Doctor de
+  recorrência nunca esvaziava o disco. O step novo remove só os dumps mais
+  antigos que `COREDUMP_KEEP_DAYS` (default `7`), com `sudo`, e retorna `ok`
+  em todos os casos não acionáveis (sem `coredumpctl`, sem diretório, nada
+  velho); falha operacional real vira `warn`, nunca `todo`/`fail`. O journal
+  preserva os metadados, então crashes ativos (3+ vezes com ocorrência nas
+  últimas 48 h) continuam `todo` por desenho. Testes em
+  `tests/cleanup_coredump.bats`.
+
 - **Progresso do upload do backup em nuvem.** O envio do snapshot Timeshift leva ~95 min sem
   emitir linha alguma e o run parecia travado. O step agora consome `restic backup --json` e
   emite heartbeats a cada `TIMESHIFT_CLOUD_PROGRESS_INTERVAL` (default `60`): %, GiB

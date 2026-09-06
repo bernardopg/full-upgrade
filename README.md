@@ -330,6 +330,12 @@ Ferramentas ausentes não quebram a execução normal: o step é marcado como
   `pacman -Qdtq` após cada remoção para capturar dependências que só viram
   órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
   (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
+- **Retenção de coredumps:** `Limpar coredumps antigos` remove apenas dumps
+em `/var/lib/systemd/coredump` mais antigos que `COREDUMP_KEEP_DAYS` (default
+`7`), liberando disco sem apagar a auditoria: o Doctor de recorrência lê os
+metadados do journal, então crashes ativos (3+ vezes com ocorrência nas últimas
+48 h) continuam `todo` por desenho — o que some é o acúmulo eterno de dumps
+transitórios, nunca o diagnóstico.
 - **Retenção de snapshots:** `Limpar snapshots full-upgrade antigos` remove
 apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
 `SNAPSHOT_KEEP` mais recentes. A listagem Timeshift usa privilégio administrativo
@@ -525,6 +531,7 @@ Principais chaves:
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
+| `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); o journal preserva os metadados. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um `cargo install --force` cujo rebuild anterior não corrigiu a CVE (memo em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv`); versão nova do crate ou `0` reabrem a tentativa. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |

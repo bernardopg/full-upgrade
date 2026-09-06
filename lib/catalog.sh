@@ -104,6 +104,7 @@ Remover pacotes órfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orph
 Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,repair,sudo|read|30||check_pacnew_files|Lista arquivos pendentes e, com AUTO_MERGE_PACNEW=1, mescla casos seguros fora de doctor/dry-run/no-repair.
 Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
 Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
+Limpar coredumps antigos|cleanup|coredump,systemd,sudo,mutating|mutating|120|coredumpctl|cleanup_old_coredumps|Remove dumps de crash em /var/lib/systemd/coredump mais antigos que COREDUMP_KEEP_DAYS; o journal preserva os metadados para auditoria.
 Limpar logs/relatórios antigos|cleanup|logs,reports,mutating|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
 Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
 Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,read,network|read|180||final_check_managers|Confere se sobrou update pendente nos gerenciadores de linguagem (npm/pnpm global, cargo, gem, flatpak) depois dos steps de update.

@@ -618,6 +618,18 @@ run_all_steps() {
     fi
 
     if (( NO_CLEANUP )); then
+        step_skip "Limpar coredumps antigos" "--no-cleanup"
+    elif has coredumpctl; then
+        if (( SUDO_READY )); then
+            run_step "Limpar coredumps antigos" cleanup_old_coredumps
+        else
+            step_skip "Limpar coredumps antigos" "sudo indisponível"
+        fi
+    else
+        step_skip "Limpar coredumps antigos" "coredumpctl não instalado"
+    fi
+
+    if (( NO_CLEANUP )); then
         step_skip "Limpar logs/relatórios antigos" "--no-cleanup"
     else
         run_step "Limpar logs/relatórios antigos" cleanup_old_reports
