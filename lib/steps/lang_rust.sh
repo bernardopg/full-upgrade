@@ -279,8 +279,14 @@ _rust_rebuild_memo_record() {
   local f cur=""
   f="$(_rust_rebuild_memo_file)"
   [[ -r "$f" ]] && cur="$(cat "$f" 2>/dev/null)"
-  rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)" > "${f}.tmp" 2>/dev/null &&
-    mv -f "${f}.tmp" "$f" 2>/dev/null || rm -f "${f}.tmp" 2>/dev/null
+  # if explícito em vez de A && B || C (SC2015): aqui a semântica é "qualquer
+  # falha no upsert ou no mv descarta o .tmp", e o encadeamento com || esconde
+  # que o rm também roda quando o mv falha após upsert bem-sucedido.
+  if rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)" > "${f}.tmp" 2>/dev/null &&
+    mv -f "${f}.tmp" "$f" 2>/dev/null; then
+    return 0
+  fi
+  rm -f "${f}.tmp" 2>/dev/null
   return 0
 }
 
