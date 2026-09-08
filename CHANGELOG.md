@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.40.0] - 2026-09-08
 ### Corrigido
 
 - **Healthcheck mais legível e robusto.** Plugins do DankMaterialShell agora
