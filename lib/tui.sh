@@ -254,9 +254,11 @@ tui_build_steps() {
     n="${n%"${n##*[![:space:]]}"}"
     [[ -n "$n" ]] && { TUI_SKIP_BASE["$n"]=1; normalized+=("$n"); }
   done
-  local IFS=','
-  TUI_SKIP_CSV_BASE="${normalized[*]}"
-  unset IFS
+  TUI_SKIP_CSV_BASE=""
+  for n in "${normalized[@]}"; do
+    [[ -n "$TUI_SKIP_CSV_BASE" ]] && TUI_SKIP_CSV_BASE+=","
+    TUI_SKIP_CSV_BASE+="$n"
+  done
   while IFS='|' read -r name category tags effect timeout cmd_deps func_name desc; do
     [[ -n "$name" ]] || continue
     # core/final não são configuráveis pelo TUI (sempre rodam por design).
@@ -356,8 +358,12 @@ tui_current_skip_csv() {
   for i in "${!TUI_STEPS_NAME[@]}"; do
     [[ "${TUI_STEPS_VALUE[$i]}" == "skip" ]] && out+=("${TUI_STEPS_NAME[$i]}")
   done
-  local IFS=','
-  printf '%s' "${out[*]}"
+  local csv=""
+  for entry in "${out[@]}"; do
+    [[ -n "$csv" ]] && csv+=","
+    csv+="$entry"
+  done
+  printf '%s' "$csv"
 }
 
 tui_collect_changes() {
