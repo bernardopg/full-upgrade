@@ -28,6 +28,152 @@ Esforço: P/M/G.
 
 ---
 
+## Série R — Experiência de configuração: TUI, healthcheck e help de padrão indústria
+
+Objetivo: transformar a superfície de entrada do full-upgrade em três peças de
+qualidade de produto — (1) um TUI interativo para gerenciar config (steps e
+parâmetros), (2) um comando `--healthcheck` que inventaria o setup da máquina,
+(3) um sistema de ajuda (`--help` + tópicos) no padrão de software de ponta.
+Zero dependências externas novas: TUI em bash puro (ANSI + raw mode),
+healthcheck só com ferramentas que já existem na máquina (degrada com elegância
+quando algo falta).
+
+Ordem de implementação: R1 (help é a documentação dos outros dois) → R3
+(healthcheck) → R2 (TUI, o maior) → R4 (integração + testes).
+
+### R1 — 🔴 M ☑ Help de padrão indústria (`--help` + tópicos)
+
+- Reescrever `usage()` em `lib/cli.sh` com estrutura de seções: SINOPSE,
+  MODOS DE EXECUÇÃO, AÇÕES, FILTROS DE STEPS, SAÍDA E FORMATO, TRAY, STATUS,
+  AMBIENTE — colunas alinhadas com quebra de descrição em hanging indent
+  (reaproveita `ui_wrap_hang`).
+- Cores TTY-aware (respeita `NO_COLOR`): flags em ciano, seções em bold;
+  pipe-friendly quando stdout não é TTY.
+- `--help [TÓPICO]`: tópicos `modes`, `steps`, `config`, `healthcheck`, `tui`,
+  `tray`, `env`. Tópico desconhecido lista os válidos e sai com 2.
+- Compatibilidade: asserts existentes de `tests/cli.bats` sobre `usage()`
+  continuam passando (mesmo vocabulário, layout melhor).
+
+### R2 — 🔴 G ☑ TUI interativo de config (`--config-tui`)
+
+Novo módulo `lib/tui.sh`, bash puro (alt screen + raw mode via `stty`), sem
+`fzf`/`dialog`/`whiptail`.
+
+**Arquitetura (helper reutilizável):**
+
+- `tui_open`/`tui_close` — entra/sai de alt screen (`\033[?1049h`), esconde
+  cursor, raw mode; `trap` garante restauração mesmo com Ctrl-C.
+- `tui_read_key` — decodifica sequências: ↑↓←→, PgUp/PgDn, Home/End, Space,
+  Enter, Esc, Backspace, letras/dígitos; timeout curto no ESC órfão.
+- `tui_draw` — frame completo por tecla: barra de título com abas e contador de
+  mudanças pendentes, janela de itens com scroll, barra de rodapé com hints;
+  limpeza por linha (`\033[K`) sem flicker de clear total.
+- Filtro vivo com `/` (digita e filtra no mesmo loop; Backspace corrige; Esc
+  sai do filtro).
+- Popup de detalhe com `d` (descrição/categoria/efeito do step; tipo/opções do
+  parâmetro).
+
+**Tela 1 — Steps:** catálogo via `step_catalog`, agrupado visualmente por
+categoria; estado por step = `run`/`skip` derivado do valor de `FULL_UPGRADE_SKIP`
+**do arquivo de config** (não do valor mesclado com ambiente — o TUI edita o
+arquivo, nunca o ambiente); Space/t alterna; indicador de efeito
+(read/mutating) colorido.
+
+**Tela 2 — Parâmetros:** catálogo de chaves editáveis com metadados
+(`key|tipo|opções|descrição`) — bools (Space alterna), enums (←→ cicla:
+LANG_OVERRIDE, SNAPSHOT_TOOL, MIRROR_TOOL, canais...), ints e strings/path/list
+(Enter abre prompt inline em modo cooked, validação numérica com rechamada).
+Valor efetivo atual mostrado ao lado; valor alterado marca com `*`.
+
+**Salvar (tecla `s` global):** tela de revisão com diff `chave: antigo → novo`
+(pendentes apenas); confirmação; gravação segura em `~/.config/full-upgrade/config`:
+
+- backup automático `config.bak.<timestamp>` antes de reescrever;
+- upsert linha a linha (substitui `KEY=` existente no lugar, preservando
+  comentários do usuário; chave nova vai para seção gerenciada no fim);
+- `FULL_UPGRADE_SKIP` serializado como CSV com nomes byte-idênticos do catálogo;
+- valores com aspas/`$` escapados corretamente (double-quote com `\`); nomes
+  sempre de chaves do `config_known_keys`;
+- valida `bash -n` do arquivo novo em temp antes do `mv` atômico;
+- sai 0; sair com mudanças sem salvar pede confirmação.
+
+**Guardas:** sem TTY (`[[ -t 0 && -t 1 ]]`) → erro claro no stderr sugerindo
+`--config`/`--config-example` e exit 2; terminal mínimo (20 cols × 10 rows);
+`NO_COLOR`/`NO_UNICODE` respeitados via cores/símbolos de `lib/ui.sh`.
+
+### R3 — 🔴 M ☑ Healthcheck do setup (`--healthcheck`)
+
+Novo módulo `lib/healthcheck.sh`, 100% read-only, sem sudo obrigatório (tenta
+`$PRIV_CMD -n` só onde precisa, degrada para "requer root"). Cada coletor é
+função pura testável; seção falível nunca derruba o relatório.
+
+Seções (nesta ordem):
+
+1. **Sistema** — distro (`/etc/os-release`), kernel em execução (`uname -r`),
+   pacote kernel instalado + flag de reboot pendente, uptime, arquitetura.
+2. **Desktop e sessão** — DE/WM (env + varredura de processos), tipo de sessão
+   (wayland/x11/tty), TTY ativo (`XDG_VTNR` / `/sys/class/tty/tty0/active`),
+   terminal em uso (env `TERM_PROGRAM`/`KITTY_*` + subida da cadeia de pais em
+   `/proc/*/comm` contra lista conhecida), DankMaterialShell: se quickshell/DMS
+   presente, lista plugins de `DMS_PLUGINS_DIR` com estado git.
+3. **Specs** — CPU (modelo, núcleos), RAM/swap (`/proc/meminfo`), GPU
+   (`lspci` VGA/3D, fallback `nvidia-smi`), disco raiz (tamanho, livre, fstype).
+4. **Gerenciadores de pacotes** — pacman, AUR helpers (paru/yay/pikaur),
+   flatpak, snap, npm/pnpm/bun/deno, pip/uv/pipx/poetry, cargo/rustup, gem,
+   go, dotnet, ghcup, arduino-cli — caminho resolvido (`command -v`) + versão
+   (com `timeout` de guarda; versão lenta/ruim não trava).
+5. **Ferramentas do full-upgrade** — timeshift, snapper, restic, rclone, borg,
+   btrfs, smartctl, nvme, fwupdmgr, bootctl, reflector, rate-mirrors,
+   arch-audit, cargo-audit, yad, notify-send, needrestart/checkservices,
+   fastfetch/neofetch — presente/ausente + caminho.
+6. **Timeshift** — se presente: nº de snapshots (parser da saída de
+   `timeshift --list`, tentativa sem sudo e depois `sudo -n`), nome do mais
+   recente, destino; indisponível sem root diz exatamente isso.
+7. **Backup em nuvem** — primeiro a config do full-upgrade
+   (`TIMESHIFT_CLOUD_BACKUP=1` + restic/rclone + repositório = EM USO);
+   depois detecção genérica de ferramentas de backup instaladas (restic,
+   borg, kopia, deja-dup, pika-backup, vorta, syncthing, rclone remotes).
+8. **Fetch** — saída de `fastfetch` se presente, senão `neofetch`; nenhum →
+   mini-fetch sintetizado com os dados já coletados.
+9. **Resumo final** — caixa com os fatos-chave (distro, kernel+reboot, DE,
+   terminal, TTY, CPU/RAM, disco, nº de gerenciadores, nº de tools, snapshots
+   timeshift, backup em nuvem) e veredito do setup (críticos presentes?).
+
+**Flags:** `--healthcheck` sai antes do fluxo normal (exit 0);
+`--healthcheck --json` emite objeto único estruturado (validado no teste com
+`assert_json`); exclusão mútua com `--audit`/`--report`/`--history`/
+`--config-tui`.
+
+### R4 — 🟡 M ☑ Integração, testes e docs
+
+- `lib/globals.sh`: flags novas (`DO_HEALTHCHECK`, `DO_CONFIG_TUI`,
+  `HELP_TOPIC`) com defaults.
+- `lib/cli.sh`: parse das flags novas, validação de exclusão mútua, early
+  exits em `apply_mode_and_early_exits` (antes de `--audit`); help dos tópicos
+  novos.
+- `full-upgrade.sh` e `build.sh` (ORDER): carregar `lib/healthcheck.sh` e
+  `lib/tui.sh`.
+- Testes: `tests/help.bats` (seções, tópicos, exit 2 em tópico inválido),
+  `tests/healthcheck.bats` (coletores puros com fixtures, parser de
+  `timeshift --list`, JSON válido, resumo contém campos, funciona sem TTY),
+  `tests/tui.bats` (writer/upsert/backup/escape de aspas, serialização de
+  skip CSV, catálogo de parâmetros com chaves conhecidas, recusa sem TTY,
+  validação numérica).
+- `CHANGELOG.md` (Unreleased) + seção do README para os três comandos.
+
+**Concluído (2026-09-07):** os 4 itens implementados e testados — 1356 testes
+bats verdes (77 novos: help, healthcheck, tui), `bash -n` + `shellcheck -S
+warning -x` limpos em todos os módulos tocados, standalone buildado e
+verificado. Aprendizados registrados: (1) `config.sh` redefine
+`FU_CONFIG_DIR/FU_CONFIG_FILE` no source — testes devem apontar o config de
+teste DEPOIS do source; (2) o save do TUI nasce o work file de uma CÓPIA do
+config atual (um work vazio substituiria o arquivo inteiro — pego no teste
+antes de qualquer dano em config real; backup automático permitiu auditoria);
+(3) `uname -r` com sabor (`-lts`) nunca casa com a versão do pacote sem
+normalização de pontos/traços.
+
+---
+
 ## Série Q — Ampliações pós-v3.20.0
 
 Objetivo: fechar lacunas clássicas de manutenção Arch que nenhum step cobria.

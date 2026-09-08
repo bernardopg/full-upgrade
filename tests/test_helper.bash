@@ -8,9 +8,9 @@ FU_TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export FU_ROOT="$FU_TEST_ROOT"
 export FU_LIB="${FU_TEST_ROOT}/lib"
 
-# Carrega apenas as libs de lógica pura, na ordem mínima de dependência:
-#   globals (constantes/estado) -> ui (cores usadas por log) -> core -> catalog.
-# NÃO carrega main/cli/json/sudo nem steps/* — esses têm efeitos colaterais
+# Carrega libs compartilhadas, na ordem mínima do entrypoint:
+#   globals -> ui -> core -> json -> catalog.
+# NÃO carrega main/cli/sudo nem steps/* — esses podem ter efeitos colaterais
 # (sudo, fork, I/O) que não queremos num teste unitário.
 load_libs() {
   # Neutraliza I/O antes de sourcing (log/run_logged escrevem em $LOG_FILE).
@@ -42,6 +42,17 @@ load_libs() {
   # Reafirma após globals.sh (que pode redefinir).
   LOG_FILE="/dev/null"
   QUIET=1
+}
+
+# Carregador específico para testes do healthcheck. Centraliza a ordem real de
+# dependências (config antes do módulo) e evita que cada arquivo .bats replique
+# sources que acabam divergindo do entrypoint.
+load_healthcheck_libs() {
+  load_libs
+  # shellcheck source=/dev/null
+  source "${FU_LIB}/config.sh"
+  # shellcheck source=/dev/null
+  source "${FU_LIB}/healthcheck.sh"
 }
 
 # J2 — valida que $1 é JSON e que a expressão Python $2 (com o objeto em `d`)

@@ -236,6 +236,55 @@ config_warn_typos() {
   return 0
 }
 
+# R2/R3 — valor de UMA chave conforme está no ARQUIVO de config (sem mesclar
+# com ambiente nem aplicar defaults). Lê apenas atribuições simples; nunca
+# executa o arquivo. Sem arquivo legível ou chave ausente => stdout vazio.
+# Usado pelo healthcheck (TIMESHIFT_CLOUD_BACKUP) e pelo TUI (skip-list base).
+config_file_value() {
+  local key="$1" raw value i ch next out="" clean="" quote="" escaped=0 prev=""
+  [[ -r "$FU_CONFIG_FILE" ]] || return 1
+  raw="$(awk -v key="$key" '$0 ~ "^[[:space:]]*(export[[:space:]]+)?" key "[[:space:]]*=" { sub(/^[[:space:]]*(export[[:space:]]+)?[^=]*=[[:space:]]*/, ""); value=$0 } END { print value }' "$FU_CONFIG_FILE")"
+  [[ -n "$raw" ]] || return 0
+  for ((i=0; i<${#raw}; i++)); do
+    ch="${raw:i:1}"
+    if (( escaped )); then
+      clean+="$ch"; escaped=0
+    elif [[ "$ch" == "\\" && "$quote" != "'" ]]; then
+      clean+="$ch"; escaped=1
+    elif [[ -n "$quote" ]]; then
+      clean+="$ch"
+      [[ "$ch" == "$quote" ]] && quote=""
+    elif [[ "$ch" == '"' || "$ch" == "'" ]]; then
+      clean+="$ch"; quote="$ch"
+    elif [[ "$ch" == "#" && -z "$quote" && ( -z "$prev" || "$prev" == [[:space:]] ) ]]; then
+      break
+    else
+      clean+="$ch"
+    fi
+    prev="$ch"
+  done
+  clean="${clean#"${clean%%[![:space:]]*}"}"
+  clean="${clean%"${clean##*[![:space:]]}"}"
+  value="$clean"
+  if [[ "$value" == \"*\" ]]; then
+    value="${value:1:${#value}-2}"
+    for ((i=0; i<${#value}; i++)); do
+      ch="${value:i:1}"
+      if [[ "$ch" == "\\" && $((i + 1)) -lt ${#value} ]]; then
+        ((i++)); next="${value:i:1}"; out+="$next"
+      else
+        out+="$ch"
+      fi
+    done
+    value="$out"
+  elif [[ "$value" == \'*\' ]]; then
+    value="${value:1:${#value}-2}"
+  else
+    value="${value%%[[:space:]]*}"
+  fi
+  printf '%s' "$value"
+}
+
 load_config() {
   # O config é bash sourceado *depois* do ambiente, então uma atribuição direta
   # (FULL_UPGRADE_SKIP="a,b" no arquivo) apagava a lista vinda do ambiente — e a

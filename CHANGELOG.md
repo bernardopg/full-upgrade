@@ -3,6 +3,85 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Healthcheck mais legível e robusto.** Plugins do DankMaterialShell agora
+  aparecem resumidos por estado, com destaque apenas para árvores modificadas;
+  o JSON preserva o inventário completo, incluindo a nota do último commit. A
+  caixa de resumo usa a régua Unicode correta e a saída pretty permanece UTF-8
+  válida, inclusive com Unicode habilitado.
+
+- **Edição e salvamento do TUI preservam a sessão inteira.** Alterações feitas
+  em **Steps** e **Parâmetros** agora coexistem ao navegar entre telas e são
+  gravadas juntas. Todo acionamento de salvar passa obrigatoriamente pela
+  revisão com confirmação; a revisão é paginada para terminais baixos. O upsert
+  também consolida atribuições duplicadas para que o valor confirmado seja o
+  valor efetivo após carregar o config. As listas truncam colunas de forma
+  responsiva em terminais estreitos, sem estourar a largura.
+
+- **Navegação por setas e ENTER do TUI (`--config-tui`) não funcionavam.**
+  Quatro defeitos somados: (1) o decodificador de teclado normalizava os bytes
+  pós-ESC (`[A` virava `_A`) mas os padrões do `case` procuravam a forma
+  original — toda seta caía no ramo default e virava `esc`; (2) PgUp/PgDn são
+  sequências de 4 bytes (`ESC [ 5 ~`) e o 3º byte (`~`) ficava órfão no buffer,
+  dessincronizando as teclas seguintes; (3) o menu navegava sobre a visão
+  filtrada (vazia nele), então `↓` nunca saía do primeiro item; (4) **o ENTER
+  não era lido**: `read -n 1` trata CR **e** LF como delimitadores quando a
+  entrada é um terminal e devolve a variável VAZIA — a tecla virava `char:`
+  (nada) silenciosamente; setas funcionavam porque seus bytes não são CR/LF.
+  Correções: decodificação reescrita como função pura (`tui_decode_csi`, aceita
+  formas CSI e SS3) + leitura do 3º byte quando a sequência termina em dígito;
+  navegação usa o total de itens do modo atual (`tui_item_count`); leitura de
+  teclas trocada para `-N` (exato, sem delimitador) em `tui_read_key` e
+  `tui_confirm_discard`. Também trocados pós-incrementos aritméticos
+  (`(( x++ ))` falha sob `errexit` quando `x=0`) por pré-incrementos.
+  Validação em pty real (driver Python): menu → Enter abre Steps; ↓↓ → Enter
+  abre Parâmetros; Enter dentro das listas alterna step/bool; LF (Ctrl-J)
+  também é Enter. 13 testes novos de teclado em `tests/tui.bats` + guarda que
+  falha se o `read` voltar a usar `-n`.
+
+### Adicionado
+
+- **TUI interativo de configuração (`--config-tui`).** Gerenciar o full-upgrade
+  deixou de ser editar o config à mão: TUI em bash puro (ANSI + raw mode, zero
+  dependências) com duas telas de edição — **Steps** (todo o catálogo exceto
+  core/final, com estado `run`/`skip` derivado do arquivo de config e efeito
+  read/mutating visível) e **Parâmetros** (33 chaves com tipo: bool alterna com
+  Space, enum cicla com ←→, int/string editam com prompt inline validado).
+  Filtro vivo com `/`, popup de detalhe com `d`, scroll, contador de mudanças
+  pendentes na barra de título. O salvamento pede revisão com diff
+  (`antigo → novo`) e grava com segurança: backup `config.bak.<timestamp>`
+  (poda além dos 5), upsert linha a linha que preserva comentários do usuário,
+  escape correto de aspas/`$`, validação `bash -n` antes do `mv` atômico e
+  terminais restaurados em qualquer saída (trap). Sem TTY, recusa com
+  alternativas (`--config`/`--config-example`) em vez de quebrar. Módulo novo
+  `lib/tui.sh`; teclas em `--help tui`; testes em `tests/tui.bats`.
+
+- **Healthcheck do setup (`--healthcheck`).** Inventário 100% read-only da
+  máquina em 9 seções, com resumo em caixa e veredito no fim: distro/kernel
+  (pacote instalado e reboot pendente — comparação normalizada que reconhece
+  sabores como `6.18.49-3-lts` ≡ pacote `6.18.49-3`), uptime, DE/WM por
+  processo, tipo de sessão, TTY e terminal (env + cadeia de pais em `/proc`),
+  plugins do DankMaterialShell quando o DMS está presente (estado git de cada
+  um), specs (CPU/RAM/swap/GPU/disco com fstype), gerenciadores de pacotes
+  presentes com caminho e versão (pacman, AUR helpers, flatpak, snap,
+  npm/pnpm/bun/deno, pip/uv/pipx/poetry, cargo/rustup, gem, go, dotnet,
+  ghcup, arduino-cli), ferramentas do full-upgrade, inventário do Timeshift
+  (nº de snapshots e mais recente; tenta `sudo -n` e degrada com mensagem
+  clara), backup em nuvem (config do full-upgrade primeiro, depois remotes
+  rclone e ferramentas instaladas) e fetch via fastfetch/neofetch (com fetch
+  sintetizado quando nenhum existe). `--healthcheck --json` emite tudo em um
+  objeto JSON válido. Coletores são funções puras; seção falível nunca derruba
+  o relatório. Módulo novo `lib/healthcheck.sh`; testes em
+  `tests/healthcheck.bats`.
+
+- **Sistema de ajuda de padrão indústria (`--help [TÓPICO]`).** O `--help`
+  virou referência organizada em seções (Sinopse, Ajuda, Modos, Filtros de
+  steps, Configuração, Diagnóstico, Saída, Systray, Versão, Status, Ambiente)
+  com colunas alinhadas, quebra de descrição em hanging indent e cores
+  TTY-aware (respeita `NO_COLOR`). `--help TÓPICO` abre ajuda específica para
+  `modes`, `steps`, `config`, `healthcheck`, `tui`, `tray` e `env`; tópico
+  desconhecido lista os válidos e sai com 2. Testes em `tests/help.bats`.
 
 ## [3.39.0] - 2026-09-06
 ### Adicionado

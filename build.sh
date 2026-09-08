@@ -31,7 +31,8 @@ trap 'rm -f -- "$TMP_OUT"' EXIT
 # Ordem de dependência (igual ao entrypoint).
 ORDER=(
   lib/globals.sh lib/ui.sh lib/core.sh lib/json.sh lib/sudo.sh
-  lib/config.sh lib/catalog.sh lib/cli.sh lib/report.sh lib/history.sh lib/notify.sh lib/tray.sh
+  lib/config.sh lib/catalog.sh lib/cli.sh lib/report.sh lib/history.sh lib/notify.sh
+  lib/healthcheck.sh lib/tui.sh lib/tray.sh
   lib/steps/pacman.sh lib/steps/news.sh lib/steps/repair.sh lib/steps/containers.sh
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh lib/steps/ide.sh

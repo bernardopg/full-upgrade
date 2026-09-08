@@ -66,6 +66,12 @@ source "${FU_LIB}/report.sh"
 source "${FU_LIB}/history.sh"
 # shellcheck source=lib/notify.sh
 source "${FU_LIB}/notify.sh"
+# R3/R2 — healthcheck (inventário de setup) e TUI de config. Só funções;
+# precisam de config/catalog/ui/core/json já carregados.
+# shellcheck source=lib/healthcheck.sh
+source "${FU_LIB}/healthcheck.sh"
+# shellcheck source=lib/tui.sh
+source "${FU_LIB}/tui.sh"
 # shellcheck source=lib/tray.sh
 source "${FU_LIB}/tray.sh"
 
@@ -82,8 +88,8 @@ unset _m
 source "${FU_LIB}/main.sh"
 
 # ── Fluxo principal ─────────────────────────────────────────────────────────────
-load_config                       # lib/config.sh — carrega ~/.config/full-upgrade/config
 parse_args "$@"                   # lib/cli.sh
+[[ -n "${HELP_TOPIC:-}" || ${DO_HEALTHCHECK:-0} -eq 1 ]] || load_config
 apply_mode_and_early_exits        # lib/cli.sh — resolve --list-steps/--explain-step/--mode
 
 # Integrações empacotadas (steps.d/ ao lado do projeto) são SEMPRE carregadas —

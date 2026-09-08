@@ -41,6 +41,9 @@ DO_AUDIT=0           # --audit: auditoria de segurança consolidada (read-only)
 DO_RESUME=0          # --resume: re-roda só os steps não-ok do último run
 RESUME_STEPS=""      # preenchido por --resume: nomes dos steps retomados
 DO_DOCTOR_ACK_JOURNAL=0  # --doctor-ack-journal: grava assinaturas "unknown" do journal como ruído local
+DO_HEALTHCHECK=0     # --healthcheck: inventário read-only do setup da máquina e sair
+DO_CONFIG_TUI=0      # --config-tui: TUI interativo de configuração e sair
+HELP_TOPIC=""        # --help TÓPICO: tópico de ajuda a exibir (vazio = geral)
 
 # ── Systray daemon (--tray) ──
 TRAY_MODE=""         # start|enable|disable|status|check (via --tray [--subcmd])

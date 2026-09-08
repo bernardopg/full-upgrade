@@ -150,6 +150,11 @@ full-upgrade --dry-run
 full-upgrade --list-steps
 full-upgrade --explain-step "Doctor: saúde de rede"
 full-upgrade --config
+full-upgrade --config-tui                 # TUI interativo: ativa steps, edita parâmetros
+full-upgrade --healthcheck                # inventário read-only do setup da máquina
+full-upgrade --healthcheck --json         # mesma coleta em JSON estruturado
+full-upgrade --help config                # ajuda por tópico: modes, steps, config,
+                                          # healthcheck, tui, tray, env
 full-upgrade --audit                       # auditoria de segurança consolidada (read-only)
 full-upgrade --report relatorio.md         # grava relatório do último run em Markdown
 full-upgrade --report --json               # ou em JSON estruturado
@@ -177,6 +182,9 @@ Comandos úteis no dia a dia:
 | `full-upgrade --history` | Ver histórico/tendência dos runs gravados (ou `--history --json`). |
 | `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. Também aponta chaves do config com cara de erro de digitação (typo-guard) e sugere a correta. |
 | `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
+| `full-upgrade --config-tui` | Abrir o TUI interativo de configuração: ativa/desativa steps e edita parâmetros com gravação segura (backup automático, revisão com diff). Teclas em `--help tui`. |
+| `full-upgrade --healthcheck` | Inventário read-only do setup da máquina: distro, kernel (com reboot pendente), DE/terminal/TTY, specs, gerenciadores de pacotes com versão, ferramentas, snapshots Timeshift, backup em nuvem em uso, fetch e resumo final. Plugins DMS são resumidos por estado e os modificados ganham destaque; `--json` preserva o inventário detalhado. |
+| `full-upgrade --help [TÓPICO]` | Ajuda organizada por tópico: `modes`, `steps`, `config`, `healthcheck`, `tui`, `tray`, `env`. |
 | `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
 | `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
 | `full-upgrade --tray` | Iniciar o systray daemon: ícone multi-estado, menu e notificações. Em Wayland usa AppIndicator; em X11 usa `yad --notification`. |
@@ -480,6 +488,24 @@ jq -r 'select(.event == "step" and .status != "ok") | [.status, .step, .reason] 
 ## Configuração
 
 Funciona sem configuração. Para personalizar:
+
+### Pelo TUI interativo (recomendado)
+
+```bash
+full-upgrade --config-tui
+```
+
+TUI em bash puro, sem dependências: ative/desative steps do catálogo, edite
+parâmetros (bools, enums, números e paths) com filtro vivo e popup de detalhe.
+As alterações de **Steps** e **Parâmetros** permanecem juntas durante toda a
+sessão, mesmo ao trocar de tela. Todo caminho de salvamento abre a revisão com
+diff antes da confirmação; a revisão é paginada para caber em terminais baixos.
+A gravação consolida chaves duplicadas, faz backup automático do config anterior
+(últimos 5 em `config.bak.<timestamp>`) e preserva comentários. O TUI grava
+sempre no arquivo de config — skips vindos do ambiente não aparecem nele.
+Teclas completas em `full-upgrade --help tui`.
+
+### Manual
 
 ```bash
 mkdir -p ~/.config/full-upgrade
