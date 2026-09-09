@@ -31,6 +31,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 # Doctor: limiares de saúde
 : "${BTRFS_SCRUB_MAX_DAYS:=30}"     # alerta se o último scrub btrfs em / for mais antigo que isso
 : "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
+: "${BOOT_LOADER_WARN_S:=10}"       # alerta se o segmento loader (menu GRUB/sd-boot) exceder N segundos
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 : "${COREDUMP_KEEP_DAYS:=7}"        # dias de retenção de dumps em /var/lib/systemd/coredump (0/inválido = 7)
@@ -123,6 +124,7 @@ BACKUP_KEEP
 BACKUP_PATHS
 BTRFS_SCRUB_MAX_DAYS
 BOOT_TIME_WARN_S
+BOOT_LOADER_WARN_S
 NETWORK_GATE
 NETWORK_GATE_HOST
 NETWORK_GATE_WAIT_S

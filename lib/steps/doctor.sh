@@ -517,10 +517,10 @@ doctor_journal_errors() {
     for _h in "${!_hints[@]}"; do log "    • ${_h}"; done
   fi
 
-  log "  Últimas 80 linhas brutas (pós-filtro) gravadas no log para auditoria."
+  log "  Erros filtrados agrupados por assinatura gravados no log para auditoria (1 linha por assinatura, com contagem; sem o dump bruto repetitivo)."
   {
-    printf '\n--- journalctl -p 3 -b últimas 80 linhas filtradas ---\n'
-    printf '%s\n' "$filtered" | tail -n 80
+    printf '\n--- journalctl -p 3 -b erros filtrados, agrupados por assinatura ---\n'
+    printf '%s\n' "$filtered" | journal_dump_dedupe
   } >> "$LOG_FILE"
 
   # O inventário acima cobre o boot inteiro para auditoria, porém um erro já
@@ -867,6 +867,23 @@ journal_strip_prefix() {
 # Saída: "<contagem> <assinatura>" por linha (formato de `uniq -c`).
 journal_group_signatures() {
   sort | uniq -c | sort -nr | head -n 20
+}
+
+# Puro/testável: deduplica o dump de auditoria do journal normalizando dígitos
+# (PIDs, contadores) para "N" — um crash loop com PIDs distintos (ex.: ffmpeg
+# caindo 80x) colapsa em UMA assinatura com a contagem total, em vez de
+# mascarar assinaturas diferentes no meio de linhas quase idênticas. Saída:
+# "[ N ]x assinatura-normalizada", na ordem da primeira ocorrência.
+journal_dump_dedupe() {
+  awk '
+    {
+      sig = $0
+      gsub(/[0-9]+/, "N", sig)
+      count[sig]++
+      if (!(sig in seen)) { order[++n] = sig; seen[sig] = 1 }
+    }
+    END { for (i = 1; i <= n; i++) printf "[ %d ]x %s\n", count[order[i]], order[i] }
+  '
 }
 
 # Escapa uma assinatura de journal (texto literal) para uso como padrão ERE
@@ -2425,7 +2442,8 @@ autofix_btrfs_scrub() {
 
 
 # F4 — tempo de boot: total via systemd-analyze + piores units (blame).
-# RC_WARN se o tempo total exceder BOOT_TIME_WARN_S.
+# RC_WARN se o tempo total exceder BOOT_TIME_WARN_S ou se o segmento loader
+# (menu do bootloader) exceder BOOT_LOADER_WARN_S.
 doctor_boot_time() {
   if ! has systemd-analyze; then
     log "  systemd-analyze não disponível; pulando."
@@ -2453,6 +2471,13 @@ doctor_boot_time() {
   total_s="$(systemd_time_to_seconds "$total_str")"
   warn_s="${BOOT_TIME_WARN_S:-60}"
 
+  # Segmento loader = menu/tempo do bootloader (GRUB_TIMEOUT, sd-boot, UEFI).
+  # Lento aí é tempo parado antes de qualquer progresso visível — diferente de
+  # units lentas no userspace. Limite próprio (BOOT_LOADER_WARN_S).
+  local loader_warn_s="${BOOT_LOADER_WARN_S:-10}"
+  local loader_s
+  loader_s="$(systemd_time_segment_seconds "$time_out" loader)"
+
   # Top 5 piores units (blame).
   if has systemd-analyze; then
     local blame
@@ -2463,14 +2488,35 @@ doctor_boot_time() {
     fi
   fi
 
+  local -a reasons=()
   if [[ "$total_s" =~ ^[0-9]+$ ]] && (( total_s > warn_s )); then
-    log "  ${C_YELLOW}Boot levou ~${total_s}s (limite ${warn_s}s) — investigue as units acima.${C_RESET}"
-    STEP_REASON="boot ~${total_s}s acima do limite (${warn_s}s)"
+    reasons+=("boot ~${total_s}s acima do limite (${warn_s}s)")
+  fi
+  if [[ -n "$loader_s" ]] && awk -v a="$loader_s" -v b="$loader_warn_s" 'BEGIN { exit !(a + 0 > b + 0) }'; then
+    log "  ${C_YELLOW}Segmento loader (menu do bootloader) levou ~${loader_s}s (limite ${loader_warn_s}s) — verifique GRUB_TIMEOUT (/etc/default/grub) ou o timeout do bootloader.${C_RESET}"
+    reasons+=("loader ~${loader_s}s acima do limite (${loader_warn_s}s)")
+  fi
+  if (( ${#reasons[@]} > 0 )); then
+    local reason_line
+    for reason_line in "${reasons[@]}"; do
+      log "  ${C_YELLOW}${reason_line}.${C_RESET}"
+    done
+    STEP_REASON="${reasons[*]}"
     return "$RC_WARN"
   fi
 
-  log "  Tempo de boot dentro do limite (~${total_s}s ≤ ${warn_s}s)."
+  log "  Tempo de boot dentro do limite (~${total_s}s ≤ ${warn_s}s; loader ~${loader_s:-n/d}s ≤ ${loader_warn_s}s)."
   return 0
+}
+
+# Puro/testável: extrai da saída de `systemd-analyze time` os segundos de um
+# segmento nomeado (firmware|loader|kernel|userspace), como "16.287s (loader)".
+# Imprime o valor float cru (sem arredondar); vazio se o segmento não existir
+# na linha (ex.: firmware costuma estar ausente em VMs).
+systemd_time_segment_seconds() {
+  local line="$1" segment="$2" raw
+  raw="$(sed -nE "s/.*[^0-9.]([0-9]+(\\.[0-9]+)?)s[[:space:]]*\\(${segment}\\).*/\\1/p" <<< "$line" | head -n 1)"
+  printf '%s' "$raw"
 }
 
 # Lista os mountpoints cujas opções trazem o token `discard` (`discard` ou

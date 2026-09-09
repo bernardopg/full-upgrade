@@ -687,6 +687,19 @@ _manual_apps_has_step() {
   esac
 }
 
+# Puro/testável: a partir de um item de backup no formato "nome  (dir)" (dois
+# espaços como separador, mesmo formato de backup_items), devolve a sugestão
+# de remoção com o caminho completo. Somente sugestão — o step nunca remove
+# por conta própria (o 'nome-original' pode ser rollback intencional).
+backup_removal_hint() {
+  local item="$1" name dir
+  name="${item%%  *}"
+  dir="${item##*  }"
+  dir="${dir#(}"
+  dir="${dir%)}"
+  printf '%s' "se obsoleto: rm '${dir%/}/${name}' (confira antes com 'file')"
+}
+
 _manual_apps_kind() {
   local name="$1"
   [[ -n "$name" ]] || { printf 'ignored'; return 0; }
@@ -781,7 +794,10 @@ doctor_manual_apps() {
   fi
   if (( backups > 0 )); then
     log "  Backups/remanescentes detectados (${backups}) foram excluídos da contagem de candidatos; revise/remova manualmente quando tiver certeza."
-    for u in "${backup_items[@]}"; do log_raw "manual-app-backup: ${u}"; done
+    for u in "${backup_items[@]}"; do
+      log_raw "manual-app-backup: ${u}"
+      log "    ↳ $(backup_removal_hint "${u}")"
+    done
   fi
   if (( auxiliary > 0 )); then
     log "  Binários auxiliares conhecidos (${auxiliary}) foram excluídos da contagem de candidatos."

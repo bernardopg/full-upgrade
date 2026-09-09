@@ -3,6 +3,15 @@
 # shellcheck shell=bash
 
 run_all_steps() {
+    # ── Higiene do config: entradas órfãs em FULL_UPGRADE_SKIP ──────────────────
+    # Config renomeado/removido do catálogo silenciosamente deixa de pular o que
+    # o usuário esperava. Aviso no preflight (não bloqueia).
+    local -a _unknown_skips=()
+    mapfile -t _unknown_skips < <(step_catalog | awk -F'|' '/^[^#]/ && NF > 1 { print $1 }' | skip_list_unknown_entries)
+    if (( ${#_unknown_skips[@]} > 0 )); then
+        log "  ${C_YELLOW}Config: ${#_unknown_skips[@]} entrada(s) de FULL_UPGRADE_SKIP não correspondem a nenhum step: ${_unknown_skips[*]} (renomeadas/removidas? confira --list-steps).${C_RESET}"
+    fi
+
     # ── Lock de execução ────────────────────────────────────────────────────────────
     
     run_step "Adquirir lock de execução" acquire_run_lock
