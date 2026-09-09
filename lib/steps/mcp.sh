@@ -65,6 +65,25 @@ if isinstance(servers, dict):
 ' "$f" 2>/dev/null
 }
 
+# Puro/testável: dicas de remediação para "TOML inválido" no config.toml do
+# Codex — quando o TOML inteiro falha o parse, TODOS os mcp_servers do Codex
+# somem do inventário, não apenas um. Recebe backup_exists (1/0: existe
+# ~/.codex/config.toml.headroom-backup?) e has_headroom (1/0). Uma dica por
+# linha, sem segredos nem valores de config.
+codex_toml_remediation_hints() {
+  local backup_exists="${1:-0}" has_headroom="${2:-0}"
+  printf '%s\n' "config.toml inválido derruba o parse de TODOS os mcp_servers do Codex — procure tabelas duplicadas ([model_providers.<nome>], [mcp_servers.<nome>]); costuma ser resíduo de headroom init/wrap."
+  if [[ "$has_headroom" == "1" ]]; then
+    if [[ "$backup_exists" == "1" ]]; then
+      printf '%s\n' "Restaure o estado pré-wrap: cp ~/.codex/config.toml.headroom-backup ~/.codex/config.toml; depois rode 'headroom init codex'."
+    else
+      printf '%s\n' "Com headroom instalado, 'headroom unwrap codex' remove os blocos gerenciados; remova a duplicata restante e rode 'headroom init codex' de novo."
+    fi
+  else
+    printf '%s\n' "Compare com um backup anterior do config.toml e remova a tabela duplicada."
+  fi
+}
+
 # Extrai nome, runtime e problemas acionáveis do config TOML do Codex sem
 # imprimir valores de env/headers. Emite nome<TAB>detalhe<TAB>problema.
 parse_mcp_codex_entries() {
@@ -314,6 +333,16 @@ doctor_mcp_servers() {
     for ikey in $(printf '%s\n' "${!issues[@]}" | sort); do
       log "    • ${ikey}: ${issues[$ikey]}"
     done
+    if [[ "${issues[codex]:-}" == "TOML inválido"* ]]; then
+      local _backup_exists=0 _has_headroom=0
+      [[ -f "${HOME}/.codex/config.toml.headroom-backup" ]] && _backup_exists=1
+      has headroom && _has_headroom=1
+      log "  Remediação (codex):"
+      local _hint_line
+      while IFS= read -r _hint_line; do
+        log "    • ${_hint_line}"
+      done < <(codex_toml_remediation_hints "$_backup_exists" "$_has_headroom")
+    fi
     STEP_REASON="${#issues[@]} problema(s) de configuração MCP"
     return "$RC_WARN"
   fi

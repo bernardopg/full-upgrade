@@ -877,6 +877,28 @@ _step_skip_requested() {
   return 1
 }
 
+# Puro/testável: entradas de FULL_UPGRADE_SKIP que não correspondem a nenhum
+# nome de step do catálogo. Recebe os nomes válidos pela stdin (um por linha)
+# e imprime as entradas órfãs (uma por linha, já normalizadas de espaços).
+# Motivo: config renomeado/removido no catálogo silenciosamente deixa de pular
+# o que o usuário esperava — o aviso de preflight pega isso cedo.
+skip_list_unknown_entries() {
+  local -A known=()
+  local s item
+  while IFS= read -r s; do
+    [[ -n "$s" ]] && known["$s"]=1
+  done
+  [[ -n "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]] || return 0
+  local -a items=()
+  IFS=',' read -ra items <<< "$FULL_UPGRADE_SKIP"
+  for item in "${items[@]}"; do
+    item="${item#"${item%%[![:space:]]*}"}"
+    item="${item%"${item##*[![:space:]]}"}"
+    [[ -n "$item" ]] || continue
+    [[ -n "${known[$item]:-}" ]] || printf '%s\n' "$item"
+  done
+}
+
 # IDs estáveis para integrações opcionais. Ao contrário de FULL_UPGRADE_SKIP,
 # não dependem do texto apresentado ao usuário e sobrevivem a traduções/renomes.
 integration_disabled() {

@@ -159,6 +159,46 @@ _aur_syu_with_retry_and_fallback() {
   return "$rc"
 }
 
+# Puro/testável: deriva nome(s) de processo candidato(s) para um pacote —
+# nome do pacote + base sem sufixos comuns de empacotamento (-git, -svn,
+# -appimage, -bin; nessa ordem, para casar foo-bin-git → foo). O binário
+# instalado normalmente se chama como a base do pacote.
+pkg_process_names() {
+  local pkg="$1" base
+  base="$pkg"
+  base="${base%-git}"
+  base="${base%-svn}"
+  base="${base%-appimage}"
+  base="${base%-bin}"
+  printf '%s\n%s\n' "$pkg" "$base" | sort -u
+}
+
+# Aviso não-bloqueante: entre os pacotes pendentes (argumentos), quais têm um
+# processo homônimo em execução — o binário antigo segue em memória até o app
+# reiniciar (ex.: app Electron de pacote -bin aberto durante o upgrade).
+# Puro no processamento; pgrep serve só de probe de existência (stubável nos
+# testes via PATH).
+warn_running_binaries_for_packages() {
+  (( $# > 0 )) || return 0
+  local pkg pname
+  local -A seen=()
+  local -a hits=()
+  for pkg in "$@"; do
+    while IFS= read -r pname; do
+      [[ -n "$pname" ]] || continue
+      [[ -n "${seen[$pname]:-}" ]] && continue
+      if pgrep -x "$pname" >/dev/null 2>&1; then
+        seen["$pname"]=1
+        hits+=("${pname} (pkg ${pkg})")
+      fi
+    done < <(pkg_process_names "$pkg")
+  done
+  if (( ${#hits[@]} > 0 )); then
+    log "  ${C_YELLOW}Nota: ${#hits[@]} processo(s) em execução serão substituídos pelo update (reinicie-os depois): ${hits[*]}${C_RESET}"
+  fi
+  return 0
+}
+
 update_system_aur() {
   local -a ignore_args=()
   mapfile -t ignore_args < <(aur_ignore_args)
@@ -166,6 +206,12 @@ update_system_aur() {
   if (( ${#ignore_args[@]} > 0 )); then
     log "  Ignorando no update automático: ${FULL_UPGRADE_AUR_IGNORE}"
   fi
+
+  # Nota informativa (não bloqueante): pacotes pendentes cujo processo
+  # homônimo está rodando serão substituídos no disco durante o update.
+  local -a _pending_pkgs=()
+  mapfile -t _pending_pkgs < <(pacman -Quq 2>/dev/null || true)
+  warn_running_binaries_for_packages "${_pending_pkgs[@]}"
 
   repair_known_pacman_conflicts_before_update || return 1
 

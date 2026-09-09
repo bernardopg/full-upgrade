@@ -57,6 +57,18 @@ update_fwupd() {
 }
 
 
+# Puro/testável: motivo de skip do update_bootctl quando systemd-boot não está
+# instalado no ESP. Se um grub.cfg foi encontrado, o bootloader real é GRUB —
+# mensagem explícita de "não aplicável" em vez de um "não instalado" genérico
+# que sugere problema no ESP.
+bootloader_skip_hint() {
+  if [[ "${1:-}" == "1" ]]; then
+    printf '%s' "bootloader GRUB detectado — step não aplicável (systemd-boot não instalado no ESP)"
+  else
+    printf '%s' "systemd-boot não instalado no ESP; pulando"
+  fi
+}
+
 update_bootctl() {
   if ! has bootctl; then
     log "  bootctl não encontrado."
@@ -64,7 +76,9 @@ update_bootctl() {
   fi
 
   if ! sudo bootctl is-installed >/dev/null 2>&1; then
-    log "  systemd-boot não instalado no ESP; pulando."
+    local grub_found=0
+    [[ -r /boot/grub/grub.cfg || -r /boot/grub2/grub.cfg || -d /boot/grub ]] && grub_found=1
+    log "  $(bootloader_skip_hint "$grub_found")."
     return 0
   fi
 
