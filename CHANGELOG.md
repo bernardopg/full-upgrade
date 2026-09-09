@@ -3,6 +3,14 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **TUI sem manipulação global de `IFS`.** A montagem dos CSVs de skip
+  (`tui_build_steps` e `tui_current_skip_csv`) deixou de usar o par
+  `local IFS=`/`unset IFS` e agora concatena os nomes em laço explícito.
+  Elimina os 2 achados bloqueantes do Semgrep SAST registrados nas corridas
+  posteriores à `v3.40.0` e qualquer risco de o separador vazar para o
+  chamador. Sem mudança de comportamento.
 
 ## [3.40.0] - 2026-09-08
 ### Corrigido
