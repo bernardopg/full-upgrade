@@ -82,6 +82,12 @@ if [[ -z "$jobs" ]]; then
   fi
 fi
 
+# `git push` exporta GIT_DIR (e afins) para o hook; sem o unset, os testes
+# que criam repositórios temporários teriam suas chamadas `git` desviadas
+# para o repositório real. Mesma sanitização em tests/test_helper.bash.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
+
 if (( jobs > 1 )); then
   echo "▶ bats tests/ (--jobs ${jobs})"
   if bats --jobs "$jobs" tests/; then

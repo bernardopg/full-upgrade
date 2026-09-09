@@ -8,6 +8,15 @@ FU_TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export FU_ROOT="$FU_TEST_ROOT"
 export FU_LIB="${FU_TEST_ROOT}/lib"
 
+# Neutraliza variáveis de contexto do git herdadas do processo pai. O hook
+# pre-push roda sob `git push`, que exporta GIT_DIR (e afins) para o hook —
+# sem o unset, os testes que criam repositórios temporários (DMS, helpers de
+# plugin, realign) teriam suas chamadas `git` desviadas para o repositório
+# REAL, falhando de forma determinística sob o hook e podendo tocar o índice
+# do projeto. Mesma lista sanitizada em scripts/preflight.sh.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
+
 # Carrega libs compartilhadas, na ordem mínima do entrypoint:
 #   globals -> ui -> core -> json -> catalog.
 # NÃO carrega main/cli/sudo nem steps/* — esses podem ter efeitos colaterais
