@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.40.1] - 2026-09-09
 ### Corrigido
 
 - **TUI sem manipulação global de `IFS`.** A montagem dos CSVs de skip
