@@ -37,8 +37,8 @@ setup() {
 @test "journal_dump_dedupe: preserva ordem da primeira ocorrência" {
     local input=$'b-line\na-line\nb-line'
     run journal_dump_dedupe < <(printf '%s\n' "$input")
-    [ "${lines[0]}" = "[ 1 ]x b-line" ]
-    [ "${lines[1]}" = "[ 2 ]x a-line" ]
+    [ "${lines[0]}" = "[ 2 ]x b-line" ]
+    [ "${lines[1]}" = "[ 1 ]x a-line" ]
 }
 
 @test "journal_dump_dedupe: entrada vazia devolve vazio" {
@@ -174,6 +174,7 @@ STUB
     chmod +x "$tmp_bin/pgrep"
     old_path="$PATH"
     PATH="$tmp_bin:$PATH"
+    QUIET=0  # sem isso o `log` só escreve no LOG_FILE e $output fica vazio
     run warn_running_binaries_for_packages linux ioruba-desktop-bin
     PATH="$old_path"
     [[ "$output" == *"1 processo(s) em execução"* ]]

@@ -869,18 +869,18 @@ journal_group_signatures() {
   sort | uniq -c | sort -nr | head -n 20
 }
 
-# Puro/testável: deduplica o dump de auditoria do journal normalizando dígitos
-# (PIDs, contadores) para "N" — um crash loop com PIDs distintos (ex.: ffmpeg
+# Puro/testável: deduplica o dump de auditoria do journal normalizando números
+# de PIDs/contadores para "N" — um crash loop com PIDs distintos (ex.: ffmpeg
 # caindo 80x) colapsa em UMA assinatura com a contagem total, em vez de
-# mascarar assinaturas diferentes no meio de linhas quase idênticas. Saída:
-# "[ N ]x assinatura-normalizada", na ordem da primeira ocorrência.
+# mascarar assinaturas diferentes no meio de linhas quase idênticas. Números
+# colados a identificadores (wlan0, nl80211) ficam intactos para não fundir
+# tokens distintos do kernel. Saída: "[ N ]x assinatura-normalizada", na ordem
+# da primeira ocorrência. (sed faz a normalização: gsub do awk não suporta \1.)
 journal_dump_dedupe() {
-  awk '
+  sed -E 's/(^|[^A-Za-z0-9])[0-9]+/\1N/g' | awk '
     {
-      sig = $0
-      gsub(/[0-9]+/, "N", sig)
-      count[sig]++
-      if (!(sig in seen)) { order[++n] = sig; seen[sig] = 1 }
+      count[$0]++
+      if (!($0 in seen)) { order[++n] = $0; seen[$0] = 1 }
     }
     END { for (i = 1; i <= n; i++) printf "[ %d ]x %s\n", count[order[i]], order[i] }
   '
