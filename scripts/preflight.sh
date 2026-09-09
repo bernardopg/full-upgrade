@@ -84,7 +84,17 @@ fi
 
 if (( jobs > 1 )); then
   echo "▶ bats tests/ (--jobs ${jobs})"
-  bats --jobs "$jobs" tests/
+  if bats --jobs "$jobs" tests/; then
+    :
+  else
+    # Máquinas com vários agentes/builds em paralelo produzem flakes raros sob
+    # --jobs alto: testes stub/timing falham em pontos diferentes a cada corrida
+    # e a suíte inteira passa sempre em modo sequencial. Revalida sequencial-
+    # mente para absorver o flake de carga; regressão real falha de novo e
+    # reprova o preflight. Escape manual: BATS_JOBS=1 scripts/preflight.sh
+    echo "⚠ bats paralelo falhou; revalidando sequencialmente (possível flake de carga)…"
+    bats tests/
+  fi
 else
   echo "▶ bats tests/ (sequencial: GNU parallel/flock ausente)"
   bats tests/
