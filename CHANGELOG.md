@@ -3,6 +3,37 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`--config-tui`: sobras da tela anterior no menu/ajuda.** `tui_draw_menu` e
+  `tui_draw_help` desenhavam apenas as próprias linhas; o conteúdo mais longo
+  da tela anterior (lista de steps) permanecia visível abaixo. Ambas as telas
+  agora emitem `\033[J` (clear até o fim da tela) antes do rodapé.
+
+- **`--config-tui`: lag/overshoot no auto-repeat das setas.** Três causas
+  somadas: 2 forks de `tput` por tecla em `tui_update_size` (agora o tamanho
+  só é relido quando `SIGWINCH` marca `TUI_SIZE_DIRTY`, e o `read`
+  interrompido por sinal retorna `none` em vez de virar "Esc"); subshell por
+  navegação/desenho em `tui_visible_rows` (substituído por
+  `tui_visible_rows_var` sem fork); e ausência de coalescência — o loop
+  principal agora drena o buffer do terminal (`read -t 0`, teto de 512
+  eventos) e redesenha uma única vez por rajada de auto-repeat.
+
+### Alterado
+
+- **`--config-tui`: identidade visual nova.** Cabeçalho com logo ASCII
+  ("FULL UPGRADE"), trilha de navegação (breadcrumb), badge de estado
+  ("✔ salvo" / "• N não salva(s)") e régua horizontal; rodapé com régua e
+  teclas; largura útil limitada a 100 colunas (sem texto esticado em telas
+  largas). Menu com ícones e descrição por item; listas com cabeçalho de
+  coluna (estado/categoria; tipo/chave/valor/descrição), marcador `●`/`○`
+  para run/skip, `•` para alteração pendente, tags de categoria alinhadas à
+  direita e barra de rolagem; popup de detalhe com moldura; tela de ajuda
+  organizada em seções; revisão de salvamento com diff recuado. Seleção em
+  vídeo reverso ocupando a largura toda (antes serrilhada). Todo o desenho
+  usa helpers sem subshell (`tui_padv`/`tui_padlv`/`tui_truncv`/`tui_colv`)
+  para manter o frame barato; glifos respeitam `NO_UNICODE`/`NO_COLOR` com
+  fallback ASCII.
 
 ## [3.41.0] - 2026-09-10
 ### Adicionado

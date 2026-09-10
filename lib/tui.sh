@@ -414,7 +414,13 @@ tui_close() {
   printf '\033[?25h\033[?1049l'
 }
 
+# Marcado por SIGWINCH (ou 1ª chamada). Evita 2 forks de `tput` por tecla —
+# principal causa do lag/overshoot com auto-repeat das setas.
+TUI_SIZE_DIRTY=1
+
 tui_update_size() {
+  (( ${TUI_SIZE_DIRTY:-1} == 0 )) && [[ -n "${TUI_ROWS:-}" && -n "${TUI_COLS:-}" ]] && return 0
+  TUI_SIZE_DIRTY=0
   TUI_ROWS="$(tput lines 2>/dev/null || printf 24)"
   TUI_COLS="$(tput cols 2>/dev/null || printf 80)"
   [[ "$TUI_ROWS" =~ ^[0-9]+$ ]] || TUI_ROWS=24
@@ -431,8 +437,13 @@ tui_update_size() {
 # delimitadores e retorna a variável VAZIA para o Enter — a tecla se perdia
 # como "char:". -N lê exatamente N bytes, sem honrar delimitador.
 tui_read_key() {
-  local c rest="" extra=""
-  IFS= read -rsN1 c || { TUI_KEY="esc"; return 0; }
+  local c rest="" extra="" st=0
+  # st > 128 ⇒ read interrompido por sinal (ex.: SIGWINCH): não é Esc.
+  IFS= read -rsN1 c || st=$?
+  if (( st != 0 )); then
+    if (( st > 128 )); then TUI_KEY="none"; else TUI_KEY="esc"; fi
+    return 0
+  fi
   case "$c" in
     $'\x1b')
       # Sequência ANSI: ESC + [ + código (setas = 3 bytes) ou ESC + [ + dígito
@@ -485,36 +496,139 @@ tui_decode_csi() {
 
 # ── Primitivas de desenho ─────────────────────────────────────────────────────
 
+# Glifos de moldura/estado do TUI (Unicode com fallback ASCII). Reaproveita a
+# mesma detecção do lib/ui.sh: se SYM_ARROW virou ">" estamos em modo ASCII.
+if [[ "${SYM_ARROW:-}" == "▶" ]]; then
+  TUI_BOX_TL="╭"; TUI_BOX_TR="╮"; TUI_BOX_BL="╰"; TUI_BOX_BR="╯"
+  TUI_BOX_H="─"; TUI_BOX_V="│"
+  TUI_SEL_BAR="▌"; TUI_SB_TRACK="│"; TUI_SB_THUMB="┃"
+  TUI_DOT_ON="●"; TUI_DOT_OFF="○"; TUI_DIRTY="•"
+  TUI_ICON_STEPS="▶"; TUI_ICON_PARAMS="→"; TUI_ICON_HELP="?"
+  TUI_ICON_SAVE="↓"; TUI_ICON_QUIT="×"
+  TUI_LOGO=(
+    "┏━╸╻ ╻╻  ╻    ╻ ╻┏━┓┏━╸┏━┓┏━┓╺┳┓┏━╸"
+    "┣╸ ┃ ┃┃  ┃    ┃ ┃┣━┛┃╺┓┣┳┛┣━┫ ┃┃┣╸ "
+    "╹  ┗━┛┗━╸┗━╸  ┗━┛╹  ┗━┛╹┗╸╹ ╹╺┻┛┗━╸"
+  )
+else
+  TUI_BOX_TL="+"; TUI_BOX_TR="+"; TUI_BOX_BL="+"; TUI_BOX_BR="+"
+  TUI_BOX_H="-"; TUI_BOX_V="|"
+  TUI_SEL_BAR=">"; TUI_SB_TRACK="|"; TUI_SB_THUMB="#"
+  TUI_DOT_ON="*"; TUI_DOT_OFF="-"; TUI_DIRTY="*"
+  TUI_ICON_STEPS=">"; TUI_ICON_PARAMS="="; TUI_ICON_HELP="?"
+  TUI_ICON_SAVE="v"; TUI_ICON_QUIT="x"
+  TUI_LOGO=(
+    " ___ _   _ _    _       _   _ ___  ___ ___  _   ___  ___ "
+    "| __| | | | |  | |  ___| | | | _ \\/ __| _ \\/_\\ |   \\| __|"
+    "|_|  \\_,_|_|__|_|__    \\___/|  _/\\__ \\   / _ \\| |) | _| "
+  )
+fi
+
+TUI_HEAD_H=5           # altura do cabeçalho (logo + breadcrumb + régua)
+TUI_W=76               # largura útil de conteúdo (recalculada por desenho)
+TUI_ROWW=74            # largura do conteúdo de uma linha de item
+TUI_MARGIN=2           # recuo à esquerda do conteúdo
+
 tui_line() {
   # \r\n: em raw mode (stty raw) o ONLCR está desligado — \n sozinho não volta
   # à coluna 0 e o layout desandaria.
   printf '\033[K%s\r\n' "$1"
 }
 
-tui_title_bar() {
-  local title="$1" pending=""
-  (( TUI_PENDING > 0 )) && pending="  ${C_YELLOW}● ${TUI_PENDING} alteração(ões) não salva(s)${C_RESET}"
-  local bar="${C_BOLD} full-upgrade · configuração${C_RESET} ${C_DIM}| ${title}${pending}${C_RESET}"
-  printf '\033[H\033[K%s' "$bar"
+# Largura útil: nunca ocupa a tela inteira em monitores largos (o texto ficaria
+# com as colunas da direita a metros do nome). Cap em 100 colunas.
+tui_metrics() {
+  TUI_W=$(( TUI_COLS - TUI_MARGIN * 2 ))
+  (( TUI_W > 100 )) && TUI_W=100
+  (( TUI_W < 36 )) && TUI_W=36
+  # Conteúdo de uma linha de item: largura útil menos o marcador de seleção
+  # (1 col à esquerda) e a barra de rolagem (1 col à direita).
+  TUI_ROWW=$(( TUI_W - 2 ))
+  # Cabeçalho completo só em terminais com espaço; senão versão de 2 linhas.
+  if (( TUI_ROWS >= 22 && TUI_COLS >= 56 )); then TUI_HEAD_H=5; else TUI_HEAD_H=2; fi
+  return 0
 }
 
+# Versões sem subshell de ui_pad/ui_pad_left/tui_trunc: escrevem em TUI_PAD.
+# São o caminho quente do desenho (uma lista cheia fazia ~5 forks por linha,
+# o que dominava o custo do frame). Medem em CARACTERES (${#s}), então nomes
+# acentuados continuam alinhando.
+tui_padv() {
+  local s="$1" n=$(( $2 - ${#1} ))
+  if (( n > 0 )); then printf -v TUI_PAD '%s%*s' "$s" "$n" ''; else TUI_PAD="$s"; fi
+}
+
+tui_padlv() {
+  local s="$1" n=$(( $2 - ${#1} ))
+  if (( n > 0 )); then printf -v TUI_PAD '%*s%s' "$n" '' "$s"; else TUI_PAD="$s"; fi
+}
+
+tui_truncv() {
+  local s="$1" max="$2"
+  (( ${#s} > max )) && s="${s:0:$(( max - 3 ))}..."
+  TUI_PAD="$s"
+}
+
+# Trunca e preenche em uma passada (coluna de largura fixa).
+tui_colv() {
+  tui_truncv "$1" "$2"
+  tui_padv "$TUI_PAD" "$2"
+}
+
+# Régua horizontal da largura útil.
+tui_rule() {
+  local w="${1:-$TUI_W}" i rule=""
+  for (( i = 0; i < w; i++ )); do rule+="$TUI_BOX_H"; done
+  printf '%s' "$rule"
+}
+
+# Cabeçalho: logo ASCII + trilha (breadcrumb) + badge de pendências + régua.
+tui_draw_header() {
+  local crumb="$1" extra="${2:-}" pad i
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  printf '\033[H'
+  if (( TUI_HEAD_H == 5 )); then
+    for i in 0 1 2; do
+      tui_line "${pad}${C_CYAN}${TUI_LOGO[$i]}${C_RESET}"
+    done
+  fi
+  local badge=""
+  if (( TUI_PENDING > 0 )); then
+    badge="  ${C_YELLOW}${TUI_DIRTY} ${TUI_PENDING} não salva(s)${C_RESET}"
+  else
+    badge="  ${C_GREEN}${SYM_OK} salvo${C_RESET}"
+  fi
+  tui_line "${pad}${C_BOLD}configuração${C_RESET} ${C_DIM}${SYM_ARROW}${C_RESET} ${C_BOLD}${crumb}${C_RESET}${badge}${extra}"
+  tui_line "${pad}${C_DIM}$(tui_rule)${C_RESET}"
+}
+
+# Rodapé: régua + linha de teclas (ou flash, que tem prioridade por 1 ciclo).
 tui_footer() {
-  local hints="$1"
-  printf '\033[%d;1H\033[K%s%s\033[J' "$TUI_ROWS" "$C_DIM" "$hints"
+  local hints="$1" pad
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  printf '\033[%d;1H\033[K%s%s%s' "$(( TUI_ROWS - 1 ))" "${pad}${C_DIM}" "$(tui_rule)" "$C_RESET"
   if [[ -n "$TUI_FLASH" ]]; then
-    printf '\033[%d;1H\033[K%s%s%s' "$TUI_ROWS" "$C_BOLD" "$TUI_FLASH" "$C_RESET"
+    printf '\033[%d;1H\033[K%s%s%s\033[J' "$TUI_ROWS" "${pad}${C_BOLD}${C_YELLOW}" "$TUI_FLASH" "$C_RESET"
+  else
+    printf '\033[%d;1H\033[K%s%s%s\033[J' "$TUI_ROWS" "${pad}${C_DIM}" "$hints" "$C_RESET"
   fi
 }
 
 tui_visible_rows() {
-  echo $(( TUI_ROWS - 4 ))
+  echo $(( TUI_ROWS - TUI_HEAD_H - 2 ))
+}
+
+# Versão sem subshell (usada nos caminhos quentes de desenho/navegação).
+tui_visible_rows_var() {
+  TUI_VIS=$(( TUI_ROWS - TUI_HEAD_H - 2 ))
+  (( TUI_VIS < 1 )) && TUI_VIS=1
+  return 0
 }
 
 # Rola para manter TUI_SEL visível dentro da janela [TUI_TOP, +visível).
 tui_ensure_visible() {
   local vis
-  vis="$(tui_visible_rows)"
-  (( vis < 1 )) && vis=1
+  tui_visible_rows_var; vis=$TUI_VIS
   local total=${#TUI_VIEW[@]}
   (( TUI_SEL >= total )) && TUI_SEL=$(( total > 0 ? total - 1 : 0 ))
   (( TUI_SEL < 0 )) && TUI_SEL=0
@@ -523,111 +637,221 @@ tui_ensure_visible() {
   (( TUI_TOP < 0 )) && TUI_TOP=0
 }
 
+# Imprime uma linha de item já com largura fixa: selecionada sai em vídeo
+# reverso ocupando a largura TODA (sem highlight serrilhado), não selecionada
+# sai com as cores por coluna. Por isso cada chamador monta duas versões:
+# $2 = texto puro (para o reverso, onde qualquer C_RESET desligaria o realce)
+# $3 = texto colorido.
+tui_row() {
+  local selected="$1" plain="$2" colored="$3" sb="${4:- }" pad
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  if (( selected == 1 )); then
+    tui_padv "$plain" "$TUI_ROWW"
+    printf '\033[K%s%s%s\033[7m%s\033[0m%s\r\n' \
+      "$pad" "$C_CYAN" "$TUI_SEL_BAR" "$TUI_PAD" "$sb"
+  else
+    # $colored tem ANSI: o preenchimento sai do comprimento de $plain (mesmo
+    # texto visível), senão a barra de rolagem dançaria de linha para linha.
+    local fill=$(( TUI_ROWW - ${#plain} )); (( fill < 0 )) && fill=0
+    printf '\033[K%s %s%*s%s\r\n' "$pad" "$colored" "$fill" '' "$sb"
+  fi
+}
+
+# (embutida em tui_draw_list — ver SB_* lá)
+
 # ── Desenho: menu ─────────────────────────────────────────────────────────────
 TUI_MENU_ITEMS=("Steps (ativar/desativar)" "Parâmetros (chaves de config)" "Ajuda (teclas)" "Salvar alterações" "Sair")
 
 tui_draw_menu() {
-  local i sel_mark
-  tui_title_bar "menu principal"
-  printf '\r\n'
+  local i icon hint plain colored pad
+  tui_metrics
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  tui_draw_header "menu principal"
+  tui_line ""
+  local icons=("$TUI_ICON_STEPS" "$TUI_ICON_PARAMS" "$TUI_ICON_HELP" "$TUI_ICON_SAVE" "$TUI_ICON_QUIT")
+  local hints=(
+    "liga/desliga steps do catálogo"
+    "bool · enum · números · caminhos"
+    "teclas e navegação"
+    "grava em $(basename "${FU_CONFIG_FILE:-config}")"
+    "encerra (confirma se houver pendências)"
+  )
+  local name_w=$(( TUI_W / 2 )); (( name_w < 24 )) && name_w=24
+  local hint_w=$(( TUI_W - name_w - 8 )); (( hint_w < 6 )) && hint_w=6
   for i in "${!TUI_MENU_ITEMS[@]}"; do
-    if (( i == TUI_SEL )); then sel_mark="${C_CYAN}${SYM_ARROW} ${C_RESET}${C_BOLD}"; else sel_mark="  "; fi
-    tui_line " ${sel_mark}$(ui_pad "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" $(( TUI_COLS - 6 )))${C_RESET}"
+    icon="${icons[$i]}"; hint="$(tui_trunc "${hints[$i]}" "$hint_w")"
+    plain=" $icon  $(ui_pad "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" "$name_w")$hint"
+    colored=" ${C_CYAN}${icon}${C_RESET}  ${C_BOLD}$(ui_pad "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" "$name_w")${C_RESET}${C_DIM}${hint}${C_RESET}"
+    tui_row "$(( i == TUI_SEL ? 1 : 0 ))" "$plain" "$colored"
   done
-  tui_footer " ↑/↓ navegar · Enter selecionar · s salvar · q sair${TUI_FILTER:+ · filtro: }${TUI_FILTER}"
+  tui_line ""
+  tui_line "${pad}${C_DIM}arquivo: ${FU_CONFIG_FILE}${C_RESET}"
+  # Limpa o resto da tela: sem isso, sobras da tela anterior (lista de steps,
+  # ajuda) continuam visíveis abaixo do menu.
+  printf '\033[J'
+  tui_footer "↑/↓ navegar · 1-5 atalho · Enter selecionar · s salvar · q sair"
 }
 
 # ── Desenho: listas (steps/params) ────────────────────────────────────────────
 
 tui_draw_list() {
-  local title="$1" i idx vis row sel flag value_disp effect_col name_w value_w desc_w
+  local title="$1" i idx vis row sel flag plain colored sb pad
+  local sb_t="$C_CYAN$TUI_SB_THUMB$C_RESET" sb_k="$C_DIM$TUI_SB_TRACK$C_RESET"
+  local rowsv sb_on=0 sb_start=0 sb_end=0 sb_thumb_n sb_maxtop
+  tui_metrics
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
   tui_ensure_visible
-  vis="$(tui_visible_rows)"
+  tui_visible_rows_var; vis=$TUI_VIS
 
   local fdisp=""
-  (( TUI_FILTER_MODE == 1 )) && fdisp="${C_CYAN}  filtro: ${TUI_FILTER}█${C_RESET}"
-  tui_title_bar "$title (${#TUI_VIEW[@]} itens)$fdisp"
-  printf '\r\n'
+  if (( TUI_FILTER_MODE == 1 )); then
+    fdisp="  ${C_CYAN}/${TUI_FILTER}█${C_RESET}"
+  elif [[ -n "$TUI_FILTER" ]]; then
+    fdisp="  ${C_CYAN}/${TUI_FILTER}${C_RESET}"
+  fi
+  tui_draw_header "$title ${C_DIM}(${#TUI_VIEW[@]} itens)${C_RESET}" "$fdisp"
 
-  row=0
-  for (( row = 0; row < vis; row++ )); do
+  # Larguras de coluna — fixas para a tela inteira, o que mantém todas as
+  # linhas alinhadas independentemente do conteúdo de cada item.
+  # avail = largura EXATA do conteúdo de cada linha (a última coluna da largura
+  # útil fica com a barra de rolagem). Todas as colunas somam avail, de modo que
+  # linha selecionada (vídeo reverso preenchido) e não selecionada terminam na
+  # mesma coluna — é o que mantém as tags/valores alinhados.
+  local avail=$TUI_ROWW
+  local tag_w=18 kind_w=6 name_w value_w desc_w
+  local total=${#TUI_VIEW[@]}
+  local is_steps=0; [[ "$TUI_MODE" == "steps" ]] && is_steps=1
+  if (( is_steps == 1 )); then
+    name_w=$(( avail - tag_w - 6 )); (( name_w < 16 )) && name_w=16
+    tui_line "${pad}      ${C_DIM}$(ui_pad "step" "$name_w")$(ui_pad_left "categoria" "$tag_w")${C_RESET}"
+  else
+    name_w=$(( avail * 34 / 100 )); (( name_w < 16 )) && name_w=16
+    value_w=$(( avail * 24 / 100 )); (( value_w < 8 )) && value_w=8
+    desc_w=$(( avail - name_w - value_w - kind_w - 4 )); (( desc_w < 0 )) && desc_w=0
+    tui_line "${pad}   ${C_DIM}$(ui_pad "tipo" "$kind_w") $(ui_pad "chave" "$name_w")$(ui_pad "valor" "$value_w")descrição${C_RESET}"
+  fi
+
+  rowsv=$(( vis - 1 ))
+  if (( total > rowsv )); then
+    sb_on=1
+    sb_thumb_n=$(( rowsv * rowsv / total )); (( sb_thumb_n < 1 )) && sb_thumb_n=1
+    sb_maxtop=$(( total - rowsv )); (( sb_maxtop < 1 )) && sb_maxtop=1
+    sb_start=$(( TUI_TOP * (rowsv - sb_thumb_n) / sb_maxtop ))
+    sb_end=$(( sb_start + sb_thumb_n ))
+  fi
+  for (( row = 0; row < rowsv; row++ )); do
     idx=$(( TUI_TOP + row ))
-    if (( idx >= ${#TUI_VIEW[@]} )); then
-      tui_line ""
+    if (( sb_on == 0 )); then sb=" "
+    elif (( row >= sb_start && row < sb_end )); then sb="$sb_t"
+    else sb="$sb_k"; fi
+    if (( idx >= total )); then
+      printf '\033[K\r\n'
       continue
     fi
     i="${TUI_VIEW[$idx]}"
-    if (( idx == TUI_SEL )); then printf '\033[7m'; fi
+    sel=$(( idx == TUI_SEL ? 1 : 0 ))
     case "${TUI_KIND[$i]}" in
       step)
+        local tag="${TUI_META[$i]%%|*}"
+        [[ "${TUI_META[$i]##*|}" == "mutating" ]] && tag="${tag}·mut"
+        local nm tg
+        tui_colv "${TUI_NAME[$i]}" "$name_w"; nm="$TUI_PAD"
+        tui_padlv "[$tag]" "$tag_w"; tg="$TUI_PAD"
+        local mk=" "; [[ "${TUI_VALUE[$i]}" != "${TUI_ORIG[$i]}" ]] && mk="$TUI_DIRTY"
         if [[ "${TUI_VALUE[$i]}" == "run" ]]; then
-          flag="${C_GREEN}${SYM_OK}${C_RESET}"
+          plain=" $mk $TUI_DOT_ON  $nm$tg"
+          colored=" ${C_YELLOW}${mk}${C_RESET} ${C_GREEN}${TUI_DOT_ON}${C_RESET}  ${nm}${C_DIM}${tg}${C_RESET}"
         else
-          flag="${C_YELLOW}${SYM_SKIP}${C_RESET}"
+          plain=" $mk $TUI_DOT_OFF  $nm$tg"
+          colored=" ${C_YELLOW}${mk}${C_RESET} ${C_YELLOW}${TUI_DOT_OFF}${C_RESET}  ${C_DIM}${nm}${tg}${C_RESET}"
         fi
-        effect_col="${TUI_META[$i]%%|*}"
-        [[ "${TUI_META[$i]##*|}" == "mutating" ]] && effect_col="${effect_col}·mut"
-        name_w=$(( TUI_COLS - ${#effect_col} - 8 )); (( name_w < 12 )) && name_w=12
-        tui_line " $flag $(ui_pad "$(tui_trunc "${TUI_NAME[$i]}" "$name_w")" "$name_w")${C_DIM}[$effect_col]${C_RESET}"
         ;;
       bool)
-        if [[ "${TUI_VALUE[$i]}" == "1" || "${TUI_VALUE[$i],,}" == "true" ]]; then
-          flag="${C_GREEN}[x]${C_RESET}"
+        local on=0
+        [[ "${TUI_VALUE[$i]}" == "1" || "${TUI_VALUE[$i],,}" == "true" ]] && on=1
+        local box; (( on == 1 )) && box="[x]" || box="[ ]"
+        local nm vl ds kd
+        tui_padv "$box" "$kind_w"; kd="$TUI_PAD"
+        tui_colv "${TUI_NAME[$i]}" "$name_w"; nm="$TUI_PAD"
+        tui_padv "$( (( on == 1 )) && printf 'on' || printf 'off')" "$value_w"; vl="$TUI_PAD"
+        tui_truncv "${TUI_DESC[$i]}" "$desc_w"; ds="$TUI_PAD"
+        local mk=" "; [[ "${TUI_VALUE[$i]}" != "${TUI_ORIG[$i]}" ]] && mk="$TUI_DIRTY"
+        plain=" $mk $kd $nm$vl$ds"
+        if (( on == 1 )); then
+          colored=" ${C_YELLOW}${mk}${C_RESET} ${C_GREEN}${kd}${C_RESET} ${nm}${C_GREEN}${vl}${C_RESET}${C_DIM}${ds}${C_RESET}"
         else
-          flag="${C_DIM}[ ]${C_RESET}"
-        fi
-        if (( TUI_COLS >= 70 )); then
-          desc_w=24; name_w=$(( TUI_COLS - desc_w - 8 ))
-          tui_line " $flag $(ui_pad "$(tui_trunc "${TUI_NAME[$i]}" "$name_w")" "$name_w")${C_DIM}$(tui_trunc "${TUI_DESC[$i]}" "$desc_w")${C_RESET}"
-        else
-          name_w=$(( TUI_COLS - 7 )); (( name_w < 12 )) && name_w=12
-          tui_line " $flag $(tui_trunc "${TUI_NAME[$i]}" "$name_w")"
+          colored=" ${C_YELLOW}${mk}${C_RESET} ${C_DIM}${kd}${C_RESET} ${nm}${C_DIM}${vl}${ds}${C_RESET}"
         fi
         ;;
       *)
-        value_disp="${TUI_VALUE[$i]:-(vazio=auto)}"
-        local dirty=""
-        [[ "${TUI_VALUE[$i]}" != "${TUI_ORIG[$i]}" ]] && dirty="${C_YELLOW} *${C_RESET}"
-        name_w=$(( TUI_COLS >= 70 ? 30 : TUI_COLS / 2 )); (( name_w < 12 )) && name_w=12
-        value_w=$(( TUI_COLS - name_w - 5 )); (( value_w < 8 )) && value_w=8
-        tui_line "   $(ui_pad "$(tui_trunc "${TUI_NAME[$i]}" "$name_w")" "$name_w")$(tui_trunc "$value_disp" "$value_w")${dirty}"
+        local kd nm vl ds
+        tui_padv "${TUI_KIND[$i]:0:$kind_w}" "$kind_w"; kd="$TUI_PAD"
+        tui_colv "${TUI_NAME[$i]}" "$name_w"; nm="$TUI_PAD"
+        tui_colv "${TUI_VALUE[$i]:-(auto)}" "$value_w"; vl="$TUI_PAD"
+        tui_truncv "${TUI_DESC[$i]}" "$desc_w"; ds="$TUI_PAD"
+        local mk=" "; [[ "${TUI_VALUE[$i]}" != "${TUI_ORIG[$i]}" ]] && mk="$TUI_DIRTY"
+        plain=" $mk $kd $nm$vl$ds"
+        colored=" ${C_YELLOW}${mk}${C_RESET} ${C_DIM}${kd}${C_RESET} ${nm}${C_CYAN}${vl}${C_RESET}${C_DIM}${ds}${C_RESET}"
         ;;
     esac
-    printf '\033[0m'
+    tui_row "$sel" "$plain" "$colored" "$sb"
   done
-  tui_footer " ↑/↓ · Space/t alterna · ←→ enum · Enter edita · d detalhe · / filtro · Esc menu · s salvar · q sair"
+  if (( is_steps == 1 )); then
+    tui_footer "↑/↓ · Space alterna · d detalhe · / filtro · Esc menu · s salvar · q sair"
+  else
+    tui_footer "↑/↓ · ←/→ enum · Space bool · Enter edita · d detalhe · / filtro · Esc menu · s salvar"
+  fi
 }
 
 # ── Popup de detalhe (d) ──────────────────────────────────────────────────────
 
+# Uma linha interna do popup, com bordas laterais.
+tui_popup_line() {
+  local row="$1" col="$2" w="$3" text="$4" plain="$5"
+  printf '\033[%d;%dH%s%s%s %s %s%s%s' "$row" "$col" \
+    "$C_CYAN" "$TUI_BOX_V" "$C_RESET" "$text" \
+    "$C_CYAN" "$(ui_pad_left "$TUI_BOX_V" "$(( w - ${#plain} + 1 ))")" "$C_RESET"
+}
+
 tui_draw_detail() {
-  local i="${TUI_VIEW[$TUI_SEL]}" w top
-  w=$(( TUI_COLS - 8 ))
-  (( w < 40 )) && w=40
-  top=$(( TUI_ROWS / 2 - 4 ))
-  printf '\033[%d;4H\033[7m %s \033[0m' "$top" "$(ui_pad "${TUI_NAME[$i]}" "$w")"
-  printf '\033[%d;4H' $(( top + 1 ))
-  tui_line " $(ui_wrap "${TUI_DESC[$i]}" "$w" | head -3)"
+  local i="${TUI_VIEW[$TUI_SEL]}" w top col line n=0
+  w=$(( TUI_W - 8 )); (( w > 72 )) && w=72; (( w < 34 )) && w=34
+  col=$(( TUI_MARGIN + 3 ))
+  top=$(( TUI_ROWS / 2 - 5 )); (( top < 2 )) && top=2
+
+  # Corpo do popup (linhas já truncadas na largura útil).
+  local -a body=()
+  while IFS= read -r line; do body+=("$line"); done < <(ui_wrap "${TUI_DESC[$i]}" "$w" | head -3)
+  body+=("")
   case "${TUI_KIND[$i]}" in
     step)
-      printf '\033[%d;4H' $(( top + 4 ))
-      tui_line " categoria/efeito: ${TUI_META[$i]}"
-      printf '\033[%d;4H' $(( top + 5 ))
-      tui_line " estado: ${TUI_VALUE[$i]}  (Space alterna; skip vai para FULL_UPGRADE_SKIP no config)"
+      body+=("$(tui_trunc "categoria/efeito : ${TUI_META[$i]//|/ · }" "$w")")
+      body+=("$(tui_trunc "estado           : ${TUI_VALUE[$i]}" "$w")")
+      body+=("$(tui_trunc "Space alterna; 'skip' entra em FULL_UPGRADE_SKIP" "$w")")
       ;;
     enum)
-      printf '\033[%d;4H' $(( top + 4 ))
-      tui_line " opções: ${TUI_META[$i]:-}   ←/→ cicla"
-      printf '\033[%d;4H' $(( top + 5 ))
-      tui_line " valor atual: ${TUI_VALUE[$i]:-(vazio)}"
+      body+=("$(tui_trunc "opções  : ${TUI_META[$i]:-} (←/→ cicla)" "$w")")
+      body+=("$(tui_trunc "atual   : ${TUI_VALUE[$i]:-(vazio)}" "$w")")
+      body+=("$(tui_trunc "original: ${TUI_ORIG[$i]:-(vazio)}" "$w")")
       ;;
     *)
-      printf '\033[%d;4H' $(( top + 4 ))
-      tui_line " tipo: ${TUI_KIND[$i]}   valor atual: ${TUI_VALUE[$i]:-(vazio)}"
+      body+=("$(tui_trunc "tipo    : ${TUI_KIND[$i]}" "$w")")
+      body+=("$(tui_trunc "atual   : ${TUI_VALUE[$i]:-(vazio)}" "$w")")
+      body+=("$(tui_trunc "original: ${TUI_ORIG[$i]:-(vazio)}" "$w")")
       ;;
   esac
-  printf '\033[%d;4H' $(( top + 6 ))
-  tui_line " ${C_DIM}qualquer tecla fecha${C_RESET}"
+
+  # Moldura + título.
+  local hr; hr="$(tui_rule "$(( w + 2 ))")"
+  printf '\033[%d;%dH%s%s%s%s%s' "$top" "$col" "$C_CYAN" "$TUI_BOX_TL" "$hr" "$TUI_BOX_TR" "$C_RESET"
+  local title; title="$(tui_trunc "${TUI_NAME[$i]}" "$w")"
+  tui_popup_line "$(( top + 1 ))" "$col" "$w" "${C_BOLD}${title}${C_RESET}" "$title"
+  tui_popup_line "$(( top + 2 ))" "$col" "$w" "${C_DIM}$(tui_rule "$w")${C_RESET}" "$(tui_rule "$w")"
+  for (( n = 0; n < ${#body[@]}; n++ )); do
+    tui_popup_line "$(( top + 3 + n ))" "$col" "$w" "${body[$n]}" "${body[$n]}"
+  done
+  tui_popup_line "$(( top + 3 + n ))" "$col" "$w" "${C_DIM}qualquer tecla fecha${C_RESET}" "qualquer tecla fecha"
+  printf '\033[%d;%dH%s%s%s%s%s' "$(( top + 4 + n ))" "$col" "$C_CYAN" "$TUI_BOX_BL" "$hr" "$TUI_BOX_BR" "$C_RESET"
 }
 
 # ── Ações ─────────────────────────────────────────────────────────────────────
@@ -693,31 +917,34 @@ tui_prompt_value() {
 # ── Revisão e salvamento ──────────────────────────────────────────────────────
 
 tui_draw_review() {
-  local k w per_page end
+  local k w per_page end pad
   printf '\033[H\033[2J'
-  tui_title_bar "salvar — revisão"
-  w=$(( TUI_COLS - 8 )); (( w < 12 )) && w=12
-  # Cada alteração ocupa três linhas; reserva título, contexto e rodapé.
-  per_page=$(( (TUI_ROWS - 5) / 3 )); (( per_page < 1 )) && per_page=1
+  tui_metrics
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  tui_draw_header "salvar ${SYM_ARROW} revisão"
+  w=$(( TUI_W - 8 )); (( w < 12 )) && w=12
+  # Cada alteração ocupa três linhas; reserva cabeçalho, contexto e rodapé.
+  per_page=$(( (TUI_ROWS - TUI_HEAD_H - 4) / 3 )); (( per_page < 1 )) && per_page=1
   (( TUI_REVIEW_TOP >= TUI_PENDING )) && TUI_REVIEW_TOP=$(( TUI_PENDING - 1 ))
   (( TUI_REVIEW_TOP < 0 )) && TUI_REVIEW_TOP=0
   end=$(( TUI_REVIEW_TOP + per_page )); (( end > TUI_PENDING )) && end=$TUI_PENDING
+  tui_line ""
   if (( TUI_PENDING == 0 )); then
-    printf '\r\n'; tui_line " ${C_DIM}Nenhuma alteração pendente.${C_RESET}"
+    tui_line "${pad} ${C_DIM}Nenhuma alteração pendente.${C_RESET}"
   else
-    printf '\r\n'
-    tui_line " ${C_BOLD}Alterações $(( TUI_REVIEW_TOP + 1 ))–$end de ${TUI_PENDING} em ${FU_CONFIG_FILE}:${C_RESET}"
+    tui_line "${pad} ${C_BOLD}$(( TUI_REVIEW_TOP + 1 ))–$end de ${TUI_PENDING}${C_RESET}${C_DIM} → ${FU_CONFIG_FILE}${C_RESET}"
     for (( k = TUI_REVIEW_TOP; k < end; k++ )); do
-      printf '\r\n'
-      tui_line " ${C_CYAN}[${CH_SECTION[$k]}] ${CH_KEY[$k]}${C_RESET}"
-      tui_line "   ${C_RED}- $(tui_trunc "${CH_OLD[$k]}" "$w")${C_RESET}"
-      tui_line "   ${C_GREEN}+ $(tui_trunc "${CH_NEW[$k]}" "$w")${C_RESET}"
+      tui_line ""
+      tui_line "${pad} ${C_CYAN}${SYM_ARROW} ${CH_KEY[$k]}${C_RESET} ${C_DIM}[${CH_SECTION[$k]}]${C_RESET}"
+      tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_RED}- $(tui_trunc "${CH_OLD[$k]}" "$w")${C_RESET}"
+      tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_GREEN}+ $(tui_trunc "${CH_NEW[$k]}" "$w")${C_RESET}"
     done
   fi
+  printf '\033[J'
   if (( TUI_PENDING > per_page )); then
-    tui_footer " ↑/↓ pagina · Enter aplica · Esc cancela"
+    tui_footer "↑/↓ pagina · Enter aplica · Esc cancela"
   else
-    tui_footer " Enter aplica · Esc cancela (volta ao menu)"
+    tui_footer "Enter aplica · Esc cancela (volta ao menu)"
   fi
 }
 
@@ -753,25 +980,44 @@ tui_do_save() {
 # ── Tela de ajuda do TUI ──────────────────────────────────────────────────────
 
 tui_draw_help() {
-  tui_title_bar "ajuda"
-  printf '\r\n'
-  tui_line " ${C_BOLD}Navegação${C_RESET}"
-  tui_line "   ↑/↓ ou k/j  mover seleção        PgUp/PgDn  rolar página"
-  tui_line "   Home/End    primeiro/último      1..5       menu: item direto"
-  printf '\r\n'
-  tui_line " ${C_BOLD}Edição${C_RESET}"
-  tui_line "   Space ou t  alterna step/bool    ←/→        cicla opções de enum"
-  tui_line "   Enter       edita int/string     d          popup de detalhe"
-  printf '\r\n'
-  tui_line " ${C_BOLD}Sessão${C_RESET}"
-  tui_line "   /           filtro vivo (Backspace corrige, Esc sai do filtro)"
-  tui_line "   s           salvar (revisão com diff e confirmação)"
-  tui_line "   Esc         volta ao menu / sai do filtro"
-  tui_line "   q           sair (confirma se houver mudanças não salvas)"
-  printf '\r\n'
-  tui_line " ${C_DIM}O TUI grava em ${FU_CONFIG_FILE}. Skips vindos do ambiente (FULL_UPGRADE_SKIP)${C_RESET}"
-  tui_line " ${C_DIM}na linha de comando) não aparecem aqui — o TUI edita o arquivo.${C_RESET}"
-  tui_footer " qualquer tecla volta"
+  local pad
+  tui_metrics
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  tui_draw_header "ajuda"
+  tui_line ""
+  tui_help_section "Navegação" \
+    "↑/↓  k/j     mover seleção" \
+    "PgUp/PgDn    rolar página" \
+    "Home/End     primeiro/último item" \
+    "1..5         no menu, item direto"
+  tui_help_section "Edição" \
+    "Space  t     alterna step / bool" \
+    "←/→          cicla opções de enum" \
+    "Enter        edita int / texto / caminho" \
+    "d            popup de detalhe do item"
+  tui_help_section "Sessão" \
+    "/            filtro vivo (Backspace corrige, Esc sai)" \
+    "s            salvar (revisão com diff e confirmação)" \
+    "Esc          volta ao menu / sai do filtro" \
+    "q            sair (confirma se houver pendências)"
+  tui_line ""
+  tui_line "${pad}${C_DIM}${TUI_DOT_ON} run   ${TUI_DOT_OFF} skip   ${TUI_DIRTY} alterado (ainda não salvo)${C_RESET}"
+  tui_line "${pad}${C_DIM}O TUI grava em ${FU_CONFIG_FILE}; skips vindos do ambiente${C_RESET}"
+  tui_line "${pad}${C_DIM}(FULL_UPGRADE_SKIP na linha de comando) não aparecem aqui.${C_RESET}"
+  printf '\033[J'   # remove sobras de telas mais longas (lista de steps)
+  tui_footer "qualquer tecla volta"
+}
+
+# Bloco "título + linhas" da ajuda, com marcador e recuo consistentes.
+tui_help_section() {
+  local title="$1"; shift
+  local pad line
+  pad="$(printf '%*s' "$TUI_MARGIN" '')"
+  tui_line "${pad} ${C_CYAN}${SYM_ARROW}${C_RESET} ${C_BOLD}${title}${C_RESET}"
+  for line in "$@"; do
+    tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${line}"
+  done
+  tui_line ""
 }
 
 # ── Confirmação (descartar mudanças?) ─────────────────────────────────────────
@@ -841,7 +1087,7 @@ tui_item_count() {
 
 tui_dispatch_nav() {
   local vis total
-  vis="$(tui_visible_rows)"
+  tui_visible_rows_var; vis=$TUI_VIS
   total="$(tui_item_count)"
   case "$TUI_KEY" in
     # Pré-incremento: (( x++ )) retorna o valor ANTIGO e falha (status 1)
@@ -985,6 +1231,8 @@ config_tui_main() {
   tui_open
   # Garante restauração do terminal em QUALQUER saída (Ctrl-C incluso).
   trap 'tui_close' EXIT INT TERM
+  # Só relê o tamanho do terminal quando ele realmente muda.
+  trap 'TUI_SIZE_DIRTY=1' WINCH
 
   local first_draw=1
   while (( TUI_QUIT == 0 )); do
@@ -1003,9 +1251,22 @@ config_tui_main() {
     TUI_FLASH=""   # flash dura um ciclo de desenho
     tui_read_key
     tui_handle_key
+    # Coalescência de auto-repeat: enquanto houver teclas já no buffer do
+    # terminal, processa-as SEM redesenhar. Sem isso, cada tecla repetida
+    # dispara um redesenho completo (dezenas de forks), o buffer cresce mais
+    # rápido do que o desenho e a lista continua rolando depois de soltar a
+    # tecla. O limite evita laço infinito caso o stdin chegue a EOF.
+    local _drained=0
+    while (( TUI_QUIT == 0 )) && (( ${TUI_DRAW_DETAIL:-0} == 0 )) \
+          && (( _drained < 512 )) && read -t 0 2>/dev/null; do
+      _drained=$(( _drained + 1 ))
+      tui_read_key
+      [[ "$TUI_KEY" == "none" ]] && continue
+      tui_handle_key
+    done
   done
 
   tui_close
-  trap - EXIT INT TERM
+  trap - EXIT INT TERM WINCH
   return 0
 }
