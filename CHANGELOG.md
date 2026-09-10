@@ -3,6 +3,23 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **`COREDUMP_IGNORE_EXE` — allowlist de executáveis no Doctor de crash
+  recorrente (coredump).** Casos em que o crash é esperado e documentado
+  (ex.: um probe ativo próprio que sonda deliberadamente streams hostis e já
+  derruba o `ffmpeg` com SIGSEGV/SIGABRT — o processo até roda sob
+  `prlimit --core=0`, mas o systemd-coredump registra a entrada no journal
+  independente de RLIMIT_CORE) não viram mais TODO eterno. A chave aceita
+  nomes/globs separados por espaço (mesmo padrão de `STALE_SERVICES_IGNORE`),
+  compara pelo basename da coluna EXE do `coredumpctl list` e lista o que
+  saciou como nota informativa, mantendo a auditoria transparente. Testada
+  com novo caso em `tests/doctor.bats`.
+
+### Documentado
+
+- README, `config.example`, `--help` (usage_flag) e `--config` exibem a
+  chave nova.
 
 ## [3.40.1] - 2026-09-09
 ### Corrigido

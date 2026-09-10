@@ -469,6 +469,22 @@ _mock_coredumpctl() {
   [[ "$output" == *"vpn-cli (3x)"* ]]
 }
 
+@test "recurrent_coredumps: executável saciado via COREDUMP_IGNORE_EXE não vira todo" {
+  # ffmpeg de um probe ativo próprio que sonda streams hostis de propósito:
+  # crash é esperado e não deve poluir o Doctor com TODO eterno.
+  QUIET=0 LOG_FILE=/dev/null
+  STEP_REASON=""
+  COREDUMP_IGNORE_EXE="ffmpeg"
+  local crash="Sat 2026-08-01 23:13:52 -03 40031 1000 1000 SIGSEGV none /usr/bin/ffmpeg -"
+  _mock_coredumpctl "$crash"$'\n'"$crash"$'\n'"$crash" "$crash"
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Saciado via COREDUMP_IGNORE_EXE"* ]]
+  [[ "$output" == *"ffmpeg (3x)"* ]]
+  [[ "$output" != *"Crash recorrente ativo"* ]]
+  unset COREDUMP_IGNORE_EXE
+}
+
 @test "recurrent_coredumps: crashes antigos sem ocorrência recente => ok" {
   QUIET=0 LOG_FILE=/dev/null
   local crash="Tue 2026-07-21 19:44:48 -03 3167135 0 0 SIGTRAP inaccessible /tmp/e/hub -"

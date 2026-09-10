@@ -114,6 +114,11 @@ FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # libs velhas até reboot por decisão consciente. Globs permitidos.
 # Ex: STALE_SERVICES_IGNORE="NetworkManager.service"
 STALE_SERVICES_IGNORE=""
+# Executáveis saciados do Doctor de crash recorrente (coredump): crash
+# conhecido/esperado (ex.: probe ativo próprio que sonda streams hostis de
+# propósito) não vira TODO mesmo crashando com frequência. Globs permitidos.
+# Ex: COREDUMP_IGNORE_EXE="ffmpeg"
+COREDUMP_IGNORE_EXE=""
 
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"

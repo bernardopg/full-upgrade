@@ -305,6 +305,8 @@ EOF
     "pacotes pip --user ignorados no update genérico (padrão: poetry poetry-core chardet uvicorn urwid redis)"
   usage_flag "STALE_SERVICES_IGNORE" \
     "units saciadas da auditoria de libs antigas (needrestart/checkservices): sem TODO/reinício. Ex: STALE_SERVICES_IGNORE=\"NetworkManager.service\""
+  usage_flag "COREDUMP_IGNORE_EXE" \
+    "executáveis saciados do Doctor de crash recorrente (coredump): crash conhecido/esperado não vira TODO. Ex: COREDUMP_IGNORE_EXE=\"ffmpeg\""
 
   printf '\n%sDica:%s full-upgrade --help config mostra como gerenciar tudo pelo TUI.\n' \
     "$C_BOLD" "$C_RESET"

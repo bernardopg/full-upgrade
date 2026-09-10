@@ -702,6 +702,23 @@ stale_service_is_ignored() {
   return 1
 }
 
+# Executáveis saciados do Doctor de crash recorrente (coredump) via
+# COREDUMP_IGNORE_EXE (config; globs permitidos, ex. 'ffmpeg'). Caso de uso
+# canônico: um probe ativo próprio que sonda deliberadamente streams hostis
+# (ex.: IPTV) e cujo alvo já derruba o ffmpeg com SIGSEGV/SIGABRT de propósito
+# — o processo já roda sob prlimit --core=0 para não gravar coredump, mas o
+# systemd-coredump ainda registra a entrada no journal (metadados independem
+# de RLIMIT_CORE), então o crash "esperado" continuava virando TODO eterno.
+coredump_exe_is_ignored() {
+  local exe="$1" pat
+  [[ -n "${COREDUMP_IGNORE_EXE:-}" ]] || return 1
+  for pat in $COREDUMP_IGNORE_EXE; do
+    # shellcheck disable=SC2053  # glob matching é intencional (padrões tipo 'ffmpeg*')
+    [[ "$exe" == $pat ]] && return 0
+  done
+  return 1
+}
+
 # Motivo de um step que deixou units críticas sem reiniciar. Nomeia as units:
 # "2 unit(s) protegida(s)" não diz ao usuário o que reiniciar, e este texto vira
 # também o rodapé "Reboot recomendado: …" do resumo (ver step_todo).

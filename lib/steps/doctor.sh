@@ -637,16 +637,24 @@ doctor_recurrent_coredumps() {
       | coredump_group_by_executable | awk '{ print $2 }'
   )"
 
-  local hot="" stale="" count name path
+  local hot="" stale="" ignored="" count name path
   while read -r count name path; do
     [[ -n "$name" ]] || continue
     (( count >= min_crashes )) || continue
+    if coredump_exe_is_ignored "$name"; then
+      ignored+="${ignored:+, }${name} (${count}x)"
+      continue
+    fi
     if grep -qxF -- "$name" <<<"$recent_names"; then
       hot+="${hot:+, }${name} (${count}x)"
     else
       stale+="${stale:+, }${name} (${count}x)"
     fi
   done <<< "$window_grouped"
+
+  if [[ -n "$ignored" ]]; then
+    log "  Saciado via COREDUMP_IGNORE_EXE (crash esperado/conhecido, sem TODO): ${ignored}"
+  fi
 
   if [[ -n "$stale" ]]; then
     log "  Recorrente porém sem crash nas últimas $(( recent_days * 24 )) h (provavelmente já resolvido): ${stale}"

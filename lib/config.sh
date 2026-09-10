@@ -154,6 +154,7 @@ FULL_UPGRADE_PIP_USER_IGNORE
 FULL_UPGRADE_SKIP
 FULL_UPGRADE_DISABLED_INTEGRATIONS
 STALE_SERVICES_IGNORE
+COREDUMP_IGNORE_EXE
 GCLOUD_BIN
 COPILOT_BIN
 DMS_PLUGINS_DIR
@@ -337,7 +338,7 @@ load_config() {
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
-  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE
+  export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE COREDUMP_IGNORE_EXE
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
   config_warn_typos
@@ -512,6 +513,12 @@ FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # libs velhas até reboot por decisão consciente. Globs permitidos.
 # Ex: STALE_SERVICES_IGNORE="NetworkManager.service"
 STALE_SERVICES_IGNORE=""
+# Executáveis saciados do Doctor de crash recorrente (coredump): já conhecidos
+# como esperados (ex.: probe ativo que sonda streams hostis de propósito) não
+# viram TODO mesmo crashando com frequência. Globs permitidos, separados por
+# espaço. Compara pelo basename do executável (coluna EXE do coredumpctl list).
+# Ex: COREDUMP_IGNORE_EXE="ffmpeg"
+COREDUMP_IGNORE_EXE=""
 
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
@@ -622,6 +629,7 @@ show_config() {
   _cfg_kv "FULL_UPGRADE_SKIP" "$FULL_UPGRADE_SKIP" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_DISABLED_INTEGRATIONS" "$FULL_UPGRADE_DISABLED_INTEGRATIONS" "<nenhuma>"
   _cfg_kv "STALE_SERVICES_IGNORE" "$STALE_SERVICES_IGNORE" "<nenhum>"
+  _cfg_kv "COREDUMP_IGNORE_EXE" "$COREDUMP_IGNORE_EXE" "<nenhum>"
   printf '\n'
 
   # ── Paths de tools (auto-detectados ou via override) ──
