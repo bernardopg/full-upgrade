@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.42.0] - 2026-09-10
 ### Corrigido
 
 - **`--config-tui`: sobras da tela anterior no menu/ajuda.** `tui_draw_menu` e
