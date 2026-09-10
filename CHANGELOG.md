@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.41.0] - 2026-09-10
 ### Adicionado
 
 - **`COREDUMP_IGNORE_EXE` — allowlist de executáveis no Doctor de crash
