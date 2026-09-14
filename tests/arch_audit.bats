@@ -11,7 +11,7 @@ load test_helper
 setup() {
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
   QUIET=0
   STEP_REASON=""
   has() { return 0; }
@@ -37,7 +37,7 @@ setup() {
 }
 
 @test "count: saída vazia => 0" {
-  run bash -c 'printf "" | { source '"${FU_LIB}"'/steps/doctor.sh; arch_audit_affected_count; }'
+  run bash -c 'printf "" | { for _p in '"${FU_LIB}"'/steps/doctor/*.sh; do source "$_p"; done; unset _p; arch_audit_affected_count; }'
   [ "$output" = "0" ]
 }
 

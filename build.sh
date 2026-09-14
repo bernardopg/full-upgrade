@@ -37,7 +37,9 @@ ORDER=(
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/editor_shell.sh lib/steps/ide.sh
   lib/steps/reference.sh
-  lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh lib/steps/doctor.sh
+  lib/steps/ai.sh lib/steps/coverage.sh lib/steps/cleanup.sh
+  lib/steps/doctor/_common.sh lib/steps/doctor/system.sh lib/steps/doctor/storage.sh
+  lib/steps/doctor/boot.sh lib/steps/doctor/packages.sh lib/steps/doctor/dev.sh
   lib/steps/backup.sh lib/steps/cloud_backup.sh lib/steps/self_update.sh lib/steps/audit.sh lib/steps/mcp.sh
   lib/steps/manual_apps.sh
   lib/main.sh
@@ -47,7 +49,7 @@ ORDER=(
 # steps/*.sh só definem funções (ordem entre eles é irrelevante), mas esquecer
 # um arquivo quebra o standalone silenciosamente. Falha o build se faltar algum.
 _missing=()
-for _f in lib/steps/*.sh; do
+for _f in lib/steps/*.sh lib/steps/*/*.sh; do
   case " ${ORDER[*]} " in
     *" $_f "*) ;;
     *) _missing+=("$_f") ;;

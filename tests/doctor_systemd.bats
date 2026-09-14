@@ -5,7 +5,7 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
 
 @test "systemd_user_scope_status: sem XDG_RUNTIME_DIR é parcial" {

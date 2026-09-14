@@ -9,7 +9,7 @@ setup() {
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/cleanup.sh"
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
 
 @test "snapshot_keep_count: default 5 e valores inválidos caem para 5" {

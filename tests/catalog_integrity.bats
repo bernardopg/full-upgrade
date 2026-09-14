@@ -92,13 +92,14 @@ setup() {
 }
 
 @test "catálogo: todo func_name referenciado existe em alguma fonte" {
-  # Funções de step vêm de três lugares: lib/steps/*.sh (núcleo),
-  # lib/sudo.sh (start_sudo_keepalive) e steps.d/*.sh (tools custom gated).
-  # Carrega todas para validar a existência das funções referenciadas no catálogo.
+  # Funções de step vêm de quatro lugares: lib/steps/*.sh (núcleo),
+  # lib/steps/doctor/*.sh (auditorias), lib/sudo.sh (start_sudo_keepalive) e
+  # steps.d/*.sh (tools custom gated). Carrega todas para validar a existência
+  # das funções referenciadas no catálogo.
   local m
   # shellcheck source=/dev/null
   source "${FU_LIB}/sudo.sh"
-  for m in "${FU_LIB}"/steps/*.sh "${FU_ROOT}"/steps.d/*.sh; do
+  for m in "${FU_LIB}"/steps/*.sh "${FU_LIB}"/steps/*/*.sh "${FU_ROOT}"/steps.d/*.sh; do
     [[ -e "$m" ]] || continue
     # shellcheck source=/dev/null
     source "$m"

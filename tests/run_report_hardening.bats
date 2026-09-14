@@ -12,7 +12,7 @@ setup() {
     # Padrão dominante: helpers vivem no módulo do step; o teste faz source
     # direto do módulo (só definições de função, sem efeito colateral).
     # shellcheck source=/dev/null
-    source "${FU_LIB}/steps/doctor.sh"
+    for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
     # shellcheck source=/dev/null
     source "${FU_LIB}/steps/firmware.sh"
     # shellcheck source=/dev/null

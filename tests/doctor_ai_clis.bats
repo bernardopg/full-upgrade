@@ -6,17 +6,17 @@ load test_helper
 setup() {
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
   QUIET=0
 }
 
 @test "first_version: pega a primeira linha com número" {
-  run bash -c 'source '"${FU_LIB}"'/steps/doctor.sh; printf "banner\nv1.2.3 (abc)\n" | _ai_cli_first_version'
+  run bash -c 'for _p in '"${FU_LIB}"'/steps/doctor/*.sh; do source "$_p"; done; unset _p; printf "banner\nv1.2.3 (abc)\n" | _ai_cli_first_version'
   [ "$output" = "v1.2.3 (abc)" ]
 }
 
 @test "first_version: vazio quando não há número" {
-  run bash -c 'source '"${FU_LIB}"'/steps/doctor.sh; printf "sem versao aqui\n" | _ai_cli_first_version'
+  run bash -c 'for _p in '"${FU_LIB}"'/steps/doctor/*.sh; do source "$_p"; done; unset _p; printf "sem versao aqui\n" | _ai_cli_first_version'
   [ -z "$output" ]
 }
 

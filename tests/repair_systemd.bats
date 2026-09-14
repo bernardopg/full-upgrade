@@ -3,7 +3,7 @@
 setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
   source "${FU_LIB}/steps/repair.sh"
   QUIET=0 LOG_FILE=/dev/null
 }

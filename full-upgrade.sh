@@ -76,7 +76,13 @@ source "${FU_LIB}/tui.sh"
 source "${FU_LIB}/tray.sh"
 
 # Implementações de steps (ordem não importa — só definições de função).
+# steps/*.sh no topo e steps/*/*.sh em subdiretórios (ex.: doctor/).
 for _m in "${FU_LIB}"/steps/*.sh; do
+  [[ -e "$_m" ]] || continue
+  # shellcheck source=/dev/null
+  source "$_m"
+done
+for _m in "${FU_LIB}"/steps/*/*.sh; do
   [[ -e "$_m" ]] || continue
   # shellcheck source=/dev/null
   source "$_m"

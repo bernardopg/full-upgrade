@@ -16,7 +16,7 @@ load test_helper
 setup() {
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/doctor.sh"
+  for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
 
 @test "pipefail: 'produtor | grep -q' com match cedo NÃO devolve 0 (a armadilha)" {
