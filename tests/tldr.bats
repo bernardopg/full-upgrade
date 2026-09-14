@@ -68,7 +68,7 @@ EOF
   row="$(step_catalog | grep '^Atualizar cache do tldr|')"
 
   [ -n "$row" ]
-  [ "$(cut -d'|' -f2 <<<"$row")" = "reference" ]
+  [ "$(cut -d'|' -f2 <<<"$row")" = "shell" ]
   [[ ",$(cut -d'|' -f3 <<<"$row")," == *,network,* ]]
   [ "$(cut -d'|' -f4 <<<"$row")" = "mutating" ]
   [ "$(cut -d'|' -f5 <<<"$row")" -eq 120 ]

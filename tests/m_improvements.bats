@@ -66,13 +66,13 @@ EOF'
 }
 
 @test "summary_category_totals_json: inclui agregação por grupo no JSON" {
-  STEP_CATEGORIES=(flatpak docker editor shell)
+  STEP_CATEGORIES=(packages packages editor shell)
   STEP_RESULTS=(ok warn ok todo)
   STEP_TIMES=(3 7 2 5)
 
   run summary_category_totals_json
   [ "$status" -eq 0 ]
-  [[ "$output" == *'"Contêineres":{"duration_seconds":10,"ok":1,"warn":1,"todo":0,"fail":0,"skip":0}'* ]]
+  [[ "$output" == *'"Sistema / Pacotes":{"duration_seconds":10,"ok":1,"warn":1,"todo":0,"fail":0,"skip":0}'* ]]
   [[ "$output" == *'"Shell / Editor":{"duration_seconds":7,"ok":1,"warn":0,"todo":1,"fail":0,"skip":0}'* ]]
 }
 

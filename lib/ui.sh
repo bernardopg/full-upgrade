@@ -301,18 +301,17 @@ _status_sym() {  # $1 = status → ecoa "SÍMBOLO|COR"
 summary_group_specs() {
   cat <<'EOF'
 Preflight|core
+Backup / Snapshots|backup
 Reparos|repair
-Sistema / Pacman|pacman
-Contêineres|containers flatpak docker snap
-Linguagens|lang
-Referência|reference
+Sistema / Pacotes|packages
 Firmware / Boot|firmware
+Linguagens|lang-js lang-py lang-rust lang-other
 IA|ai
-Apps manuais|manual
-Rede|network
+IDEs e Apps|ide tools
 Shell / Editor|editor shell
-Hyprland|hyprland
+Segurança|security
 Limpeza|cleanup
+Auto-remediação|autofix
 Verificação final|final
 Doctor (auditorias)|doctor
 EOF
@@ -350,18 +349,17 @@ _group_label_for_category() {
 _category_label() {
   case "$1" in
     core)     printf 'Preflight' ;;
+    backup)   printf 'Backup / Snapshots' ;;
     repair)   printf 'Reparos' ;;
-    pacman)   printf 'Sistema / Pacman' ;;
-    flatpak|docker|containers) printf 'Contêineres' ;;
-    lang)     printf 'Linguagens' ;;
-    reference) printf 'Referência' ;;
+    packages) printf 'Sistema / Pacotes' ;;
     firmware) printf 'Firmware / Boot' ;;
-    editor|shell) printf 'Shell / Editor' ;;
-    hyprland) printf 'Hyprland' ;;
+    lang-js|lang-py|lang-rust|lang-other) printf 'Linguagens' ;;
     ai)       printf 'IA' ;;
-    manual)   printf 'Apps manuais' ;;
-    network)  printf 'Rede' ;;
+    ide|tools) printf 'IDEs e Apps' ;;
+    editor|shell) printf 'Shell / Editor' ;;
+    security) printf 'Segurança' ;;
     cleanup)  printf 'Limpeza' ;;
+    autofix)  printf 'Auto-remediação' ;;
     final)    printf 'Verificação final' ;;
     doctor)   printf 'Doctor (auditorias)' ;;
     *)        printf 'Outros' ;;

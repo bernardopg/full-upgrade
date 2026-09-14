@@ -93,18 +93,18 @@ setup() {
 @test "catálogo: steps de apps manuais presentes e bem-formados" {
   run step_catalog
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Atualizar Factory droid|manual|"* ]]
-  [[ "$output" == *"Atualizar grok (xAI CLI)|manual|"* ]]
-  [[ "$output" == *"Atualizar cua-driver|manual|"* ]]
-  [[ "$output" == *"Atualizar Snyk CLI|manual|"* ]]
-  [[ "$output" == *"Atualizar OWASP ZAP (core e add-ons)|manual|"* ]]
+  [[ "$output" == *"Atualizar Factory droid|ai|"* ]]
+  [[ "$output" == *"Atualizar grok (xAI CLI)|ai|"* ]]
+  [[ "$output" == *"Atualizar cua-driver|tools|"* ]]
+  [[ "$output" == *"Atualizar Snyk CLI|security|"* ]]
+  [[ "$output" == *"Atualizar OWASP ZAP (core e add-ons)|security|"* ]]
   [[ "$output" == *"Doctor: apps manuais (fora de pacote)|doctor|"* ]]
 }
 
-@test "catálogo: categoria manual mapeia para o grupo Apps manuais" {
-  run _group_label_for_category manual
+@test "catálogo: categoria tools mapeia para o grupo IDEs e Apps" {
+  run _group_label_for_category tools
   [ "$status" -eq 0 ]
-  [ "$output" = "Apps manuais" ]
+  [ "$output" = "IDEs e Apps" ]
 }
 
 @test "_manual_write_prefix: destino escrevível não exige sudo (prefixo vazio)" {

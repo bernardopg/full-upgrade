@@ -230,3 +230,86 @@ setup() {
     false
   }
 }
+
+# ── Guard-rails de taxonomia (Série S) ────────────────────────────────────────
+# A categoria é chave de agrupamento (ui.sh) e de filtro (--only/--skip-category);
+# incoerência aqui quebra metadados silenciosamente. Conjunto fechado: adicionar
+# uma categoria nova exige editar ESTE teste conscientemente.
+
+@test "catálogo: categoria pertence ao conjunto fechado" {
+  local allowed="core backup packages repair security firmware lang-js lang-py lang-rust lang-other ai tools ide editor shell cleanup autofix doctor final"
+  local bad=0 name cat rest
+  while IFS='|' read -r name cat rest; do
+    [[ -n "$name" ]] || continue
+    if [[ " $allowed " != *" $cat "* ]]; then
+      echo "categoria fora do conjunto fechado: '$cat' ($name)"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: categoria doctor é sempre read-only (mutantes vivem em autofix)" {
+  local bad=0 name cat tags eff rest
+  while IFS='|' read -r name cat tags eff rest; do
+    [[ -n "$name" ]] || continue
+    if [[ "$cat" == "doctor" && "$eff" == "mutating" ]]; then
+      echo "step mutante na categoria doctor (mover p/ autofix): $name"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: tags não duplicam o campo efeito (mutating/read proibidos)" {
+  local bad=0 name cat tags eff rest
+  while IFS='|' read -r name cat tags eff rest; do
+    [[ -n "$name" ]] || continue
+    if [[ ",${tags}," == *",mutating,"* || ",${tags}," == *",read,"* ]]; then
+      echo "tag redundante com o campo efeito em: $name"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: toda categoria tem ao menos 2 steps (sem singletons)" {
+  local -A count=()
+  local name cat rest
+  while IFS='|' read -r name cat rest; do
+    [[ -n "$name" ]] || continue
+    count["$cat"]=$(( ${count["$cat"]:-0} + 1 ))
+  done < <(step_catalog)
+  local bad=0 c
+  for c in "${!count[@]}"; do
+    if (( count["$c"] < 2 )); then
+      echo "categoria singleton: $c (${count[$c]} step)"
+      bad=1
+    fi
+  done
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: tag usada em exatamente 1 step precisa estar na allowlist" {
+  # Allowlist: tags de eixo estreito ou nome de ferramenta, aceitas como
+  # singletons. Adicionar aqui = decisão consciente de vocabulário.
+  local allow="antigravity arduino automation bun burp caveman claude cloud code-intelligence coderabbit copilot corepack cua cursor cve deno dms docker dotnet droid extensions firmware fwupd gcloud ghcup gk gnupg go grok haskell hermes hyprpm inventory jcode kernel keyring kimchi kimi kiro lazy local-bin lock logs manual mason mirror news ollama onedrive openclaw opencode orca paru pi plugins poetry reference repair reports rtk rustup scrub self-update skills smart snap snyk ssd system tldr tokensave tray trim user vscode yazi zap"
+  local -A count=()
+  local name cat tags rest t
+  while IFS='|' read -r name cat tags rest; do
+    [[ -n "$name" ]] || continue
+    IFS=',' read -ra taglist <<< "$tags"
+    for t in "${taglist[@]}"; do
+      [[ -n "$t" ]] || continue
+      count["$t"]=$(( ${count["$t"]:-0} + 1 ))
+    done
+  done < <(step_catalog)
+  local bad=0 t
+  for t in "${!count[@]}"; do
+    if (( count["$t"] == 1 )) && [[ " $allow " != *" $t "* ]]; then
+      echo "tag singleton fora da allowlist: $t"
+      bad=1
+    fi
+  done
+  [ "$bad" -eq 0 ]
+}

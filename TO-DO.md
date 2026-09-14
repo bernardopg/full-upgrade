@@ -6,12 +6,15 @@ foram removidos daqui e ficam rastreáveis pelo `CHANGELOG.md`, tags e PRs.
 
 Base deste ciclo:
 
-- Run ativo: `20260702-145413-2524263` (`full-upgrade`, alias `update`).
-- Resultado: `102 ok · 1 warn · 1 todo · 1 fail · 0 skip` em `4m47s`.
-- Fail: `Atualizar pacotes do sistema e AUR` — RPC do AUR caiu
-  (`error sending request ... channel closed`) e bloqueou até os repos oficiais.
-- Log: `/home/bitter/.cache/system-upgrade/full-upgrade-20260702-145413-2524263.log`.
+- Run ativo: `20260913-233002-167051` (`full-upgrade -y -d`, v3.42.0).
+- Resultado: `122 ok · 1 warn · 0 todo · 0 fail · 6 skip` em `11m 17s`.
+- Warn: `Atualizar pi (pi-coding-agent)` — `pi update --extensions` falhou com
+  npm `EALLOWREMOTE` (fetch de URL remota desabilitado; pacote upstream
+  `pi-mcp-adapter` aponta dependência para `pkg.pr.new`; não acionável aqui).
+- Log: `/tmp/fu-run.log` · Relatório:
+  `~/.cache/system-upgrade/full-upgrade-20260913-233002-167051.md`.
 - Série O (run 2026-07-01): mesclada na `main` via PR #107.
+- Revisão estrutural de steps/categorias (2026-09-14): originou as Séries S e T.
 
 Convenções obrigatórias em todos os itens:
 
@@ -19,12 +22,156 @@ Convenções obrigatórias em todos os itens:
 - Mudanças validam com `bash -n`, `shellcheck -S warning -x`, `bats tests/`, smoke flags, `--dry-run` e build quando estrutural.
 - Comentários e strings de usuário ficam em PT-BR.
 - Nome de step é byte-idêntico entre catálogo, `main.sh`, relatório e argumentos `--skip`/`--explain-step`.
+- Categoria de step é chave de agrupamento (`summary_group_specs` em `ui.sh`) e de filtro (`--only`/`--skip-category`); mudança de categoria exige atualizar grupos, rótulos e testes de catálogo.
 - Preferir a menor mudança correta; sem backward compatibility nova sem necessidade concreta.
 - Achado não acionável localmente não deve virar `warn`/`todo` recorrente.
 
-Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa.
+Legenda de prioridade: 🔴 alta · 🟡 média · 🟢 baixa · 🟠 grande impacto/esforço.
 Status: ☐ pendente · ◐ em andamento · ☑ concluído.
 Esforço: P/M/G.
+
+Próximas 3 prioridades definidas em 2026-09-14: **(1)** Série S completa
+(S1+S2+S3: categorias coerentes + guard-rails + higiene de tags, numa onda
+só — os testes novos falham sem a reclassificação) — ☑ CONCLUÍDA (1407
+testes verdes, commit pendente), **(2)** T1 (split do doctor.sh),
+**(3)** T2+T3 (preflight.sh e extrações).
+
+---
+
+## Série S — Coerência do catálogo de steps (revisão estrutural 2026-09-14)
+
+Objetivo: alinhar categoria ↔ semântica ↔ arquivo de implementação, tornar o
+modo `doctor` read-only de fato (hoje a promessa só é cumprida por um filtro
+em runtime, `add_skip_mutating_steps`) e blindar a taxonomia com guard-rails
+de teste. Critério geral: **nomes de step não mudam** (chave de junção
+byte-idêntica com `main.sh`, config e relatórios); identidades antigas de
+categoria sobrevivem como **tags** para compat de `--only`/`--skip-category`.
+
+### S1 — 🔴 M ☑ Reclassificar categorias para a taxonomia alvo
+
+Mudanças de categoria (19 categorias finais, todas com ≥ 2 steps):
+
+- `Backup Timeshift em nuvem`: `cleanup` → `backup` (era o único step de
+  backup fora de lugar; `--skip-category cleanup` desligava um backup).
+- `Backup de configs críticas` e `Snapshot pré-upgrade`: `pacman` → `backup`.
+- `Garantir Wireshark` e `Garantir Burp Suite`: `repair` → `security`
+  (instalam pacotes, não reparam); os `Reparar *` de Wireshark/Burp ficam em
+  `repair` (reparos genuínos).
+- `Garantir Orca IDE`, `Garantir Antigravity`: `ai` → `ide` (IDEs desktop AUR).
+- `Verificar arquivos .pacnew/.pacsave`: `final` → `packages` (higiene de
+  config do pacman; doctor tem o próprio check).
+- Doman AI vs `manual` arbitrário — CLIs standalone self-updating idênticos
+  em categorias diferentes (`grok` era `manual`, `kimi` era `ai`). Migrar de
+  `manual` para `ai`: Factory droid, CodeRabbit, Kiro CLI, grok, jcode,
+  qodercli, qoderwake, kimchi. `manual` deixa de existir como categoria.
+- `Atualizar Snyk CLI` e `Atualizar OWASP ZAP`: `manual` → `security`.
+- `Atualizar GitKraken CLI (gk)`, `Atualizar cua-driver`,
+  `Atualizar OBS (plugins e extensões)`: `manual` → `tools`.
+- `lang` divide-se em `lang-js` (8: npm×3, corepack, pnpm×2, Bun, Deno),
+  `lang-py` (6: pip, pipx, uv×3, Poetry), `lang-rust` (3: rustup, cargo bins,
+  cargo audit) e `lang-other` (6: Arduino, Go, .NET, gcloud, gems, ghcup).
+  Tag `lang` permanece em todos para `--only lang` continuar funcionando.
+- `flatpak`/`snap`/`docker` (1 step cada) fundem-se em `packages` junto com o
+  núcleo pacman (system/AUR, mirrors, news, pacnew). Tags `flatpak`/`snap`/
+  `docker`/`pacman` preservadas para compat de filtros.
+- Eixo `autofix` (novo, 5 steps): `Auto-remediar CVEs de toolchain Rust`
+  (era `lang`), `Auto-remediar pendências finais` (era `final`),
+  `Auto-remediar deps Python ausentes`, `Auto-remediar scrub btrfs` e
+  `Reiniciar serviços com libs antigas` (eram `doctor`).
+- `doctor` fica read-only (27 steps); invariante passa a ser testada, não
+  depende de filtro em runtime.
+- `shell` absorve `hyprland` (hyprpm) e `reference` (tldr), que eram
+  singletons; `editor` fica com nvim (Lazy/Mason); extensões VSCode/Cursor
+  vão para `ide`.
+
+Arquivos a tocar: `lib/catalog.sh` (heredoc), `lib/ui.sh`
+(`summary_group_specs` + `_category_label`), `tests/catalog.bats`,
+`tests/ui_summary.bats`, `tests/manual_apps.bats`, README/help se citarem
+categoria removida. Validação: `bash -n`, `shellcheck -S warning -x`, bats de
+catálogo/ui/report/manual_apps, `--list-steps`, `--dry-run -n`.
+
+### S2 — 🔴 P ☑ Guard-rails de integridade semântica em `tests/catalog_integrity.bats`
+
+Hoje os testes cobrem o join (nome↔função↔main.sh) mas nada valida coerência
+de categoria. Adicionar:
+
+1. Categoria ∈ conjunto fechado de 19 categorias (impede categoria nova por
+   digitação).
+2. `categoria != doctor` quando `efeito == mutating` (doctor é read-only).
+3. Tags não contêm `mutating`/`read` (redundantes com o campo efeito).
+4. Toda categoria tem ≥ 2 steps (mata singletons).
+5. Tag usada em exatamente 1 step precisa estar na allowlist explícita do
+   teste (vocabulário controlado; aceita nomes de ferramenta documentados).
+6. Steps `core`/`final` mantêm invariantes existentes (já cobertos) — apenas
+   conferir que os novos testes reusam o mesmo parser do heredoc.
+
+### S3 — 🟡 P ☑ Higiene de tags: remover `mutating`/`read` redundantes
+
+- 23 de 93 steps mutantes tinham tag `mutating`; 70 não tinham. 34 de 36
+  steps read tinham tag `read`. Remover as tags duplicadas (o campo `efeito`
+  é canônico e já testado); `add_skip_mutating_steps` usa o campo, não a tag.
+- Eixos de tag legítimos que permanecem: `network`, `slow`, `sudo`,
+  `security`, `desktop`, `snapshot`, `cve`, `config`, `read-only`-related
+  removidos; nomes de ferramenta viram allowlist no teste S2.5.
+
+### S4 — 🟢 P ☐ Documentar a taxonomia no README/help
+
+- Tabela de categorias com semântica (o que `--only X` pega) em `README.md`
+  e tópico `--help steps`.
+
+---
+
+## Série T — Reorganização física dos arquivos de steps
+
+Objetivo: acabar com o monolito e com nomes enganosos; uma regra única de
+co-localização. Executar DEPOIS da Série S (categorias estáveis primeiro).
+
+### T1 — 🟠 G ☐ Dividir `lib/steps/doctor.sh` (2.589 linhas, 30 steps) em `lib/steps/doctor/`
+
+- Proposta: `doctor/system.sh` (reboot, units, journal, coredump, sessão
+  desktop), `doctor/storage.sh` (disk, SMART/NVMe, btrfs, TRIM),
+  `doctor/boot.sh` (boot health/tempo, fwupd security), `doctor/packages.sh`
+  (pacman health, pacfiles, hooks ALPM, arch-audit, paru Devel, flatpak
+  repair), `doctor/dev.sh` (AI CLIs, ambiente Python, conflitos JS, gems,
+  MCP, apps manuais).
+- Helpers puros já extraídos em `lib/testable/doctor_pure.sh` não se movem;
+  atualizar `load_libs` dos testes e a lista de `source` do entrypoint.
+- Testes existentes (`doctor*.bats`, ~600 asserts) devem passar sem mudança
+  de comportamento; só caminhos de load mudam.
+
+### T2 — 🟡 P ☐ Renomear `lib/steps/coverage.sh` → `lib/steps/preflight.sh`
+
+- O arquivo implementa lock/sudo/disco/keyring/snapshot/mirrors — nada a ver
+  com cobertura. Renomear arquivo, atualizar `full-upgrade.sh` (source),
+  `build.sh` (se listar arquivos), `load_libs` dos testes e comentários que
+  citam o caminho.
+
+### T3 — 🟡 M ☐ Extrair responsabilidades fora de lugar
+
+- Verificações finais (`final_check_pending`, `final_check_managers`,
+  `autofix_final_pending`) saem de `lib/steps/cleanup.sh` →
+  `lib/steps/final_checks.sh`.
+- `lib/steps/pacman.sh` perde `cleanup_paccache`/`cleanup_orphans` (vão para
+  `cleanup.sh`) e ganha foco em update/reparo do pacman.
+- `lib/steps/editor_shell.sh` (3 categorias) divide-se em `shell.sh` (omz,
+  dms, yazi, hyprpm, tldr) e `editor.sh` (nvim).
+- `lib/steps/containers.sh` renomeia para `packages.sh` (flatpak/snap/docker
+  + futuros empacotadores) — hoje “containers” só descreve docker.
+- `lib/steps/self_update.sh` mantém notices/update; os `repair_full_upgrade_*`
+  migram para `repair.sh` (ou ficam, documentando a exceção).
+
+### T4 — 🟢 M ☐ Regra única de co-localização de `doctor_*`
+
+- Hoje 4 checks de doctor vivem fora do monolito (`doctor_gem_shadow` em
+  `lang_other.sh`, `doctor_manual_apps` em `manual_apps.sh`,
+  `doctor_mcp_servers` em `mcp.sh`, `doctor_obs_modules` em
+  `steps.d/85-obs.sh`). Definir: cada `doctor_*` vive no arquivo do seu
+  domínio; o split T1 absorve os que ficarem.
+
+### T5 — 🟢 P ☐ `catalog.sh` declara `func_name` → teste de caminho
+
+- Guard-rail opcional: função de step da categoria X vive no arquivo/dir
+  esperado de X (evita regressão da co-localização).
 
 ---
 

@@ -5,6 +5,13 @@
 
 step_catalog() {
   # formato: nome|categoria|tags|efeito|timeout|cmd_deps|func_name|descrição
+ # CATEGORIAS (conjunto fechado; guard-rail em tests/catalog_integrity.bats):
+ #   core|backup|packages|repair|security|firmware|lang-js|lang-py|lang-rust|
+ #   lang-other|ai|tools|ide|editor|shell|cleanup|autofix|doctor|final
+ # Regras: doctor é SEMPRE read-only (steps mutantes vivem em autofix);
+ # toda categoria tem >= 2 steps; tags mutating/read são proibidas
+ # (redundantes com o campo efeito); identidades antigas de filtro
+ # (lang, pacman, flatpak, snap, docker, ai) sobrevivem como tags.
   # timeout: segundos (0 = sem limite); cmd_deps: binários separados por vírgula (vazio = nenhum)
   # func_name: nome exato da função Bash que implementa o step (vazio = sem função direta)
   # ATENÇÃO: timeout>0 roda o step em SUBSHELL (run_step). Steps que mutam estado
@@ -13,55 +20,55 @@ step_catalog() {
   cat <<'EOF'
 Adquirir lock de execução|core|lock,preflight|read|0||acquire_run_lock|Impede instâncias concorrentes do full-upgrade via flock.
 Validar sudo|core|sudo,preflight|read|0||start_sudo_keepalive|Valida sudo e mantém a credencial ativa durante a execução.
-Pré-flight: espaço em disco|core|disk,read,preflight|read|30||preflight_disk_space|Verifica espaço livre mínimo em / e /boot antes de mutações.
+Pré-flight: espaço em disco|core|disk,preflight|read|30||preflight_disk_space|Verifica espaço livre mínimo em / e /boot antes de mutações.
 Atualizar archlinux-keyring|core|keyring,sudo,preflight,network|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
-Backup de configs críticas|pacman|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
-Snapshot pré-upgrade|pacman|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
-Backup Timeshift em nuvem|cleanup|snapshot,backup,cloud,onedrive,network,slow,sudo|mutating|14400|restic,rclone,timeshift|backup_timeshift_cloud|Replica o snapshot Timeshift mais recente (@ e @home) para um repositório Restic criptografado via rclone e aplica retenção remota.
-Checar notícias do Arch Linux|pacman|news,read,network|read|45|curl|check_arch_news|Baixa o feed de notícias do Arch e avisa (todo) se houver notícia nova com cara de intervenção manual antes do upgrade.
-Atualizar mirrors|pacman|mirror,network,sudo|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
-Limpar lock stale do pacman|repair|pacman,mutating|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
-Reparar ambiente GnuPG/AUR|repair|aur,gnupg,mutating|mutating|60||repair_gnupg_runtime|Corrige permissões de GnuPG e reinicia dirmngr para evitar falhas no AUR.
-Atualizar pacotes do sistema e AUR|pacman|update,network,slow,system,aur|mutating|600||update_system_aur|Atualiza pacotes oficiais e AUR com AUR_HELPER (paru/yay/pikaur detectados) ou pacman.
-Garantir Wireshark|repair|security,wireshark,network,mutating|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
-Garantir Burp Suite|repair|security,burp,aur,network,mutating|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
-Reparar comandos locais conflitantes|repair|shadowing,mutating|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
-Limpar scopes transitórios de apps|repair|systemd,user,desktop,mutating|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes app-*.scope já encerrados; journal e coredump permanecem para auditoria.
-Reparar configuração de coredump|repair|systemd,coredump,config,sudo,mutating|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
-Reparar sombra local do full-upgrade|repair|shadowing,self,pacman,mutating|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
-Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman,mutating|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga que ainda aponta para ~/.local/bin/full-upgrade quando a instalação ativa é pacman/AUR.
-Reparar permissões de captura do Wireshark|repair|security,wireshark,mutating|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
-Reparar atalhos antigos do Burp|repair|desktop,mutating|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
-Atualizar Flatpak|flatpak|update,network,slow|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
-Atualizar pacotes Snap|snap|snap,update,network,slow|mutating|600|snap|update_snap|Atualiza pacotes Snap instalados.
-Atualizar imagens Docker|docker|update,network,slow|mutating|600|docker|update_docker_images|Puxa imagens remotas locais e alerta containers usando imagem antiga.
-Atualizar Arduino (cores/libs)|lang|arduino,update,network|mutating|300|arduino-cli|update_arduino|Atualiza índices, cores e bibliotecas do arduino-cli.
+Backup de configs críticas|backup|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
+Snapshot pré-upgrade|backup|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
+Backup Timeshift em nuvem|backup|snapshot,backup,cloud,onedrive,network,slow,sudo|mutating|14400|restic,rclone,timeshift|backup_timeshift_cloud|Replica o snapshot Timeshift mais recente (@ e @home) para um repositório Restic criptografado via rclone e aplica retenção remota.
+Checar notícias do Arch Linux|packages|news,network,pacman|read|45|curl|check_arch_news|Baixa o feed de notícias do Arch e avisa (todo) se houver notícia nova com cara de intervenção manual antes do upgrade.
+Atualizar mirrors|packages|mirror,network,sudo,pacman|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
+Limpar lock stale do pacman|repair|pacman|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
+Reparar ambiente GnuPG/AUR|repair|aur,gnupg|mutating|60||repair_gnupg_runtime|Corrige permissões de GnuPG e reinicia dirmngr para evitar falhas no AUR.
+Atualizar pacotes do sistema e AUR|packages|update,network,slow,system,aur,pacman|mutating|600||update_system_aur|Atualiza pacotes oficiais e AUR com AUR_HELPER (paru/yay/pikaur detectados) ou pacman.
+Garantir Wireshark|security|security,wireshark,network|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
+Garantir Burp Suite|security|security,burp,aur,network|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
+Reparar comandos locais conflitantes|repair|shadowing|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
+Limpar scopes transitórios de apps|repair|systemd,user,desktop|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes app-*.scope já encerrados; journal e coredump permanecem para auditoria.
+Reparar configuração de coredump|repair|systemd,coredump,config,sudo|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
+Reparar sombra local do full-upgrade|repair|shadowing,self,pacman|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
+Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga que ainda aponta para ~/.local/bin/full-upgrade quando a instalação ativa é pacman/AUR.
+Reparar permissões de captura do Wireshark|repair|security,wireshark|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
+Reparar atalhos antigos do Burp|repair|desktop|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
+Atualizar Flatpak|packages|update,network,slow,flatpak|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
+Atualizar pacotes Snap|packages|snap,update,network,slow|mutating|600|snap|update_snap|Atualiza pacotes Snap instalados.
+Atualizar imagens Docker|packages|update,network,slow,docker|mutating|600|docker|update_docker_images|Puxa imagens remotas locais e alerta containers usando imagem antiga.
+Atualizar Arduino (cores/libs)|lang-other|arduino,update,network,lang|mutating|300|arduino-cli|update_arduino|Atualiza índices, cores e bibliotecas do arduino-cli.
 Atualizar firmware (fwupd)|firmware|update,network,slow,sudo|mutating|300|fwupdmgr|update_fwupd|Atualiza metadados e firmware via fwupd.
-Atualizar systemd-boot (bootctl)|firmware|boot,sudo,mutating|mutating|60|bootctl|update_bootctl|Atualiza systemd-boot quando instalado no ESP.
-Atualizar npm (self)|lang|javascript,npm,update,network|mutating|120|npm|update_npm_self|Atualiza o próprio npm global.
-Atualizar npm global|lang|javascript,npm,update,network,slow|mutating|300|npm|update_npm_globals|Atualiza pacotes npm globais com tratamento de links e deps locais.
-Atualizar npm global secundário|lang|javascript,npm,update,network,slow|mutating|900|npm|update_npm_globals_secondary|Atualiza pacotes npm globais do prefixo secundário (~/.npm-global ou $NPM_CONFIG_PREFIX) invisíveis ao npm ativo (ex.: nvm), via npm install -g --prefix; scripts bloqueados pelo allowScripts viram RC_TODO com remediação.
-Atualizar corepack|lang|javascript,corepack,update,network|mutating|120|npm|update_corepack|Atualiza corepack via npm.
-Atualizar pnpm (self)|lang|javascript,pnpm,update,network|mutating|120|pnpm|update_pnpm_self|Atualiza o próprio pnpm.
-Atualizar pnpm global|lang|javascript,pnpm,update,network|mutating|300|pnpm|update_pnpm_globals|Atualiza pacotes pnpm globais e remove deps locais quebradas.
-Atualizar Bun|lang|javascript,bun,update,network|mutating|120|bun|update_bun|Atualiza o runtime Bun via bun upgrade (pula se gerenciado pelo sistema).
-Atualizar Deno|lang|javascript,deno,update,network|mutating|120|deno|update_deno|Atualiza o runtime Deno via deno upgrade (pula se gerenciado pelo sistema).
-Atualizar pacotes pip --user|lang|python,pip,update,network|mutating|300|pip|update_pip_user|Atualiza pacotes Python instalados no usuário.
-Atualizar pacotes pipx|lang|python,pipx,update,network|mutating|300|pipx|update_pipx|Atualiza aplicações gerenciadas pelo pipx.
-Atualizar uv (self)|lang|python,uv,update,network|mutating|120|uv|update_uv_self|Atualiza o binário uv.
-Atualizar Python gerenciado pelo uv|lang|python,uv,update,network,slow|mutating|300|uv|update_uv_python|Atualiza versões Python gerenciadas pelo uv.
-Atualizar ferramentas uv|lang|python,uv,update,network|mutating|300|uv|update_uv_tools|Atualiza ferramentas instaladas pelo uv.
-Atualizar Poetry|lang|python,poetry,update,network|mutating|120|pip|update_poetry|Atualiza Poetry instalado via pip --user.
-Atualizar Rust (rustup)|lang|rust,rustup,update,network,slow|mutating|600|rustup|update_rustup|Atualiza toolchains Rust quando rustup reporta update disponível.
-Atualizar bins do cargo|lang|rust,cargo,update,network,slow|mutating|600|cargo-install-update|update_cargo_bins|Atualiza binários Cargo usando cargo-install-update.
-Auditar binários cargo (CVEs)|lang|rust,cargo,security,read,network|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
-Auto-remediar CVEs de toolchain Rust|lang|rust,cargo,security,update,network,slow|mutating|1800|cargo-audit|autofix_rust_cves|Sob AUTO_FIX_RUST_CVES=1 e confirmação/--yes, aplica rustup self update/update e cargo install-update para CVEs corrigíveis, rebuilda bins com CVE pinada no build (cargo install --force) e re-audita.
-Atualizar ferramentas Go|lang|go,update,network|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas em GOPATH/bin.
-Atualizar ferramentas .NET|lang|dotnet,update,network|mutating|300|dotnet|update_dotnet_tools|Atualiza ferramentas .NET globais.
-Atualizar Google Cloud SDK|lang|gcloud,update,network,slow|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
-Atualizar gems de usuário|lang|ruby,gem,update,network|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
-Atualizar ghcup|lang|haskell,ghcup,update,network|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
-Atualizar cache do tldr|reference|tldr,reference,cache,update,network|mutating|120|tldr|update_tldr_cache|Atualiza o cache local de páginas do Tealdeer (tldr); falhas preservam o cache anterior e viram aviso.
+Atualizar systemd-boot (bootctl)|firmware|boot,sudo|mutating|60|bootctl|update_bootctl|Atualiza systemd-boot quando instalado no ESP.
+Atualizar npm (self)|lang-js|javascript,npm,update,network,lang|mutating|120|npm|update_npm_self|Atualiza o próprio npm global.
+Atualizar npm global|lang-js|javascript,npm,update,network,slow,lang|mutating|300|npm|update_npm_globals|Atualiza pacotes npm globais com tratamento de links e deps locais.
+Atualizar npm global secundário|lang-js|javascript,npm,update,network,slow,lang|mutating|900|npm|update_npm_globals_secondary|Atualiza pacotes npm globais do prefixo secundário (~/.npm-global ou $NPM_CONFIG_PREFIX) invisíveis ao npm ativo (ex.: nvm), via npm install -g --prefix; scripts bloqueados pelo allowScripts viram RC_TODO com remediação.
+Atualizar corepack|lang-js|javascript,corepack,update,network,lang|mutating|120|npm|update_corepack|Atualiza corepack via npm.
+Atualizar pnpm (self)|lang-js|javascript,pnpm,update,network,lang|mutating|120|pnpm|update_pnpm_self|Atualiza o próprio pnpm.
+Atualizar pnpm global|lang-js|javascript,pnpm,update,network,lang|mutating|300|pnpm|update_pnpm_globals|Atualiza pacotes pnpm globais e remove deps locais quebradas.
+Atualizar Bun|lang-js|javascript,bun,update,network,lang|mutating|120|bun|update_bun|Atualiza o runtime Bun via bun upgrade (pula se gerenciado pelo sistema).
+Atualizar Deno|lang-js|javascript,deno,update,network,lang|mutating|120|deno|update_deno|Atualiza o runtime Deno via deno upgrade (pula se gerenciado pelo sistema).
+Atualizar pacotes pip --user|lang-py|python,pip,update,network,lang|mutating|300|pip|update_pip_user|Atualiza pacotes Python instalados no usuário.
+Atualizar pacotes pipx|lang-py|python,pipx,update,network,lang|mutating|300|pipx|update_pipx|Atualiza aplicações gerenciadas pelo pipx.
+Atualizar uv (self)|lang-py|python,uv,update,network,lang|mutating|120|uv|update_uv_self|Atualiza o binário uv.
+Atualizar Python gerenciado pelo uv|lang-py|python,uv,update,network,slow,lang|mutating|300|uv|update_uv_python|Atualiza versões Python gerenciadas pelo uv.
+Atualizar ferramentas uv|lang-py|python,uv,update,network,lang|mutating|300|uv|update_uv_tools|Atualiza ferramentas instaladas pelo uv.
+Atualizar Poetry|lang-py|python,poetry,update,network,lang|mutating|120|pip|update_poetry|Atualiza Poetry instalado via pip --user.
+Atualizar Rust (rustup)|lang-rust|rust,rustup,update,network,slow,lang|mutating|600|rustup|update_rustup|Atualiza toolchains Rust quando rustup reporta update disponível.
+Atualizar bins do cargo|lang-rust|rust,cargo,update,network,slow,lang|mutating|600|cargo-install-update|update_cargo_bins|Atualiza binários Cargo usando cargo-install-update.
+Auditar binários cargo (CVEs)|lang-rust|rust,cargo,security,network,lang|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
+Auto-remediar CVEs de toolchain Rust|autofix|rust,cargo,security,update,network,slow|mutating|1800|cargo-audit|autofix_rust_cves|Sob AUTO_FIX_RUST_CVES=1 e confirmação/--yes, aplica rustup self update/update e cargo install-update para CVEs corrigíveis, rebuilda bins com CVE pinada no build (cargo install --force) e re-audita.
+Atualizar ferramentas Go|lang-other|go,update,network,lang|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas em GOPATH/bin.
+Atualizar ferramentas .NET|lang-other|dotnet,update,network,lang|mutating|300|dotnet|update_dotnet_tools|Atualiza ferramentas .NET globais.
+Atualizar Google Cloud SDK|lang-other|gcloud,update,network,slow,lang|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
+Atualizar gems de usuário|lang-other|ruby,gem,update,network,lang|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
+Atualizar ghcup|lang-other|haskell,ghcup,update,network,lang|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
+Atualizar cache do tldr|shell|tldr,reference,cache,update,network|mutating|120|tldr|update_tldr_cache|Atualiza o cache local de páginas do Tealdeer (tldr); falhas preservam o cache anterior e viram aviso.
 Atualizar Hermes|ai|hermes,update,network|mutating|300|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
 Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK (Rust Token Killer) para a última release publicada no GitHub.
 Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
@@ -72,74 +79,74 @@ Atualizar Ollama|ai|ollama,update,network|mutating|600|ollama|update_ollama|Sob 
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
 Atualizar agent skills (skills CLI)|ai|skills,caveman,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza agent skills globais em ~/.agents/skills via 'npx skills update --global' (caveman, cavecrew, 9router-*, etc).
 Atualizar servidores MCP|ai|mcp,update|mutating|180||mcp_update_servers|Sob MCP_AUTO_UPDATE=1 refresca o cache uv dos servers MCP uvx (rebuild da última no próximo launch); npx/pinned/externo/remoto são reportados.
-Garantir Orca IDE|ai|orca,ide,desktop,aur,network,mutating|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
-Garantir Antigravity|ai|antigravity,ide,desktop,aur,network,mutating|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
+Garantir Orca IDE|ide|orca,ide,desktop,aur,network,ai|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
+Garantir Antigravity|ide|antigravity,ide,desktop,aur,network,ai|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
 Atualizar Kimi CLI|ai|kimi,update,network,slow|mutating|300|kimi|update_kimi|Kimi (Moonshot): npm global no prefixo ativo é coberto por 'Atualizar npm global'; npm global em outro prefixo (ex.: ~/.npm-global) => npm install -g --prefix; standalone => updater oficial 'kimi update' (RC_TODO se layout não suportado).
 Atualizar pi (pi-coding-agent)|ai|pi,update,network,slow|mutating|600|pi|update_pi|Atualiza o pi (pi-coding-agent, npm) via self-update nativo 'pi update', as extensões instaladas ('pi update --extensions') e os catálogos de modelos (lista de IA por provedor) com 'pi update --models'.
-Atualizar Factory droid|manual|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
-Atualizar OBS (plugins e extensões)|manual|obs,git,update,network|mutating|120|git|update_obs_plugins|Atualiza plugins user-scope do OBS (~/.config/obs-studio/plugins) via git e inventaria os manuais; pacotes obs-* do repo/AUR atualizam no step do sistema.
-Atualizar CodeRabbit CLI|manual|coderabbit,update,network|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
-Atualizar Kiro CLI (Amazon)|manual|ai,kiro,update,network|mutating|300|kiro-cli|update_kiro_cli|Atualiza a Kiro CLI (Amazon, fora de pacote) via self-update nativo (kiro-cli update --non-interactive).
-Atualizar Snyk CLI|manual|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
-Atualizar OWASP ZAP (core e add-ons)|manual|security,zap,update,network|mutating|1200|zap,curl,tar,sha256sum,python3|update_zap|Atualiza o core manual do OWASP ZAP pelo release oficial verificado e depois os add-ons via Marketplace headless.
-Atualizar GitKraken CLI (gk)|manual|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.
-Atualizar grok (xAI CLI)|manual|ai,grok,update,network|mutating|300|grok|update_grok|Atualiza a CLI grok (xAI, self-download em ~/.grok) via update nativo com check prévio (grok update --check).
-Atualizar jcode|manual|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo após comparar com a release mais recente no GitHub.
-Atualizar qodercli (Qoder)|manual|ai,qoder,update,network|mutating|300|qodercli|update_qodercli|Atualiza a CLI qodercli (Qoder, self-download em ~/.qoder) via update nativo com check prévio (qodercli update --check).
-Atualizar qoderwake|manual|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
-Atualizar kimchi|manual|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
-Atualizar cua-driver|manual|automation,cua,update,network|mutating|300|cua-driver|update_cua_driver|Atualiza o cua-driver (trycua, self-download em ~/.cua-driver) só quando check-update --json indica nova versão; também atualiza as skills.
+Atualizar Factory droid|ai|ai,droid,update,network|mutating|180|droid|update_droid|Atualiza o Factory droid (instalado fora de pacote) via self-update nativo (droid update).
+Atualizar OBS (plugins e extensões)|tools|obs,git,update,network|mutating|120|git|update_obs_plugins|Atualiza plugins user-scope do OBS (~/.config/obs-studio/plugins) via git e inventaria os manuais; pacotes obs-* do repo/AUR atualizam no step do sistema.
+Atualizar CodeRabbit CLI|ai|coderabbit,update,network,ai|mutating|180|coderabbit|update_coderabbit|Atualiza o CodeRabbit CLI (binário standalone) via self-update nativo (coderabbit update).
+Atualizar Kiro CLI (Amazon)|ai|ai,kiro,update,network|mutating|300|kiro-cli|update_kiro_cli|Atualiza a Kiro CLI (Amazon, fora de pacote) via self-update nativo (kiro-cli update --non-interactive).
+Atualizar Snyk CLI|security|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
+Atualizar OWASP ZAP (core e add-ons)|security|security,zap,update,network|mutating|1200|zap,curl,tar,sha256sum,python3|update_zap|Atualiza o core manual do OWASP ZAP pelo release oficial verificado e depois os add-ons via Marketplace headless.
+Atualizar GitKraken CLI (gk)|tools|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.
+Atualizar grok (xAI CLI)|ai|ai,grok,update,network|mutating|300|grok|update_grok|Atualiza a CLI grok (xAI, self-download em ~/.grok) via update nativo com check prévio (grok update --check).
+Atualizar jcode|ai|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo após comparar com a release mais recente no GitHub.
+Atualizar qodercli (Qoder)|ai|ai,qoder,update,network|mutating|300|qodercli|update_qodercli|Atualiza a CLI qodercli (Qoder, self-download em ~/.qoder) via update nativo com check prévio (qodercli update --check).
+Atualizar qoderwake|ai|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
+Atualizar kimchi|ai|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
+Atualizar cua-driver|tools|automation,cua,update,network|mutating|300|cua-driver|update_cua_driver|Atualiza o cua-driver (trycua, self-download em ~/.cua-driver) só quando check-update --json indica nova versão; também atualiza as skills.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.
 Atualizar plugins Yazi|shell|yazi,plugins,update,network|mutating|120|ya|update_yazi_plugins|Atualiza plugins do Yazi via ya pkg upgrade.
 Atualizar plugins Neovim (Lazy)|editor|nvim,lazy,update,network,slow|mutating|300|nvim|update_nvim_lazy|Sincroniza plugins Lazy.nvim.
 Atualizar LSPs Neovim (Mason)|editor|nvim,mason,update,network|mutating|300|nvim|update_nvim_mason|Atualiza registros e ferramentas Mason.nvim.
-Atualizar extensões de IDE (VSCode/Cursor)|editor|vscode,cursor,extensions,update,network,slow|mutating|600||update_ide_extensions|Atualiza extensões instaladas de IDEs da família VSCode (code/cursor/codium) via --update-extensions.
-Atualizar plugins Hyprland (hyprpm)|hyprland|hyprpm,update,network|mutating|120|hyprpm|update_hyprpm|Atualiza plugins Hyprland via hyprpm.
-Limpar cache do pacman|cleanup|pacman,sudo,mutating|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
-Limpar cache de build do AUR|cleanup|aur,cache,mutating|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
-Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo,mutating|mutating|1800||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
-Remover pacotes órfãos|cleanup|pacman,sudo,mutating|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
-Verificar arquivos .pacnew/.pacsave|final|pacman,config,read,repair,sudo|read|30||check_pacnew_files|Lista arquivos pendentes e, com AUTO_MERGE_PACNEW=1, mescla casos seguros fora de doctor/dry-run/no-repair.
-Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin,mutating|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
-Limpar journal do sistema|cleanup|journal,sudo,mutating|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
-Limpar coredumps antigos|cleanup|coredump,systemd,sudo,mutating|mutating|120|coredumpctl|cleanup_old_coredumps|Remove dumps de crash em /var/lib/systemd/coredump mais antigos que COREDUMP_KEEP_DAYS; o journal preserva os metadados para auditoria.
-Limpar logs/relatórios antigos|cleanup|logs,reports,mutating|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
-Verificação final de pendências|final|pacman,aur,read,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
-Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,read,network|read|180||final_check_managers|Confere se sobrou update pendente nos gerenciadores de linguagem (npm/pnpm global, cargo, gem, flatpak) depois dos steps de update.
-Auto-remediar pendências finais|final|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
-Checar atualização do full-upgrade|final|self-update,read,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
-Doctor: reboot pendente|doctor|kernel,read|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
-Doctor: units systemd falhadas|doctor|systemd,read|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
-Doctor: configuração paru Devel|doctor|paru,aur,read|read|10|paru|doctor_paru_devel_mode|Detecta configuração global Devel no paru.
-Doctor: journal erros críticos|doctor|journal,systemd,read|read|30||doctor_journal_errors|Mostra erros críticos do boot atual com limite de linhas.
-Doctor: crashes recorrentes (coredump)|doctor|coredump,systemd,read|read|30|coredumpctl|doctor_recurrent_coredumps|Agrupa coredumps dos últimos 14 dias por programa e aponta crash recorrente ainda ativo (>=3x com ocorrência nas últimas 48 h).
-Doctor: fwupd security|doctor|fwupd,firmware,security,read|read|60|fwupdmgr|doctor_fwupd_security|Executa auditoria de segurança de firmware via fwupdmgr.
-Doctor: Flatpak repair dry-run|doctor|flatpak,read|read|60|flatpak|doctor_flatpak_repair_dry_run|Executa flatpak repair --user --dry-run para detectar inconsistências.
-Doctor: saúde de disco|doctor|disk,read|read|15||doctor_disk_health|Verifica uso de espaço e inodes em mounts essenciais.
-Doctor: saúde de boot|doctor|boot,systemd,read,sudo|read|30|bootctl|doctor_boot_health|Verifica systemd-boot, kernel/initrd no ESP e espaço livre.
-Doctor: saúde de rede|doctor|network,read|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.
-Doctor: serviços com libs antigas|doctor|systemd,read,sudo|read|60||doctor_stale_services|Detecta serviços usando bibliotecas atualizadas sem restart (needrestart/checkservices).
-Reiniciar serviços com libs antigas|doctor|systemd,sudo,mutating|mutating|120||restart_stale_services|Sob --restart-services, reinicia units apontadas por checkservices, com confirmação salvo --yes.
-Doctor: saúde do pacman|doctor|pacman,read|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
-Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,read,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
-Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config,read|read|60||doctor_pacfiles|Lista arquivos .pacnew/.pacsave pendentes de mesclagem (sugere pacdiff); todo se houver.
-Doctor: hooks ALPM com falha|doctor|pacman,journal,read|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
-Doctor: SMART e NVMe|doctor|disk,smart,read,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
-Doctor: saúde da sessão desktop|doctor|desktop,read|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
-Doctor: apps manuais (fora de pacote)|doctor|manual,inventory,read|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
-Doctor: módulos OBS|doctor|obs,read|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
-Doctor: AI CLIs|doctor|ai,read|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA e otimização (Claude, Codex, OpenCode, Pi, Hermes, Headroom, TokenSave e demais CLIs conhecidas).
-Doctor: servidores MCP|doctor|mcp,ai,read|read|30||doctor_mcp_servers|Enumera e valida MCPs de Claude, Codex, OpenCode, hub central e Hermes, incluindo runtime, comandos e env obrigatórias.
-Doctor: ambiente Python|doctor|python,pipx,uv,read|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
-Auto-remediar deps Python ausentes|doctor|python,pip,update,network|mutating|120||autofix_pip_user_deps|Sob AUTO_FIX_PIP_DEPS=1, instala com 'pip install --user' as dependências AUSENTES de pacotes pip --user apontadas pelo pip check (aditivo; conflitos de versão seguem manuais; pacotes de origem system são intocáveis).
-Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm,read|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.
-Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem,read|read|30|gem|doctor_gem_shadow|Detecta gems do usuário que sombreiam uma gem real do Arch com versão divergente (ex.: rdoc); sugere gem uninstall.
-Doctor: saúde do btrfs|doctor|btrfs,disk,read,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.
-Auto-remediar scrub btrfs|doctor|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
-Doctor: tempo de boot|doctor|boot,systemd,read|read|30||doctor_boot_time|Reporta tempo total de boot (systemd-analyze) e as piores units.
-Doctor: TRIM de SSD|doctor|disk,ssd,trim,read|read|15||doctor_trim_health|Verifica se há mecanismo de TRIM ativo (fstrim.timer periódico ou discard= contínuo) em máquinas com SSD/NVMe.
+Atualizar extensões de IDE (VSCode/Cursor)|ide|vscode,cursor,extensions,update,network,slow|mutating|600||update_ide_extensions|Atualiza extensões instaladas de IDEs da família VSCode (code/cursor/codium) via --update-extensions.
+Atualizar plugins Hyprland (hyprpm)|shell|hyprpm,update,network|mutating|120|hyprpm|update_hyprpm|Atualiza plugins Hyprland via hyprpm.
+Limpar cache do pacman|cleanup|pacman,sudo|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
+Limpar cache de build do AUR|cleanup|aur,cache|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
+Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo|mutating|1800||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
+Remover pacotes órfãos|cleanup|pacman,sudo|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
+Verificar arquivos .pacnew/.pacsave|packages|pacman,config,repair,sudo|read|30||check_pacnew_files|Lista arquivos pendentes e, com AUTO_MERGE_PACNEW=1, mescla casos seguros fora de doctor/dry-run/no-repair.
+Limpar symlinks quebrados (~/.local/bin)|cleanup|local-bin|mutating|30||cleanup_broken_symlinks_local_bin|Remove symlinks quebrados em ~/.local/bin.
+Limpar journal do sistema|cleanup|journal,sudo|mutating|60||cleanup_journal|Executa vacuum do journal mantendo limites de tempo e tamanho.
+Limpar coredumps antigos|cleanup|coredump,systemd,sudo|mutating|120|coredumpctl|cleanup_old_coredumps|Remove dumps de crash em /var/lib/systemd/coredump mais antigos que COREDUMP_KEEP_DAYS; o journal preserva os metadados para auditoria.
+Limpar logs/relatórios antigos|cleanup|logs,reports|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
+Verificação final de pendências|final|pacman,aur,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
+Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,network|read|180||final_check_managers|Confere se sobrou update pendente nos gerenciadores de linguagem (npm/pnpm global, cargo, gem, flatpak) depois dos steps de update.
+Auto-remediar pendências finais|autofix|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
+Checar atualização do full-upgrade|final|self-update,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
+Doctor: reboot pendente|doctor|kernel|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
+Doctor: units systemd falhadas|doctor|systemd|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
+Doctor: configuração paru Devel|doctor|paru,aur|read|10|paru|doctor_paru_devel_mode|Detecta configuração global Devel no paru.
+Doctor: journal erros críticos|doctor|journal,systemd|read|30||doctor_journal_errors|Mostra erros críticos do boot atual com limite de linhas.
+Doctor: crashes recorrentes (coredump)|doctor|coredump,systemd|read|30|coredumpctl|doctor_recurrent_coredumps|Agrupa coredumps dos últimos 14 dias por programa e aponta crash recorrente ainda ativo (>=3x com ocorrência nas últimas 48 h).
+Doctor: fwupd security|doctor|fwupd,firmware,security|read|60|fwupdmgr|doctor_fwupd_security|Executa auditoria de segurança de firmware via fwupdmgr.
+Doctor: Flatpak repair dry-run|doctor|flatpak|read|60|flatpak|doctor_flatpak_repair_dry_run|Executa flatpak repair --user --dry-run para detectar inconsistências.
+Doctor: saúde de disco|doctor|disk|read|15||doctor_disk_health|Verifica uso de espaço e inodes em mounts essenciais.
+Doctor: saúde de boot|doctor|boot,systemd,sudo|read|30|bootctl|doctor_boot_health|Verifica systemd-boot, kernel/initrd no ESP e espaço livre.
+Doctor: saúde de rede|doctor|network|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.
+Doctor: serviços com libs antigas|doctor|systemd,sudo|read|60||doctor_stale_services|Detecta serviços usando bibliotecas atualizadas sem restart (needrestart/checkservices).
+Reiniciar serviços com libs antigas|autofix|systemd,sudo|mutating|120||restart_stale_services|Sob --restart-services, reinicia units apontadas por checkservices, com confirmação salvo --yes.
+Doctor: saúde do pacman|doctor|pacman|read|120||doctor_pacman_health|Verifica pacotes com arquivos faltando via pacman -Qkq.
+Doctor: CVEs de pacotes oficiais (arch-audit)|doctor|pacman,security,cve,network|read|120|arch-audit|doctor_arch_audit_cves|Lista pacotes oficiais com CVE conhecida via arch-audit; warn se corrigível por pacman -Syu, todo se sem correção.
+Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config|read|60||doctor_pacfiles|Lista arquivos .pacnew/.pacsave pendentes de mesclagem (sugere pacdiff); todo se houver.
+Doctor: hooks ALPM com falha|doctor|pacman,journal|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
+Doctor: SMART e NVMe|doctor|disk,smart,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
+Doctor: saúde da sessão desktop|doctor|desktop|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
+Doctor: apps manuais (fora de pacote)|doctor|manual,inventory|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
+Doctor: módulos OBS|doctor|obs|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
+Doctor: AI CLIs|doctor|ai|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA e otimização (Claude, Codex, OpenCode, Pi, Hermes, Headroom, TokenSave e demais CLIs conhecidas).
+Doctor: servidores MCP|doctor|mcp,ai|read|30||doctor_mcp_servers|Enumera e valida MCPs de Claude, Codex, OpenCode, hub central e Hermes, incluindo runtime, comandos e env obrigatórias.
+Doctor: ambiente Python|doctor|python,pipx,uv|read|30||doctor_python_env|Detecta dependências pip quebradas, pipx venvs quebradas e uv tools com interpreter ausente.
+Auto-remediar deps Python ausentes|autofix|python,pip,update,network|mutating|120||autofix_pip_user_deps|Sob AUTO_FIX_PIP_DEPS=1, instala com 'pip install --user' as dependências AUSENTES de pacotes pip --user apontadas pelo pip check (aditivo; conflitos de versão seguem manuais; pacotes de origem system são intocáveis).
+Doctor: conflitos JavaScript global|doctor|javascript,npm,pnpm|read|30|npm|doctor_js_conflicts|Audita prefixo npm global e detecta pacotes duplicados entre npm e pnpm global.
+Doctor: gems do usuário sombreando o sistema|doctor|ruby,gem|read|30|gem|doctor_gem_shadow|Detecta gems do usuário que sombreiam uma gem real do Arch com versão divergente (ex.: rdoc); sugere gem uninstall.
+Doctor: saúde do btrfs|doctor|btrfs,disk,sudo|read|60|btrfs|doctor_btrfs_health|Verifica erros de device acumulados e idade do último scrub em raiz btrfs.
+Auto-remediar scrub btrfs|autofix|btrfs,disk,scrub,sudo|mutating|300|btrfs|autofix_btrfs_scrub|Sob AUTO_BTRFS_SCRUB=1 e confirmação/--yes, inicia btrfs scrub start em cada filesystem btrfs montado (não só /) com scrub vencido ou ausente.
+Doctor: tempo de boot|doctor|boot,systemd|read|30||doctor_boot_time|Reporta tempo total de boot (systemd-analyze) e as piores units.
+Doctor: TRIM de SSD|doctor|disk,ssd,trim|read|15||doctor_trim_health|Verifica se há mecanismo de TRIM ativo (fstrim.timer periódico ou discard= contínuo) em máquinas com SSD/NVMe.
 EOF
 }
 

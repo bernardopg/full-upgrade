@@ -3,6 +3,39 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Alterado
+
+- **Catálogo: taxonomia de categorias coerente (Série S).** 129 steps
+  redistribuídos em 19 categorias com semântica única, todas com ≥ 2 steps.
+  Destaques: `Backup Timeshift em nuvem`/`Backup de configs críticas`/
+  `Snapshot pré-upgrade` → `backup` (backup não era limpeza nem pacman);
+  `Garantir Wireshark`/`Garantir Burp Suite` + Snyk/ZAP → `security`;
+  Orca/Antigravity/extensões de IDE → `ide`; os 8 CLIs de IA que viviam em
+  `manual` migram para `ai`; gk/cua-driver/OBS → `tools`; `lang` divide-se em
+  `lang-js`/`lang-py`/`lang-rust`/`lang-other`; `flatpak`/`snap`/`docker`
+  fundem-se em `packages`; singletons `hyprland`/`reference` absorvidos por
+  `shell`. Identidades antigas de filtro (`lang`, `pacman`, `flatpak`,
+  `snap`, `docker`, `ai`) permanecem como tags, então `--only lang` e
+  `--skip-category flatpak` continuam funcionando. Nomes de step não mudam.
+- **Categoria `doctor` é read-only de fato.** Os 3 steps mutantes que viviam
+  em `doctor` (`Auto-remediar deps Python ausentes`, `Auto-remediar scrub
+  btrfs`, `Reiniciar serviços com libs antigas`) + `Auto-remediar CVEs de
+  toolchain Rust` (era `lang`) + `Auto-remediar pendências finais` (era
+  `final`) formam a nova categoria `autofix`. A invariante agora é testada,
+  não depende do filtro em runtime `add_skip_mutating_steps`.
+- **Tags `mutating`/`read` removidas** (eram redundantes com o campo `efeito`
+  e aplicadas de forma inconsistente: 23 de 93 mutantes tinham a tag).
+- Resumo/relatório: grupos atualizados (`Sistema / Pacotes`, `Backup /
+  Snapshots`, `IDEs e Apps`, `Segurança`, `Auto-remediação`, `Linguagens`);
+  grupos sem steps (`Contêineres`, `Referência`, `Hyprland`, `Rede`,
+  `Apps manuais`) eliminados.
+
+### Adicionado
+
+- **Guard-rails de taxonomia em `tests/catalog_integrity.bats`**: conjunto
+  fechado de categorias, `doctor` proibido de conter step mutante, tags
+  `mutating`/`read` proibidas, mínimo de 2 steps por categoria e allowlist
+  explícita para tags usadas em exatamente 1 step.
 
 ## [3.42.0] - 2026-09-10
 ### Corrigido

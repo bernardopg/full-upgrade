@@ -6,10 +6,12 @@ setup() {
   load_libs
 }
 
-@test "summary_group_specs: agrupa containers, flatpak e docker em Contêineres" {
+@test "summary_group_specs: agrupa packages num único Sistema / Pacotes" {
   run summary_group_specs
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Contêineres|containers flatpak docker snap"* ]]
+  count="$(printf '%s\n' "$output" | grep -c '^Sistema / Pacotes|')"
+  [ "$count" -eq 1 ]
+  [[ "$output" == *"Sistema / Pacotes|packages"* ]]
 }
 
 @test "summary_group_specs: agrupa editor e shell num único Shell / Editor" {
@@ -32,9 +34,9 @@ setup() {
 }
 
 @test "_group_label_for_category: mapeia categoria do catálogo ao rótulo do grupo" {
-  run _group_label_for_category pacman
+  run _group_label_for_category packages
   [ "$status" -eq 0 ]
-  [ "$output" = "Sistema / Pacman" ]
+  [ "$output" = "Sistema / Pacotes" ]
 }
 
 @test "_group_label_for_category: editor e shell caem no mesmo rótulo" {
