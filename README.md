@@ -263,7 +263,7 @@ Filtros:
 full-upgrade --only doctor
 full-upgrade --only docker
 full-upgrade --only network
-full-upgrade --only manual                       # só os apps fora de gestor de pacote
+full-upgrade --only ai                           # todas as CLIs de IA
 full-upgrade --only "Atualizar Ollama"          # nome exato de step
 full-upgrade --only "lang,Doctor: saúde de rede" # categoria/tag + nome, em lista
 full-upgrade --resume                            # só os steps não-ok do último run
@@ -279,6 +279,38 @@ full-upgrade --list-steps
 full-upgrade --explain-step "Atualizar pacotes do sistema e AUR"
 ```
 
+### Taxonomia de categorias
+
+Cada step pertence a **exatamente uma** categoria (conjunto fechado, validado
+por teste). Categoria responde "que parte do sistema este step mexe"; tags são
+eixos transversais (`network`, `slow`, `sudo`, nome da ferramenta, …).
+
+| Categoria | O que `--only <categoria>` executa |
+| --- | --- |
+| `core` | Preflight obrigatório: lock, sudo, espaço em disco, keyring. Sempre roda (imune a filtros). |
+| `backup` | Backup de configs de `/etc`, snapshot pré-upgrade e réplica de snapshot em nuvem. |
+| `packages` | Gestores de pacote: pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap e Docker. |
+| `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
+| `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP. |
+| `firmware` | `fwupd` e `systemd-boot`. |
+| `lang-js` | Toolchain JavaScript: npm (dois prefixos), corepack, pnpm, Bun, Deno. |
+| `lang-py` | Toolchain Python: pip `--user`, pipx, uv (self/python/tools), Poetry. |
+| `lang-rust` | Toolchain Rust: rustup, binários cargo e auditoria de CVEs. |
+| `lang-other` | Demais toolchains: Arduino, Go, .NET, Google Cloud SDK, gems, ghcup. |
+| `ai` | CLIs de IA e otimização, incluindo as instaladas fora de gestor de pacote. |
+| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, OBS). |
+| `ide` | IDEs e extensões (Orca, Antigravity, VSCode/Cursor). |
+| `editor` | Neovim (plugins Lazy e ferramentas Mason). |
+| `shell` | Shell e terminal: Oh My Zsh, plugins Zsh, Yazi, Hyprland (hyprpm), cache do tldr. |
+| `cleanup` | Limpeza: caches, snapshots antigos, órfãos, journal, coredumps, relatórios. |
+| `autofix` | Auto-remediações mutáveis, sempre atrás de variável de opt-in e/ou confirmação. |
+| `doctor` | Auditorias **estritamente read-only** (invariante validada por teste). |
+| `final` | Conferências de pós-condição e aviso de atualização do próprio full-upgrade. Sempre roda. |
+
+Compatibilidade de filtros: identidades antigas continuam válidas como **tag**
+— `--only lang` pega as quatro categorias `lang-*`, e `--skip-category pacman`,
+`flatpak`, `snap` ou `docker` continua funcionando dentro de `packages`.
+
 ## Catálogo de Steps
 
 Cada step tem metadados no formato:
@@ -292,12 +324,16 @@ Exemplo:
 ```text
 Doctor: saúde de rede
 Categoria: doctor
-Tags: network,read
+Tags: network
 Efeito: read
 Timeout: 30s
 Função: doctor_network_health
 Descrição: Verifica DNS e conectividade HTTPS para mirrors Arch.
 ```
+
+O campo **efeito** (`read`/`mutating`) é canônico e não é duplicado em tags.
+Steps `mutating` nunca pertencem à categoria `doctor`: auto-remediações vivem
+em `autofix`, o que mantém `--mode doctor` read-only por construção.
 
 Status possíveis no resumo:
 
@@ -748,8 +784,8 @@ scripts/preflight.sh  # Conventional Commits pendentes + bash -n + ShellCheck + 
 Para diagnosticar uma etapa isolada, use o mesmo escopo do CI:
 
 ```bash
-bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh steps.d/*.sh scripts/*.sh
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh scripts/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 bats --jobs "$(nproc)" tests/  # testes unitários, funções puras e sem mutação
 ./full-upgrade.sh --help
 ./full-upgrade.sh --list-steps

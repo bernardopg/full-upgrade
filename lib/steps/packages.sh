@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# steps/containers.sh — docker, flatpak, snap
+# lib/steps/packages.sh — empacotadores alternativos: Docker, Flatpak e Snap
+# (renomeado de containers.sh na Série T3).
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)

@@ -64,7 +64,7 @@ stop_sudo_keepalive() {
 
 on_exit() {
     stop_sudo_keepalive
-    # Libera o lock de execução, se a função existir (lib/steps/coverage.sh).
+    # Libera o lock de execução, se a função existir (lib/steps/preflight.sh).
     if declare -F release_run_lock >/dev/null 2>&1; then
         release_run_lock
     fi

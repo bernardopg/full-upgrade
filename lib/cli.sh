@@ -84,6 +84,30 @@ Skip persistente fica no config (chave FULL_UPGRADE_SKIP, lista por vírgula)
 ou no ambiente:
   FULL_UPGRADE_SKIP="Atualizar ghcup,Atualizar gems" full-upgrade
 
+Categorias (conjunto fechado, uma por step):
+  core       preflight obrigatório (lock, sudo, disco, keyring) — sempre roda
+  backup     configs de /etc, snapshot pré-upgrade, réplica em nuvem
+  packages   pacman/AUR, mirrors, notícias, .pacnew, Flatpak, Snap, Docker
+  repair     reparos idempotentes de estado quebrado
+  security   Wireshark, Burp Suite, Snyk, OWASP ZAP
+  firmware   fwupd e systemd-boot
+  lang-js    npm, corepack, pnpm, Bun, Deno
+  lang-py    pip --user, pipx, uv, Poetry
+  lang-rust  rustup, bins cargo, auditoria de CVEs
+  lang-other Arduino, Go, .NET, gcloud, gems, ghcup
+  ai         CLIs de IA e de otimização de contexto
+  tools      utilitários fora de gestor de pacote (gk, cua-driver, OBS)
+  ide        Orca, Antigravity e extensões VSCode/Cursor
+  editor     Neovim (Lazy e Mason)
+  shell      Oh My Zsh, plugins Zsh, Yazi, hyprpm, tldr
+  cleanup    caches, snapshots antigos, órfãos, journal, coredumps, logs
+  autofix    auto-remediações mutáveis (opt-in e/ou confirmação)
+  doctor     auditorias estritamente read-only
+  final      conferências de pós-condição — sempre roda
+
+Tags antigas seguem válidas como filtro: --only lang pega as quatro lang-*;
+--skip-category pacman|flatpak|snap|docker filtra dentro de packages.
+
 Para gerenciar skips visualmente: full-upgrade --config-tui
 EOF
       ;;

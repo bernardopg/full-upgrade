@@ -61,10 +61,10 @@ uma versão, altere só o pin no script correspondente.
 
 ```bash
 # Sintaxe
-bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Lint
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Testes unitários (bats — funções puras, sem mutação)
 bats --jobs "$(nproc)" tests/

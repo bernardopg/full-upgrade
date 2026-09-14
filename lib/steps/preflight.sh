@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lib/steps/coverage.sh — coberturas extra: lockfile, snapshot, mirrors, pré-flight.
+# lib/steps/preflight.sh — pré-flight e preparação do upgrade: lock de execução,
+# espaço em disco, keyring, snapshot pré-upgrade e mirrors (renomeado de coverage.sh).
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)

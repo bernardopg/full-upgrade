@@ -397,7 +397,7 @@ aur_ignore_args() {
 }
 
 # ── Helpers git compartilhados por steps que atualizam plugins clonados ───────
-# (plugins Zsh em lib/steps/editor_shell.sh, DMS em steps.d/40-dms.sh, OBS em
+# (plugins Zsh em lib/steps/shell.sh, DMS em steps.d/40-dms.sh, OBS em
 # steps.d/85-obs.sh). Os três repetiam o mesmo par fetch/pull e por isso os
 # mesmos dois bugs; centralizar aqui é o que impede a terceira cópia divergir.
 

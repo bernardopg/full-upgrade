@@ -6,13 +6,14 @@ foram removidos daqui e ficam rastreáveis pelo `CHANGELOG.md`, tags e PRs.
 
 Base deste ciclo:
 
-- Run ativo: `20260913-233002-167051` (`full-upgrade -y -d`, v3.42.0).
-- Resultado: `122 ok · 1 warn · 0 todo · 0 fail · 6 skip` em `11m 17s`.
-- Warn: `Atualizar pi (pi-coding-agent)` — `pi update --extensions` falhou com
-  npm `EALLOWREMOTE` (fetch de URL remota desabilitado; pacote upstream
-  `pi-mcp-adapter` aponta dependência para `pkg.pr.new`; não acionável aqui).
-- Log: `/tmp/fu-run.log` · Relatório:
-  `~/.cache/system-upgrade/full-upgrade-20260913-233002-167051.md`.
+- Ciclo aberto sobre a v3.42.0, a partir de um run real de manutenção
+  (`full-upgrade -y -d`) usado como amostra de comportamento em produção.
+- Resultado do run de referência: praticamente todo verde, com 1 aviso e
+  nenhum `todo`/`fail`.
+- Único aviso: `Atualizar pi (pi-coding-agent)` — `pi update --extensions`
+  falhou com npm `EALLOWREMOTE` (fetch de URL remota desabilitado por
+  política local; o pacote upstream `pi-mcp-adapter` aponta uma dependência
+  para `pkg.pr.new`). Causa upstream, não acionável no full-upgrade.
 - Série O (run 2026-07-01): mesclada na `main` via PR #107.
 - Revisão estrutural de steps/categorias (2026-09-14): originou as Séries S e T.
 
@@ -32,9 +33,9 @@ Esforço: P/M/G.
 
 Próximas 3 prioridades definidas em 2026-09-14: **(1)** Série S completa
 (S1+S2+S3: categorias coerentes + guard-rails + higiene de tags, numa onda
-só — os testes novos falham sem a reclassificação) — ☑ CONCLUÍDA (1407
-testes verdes, commit pendente), **(2)** T1 (split do doctor.sh) — ☑ CONCLUÍDA (6 módulos, 65 funções)
-e **(3)** T2+T3 (preflight.sh e extrações) — ☑ CONCLUÍDA (1407 testes
+só — os testes novos falham sem a reclassificação) — ☑ CONCLUÍDA (suíte
+completa verde), **(2)** T1 (split do doctor.sh) — ☑ CONCLUÍDA (6 módulos, 65 funções)
+e **(3)** T2+T3 (preflight.sh e extrações) — ☑ CONCLUÍDA (suíte completa
 verdes). Restam T4/T5 (documentação de regra e guard-rail opcional).
 
 ---

@@ -40,6 +40,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   grupos sem steps (`Contêineres`, `Referência`, `Hyprland`, `Rede`,
   `Apps manuais`) eliminados.
 
+### Documentação
+
+- **README:** nova seção "Taxonomia de categorias" com as 19 categorias, o que
+  cada `--only <categoria>` executa e a nota de compatibilidade das tags
+  antigas; exemplos de filtro atualizados (a categoria `manual` não existe
+  mais) e exemplo do catálogo sem a tag `read` redundante.
+- **`--help steps`:** passa a listar o conjunto fechado de categorias e a
+  compatibilidade de filtros por tag.
+- **CLAUDE.md / CONTRIBUTING.md:** lista de domínios de `lib/steps/`
+  atualizada (inclui `doctor/<área>.sh`), ordem de carga cobrindo
+  `lib/steps/*/*.sh` e comandos de lint incluindo `lib/steps/doctor/*.sh`.
+
 ### Adicionado
 
 - **Guard-rails de taxonomia em `tests/catalog_integrity.bats`**: conjunto

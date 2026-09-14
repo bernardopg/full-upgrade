@@ -13,10 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 scripts/preflight.sh
 
 # Diagnóstico por etapa (o mesmo escopo de sintaxe/lint do CI).
-bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+bash -n full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 # shfmt é consultivo e local; não é gate de CI.
-shfmt -i 4 -d full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+shfmt -i 4 -d full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
 # Unit tests (bats — pure functions only; safe anywhere, no mutation)
 bats tests/
@@ -44,7 +44,7 @@ Verification = `bash -n` + `shellcheck` + `bats tests/` + smoke flags + `--dry-r
 
 Entrypoint `full-upgrade.sh` is thin: resolves the project root (follows symlinks so the `~/.local/bin` symlink works), sources `lib/*.sh` **in dependency order**, then runs `load_config → parse_args → apply_mode_and_early_exits → setup_logging → print_banner → run_all_steps → finalize`.
 
-Load order matters (set in the entrypoint): `globals → ui → core → json → sudo → config → catalog → cli → report → history → notify → tray → steps/*.sh → main`. `lib/steps/*.sh` are sourced in glob order but only define functions, so order among them is irrelevant. `lib/main.sh` is sourced last because it uses everything. **`lib/testable/*.sh` is not sourced at runtime at all** — those files are standalone copies of some pure helpers, loaded only by the matching `*_pure.bats` files. A helper added there does not exist during a real run; put new helpers in the owning `lib/steps/<domain>.sh` (the dominant pattern) and source that module from the test.
+Load order matters (set in the entrypoint): `globals → ui → core → json → sudo → config → catalog → cli → report → history → notify → tray → steps/*.sh → main`. `lib/steps/*.sh` and `lib/steps/*/*.sh` (the `doctor/` modules) are sourced in glob order but only define functions, so order among them is irrelevant. `lib/main.sh` is sourced last because it uses everything. **`lib/testable/*.sh` is not sourced at runtime at all** — those files are standalone copies of some pure helpers, loaded only by the matching `*_pure.bats` files. A helper added there does not exist during a real run; put new helpers in the owning `lib/steps/<domain>.sh` (the dominant pattern) and source that module from the test.
 
 ### The step framework (the central pattern)
 
@@ -74,7 +74,7 @@ Two consequences for contributors: **(a)** a step that talks to the network must
 
 ### Adding or changing a step
 
-1. Implement the function in the relevant `lib/steps/<domain>.sh` (ai, audit, backup, cleanup, containers, coverage, doctor, editor_shell, firmware, ide, lang_js, lang_other, lang_py, lang_rust, mcp, news, pacman, repair, self_update).
+1. Implement the function in the relevant `lib/steps/<domain>.sh` (ai, audit, backup, cleanup, cloud_backup, editor, final_checks, firmware, ide, lang_js, lang_other, lang_py, lang_rust, manual_apps, mcp, news, packages, pacman, preflight, reference, repair, self_update, shell). Doctor checks live in `lib/steps/doctor/<area>.sh` (`_common`, `system`, `storage`, `boot`, `packages`, `dev`).
 2. Add a catalog line in `lib/catalog.sh` with a realistic timeout and any `cmd_deps`.
 3. Call it from the correct point in `lib/main.sh` `run_all_steps()`.
 4. Use `RC_WARN`/`RC_TODO` for non-fatal outcomes; let a missing dependency become `skip`, not `fail`.
@@ -87,7 +87,7 @@ A step with a catalog timeout runs in a **subshell**, so any global it sets is l
 
 ### Updating cloned plugins (Zsh, DMS, OBS)
 
-Three steps update git clones — `update_omz_custom_plugins` (`lib/steps/editor_shell.sh`), `update_dms_plugins` (`steps.d/40-dms.sh`), `update_obs_plugins` (`steps.d/85-obs.sh`). They share these helpers in `lib/core.sh`; use them instead of calling `git fetch`/`git pull` directly, because each one encodes a trap that produced a real permanent-failure loop:
+Three steps update git clones — `update_omz_custom_plugins` (`lib/steps/shell.sh`), `update_dms_plugins` (`steps.d/40-dms.sh`), `update_obs_plugins` (`steps.d/85-obs.sh`). They share these helpers in `lib/core.sh`; use them instead of calling `git fetch`/`git pull` directly, because each one encodes a trap that produced a real permanent-failure loop:
 
 - `git_fetch_full` — never `--depth=1`, always `--prune`. On a repo with history, a shallow fetch creates a fresh graft point every run, so `merge-base --is-ancestor HEAD origin/HEAD` is false even with a clean tree and zero local commits. Fast-forward then becomes impossible and *every* update falls into the stash + `reset --hard` exception path. Without `--prune`, a branch deleted upstream survives forever as a local remote-tracking ref: the step measures "behind" against the ghost, the pull fails with `no such ref was fetched`, recovery does `reset --hard`, and the next run repeats it — a plugin left on a merged-and-deleted PR branch "updated" on every run, indefinitely.
 - `git_pull_ff_only` — `git pull --ff-only` is **not** deterministic: under `pull.rebase=true` + `rebase.autostash=true` it becomes a rebase, and a conflicting autostash reapply leaves conflict markers in the tree **while exiting 0**. The helper forces `pull.rebase=false` and disables autostash; callers must still verify with `git_has_unmerged` before counting a pull as success.
