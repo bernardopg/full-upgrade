@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.43.0] - 2026-09-14
 ### Alterado
 
 - **Reorganização física dos steps (Série T).** `lib/steps/doctor.sh` (2.589
