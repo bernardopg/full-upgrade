@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.44.0] - 2026-09-14
 ### Alterado
 
 - **Co-localização única de steps (Série T4).** Todo `doctor_*` do catálogo
