@@ -33,8 +33,9 @@ Esforço: P/M/G.
 Próximas 3 prioridades definidas em 2026-09-14: **(1)** Série S completa
 (S1+S2+S3: categorias coerentes + guard-rails + higiene de tags, numa onda
 só — os testes novos falham sem a reclassificação) — ☑ CONCLUÍDA (1407
-testes verdes, commit pendente), **(2)** T1 (split do doctor.sh),
-**(3)** T2+T3 (preflight.sh e extrações).
+testes verdes, commit pendente), **(2)** T1 (split do doctor.sh) — ☑ CONCLUÍDA (6 módulos, 65 funções)
+e **(3)** T2+T3 (preflight.sh e extrações) — ☑ CONCLUÍDA (1407 testes
+verdes). Restam T4/T5 (documentação de regra e guard-rail opcional).
 
 ---
 
@@ -126,7 +127,7 @@ de categoria. Adicionar:
 Objetivo: acabar com o monolito e com nomes enganosos; uma regra única de
 co-localização. Executar DEPOIS da Série S (categorias estáveis primeiro).
 
-### T1 — 🟠 G ☐ Dividir `lib/steps/doctor.sh` (2.589 linhas, 30 steps) em `lib/steps/doctor/`
+### T1 — 🟠 G ☑ Dividir `lib/steps/doctor.sh` (2.589 linhas, 30 steps) em `lib/steps/doctor/`
 
 - Proposta: `doctor/system.sh` (reboot, units, journal, coredump, sessão
   desktop), `doctor/storage.sh` (disk, SMART/NVMe, btrfs, TRIM),
@@ -139,14 +140,14 @@ co-localização. Executar DEPOIS da Série S (categorias estáveis primeiro).
 - Testes existentes (`doctor*.bats`, ~600 asserts) devem passar sem mudança
   de comportamento; só caminhos de load mudam.
 
-### T2 — 🟡 P ☐ Renomear `lib/steps/coverage.sh` → `lib/steps/preflight.sh`
+### T2 — 🟡 P ☑ Renomear `lib/steps/coverage.sh` → `lib/steps/preflight.sh`
 
 - O arquivo implementa lock/sudo/disco/keyring/snapshot/mirrors — nada a ver
   com cobertura. Renomear arquivo, atualizar `full-upgrade.sh` (source),
   `build.sh` (se listar arquivos), `load_libs` dos testes e comentários que
   citam o caminho.
 
-### T3 — 🟡 M ☐ Extrair responsabilidades fora de lugar
+### T3 — 🟡 M ☑ Extrair responsabilidades fora de lugar
 
 - Verificações finais (`final_check_pending`, `final_check_managers`,
   `autofix_final_pending`) saem de `lib/steps/cleanup.sh` →

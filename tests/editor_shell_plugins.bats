@@ -6,7 +6,7 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/editor_shell.sh"
+  source "${FU_LIB}/steps/shell.sh"; source "${FU_LIB}/steps/editor.sh"
 
   export GIT_CONFIG_GLOBAL="${BATS_TEST_TMPDIR}/gitconfig"
   export GIT_CONFIG_NOSYSTEM=1

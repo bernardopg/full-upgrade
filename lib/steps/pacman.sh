@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# lib/steps/pacman.sh — update/reparo do pacman e AUR (system+AUR, pacnew, hooks).
+# Série T3: cleanup_paccache/cleanup_orphans migraram para cleanup.sh.
+# shellcheck shell=bash
+
+#!/usr/bin/env bash
 # steps/pacman.sh — sistema, AUR, lock, gnupg, cache, órfãos, pacnew
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
@@ -26,6 +31,7 @@ ensure_pacman_lock_is_clean() {
 }
 
 
+
 repair_gnupg_runtime() {
   local gnupg_dir="${GNUPGHOME:-$HOME/.gnupg}"
   local crls_dir="${gnupg_dir}/crls.d"
@@ -49,6 +55,7 @@ repair_gnupg_runtime() {
     gpgconf --kill dirmngr >/dev/null 2>&1 || true
   fi
 }
+
 
 
 repair_known_pacman_conflicts_before_update() {
@@ -81,6 +88,7 @@ repair_known_pacman_conflicts_before_update() {
 }
 
 
+
 refresh_pacman_keys() {
   log "  Atualizando chaves do pacman..."
   run_logged sudo pacman-key --refresh-keys 2>/dev/null || {
@@ -89,18 +97,19 @@ refresh_pacman_keys() {
   }
   run_logged sudo pacman-key --populate archlinux 2>/dev/null || true
 }
+_AUR_NETWORK_RE="${NETWORK_TRANSIENT_RE:-name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed}"
+_AUR_TRANSIENT_SRC_RE='não passaram na verificação de validade|did not pass the validity check|FALHOU|one or more files did not pass|falha ao baixar fontes|failure while downloading|error downloading sources'
+
 
 
 # Regex (grep -E, case-insensitive) de erros de rede transitórios.
 # Fonte única em lib/globals.sh (NETWORK_TRANSIENT_RE); inclui os erros do
 # reqwest do paru ("error sending request ... channel closed" contra o RPC
 # do AUR), que derrubavam o step inteiro sem retry nem fallback.
-_AUR_NETWORK_RE="${NETWORK_TRANSIENT_RE:-name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect|temporary failure|error sending request|channel closed}"
 
 # Regex de falhas de download/integridade de fontes AUR que geralmente são
 # transitórias (CDN cortou o stream, retomada de .part corrompida) e curam
 # com uma limpeza de cache + novo download. Distinto de erro de PKGBUILD.
-_AUR_TRANSIENT_SRC_RE='não passaram na verificação de validade|did not pass the validity check|FALHOU|one or more files did not pass|falha ao baixar fontes|failure while downloading|error downloading sources'
 
 # Remove downloads de fontes AUR potencialmente corrompidos antes de um retry.
 # Diferente da limpeza original (que só apagava os *.tar.* construídos), aqui
@@ -120,12 +129,14 @@ _purge_aur_partial_sources() {
     \) -delete 2>/dev/null || true
 }
 
+
 _aur_failed_count_or_one() {
   local count="$1"
   [[ "$count" =~ ^[0-9]+$ ]] || count=0
   (( count > 0 )) || count=1
   printf '%s' "$count"
 }
+
 
 # Roda `<helper> -Syu ...` com retry (backoff) para falha de rede transitória
 # e, se o AUR seguir fora, fallback `pacman -Syu` para os repos oficiais.
@@ -159,6 +170,7 @@ _aur_syu_with_retry_and_fallback() {
   return "$rc"
 }
 
+
 # Puro/testável: deriva nome(s) de processo candidato(s) para um pacote —
 # nome do pacote + base sem sufixos comuns de empacotamento (-git, -svn,
 # -appimage, -bin; nessa ordem, para casar foo-bin-git → foo). O binário
@@ -172,6 +184,7 @@ pkg_process_names() {
   base="${base%-bin}"
   printf '%s\n%s\n' "$pkg" "$base" | sort -u
 }
+
 
 # Aviso não-bloqueante: entre os pacotes pendentes (argumentos), quais têm um
 # processo homônimo em execução — o binário antigo segue em memória até o app
@@ -198,6 +211,7 @@ warn_running_binaries_for_packages() {
   fi
   return 0
 }
+
 
 update_system_aur() {
   local -a ignore_args=()
@@ -327,69 +341,9 @@ update_system_aur() {
 }
 
 
-# NOTA: aur_ignore_args() vive em lib/core.sh (sourced antes deste arquivo).
-# Mantida lá para reuso; não redefinir aqui para evitar divergência.
-
-cleanup_paccache() {
-  run_logged sudo paccache -r -k 2
-}
-
-
-cleanup_orphans() {
-  local max_rounds="${ORPHAN_CLEANUP_MAX_ROUNDS:-5}"
-  [[ "$max_rounds" =~ ^[0-9]+$ ]] && (( max_rounds > 0 )) || max_rounds=5
-
-  local round=1 removed_any=0
-  local -a orphans=()
-
-  while (( round <= max_rounds )); do
-    mapfile -t orphans < <(pacman -Qdtq 2>/dev/null || true)
-
-    if (( ${#orphans[@]} == 0 )); then
-      if (( removed_any == 0 )); then
-        log "  Nenhum pacote órfão encontrado."
-      else
-        log "  Limpeza de órfãos concluída; nenhuma dependência órfã remanescente."
-      fi
-      return 0
-    fi
-
-    log "  Pacotes órfãos encontrados (rodada ${round}/${max_rounds}, ${#orphans[@]}): ${orphans[*]}"
-
-    if (( ASSUME_YES == 0 )); then
-      if [[ -t 0 ]]; then
-        printf '%b' "${C_YELLOW}  Remover pacotes órfãos? [s/N] ${C_RESET}"
-        local answer
-        read -r answer
-        case "$answer" in
-          [sS][iI][mM]|[sS]) ;;
-          *) log "  Remoção de órfãos cancelada pelo usuário."; return 0 ;;
-        esac
-      else
-        log "  Execução não interativa sem --yes; pulando remoção de órfãos."
-        return 0
-      fi
-    fi
-
-    run_logged sudo pacman -Rns --noconfirm -- "${orphans[@]}" || return $?
-    removed_any=1
-    (( round++ ))
-  done
-
-  mapfile -t orphans < <(pacman -Qdtq 2>/dev/null || true)
-  if (( ${#orphans[@]} > 0 )); then
-    log "  Aviso: ainda há órfãos após ${max_rounds} rodada(s): ${orphans[*]}"
-    log "  Remediação: rode novamente ou revise manualmente com pacman -Qdtq"
-    STEP_REASON="órfãos remanescentes após ${max_rounds} rodada(s)"
-    return "$RC_TODO"
-  fi
-  return 0
-}
-
 
 # Arquivos em que um merge automático nunca é aceitável: um erro aqui tranca a
 # máquina ou o login. Continuam sempre como decisão manual.
-PACNEW_NEVER_AUTO_RE='^/etc/(sudoers|passwd|shadow|group|gshadow|fstab|crypttab)$'
 
 # Gera em stdout um merge de <atual> com <pacnew>: parte do .pacnew (comentários,
 # opções e defaults novos do pacote) e reinsere nele, byte a byte, as linhas
@@ -398,6 +352,9 @@ PACNEW_NEVER_AUTO_RE='^/etc/(sudoers|passwd|shadow|group|gshadow|fstab|crypttab)
 # e nenhum default novo do pacote entra em vigor sozinho; muda só comentário.
 # Se o usuário alterou o VALOR de uma linha, ou o pacote passou a ativar algo
 # que o arquivo atual não tem, rc 1 e o arquivo segue como decisão manual.
+# Regex de arquivos que NUNCA devem ser auto-mesclados (trancam a máquina).
+PACNEW_NEVER_AUTO_RE='^/etc/(sudoers|passwd|shadow|group|gshadow|fstab|crypttab)$'
+
 pacnew_safe_merge() {
   local current="$1" new="$2"
   [[ -r "$current" && -r "$new" ]] || return 1
@@ -438,6 +395,7 @@ pacnew_safe_merge() {
   ' "$current" "$new"
 }
 
+
 # Comando a rodar depois de mesclar um arquivo, quando o conteúdo precisa ser
 # recompilado para valer. Silêncio = nada a fazer.
 pacnew_post_merge_cmd() {
@@ -446,6 +404,7 @@ pacnew_post_merge_cmd() {
     *) printf '' ;;
   esac
 }
+
 
 # Tenta o merge seguro em cada .pacnew de "${@:2}" e grava em $1 (um por linha)
 # os caminhos que continuaram pendentes: merge recusado, .pacsave ou arquivo da
@@ -514,6 +473,7 @@ pacnew_auto_merge() {
     fi
   done
 }
+
 
 check_pacnew_files() {
   if ! has pacdiff; then

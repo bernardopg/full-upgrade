@@ -6,7 +6,7 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_ROOT}/lib/steps/cleanup.sh"
+  source "${FU_ROOT}/lib/steps/cleanup.sh"; source "${FU_ROOT}/lib/steps/final_checks.sh"
 
   MOCKDIR="$(mktemp -d)"
   BINDIR="$MOCKDIR/bin"

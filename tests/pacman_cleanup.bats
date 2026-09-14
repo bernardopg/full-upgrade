@@ -5,7 +5,7 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/pacman.sh"
+  source "${FU_LIB}/steps/pacman.sh"; source "${FU_LIB}/steps/cleanup.sh"
   ASSUME_YES=1
   ORPHAN_CALLS_FILE="$BATS_TEST_TMPDIR/orphan_calls"
   printf '0' >"$ORPHAN_CALLS_FILE"

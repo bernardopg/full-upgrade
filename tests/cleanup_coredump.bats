@@ -9,7 +9,7 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/cleanup.sh"
+  source "${FU_LIB}/steps/cleanup.sh"; source "${FU_LIB}/steps/final_checks.sh"
   # `log` escreveria em terminal/log; silencioso nos testes.
   log() { :; }
   # `sudo` real exigiria credencial: os arquivos de teste são do usuário.

@@ -5,6 +5,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 ### Alterado
 
+- **Reorganização física dos steps (Série T).** `lib/steps/doctor.sh` (2.589
+  linhas) divide-se em `lib/steps/doctor/` com 6 módulos por domínio
+  (`_common`, `system`, `storage`, `boot`, `packages`, `dev`; 65 funções).
+  `coverage.sh` renomeia para `preflight.sh` (o nome antigo sugeria cobertura
+  de testes); `containers.sh` renomeia para `packages.sh`; verificações
+  finais saem de `cleanup.sh` para `final_checks.sh`; `cleanup_paccache`/
+  `cleanup_orphans` saem de `pacman.sh` para `cleanup.sh`;
+  `editor_shell.sh` divide-se em `shell.sh` (zsh/dms/yazi/hyprpm) e
+  `editor.sh` (nvim). Comportamento inalterado — 1407 testes verdes.
+
 - **Catálogo: taxonomia de categorias coerente (Série S).** 129 steps
   redistribuídos em 19 categorias com semântica única, todas com ≥ 2 steps.
   Destaques: `Backup Timeshift em nuvem`/`Backup de configs críticas`/

@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
-# tests/containers.bats — helpers puros de steps/containers.sh
+# tests/containers.bats — helpers puros de steps/packages.sh
 
 setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/containers.sh"
+  source "${FU_LIB}/steps/packages.sh"
 }
 
 @test "docker_info_timeout_seconds: default defensivo é 5s" {

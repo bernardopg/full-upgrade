@@ -7,7 +7,7 @@ setup() {
   # shellcheck source=/dev/null
   source "${FU_LIB}/json.sh"
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/cleanup.sh"
+  source "${FU_LIB}/steps/cleanup.sh"; source "${FU_LIB}/steps/final_checks.sh"
   # shellcheck source=/dev/null
   for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
@@ -28,7 +28,7 @@ setup() {
 }
 
 @test "snapper_full_upgrade_ids_to_delete: mantém os N mais recentes do full-upgrade" {
-  run bash -c 'source tests/test_helper.bash; load_libs; source "$FU_LIB/steps/cleanup.sh"; snapper_full_upgrade_ids_to_delete 2 <<EOF
+  run bash -c 'source tests/test_helper.bash; load_libs; source "$FU_LIB/steps/cleanup.sh"; source "$FU_LIB/steps/final_checks.sh"; snapper_full_upgrade_ids_to_delete 2 <<EOF
 10|manual snapshot
 11|full-upgrade pré-upgrade 2026-01-01 10:00
 12|full-upgrade pré-upgrade 2026-01-02 10:00

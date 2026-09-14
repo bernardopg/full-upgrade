@@ -1,12 +1,12 @@
 #!/usr/bin/env bats
-# tests/coverage.bats — funções puras de lib/steps/coverage.sh.
+# tests/coverage.bats — funções puras de lib/steps/preflight.sh.
 
 load test_helper
 
 setup() {
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/coverage.sh"
+  source "${FU_LIB}/steps/preflight.sh"
 }
 
 @test "mirror_is_fresh: mirrorlist recente (1 dia) é fresco com limite 7" {

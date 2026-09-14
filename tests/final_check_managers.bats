@@ -11,7 +11,7 @@ setup() {
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/lang_other.sh"
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/cleanup.sh"
+  source "${FU_LIB}/steps/cleanup.sh"; source "${FU_LIB}/steps/final_checks.sh"
 
   BIN="${BATS_TEST_TMPDIR}/bin"
   mkdir -p "$BIN"
