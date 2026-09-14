@@ -4,6 +4,28 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Alterado
+
+- **Co-localização única de steps (Série T4).** Todo `doctor_*` do catálogo
+  passa a viver em `lib/steps/doctor/<área>.sh`: `doctor_gem_shadow` (era
+  `lang_other.sh`) e `doctor_mcp_servers` (era `mcp.sh`) foram para
+  `doctor/dev.sh`, e `doctor_manual_apps` (era `manual_apps.sh`) para
+  `doctor/packages.sh`. `manual_apps.sh` deixa de ser um eixo de origem e
+  guarda apenas helpers compartilhados: as CLIs de IA migraram para `ai.sh`,
+  Snyk/OWASP ZAP para o novo `security.sh` e GitKraken CLI/cua-driver para o
+  novo `tools.sh`. `preupgrade_snapshot` foi para `backup.sh`, `refresh_mirrors`
+  para `pacman.sh` e `update_tldr_cache` para `shell.sh` (arquivo
+  `reference.sh` removido). Comportamento inalterado: os corpos das 272
+  funções são byte a byte os mesmos.
+
+### Adicionado
+
+- **Guard-rail de co-localização (Série T5)** em `tests/catalog_integrity.bats`:
+  a função de um step precisa viver no arquivo do domínio da sua categoria
+  (mapa explícito `_catalog_expected_files`), todo `doctor_*` precisa viver em
+  `lib/steps/doctor/`, e o mapa precisa cobrir todas as categorias do catálogo.
+  Plugins `steps.d/*.sh` são exceção documentada por serem autocontidos.
+
 ## [3.43.0] - 2026-09-14
 ### Alterado
 
@@ -42,20 +64,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   grupos sem steps (`Contêineres`, `Referência`, `Hyprland`, `Rede`,
   `Apps manuais`) eliminados.
 
-### Alterado
-
-- **Co-localização única de steps (Série T4).** Todo `doctor_*` do catálogo
-  passa a viver em `lib/steps/doctor/<área>.sh`: `doctor_gem_shadow` (era
-  `lang_other.sh`) e `doctor_mcp_servers` (era `mcp.sh`) foram para
-  `doctor/dev.sh`, e `doctor_manual_apps` (era `manual_apps.sh`) para
-  `doctor/packages.sh`. `manual_apps.sh` deixa de ser um eixo de origem e
-  guarda apenas helpers compartilhados: as CLIs de IA migraram para `ai.sh`,
-  Snyk/OWASP ZAP para o novo `security.sh` e GitKraken CLI/cua-driver para o
-  novo `tools.sh`. `preupgrade_snapshot` foi para `backup.sh`, `refresh_mirrors`
-  para `pacman.sh` e `update_tldr_cache` para `shell.sh` (arquivo
-  `reference.sh` removido). Comportamento inalterado: os corpos das 272
-  funções são byte a byte os mesmos.
-
 ### Documentação
 
 - **README:** nova seção "Taxonomia de categorias" com as 19 categorias, o que
@@ -70,11 +78,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Adicionado
 
-- **Guard-rail de co-localização (Série T5)** em `tests/catalog_integrity.bats`:
-  a função de um step precisa viver no arquivo do domínio da sua categoria
-  (mapa explícito `_catalog_expected_files`), todo `doctor_*` precisa viver em
-  `lib/steps/doctor/`, e o mapa precisa cobrir todas as categorias do catálogo.
-  Plugins `steps.d/*.sh` são exceção documentada por serem autocontidos.
 - **Guard-rails de taxonomia em `tests/catalog_integrity.bats`**: conjunto
   fechado de categorias, `doctor` proibido de conter step mutante, tags
   `mutating`/`read` proibidas, mínimo de 2 steps por categoria e allowlist
@@ -372,7 +375,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 - A cobertura de IA/IDE documenta o retry específico de `ETIMEDOUT`, o
   fallback read-only do TokenSave e o limite configurável por CLI do Doctor.
-
 
 ## [3.37.1] - 2026-08-23
 ### Corrigido
