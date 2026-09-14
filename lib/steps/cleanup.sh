@@ -4,10 +4,6 @@
 # (paccache/órfãos) vieram de pacman.sh.
 # shellcheck shell=bash
 
-#!/usr/bin/env bash
-# steps/cleanup.sh — symlinks, journal, verificação final
-# Sourced por full-upgrade.sh. Não executar direto.
-# shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 cleanup_broken_symlinks_local_bin() {

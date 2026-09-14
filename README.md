@@ -800,7 +800,10 @@ veja o fluxo e a restrição de não usar `--yes` sem consentimento em
 
 Ao criar ou alterar steps:
 
-1. mantenha a função no arquivo de domínio em `lib/steps/`;
+1. mantenha a função no arquivo do **domínio da categoria** do step em
+   `lib/steps/` (auditorias `doctor_*` sempre em `lib/steps/doctor/<área>.sh`;
+   integrações opt-in em `steps.d/`). O mapa categoria→arquivo é validado por
+   teste, então um arquivo novo exige atualizar o mapa no mesmo commit;
 2. registre metadados em `lib/catalog.sh`;
 3. chame o step em `lib/main.sh`;
 4. defina timeout realista;

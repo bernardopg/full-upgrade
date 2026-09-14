@@ -9,6 +9,7 @@ parse_ollama_version() {
   sed -nE 's/.*version is[[:space:]]+([0-9][^[:space:]]*).*/\1/p' | head -1
 }
 
+
 # H2 — atualiza o Ollama, instalado por script próprio em /usr/local/bin (fora do
 # pacman e do npm). Default: só reporta a versão (não muta), pois o update oficial
 # é `curl … install.sh | sh` (script remoto + sudo). Sob OLLAMA_SELF_UPDATE=1,
@@ -70,6 +71,7 @@ update_ollama() {
   return "$RC_WARN"
 }
 
+
 # H1 — atualiza o opencode, instalado fora do npm (~/.opencode/bin) via seu
 # subcomando próprio `opencode upgrade`. Falha de rede → RC_WARN; outra falha do
 # upgrade também → RC_WARN (não-fatal, não derruba o run). Loga versão antes/depois.
@@ -98,6 +100,7 @@ update_opencode() {
   log "  opencode agora: ${after:-?}"
   return 0
 }
+
 
 # H1 — atualiza o pi (pi-coding-agent, pacote npm @earendil-works/pi-coding-agent).
 # Como o pi tem self-update nativo (`pi update`, que reexecuta o npm por baixo dos
@@ -194,10 +197,12 @@ update_pi() {
   return 0
 }
 
+
 # Diretório de versões do instalador nativo do Claude Code. O updater baixa o
 # binário completo (~300 MB) para <dir>/<versão> e só no fim move o symlink
 # ~/.local/bin/claude. Parametrizável para teste.
 CLAUDE_NATIVE_VERSIONS_DIR="${CLAUDE_NATIVE_VERSIONS_DIR:-${HOME}/.local/share/claude/versions}"
+
 
 # Remove binários de versão truncados (vazios ou sem bit de execução) deixados
 # por um download interrompido. Quando o timeout do catálogo mata o step no meio
@@ -222,6 +227,7 @@ claude_prune_partial_versions() {
   fi
   return 0
 }
+
 
 # H1 — atualiza o Claude Code CLI pelo instalador nativo (`claude update`).
 # Falha de rede => RC_WARN e falha do updater => RC_WARN, alinhado aos steps
@@ -277,12 +283,14 @@ update_claude_code() {
   return 0
 }
 
+
 # H5 — detecta se o kimi (bin) é um pacote npm global do prefixo npm ATIVO (o
 # que `npm ls -g` enxerga — tipicamente o node gerenciado pelo nvm). Retorna o
 # spec npm ("@moonshot-ai/kimi-code") ou vazio. Impuro (consulta `npm ls -g`).
 kimi_npm_package() {
   npm ls -g --depth=0 2>/dev/null | grep -oE '@moonshot-ai/kimi-code' | head -1
 }
+
 
 # H5 — detecta instalação npm global em prefixo ESTRANGEIRO ao npm ativo.
 # `npm ls -g` só enxerga o prefixo do npm em uso; uma instalação em
@@ -300,6 +308,7 @@ kimi_foreign_npm_prefix() {
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
+
 # Extrai, da saída de `npm install -g`, os pacotes cujos scripts de install
 # foram bloqueados pelo allowScripts (linhas "npm warn install-scripts
 # <pkg>@<ver> (script: …)"). Um por linha, sem a versão. Entrada: stdin.
@@ -307,6 +316,7 @@ _npm_blocked_script_pkgs() {
   grep -oE 'install-scripts[[:space:]]+[^ ]+@[0-9][^ ]*' \
     | awk '{print $2}' | sed -E 's/@[^/@]+$//' | sort -u
 }
+
 
 # H5 — atualiza o kimi (Moonshot Kimi Code CLI). O kimi é publicado no npm como
 # @moonshot-ai/kimi-code (bin "kimi"), então quando instalado via npm global
@@ -407,6 +417,7 @@ update_kimi() {
 
 
 
+
 # Atualiza as "agent skills" globais via o CLI `skills` (rodado por npx). As
 # skills ficam em ~/.agents/skills e são compartilhadas entre agentes (Claude
 # Code, Codex, Cline, Amp…); inclui caveman/cavecrew, 9router-*, last30days e
@@ -437,5 +448,268 @@ update_agent_skills() {
     log "  Falha ao atualizar agent skills (rede/registro indisponível)."
     return "$RC_WARN"
   fi
+  return 0
+}
+
+
+# ── Factory droid ───────────────────────────────────────────────────────────────
+# CLI de IA da Factory, instalada via instalador próprio em ~/.local/bin (sem
+# pacote). Possui self-update nativo: `droid update` (e `--check` só verifica).
+update_droid() {
+  has droid || { log "  droid não encontrado."; return 0; }
+
+  local current
+  current="$(droid --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  droid versão atual: ${current:-desconhecida}"
+
+  # `droid update --check` é read-only: evita o download/instalação quando já
+  # está atualizado (e poupa rede). rc 0 + saída sem "update" => já atual.
+  local check
+  check="$(run_network_cmd droid update --check 2>&1)"
+  local check_rc=$?
+  log_raw "$check"
+  if (( check_rc != 0 )); then
+    log "  Não foi possível verificar atualização do droid (rede/Factory indisponível)."
+    return "$RC_WARN"
+  fi
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check"; then
+    log "  droid já está na versão mais recente (${current:-?})."
+    return 0
+  fi
+
+  log "  Atualizando droid…"
+  if ! run_network_cmd droid update; then
+    log "  Falha ao atualizar o droid."
+    return "$RC_WARN"
+  fi
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(droid --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  droid atualizado para ${newver:-?}."
+  return 0
+}
+
+
+# ── CodeRabbit CLI ──────────────────────────────────────────────────────────────
+# Binário standalone em ~/.local/bin (sem pacote), com self-update nativo:
+# `coderabbit update` checa e instala a última versão no lugar. Sem sudo (destino
+# escrevível pelo usuário). Falha de rede vira RC_WARN.
+update_coderabbit() {
+  has coderabbit || { log "  coderabbit não encontrado."; return 0; }
+
+  local current
+  current="$(coderabbit --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  coderabbit versão atual: ${current:-desconhecida}"
+
+  log "  Verificando atualização do CodeRabbit CLI…"
+  local out rc
+  out="$(run_network_cmd coderabbit update 2>&1)"; rc=$?
+  log_raw "$out"
+  if (( rc != 0 )); then
+    log "  Falha ao atualizar o coderabbit."
+    return "$RC_WARN"
+  fi
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(coderabbit --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  if [[ -n "$newver" && "$newver" != "$current" ]]; then
+    log "  coderabbit atualizado: ${current:-?} → ${newver}."
+  else
+    log "  coderabbit já está na versão mais recente (${newver:-${current:-?}})."
+  fi
+  return 0
+}
+
+
+# ── Amazon Kiro CLI ─────────────────────────────────────────────────────────────
+# CLI da IDE Kiro (Amazon), instalada fora de pacote em ~/.local/bin. Tem
+# self-update nativo: `kiro-cli update --non-interactive` (sem prompt). Não
+# confundir com 'Atualizar Kimi CLI' (Moonshot). Falha de rede vira RC_WARN.
+update_kiro_cli() {
+  has kiro-cli || { log "  kiro-cli não encontrado."; return 0; }
+
+  local current
+  current="$(kiro-cli --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kiro-cli versão atual: ${current:-desconhecida}"
+
+  log "  Atualizando Kiro CLI…"
+  local out rc
+  out="$(run_network_cmd kiro-cli update --non-interactive 2>&1)"; rc=$?
+  log_raw "$out"
+  if (( rc != 0 )); then
+    log "  Falha ao atualizar o kiro-cli."
+    return "$RC_WARN"
+  fi
+
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(kiro-cli --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  if [[ -n "$newver" && "$newver" != "$current" ]]; then
+    log "  kiro-cli atualizado: ${current:-?} → ${newver}."
+  else
+    log "  kiro-cli já está na versão mais recente (${newver:-${current:-?}})."
+  fi
+  return 0
+}
+
+
+# ── Helper genérico p/ CLIs self-download com "update --check" textual ───────────
+# Muitos CLIs de IA instalados por instalador próprio em ~/.<tool> seguem o mesmo
+# contrato: `<bin> update --check` (read-only) diz se há versão nova; `<bin> update`
+# aplica. Centraliza o fluxo check→apply e a conversão de falha de rede em RC_WARN.
+# Args: <label> <bin> [update_arg...]  — os update_arg extras (ex.: --force) vão só
+# no apply, nunca no --check. rc: 0 ok · RC_WARN rede/falha.
+_selfupdate_check_apply() {
+  local label="$1" bin="$2"
+  shift 2
+  has "$bin" || { log "  ${label} não encontrado."; return 0; }
+
+  local current
+  current="$("$bin" --version 2>/dev/null | grep -oE 'v?[0-9]+(\.[0-9]+){1,3}' | head -1 | sed 's/^v//' || true)"
+  log "  ${label} versão atual: ${current:-desconhecida}"
+
+  local check check_rc
+  check="$(run_network_cmd "$bin" update --check 2>&1)"
+  check_rc=$?
+  log_raw "$check"
+  if ((check_rc != 0)); then
+    log "  Não foi possível verificar atualização do ${label} (rede/upstream indisponível)."
+    return "$RC_WARN"
+  fi
+  local check_latest
+  check_latest="$(printf '%s' "$check" | sed -nE 's/.*latest:[[:space:]]*v?([0-9]+(\.[0-9]+){1,3}).*/\1/p' | head -1)"
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check" \
+    || [[ -n "$current" && -n "$check_latest" && "$current" == "$check_latest" ]]; then
+    log "  ${label} já está na versão mais recente (${current:-?})."
+    return 0
+  fi
+
+  log "  Atualizando ${label}…"
+  if ! run_network_cmd "$bin" update "$@"; then
+    log "  Falha ao atualizar o ${label}."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$("$bin" --version 2>/dev/null | grep -oE 'v?[0-9]+(\.[0-9]+){1,3}' | head -1 | sed 's/^v//' || true)"
+  log "  ${label} atualizado para ${newver:-?}."
+  return 0
+}
+
+
+# ── grok (xAI CLI) ──────────────────────────────────────────────────────────────
+# Instalada via instalador próprio em ~/.grok (self-download). `grok update --check`
+# é read-only; `grok update` aplica. Falha de rede vira RC_WARN.
+update_grok() { _selfupdate_check_apply "grok" grok; }
+
+# ── jcode ───────────────────────────────────────────────────────────────────────
+# CLI de IA self-download em ~/.jcode/builds. Diferente de grok/qoder, o `jcode
+# update` atual não possui `--check`; por isso fazemos o check read-only contra a
+# última release do GitHub e só chamamos `jcode update` quando a versão local está
+# atrasada. Falha de rede → RC_WARN.
+
+update_jcode() {
+  has jcode || { log "  jcode não encontrado."; return 0; }
+  has curl || { log "  curl ausente; não é possível verificar atualização do jcode."; return 0; }
+
+  local current latest meta
+  current="$(jcode version --json 2>/dev/null | sed -nE 's/.*"semver"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)"
+  [[ -n "$current" ]] || current="$(jcode --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+){2}' | head -1 || true)"
+  log "  jcode versão atual: ${current:-desconhecida}"
+
+  meta="$(run_network_cmd curl -fsSL https://api.github.com/repos/1jehuang/jcode/releases/latest 2>/dev/null)"
+  if [[ -z "$meta" ]]; then
+    log "  Não foi possível consultar a última release do jcode (rede/GitHub indisponível)."
+    return "$RC_WARN"
+  fi
+  latest="$(printf '%s\n' "$meta" | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v?([0-9][^"]*)".*/\1/p' | head -1)"
+  if [[ -z "$latest" ]]; then
+    log_raw "$meta"
+    log "  Não foi possível parsear a versão mais recente do jcode."
+    return "$RC_WARN"
+  fi
+
+  if [[ -z "$current" ]]; then
+    log "  Não foi possível determinar a versão local do jcode; não vou executar update mutante sem confirmação de atraso."
+    return "$RC_WARN"
+  fi
+
+  if ! version_is_outdated "$current" "$latest"; then
+    log "  jcode já está na versão mais recente (${current})."
+    return 0
+  fi
+
+  log "  Atualizando jcode: ${current:-?} → ${latest}…"
+  if ! run_network_cmd jcode update; then
+    log "  Falha ao atualizar o jcode."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(jcode version --json 2>/dev/null | sed -nE 's/.*"semver"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)"
+  log "  jcode atualizado para ${newver:-$latest}."
+  return 0
+}
+
+
+# ── qodercli (Qoder) ────────────────────────────────────────────────────────────
+# CLI self-download em ~/.qoder/bin. `qodercli update --check` verifica; sem flag
+# aplica. Falha de rede → RC_WARN.
+update_qodercli() { _selfupdate_check_apply "qodercli" qodercli; }
+
+# ── qoderwake ───────────────────────────────────────────────────────────────────
+# Daemon/CLI companheiro do Qoder, self-download em ~/.qoderwake. Mesmo contrato:
+# `qoderwake update --check` verifica; `qoderwake update` aplica. Rede → RC_WARN.
+
+update_qoderwake() { _selfupdate_check_apply "qoderwake" qoderwake; }
+
+# ── kimchi ──────────────────────────────────────────────────────────────────────
+# CLI self-download em ~/.local/bin. Atualização do próprio binário: `kimchi update
+# self` (com `--dry-run` p/ checar e `--force` p/ pular confirmação). Usamos o
+# subcomando `self` (não mexe em extensões/pacotes do usuário). Rede → RC_WARN.
+
+update_kimchi() {
+  has kimchi || { log "  kimchi não encontrado."; return 0; }
+  local kimchi_config="${XDG_CONFIG_HOME:-${HOME}/.config}/kimchi/config.json" mode
+  if [[ -f "$kimchi_config" ]]; then
+    mode="$(stat -c '%a' "$kimchi_config" 2>/dev/null || true)"
+    if [[ "$mode" =~ ^[0-7]{3,4}$ && "${mode: -2}" != "00" ]]; then
+      if chmod 600 -- "$kimchi_config" 2>/dev/null; then
+        log "  Permissões do config Kimchi endurecidas: ${mode} → 600 (protege chaves de API)."
+      else
+        log "  Não foi possível restringir ${kimchi_config}; aplique chmod 600."
+        STEP_REASON="config Kimchi expõe chaves para grupo/outros (${mode})"
+        return "$RC_WARN"
+      fi
+    fi
+  fi
+  local current
+  current="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kimchi versão atual: ${current:-desconhecida}"
+
+  local check check_rc
+  check="$(run_network_cmd kimchi update self --dry-run 2>&1)"
+  check_rc=$?
+  log_raw "$check"
+  if ((check_rc != 0)); then
+    log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
+    return "$RC_WARN"
+  fi
+  if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check"; then
+    log "  kimchi já está na versão mais recente (${current:-?})."
+    return 0
+  fi
+
+  log "  Atualizando kimchi…"
+  if ! run_network_cmd kimchi update self --force; then
+    log "  Falha ao atualizar o kimchi."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  local newver
+  newver="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
+  log "  kimchi atualizado para ${newver:-?}."
   return 0
 }

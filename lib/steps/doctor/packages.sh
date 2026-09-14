@@ -29,6 +29,7 @@ doctor_paru_devel_mode() {
 
 
 
+
 doctor_flatpak_repair_dry_run() {
   if ! has flatpak; then
     log "  flatpak não instalado."
@@ -55,6 +56,7 @@ doctor_flatpak_repair_dry_run() {
 }
 
 
+
 # Remove de um relatório `pacman -Qkq` (stdin) as linhas que casam padrões de
 # falso-positivo (passados como argumentos). Emite só as linhas "reais".
 pacman_qk_filter_noise() {
@@ -65,6 +67,7 @@ pacman_qk_filter_noise() {
   done
   printf '%s\n' "$filtered" | grep '[^[:space:]]' || true
 }
+
 
 
 
@@ -139,6 +142,7 @@ doctor_pacman_health() {
 
 
 
+
 # G2/N1 — helper puro: conta pacotes afetados na saída do `arch-audit`. Aceita o
 # formato MODERNO ("<pkg> is affected by <tipo>. <risco> risk!") e o ANTIGO
 # ("Package <pkg> is affected by ..."). O parser antigo exigia o prefixo "Package"
@@ -149,6 +153,7 @@ doctor_pacman_health() {
 arch_audit_affected_count() {
   grep -cE 'is affected by' || true
 }
+
 
 
 # G2/N1 — CVEs de pacotes oficiais via arch-audit, no fluxo padrão (read-only).
@@ -208,11 +213,13 @@ doctor_arch_audit_cves() {
 
 
 
+
 # I2 — localiza arquivos .pacnew/.pacsave nos diretórios dados (um por linha).
 # Isolado p/ testes (stub). Silencioso em erros de permissão.
 pacfiles_find() {
   find "$@" -type f \( -name '*.pacnew' -o -name '*.pacsave' \) 2>/dev/null
 }
+
 
 
 # I2 — reporta arquivos .pacnew/.pacsave pendentes (configs novas/antigas geradas
@@ -256,6 +263,7 @@ doctor_pacfiles() {
 
 
 
+
 doctor_pacman_hooks() {
   if ! has journalctl; then
     log "  journalctl não encontrado; não é possível auditar hooks ALPM."
@@ -281,4 +289,149 @@ doctor_pacman_hooks() {
   (( count > 20 )) && log "  Saída completa registrada no log."
   STEP_REASON="${count} erro(s) em hook(s) ALPM no boot atual"
   return "$RC_TODO"
+}
+
+
+# ── Doctor: inventário de apps manuais ──────────────────────────────────────────
+# Read-only. Mapeia programas instalados FORA de qualquer gerenciador de pacotes
+# (binários reais em /usr/local/bin e ~/.local/bin sem dono pacman, + diretórios
+# de app em /opt) e indica quais já possuem step de atualização dedicado no
+# full-upgrade e quais não. NÃO executa binários desconhecidos (evitar abrir GUIs
+# como wireshark/cava); só reporta nome, local e cobertura. Sempre rc 0.
+_manual_apps_has_step() {
+  # Marcadores (basename de binário OU nome de diretório /opt) cobertos por um
+  # step de atualização do full-upgrade. Mantido manualmente em sincronia com os
+  # steps acima e com ai.sh/self_update.sh/steps.d.
+  local marker="$1"
+  case "$marker" in
+    droid|snyk|zap|zap.sh|zaproxy|rtk|tokensave|openclaw|\
+    hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
+    uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
+    kiro-cli|kiro-cli-chat|kiro-cli-term|\
+    grok|jcode|qodercli|qoderwake|kimchi|cua-driver)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+
+# Puro/testável: a partir de um item de backup no formato "nome  (dir)" (dois
+# espaços como separador, mesmo formato de backup_items), devolve a sugestão
+# de remoção com o caminho completo. Somente sugestão — o step nunca remove
+# por conta própria (o 'nome-original' pode ser rollback intencional).
+backup_removal_hint() {
+  local item="$1" name dir
+  name="${item%%  *}"
+  dir="${item##*  }"
+  dir="${dir#(}"
+  dir="${dir%)}"
+  printf '%s' "se obsoleto: rm '${dir%/}/${name}' (confira antes com 'file')"
+}
+
+
+_manual_apps_kind() {
+  local name="$1"
+  [[ -n "$name" ]] || { printf 'ignored'; return 0; }
+
+  if _manual_apps_has_step "$name"; then
+    printf 'covered'
+    return 0
+  fi
+
+  case "$name" in
+    *.manual.*|*.manual-backup-*|*.manual_backup_*|*-original|*.orig|*.bak)
+      printf 'backup' ;;
+    sharkd|tshark)
+      printf 'auxiliary' ;;
+    *)
+      printf 'candidate' ;;
+  esac
+}
+
+
+doctor_manual_apps() {
+  has pacman || { log "  pacman ausente; inventário de apps manuais indisponível."; return 0; }
+
+  local total=0 covered=0 backups=0 auxiliary=0 f d name probe kind
+  local -a uncovered=() backup_items=() auxiliary_items=()
+
+  # 1) Binários reais (regular files, não symlinks) em /usr/local/bin e ~/.local/bin
+  #    sem dono pacman. pacman -Qo sobre um arquivo é confiável. Filtra por tamanho
+  #    mínimo (≥ 1 MiB): apps instalados à mão são binários auto-contidos grandes
+  #    (Go/Rust/Node-pkg/Electron); scripts pessoais e wrappers pequenos ficam de
+  #    fora para o inventário não virar ruído.
+  local bindir min_size=1048576 sz
+  for bindir in /usr/local/bin "${HOME}/.local/bin"; do
+    [[ -d "$bindir" ]] || continue
+    for f in "$bindir"/*; do
+      [[ -f "$f" && ! -L "$f" && -x "$f" ]] || continue
+      sz="$(stat -c%s "$f" 2>/dev/null || echo 0)"
+      (( sz >= min_size )) || continue
+      pacman -Qo "$f" >/dev/null 2>&1 && continue
+      name="${f##*/}"
+      total=$((total + 1))
+      kind="$(_manual_apps_kind "$name")"
+      case "$kind" in
+        covered) covered=$((covered + 1)) ;;
+        backup) backups=$((backups + 1)); backup_items+=("${name}  (${bindir})") ;;
+        auxiliary) auxiliary=$((auxiliary + 1)); auxiliary_items+=("${name}  (${bindir})") ;;
+        *) uncovered+=("${name}  (${bindir})") ;;
+      esac
+    done
+  done
+
+  # 2) Diretórios de aplicação em /opt. Convencionalmente instalação manual, mas
+  #    pacotes do repo/AUR também usam /opt (google-chrome, spotify, android-studio,
+  #    intel-oneapi…). Probe de propriedade: se o 1º arquivo dentro pertence a um
+  #    pacote, é gerenciado e não conta. Dirs vazios também são ignorados.
+  if [[ -d /opt ]]; then
+    for d in /opt/*/; do
+      [[ -d "$d" ]] || continue
+      [[ -L "${d%/}" ]] && continue          # ignora symlink (ex.: /opt/idea -> idea-X.Y)
+      name="${d%/}"; name="${name##*/}"
+      probe="$(find "$d" -maxdepth 2 -type f 2>/dev/null | head -1)"
+      [[ -n "$probe" ]] || continue
+      pacman -Qo "$probe" >/dev/null 2>&1 && continue
+      total=$((total + 1))
+      kind="$(_manual_apps_kind "$name")"
+      case "$kind" in
+        covered) covered=$((covered + 1)) ;;
+        backup) backups=$((backups + 1)); backup_items+=("${name}  (/opt)") ;;
+        auxiliary) auxiliary=$((auxiliary + 1)); auxiliary_items+=("${name}  (/opt)") ;;
+        *) uncovered+=("${name}  (/opt)") ;;
+      esac
+    done
+  fi
+
+  if (( total == 0 )); then
+    log "  Nenhum app fora de gerenciador de pacotes detectado."
+    return 0
+  fi
+
+  log "  Apps fora de gerenciador de pacotes: ${total} (com step: ${covered}, candidatos sem step: ${#uncovered[@]}, backups/remanescentes: ${backups}, auxiliares: ${auxiliary})."
+  local u shown=0
+  for u in "${uncovered[@]}"; do
+    if (( shown >= 25 )); then
+      log "    … e mais $(( ${#uncovered[@]} - shown )) (lista completa no log)."
+      break
+    fi
+    log "    • ${u}"
+    shown=$((shown + 1))
+  done
+
+  if (( ${#uncovered[@]} > 0 )); then
+    log "  Candidatos sem step atualizam-se sozinhos (GUIs/Electron) ou exigem reinstalação manual."
+  fi
+  if (( backups > 0 )); then
+    log "  Backups/remanescentes detectados (${backups}) foram excluídos da contagem de candidatos; revise/remova manualmente quando tiver certeza."
+    for u in "${backup_items[@]}"; do
+      log_raw "manual-app-backup: ${u}"
+      log "    ↳ $(backup_removal_hint "${u}")"
+    done
+  fi
+  if (( auxiliary > 0 )); then
+    log "  Binários auxiliares conhecidos (${auxiliary}) foram excluídos da contagem de candidatos."
+    for u in "${auxiliary_items[@]}"; do log_raw "manual-app-auxiliar: ${u}"; done
+  fi
+  return 0
 }

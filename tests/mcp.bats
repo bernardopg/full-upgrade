@@ -7,6 +7,8 @@ setup() {
   load_libs
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/mcp.sh"
+  # doctor_mcp_servers migrou para doctor/dev.sh (Série T4)
+  source "${FU_LIB}/steps/doctor/dev.sh"
   QUIET=0
   HOME="$(mktemp -d)"
   XDG_CONFIG_HOME="$HOME/.config"

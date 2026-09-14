@@ -14,6 +14,7 @@ _ai_cli_first_version() {
 }
 
 
+
 # H4 — inventário read-only das CLIs de IA instaladas e suas versões. Cobre o
 # conjunto moderno (claude, copilot, codex, gemini, qwen, cline, opencode,
 # 9router, ollama, kimi, hermes, pi, headroom, tokensave). Apenas reporta — nunca muta nem falha o run;
@@ -67,6 +68,7 @@ doctor_ai_clis() {
 
 
 
+
 # Puro: lê `pnpm list -g --json` no stdin e emite, um por linha, os gerenciadores
 # de pacote instalados como dependência no store global do pnpm (pnpm/npm/yarn)
 # — sempre instalação-sombra quando o corepack já fornece o shim ativo. JSON
@@ -91,6 +93,7 @@ for entry in data or []:
 print('\\n'.join(seen))
 " 2>/dev/null || true
 }
+
 
 
 doctor_js_conflicts() {
@@ -206,6 +209,7 @@ PYEOF
 
 
 
+
 # J1 — helper puro: resume a saída de `pip check`, agrupando os conflitos por
 # pacote dependente e anotando o detalhe. Lê stdin, emite "<pacote>\t<detalhe>"
 # (uma linha por dependente, ordenado). Cobre as duas formas do pip check:
@@ -228,6 +232,7 @@ summarize_pip_check() {
     END { for (k in grp) printf "%s\t%s\n", k, grp[k] }
   ' | sort
 }
+
 
 
 # J1 — classifica a origem de cada pacote conflitante (stdin: um nome de
@@ -255,6 +260,7 @@ for line in sys.stdin:
     print(f"{pkg}\t{origin}")
 ' 2>/dev/null
 }
+
 
 
 doctor_python_env() {
@@ -375,6 +381,7 @@ for tool in (data if isinstance(data, list) else []):
 }
 
 
+
 # Auto-remediação opcional de dependências pip --user AUSENTES. O doctor
 # 'ambiente Python' reporta pacotes pip --user com dependência ausente (ex.:
 # 'fvs 0.3.4 requires orjson, which is not installed'). Sob AUTO_FIX_PIP_DEPS=1,
@@ -450,5 +457,243 @@ autofix_pip_user_deps() {
   log "  pip check ainda reporta pendências (conflitos de versão exigem pin manual):"
   printf '%s\n' "$after" | log_stream
   log "  Consulte 'Doctor: ambiente Python' para as sugestões."
+  return 0
+}
+
+
+
+# N3 — helper puro: dado o `gem list` do sistema ($1) e o do usuário ($2),
+# emite as gems que o usuário SOMBREIA com versão divergente. Considera só as
+# versões REAIS (instaladas) — entradas "default: X" (gems bundled do Ruby) são
+# ignoradas, pois existem em ambos e upgrades de usuário nelas são normais. Uma
+# linha por gem: "nome|versões_reais_sistema|versões_reais_usuário". Flag quando
+# o sistema tem versão real (gem do Arch) e o usuário tem alguma real ausente nela.
+# Read-only. Formato de entrada (gem list): "nome (1.2.3, 1.0.0, default: 0.9)".
+gem_shadow_diff() {
+  local sys="$1" usr="$2"
+  [[ -r "$sys" && -r "$usr" ]] || return 0
+  awk '
+    function gname(line,   name) { name = line; sub(/ *\(.*/, "", name); return name }
+    function realvers(line,   vers, n, parts, i, p, out) {
+      if (line !~ /\(/) return ""
+      vers = line; sub(/^[^(]*\(/, "", vers); sub(/\).*/, "", vers)
+      n = split(vers, parts, ",")
+      out = ""
+      for (i = 1; i <= n; i++) {
+        p = parts[i]; gsub(/^[ \t]+|[ \t]+$/, "", p)
+        if (p == "" || p ~ /^default:/) continue
+        out = (out == "") ? p : out " " p
+      }
+      return out
+    }
+    NR == FNR { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }
+    {
+      if ($0 !~ /\(/) next
+      name = gname($0)
+      if (!(name in sysv) || sysv[name] == "") next   # sistema sem versão real => ignora
+      uv = realvers($0)
+      if (uv == "") next                               # usuário só tem default => ignora
+      nn = split(uv, U, " "); diff = 0
+      for (i = 1; i <= nn && !diff; i++) {
+        found = 0; mm = split(sysv[name], S, " ")
+        for (j = 1; j <= mm; j++) if (U[i] == S[j]) { found = 1; break }
+        if (!found) diff = 1
+      }
+      if (diff) print name "|" sysv[name] "|" uv
+    }
+  ' "$sys" "$usr"
+}
+
+
+# N3 — Doctor read-only: gems instaladas pelo USUÁRIO que sombreiam uma gem real
+# do sistema (Arch) com versão divergente — ex.: rdoc 7.2.0 (user) sobre 6.14.0
+# (Arch), que faz toda invocação ruby carregar a do usuário e despejar
+# "already initialized constant". Gems default do Ruby são ignoradas. Sem gem =>
+# skip via catálogo. Acionável (`gem uninstall --user-install`) => RC_TODO.
+doctor_gem_shadow() {
+  has gem || { log "  gem não disponível; pulando."; return 0; }
+  local sys_home usr_home
+  sys_home="$(gem env home 2>/dev/null || true)"
+  usr_home="$(gem env user_gemhome 2>/dev/null || true)"
+  if [[ -z "$sys_home" || "$sys_home" == "$HOME"* || -z "$usr_home" || ! -d "$usr_home" ]]; then
+    log "  Sem separação sistema/usuário de gems; nada a checar."
+    return 0
+  fi
+
+  local sysf usrf
+  sysf="$(mktemp)"; usrf="$(mktemp)"
+  GEM_HOME="$sys_home" GEM_PATH="$sys_home" gem list --local 2>/dev/null > "$sysf"
+  GEM_HOME="$usr_home" GEM_PATH="$usr_home" gem list --local 2>/dev/null > "$usrf"
+  local -a shadow=()
+  mapfile -t shadow < <(gem_shadow_diff "$sysf" "$usrf")
+  rm -f "$sysf" "$usrf"
+
+  if (( ${#shadow[@]} == 0 )); then
+    log "  Sem gems do usuário sombreando gems do sistema (Arch)."
+    return 0
+  fi
+
+  log "  ${C_YELLOW}${#shadow[@]} gem(s) do usuário sombreiam a versão do sistema (Arch):${C_RESET}"
+  local line name sysv usrv shown=0
+  for line in "${shadow[@]}"; do
+    IFS='|' read -r name sysv usrv <<< "$line"
+    if (( shown < 20 )); then
+      log "    • ${name}: sistema ${sysv} vs usuário ${usrv}"
+      shown=$((shown + 1))
+    fi
+  done
+  (( ${#shadow[@]} > 20 )) && log "    … e mais $(( ${#shadow[@]} - 20 ))."
+  log "  Dica: remova a cópia do usuário p/ usar a do Arch — gem uninstall --user-install <gem>"
+  STEP_REASON="${#shadow[@]} gem(s) do usuário sombreando o sistema"
+  return "$RC_TODO"
+}
+
+
+# H6 — Doctor read-only: enumera servidores MCP configurados nas fontes conhecidas
+# (hoje: Claude Code via ~/.claude.json, Codex via ~/.codex/config.toml). Lista
+# cada servidor com escopo e binário/runtime (stdio:npx, stdio:uvx, remote...).
+# Nunca muta nem falha o run; MCP_AUTO_UPDATE (default 0) é guardado p/ futuro
+# passo mutating. Sem fontes => skip limpo.
+doctor_mcp_servers() {
+  local claude_json="${HOME}/.claude.json"
+  local codex_toml="${HOME}/.codex/config.toml"
+  local opencode_json="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
+  local hub_json="${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json"
+  local hermes_yaml="${HOME}/.hermes/config.yaml"
+  local has_source=0
+
+  local -x CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="${CODEX_GITHUB_PERSONAL_ACCESS_TOKEN:-}"
+  local -x Z_AI_API_KEY="${Z_AI_API_KEY:-${ZAI_API_KEY:-}}"
+
+  local -A all=()        # name -> "detalhe"
+  local -A src_claude=() # name -> 1
+  local -A src_codex=()  # name -> 1
+  local -A src_opencode=() src_hub=() src_hermes=() scope_claude=() issues=()
+
+  # Claude (JSON): fonte primária, com escopo + binário.
+  if [[ -r "$claude_json" ]]; then
+    has_source=1
+    local name scope detail
+    while IFS=$'\t' read -r name scope detail; do
+      [[ -n "$name" ]] || continue
+      all["$name"]="$detail"
+      src_claude["$name"]=1
+      scope_claude["$name"]="$scope"
+    done < <(parse_mcp_claude_json "$claude_json")
+  fi
+
+  # Codex (TOML): runtime real e referências de ambiente obrigatórias.
+  if [[ -r "$codex_toml" ]]; then
+    has_source=1
+    # O wrapper local do Codex reutiliza a credencial protegida pelo keyring do
+    # gh. Espelha a resolução no Doctor sem persistir/imprimir o token.
+    if [[ -z "$CODEX_GITHUB_PERSONAL_ACCESS_TOKEN" ]] \
+       && grep -q 'CODEX_GITHUB_PERSONAL_ACCESS_TOKEN' "$codex_toml" && has gh; then
+      CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token 2>/dev/null || true)"
+    fi
+    local cname cdetail cissue
+    while IFS=$'\t' read -r cname cdetail cissue; do
+      [[ -n "$cname" ]] || continue
+      if [[ "$cname" == "__CONFIG_ERROR__" ]]; then
+        issues["codex"]="$cissue"
+        continue
+      fi
+      src_codex["$cname"]=1
+      [[ -n "${all[$cname]:-}" ]] || all["$cname"]="$cdetail"
+      [[ -z "$cissue" ]] || issues["codex:$cname"]="$cissue"
+    done < <(parse_mcp_codex_entries "$codex_toml")
+  fi
+
+  local source file sname sdetail sissue
+  for source in opencode hub; do
+    [[ "$source" == opencode ]] && file="$opencode_json" || file="$hub_json"
+    [[ -r "$file" ]] || continue
+    has_source=1
+    while IFS=$'\t' read -r sname sdetail sissue; do
+      [[ -n "$sname" ]] || continue
+      if [[ "$sname" == "__CONFIG_ERROR__" ]]; then
+        issues["$source"]="$sissue"
+        continue
+      fi
+      if [[ "$source" == opencode ]]; then src_opencode["$sname"]=1; else src_hub["$sname"]=1; fi
+      [[ -n "${all[$sname]:-}" ]] || all["$sname"]="$sdetail"
+      [[ -z "$sissue" ]] || issues["${source}:$sname"]="$sissue"
+    done < <(parse_mcp_json_entries "$file")
+  done
+
+  local hermes_name hermes_rc=0
+  if [[ -r "$hermes_yaml" ]]; then
+    has_source=1
+    while IFS= read -r hermes_name; do
+      [[ -n "$hermes_name" ]] || continue
+      src_hermes["$hermes_name"]=1
+      [[ -n "${all[$hermes_name]:-}" ]] || all["$hermes_name"]="configurado (hermes)"
+    done < <(parse_mcp_hermes_names "$hermes_yaml")
+    if has hermes; then
+      timeout 15 hermes mcp list >/dev/null 2>&1
+      hermes_rc=$?
+      if (( hermes_rc != 0 )); then
+        issues["hermes"]="'hermes mcp list' falhou (rc=${hermes_rc})"
+      fi
+    fi
+  fi
+
+  if (( has_source == 0 )); then
+    log "  Nenhuma fonte MCP configurada (Claude/Codex/OpenCode/mcp-central)."
+    return 0
+  fi
+
+  local n="${#all[@]}"
+  if (( n == 0 )); then
+    log "  Fontes MCP presentes, mas nenhum servidor configurado."
+    return 0
+  fi
+
+  local nc=0 nx=0 no=0 nh=0 nhe=0
+  nc="${#src_claude[@]}"
+  nx="${#src_codex[@]}"
+  no="${#src_opencode[@]}"
+  nh="${#src_hub[@]}"
+  nhe="${#src_hermes[@]}"
+  log "  MCP: ${n} servidor(es) distinto(s) — Claude: ${nc}, Codex: ${nx}, OpenCode: ${no}, Hub: ${nh}, Hermes: ${nhe}."
+
+  local sname sdetail srcs
+  for sname in $(printf '%s\n' "${!all[@]}" | sort); do
+    sdetail="${all[$sname]}"
+    srcs=""
+    if [[ -n "${src_claude[$sname]:-}" ]]; then
+      srcs="claude"
+      [[ "${scope_claude[$sname]:-global}" == project:* ]] && srcs="claude/${scope_claude[$sname]}"
+    fi
+    [[ -n "${src_codex[$sname]:-}" ]] && srcs="${srcs:+$srcs, }codex"
+    [[ -n "${src_opencode[$sname]:-}" ]] && srcs="${srcs:+$srcs, }opencode"
+    [[ -n "${src_hub[$sname]:-}" ]] && srcs="${srcs:+$srcs, }hub"
+    [[ -n "${src_hermes[$sname]:-}" ]] && srcs="${srcs:+$srcs, }hermes"
+    log "    • ${sname} [${srcs}, ${sdetail}]"
+  done
+  if (( ${#issues[@]} > 0 )); then
+    local ikey
+    log "  Problemas MCP detectados:"
+    for ikey in $(printf '%s\n' "${!issues[@]}" | sort); do
+      log "    • ${ikey}: ${issues[$ikey]}"
+    done
+    if [[ "${issues[codex]:-}" == "TOML inválido"* ]]; then
+      local _backup_exists=0 _has_headroom=0
+      [[ -f "${HOME}/.codex/config.toml.headroom-backup" ]] && _backup_exists=1
+      has headroom && _has_headroom=1
+      log "  Remediação (codex):"
+      local _hint_line
+      while IFS= read -r _hint_line; do
+        log "    • ${_hint_line}"
+      done < <(codex_toml_remediation_hints "$_backup_exists" "$_has_headroom")
+    fi
+    STEP_REASON="${#issues[@]} problema(s) de configuração MCP"
+    return "$RC_WARN"
+  fi
+  if (( ${MCP_AUTO_UPDATE:-0} == 1 )); then
+    log "  Remediação: MCP_AUTO_UPDATE=1 — o step 'Atualizar servidores MCP' refresca os runtimes uvx."
+  else
+    log "  Remediação: mantenha runtimes (npx/uvx/node) atualizados; MCP_AUTO_UPDATE=0 (ligue p/ refrescar uvx automaticamente)."
+  fi
   return 0
 }

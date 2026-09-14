@@ -1,5 +1,6 @@
 #!/usr/bin/env bats
-# tests/coverage.bats — funções puras de lib/steps/preflight.sh.
+# tests/preflight.bats — funções puras de lib/steps/preflight.sh (+ snapshot em
+# backup.sh, migrado na Série T4).
 
 load test_helper
 
@@ -7,6 +8,9 @@ setup() {
   load_libs
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/preflight.sh"
+  # Série T4: snapshot migrou para backup.sh e mirrors para pacman.sh
+  source "${FU_LIB}/steps/backup.sh"
+  source "${FU_LIB}/steps/pacman.sh"
 }
 
 @test "mirror_is_fresh: mirrorlist recente (1 dia) é fresco com limite 7" {

@@ -36,6 +36,7 @@ update_omz() {
 
 
 
+
 # Um `pull --ff-only` falha por dois motivos bem diferentes: o upstream
 # reescreveu o histórico (force-push, comum em plugins de um mantenedor só) ou
 # há trabalho local no clone. Só o segundo exige decisão do usuário. Com a
@@ -56,6 +57,7 @@ plugin_realign_to_upstream() {
   log "  ${plugin}: histórico reescrito pelo upstream — realinhado em origin/HEAD (HEAD anterior ${old_head:0:7} salvo em ${rescue})."
   return 0
 }
+
 
 
 
@@ -140,6 +142,7 @@ update_omz_custom_plugins() {
 
 
 
+
 update_yazi_plugins() {
   local pkg_toml="${XDG_CONFIG_HOME:-$HOME/.config}/yazi/package.toml"
 
@@ -173,6 +176,7 @@ update_yazi_plugins() {
 
 
 
+
 update_hyprpm() {
   local store_dir="${XDG_DATA_HOME:-$HOME/.local/share}/hyprpm"
 
@@ -190,4 +194,30 @@ update_hyprpm() {
   fi
 
   run_logged hyprpm update
+}
+
+
+# Atualiza o cache local do Tealdeer (`tldr`). A operação baixa apenas páginas
+# de referência configuradas pelo próprio usuário; não atualiza o pacote nem
+# altera arquivos do sistema. Falhas da rede ou do cliente são não bloqueantes,
+# pois um cache anterior continua utilizável offline.
+update_tldr_cache() {
+  has tldr || { log "  tldr não encontrado."; return 0; }
+
+  log "  Atualizando cache local do tldr…"
+  local out rc
+  out="$(run_network_cmd tldr --update 2>&1)"
+  rc=$?
+  [[ -n "$out" ]] && log "  ${out//$'\n'/ }"
+
+  if (( rc == 0 )); then
+    log "  Cache local do tldr atualizado."
+    return 0
+  fi
+
+  # O portão de conectividade já classifica DNS/conectividade como RC_WARN.
+  # Erros locais do cliente também não podem derrubar todo o upgrade: o cache
+  # existente segue disponível e a correção não é automaticamente segura.
+  log "  Não foi possível atualizar o cache do tldr; o cache atual foi preservado."
+  return "$RC_WARN"
 }

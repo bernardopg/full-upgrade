@@ -10,6 +10,8 @@ setup() {
   load_libs
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/lang_other.sh"
+  # doctor_gem_shadow migrou para doctor/dev.sh (Série T4)
+  source "${FU_LIB}/steps/doctor/dev.sh"
 }
 
 # helper: grava $2... como linhas no arquivo $1

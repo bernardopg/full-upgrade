@@ -6,7 +6,8 @@ load test_helper
 setup() {
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/reference.sh"
+  # update_tldr_cache migrou para shell.sh na Série T4
+  source "${FU_LIB}/steps/shell.sh"
   STUB_BIN="${BATS_TEST_TMPDIR}/bin"
   mkdir -p "$STUB_BIN"
   export PATH="$STUB_BIN:$PATH"

@@ -18,7 +18,7 @@ setup() {
     # shellcheck source=/dev/null
     source "${FU_LIB}/steps/mcp.sh"
     # shellcheck source=/dev/null
-    source "${FU_LIB}/steps/manual_apps.sh"
+    source "${FU_LIB}/steps/doctor/packages.sh"
     # shellcheck source=/dev/null
     source "${FU_LIB}/steps/pacman.sh"
 }
@@ -137,7 +137,7 @@ setup() {
     [ -z "$output" ]
 }
 
-# ── backup_removal_hint (lib/steps/manual_apps.sh) ───────────────────────
+# ── backup_removal_hint (lib/steps/doctor/packages.sh) ───────────────────
 
 @test "backup_removal_hint: monta rm com caminho completo a partir de 'nome  (dir)'" {
     run backup_removal_hint "nomacs-original  (/home/u/.local/bin)"

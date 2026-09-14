@@ -314,3 +314,119 @@ setup() {
   done
   [ "$bad" -eq 0 ]
 }
+
+# ── T5: co-localização categoria ↔ arquivo de implementação ──────────────────
+# A categoria diz o domínio do step; o arquivo onde a função vive deve ser o
+# arquivo daquele domínio. Sem este guard-rail, a organização da Série T
+# regride em silêncio na primeira função colada no arquivo errado.
+#
+# Regra (Série T4):
+#   • cada categoria tem um conjunto FECHADO de arquivos de domínio;
+#   • steps.d/*.sh (integrações opt-in, gated por ENABLE_CUSTOM_TOOLS) podem
+#     hospedar qualquer categoria: o plugin é autocontido por design;
+#   • `autofix` é transversal por natureza — a auto-remediação vive junto do
+#     diagnóstico que a motiva, então seus arquivos são os do domínio tratado.
+
+_catalog_expected_files() {
+  case "$1" in
+    core)       printf 'lib/steps/preflight.sh lib/sudo.sh' ;;
+    backup)     printf 'lib/steps/backup.sh lib/steps/cloud_backup.sh' ;;
+    packages)   printf 'lib/steps/pacman.sh lib/steps/packages.sh lib/steps/news.sh' ;;
+    repair)     printf 'lib/steps/repair.sh lib/steps/pacman.sh lib/steps/self_update.sh' ;;
+    security)   printf 'lib/steps/security.sh' ;;
+    firmware)   printf 'lib/steps/firmware.sh' ;;
+    lang-js)    printf 'lib/steps/lang_js.sh' ;;
+    lang-py)    printf 'lib/steps/lang_py.sh' ;;
+    lang-rust)  printf 'lib/steps/lang_rust.sh' ;;
+    lang-other) printf 'lib/steps/lang_other.sh' ;;
+    ai)         printf 'lib/steps/ai.sh lib/steps/mcp.sh' ;;
+    tools)      printf 'lib/steps/tools.sh' ;;
+    ide)        printf 'lib/steps/ide.sh' ;;
+    editor)     printf 'lib/steps/editor.sh' ;;
+    shell)      printf 'lib/steps/shell.sh' ;;
+    cleanup)    printf 'lib/steps/cleanup.sh' ;;
+    final)      printf 'lib/steps/final_checks.sh lib/steps/self_update.sh' ;;
+    doctor)     printf 'lib/steps/doctor/' ;;
+    autofix)    printf 'lib/steps/doctor/ lib/steps/final_checks.sh lib/steps/lang_rust.sh' ;;
+    *)          printf '' ;;
+  esac
+}
+
+_catalog_file_of_func() {
+  local fn="$1" f
+  for f in "${FU_ROOT}"/lib/steps/*.sh "${FU_ROOT}"/lib/steps/doctor/*.sh \
+           "${FU_ROOT}"/lib/sudo.sh "${FU_ROOT}"/steps.d/*.sh; do
+    [[ -e "$f" ]] || continue
+    if grep -q "^${fn}() {" "$f"; then
+      printf '%s' "${f#"${FU_ROOT}"/}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+@test "catálogo: função de step vive no arquivo do domínio da sua categoria" {
+  local bad=0 name cat tags effect timeout cmd_deps func_name desc file allowed ok pat
+  while IFS='|' read -r name cat tags effect timeout cmd_deps func_name desc; do
+    [[ -n "$name" ]] || continue
+    [[ -n "$func_name" ]] || continue
+
+    file="$(_catalog_file_of_func "$func_name")" || {
+      echo "função não encontrada em nenhuma fonte: $func_name ($name)"
+      bad=1
+      continue
+    }
+
+    # Integração opt-in: plugin autocontido hospeda qualquer categoria.
+    [[ "$file" == steps.d/* ]] && continue
+
+    allowed="$(_catalog_expected_files "$cat")"
+    if [[ -z "$allowed" ]]; then
+      echo "categoria sem mapa de arquivos em _catalog_expected_files: $cat ($name)"
+      bad=1
+      continue
+    fi
+
+    ok=0
+    for pat in $allowed; do
+      # entrada terminada em '/' casa o diretório inteiro (ex.: doctor/)
+      if [[ "$pat" == */ ]]; then
+        [[ "$file" == "$pat"* ]] && { ok=1; break; }
+      else
+        [[ "$file" == "$pat" ]] && { ok=1; break; }
+      fi
+    done
+
+    if (( ok == 0 )); then
+      echo "co-localização quebrada: '$name' (categoria $cat) implementado em $file; esperado: $allowed"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: todo doctor_* do catálogo vive em lib/steps/doctor/ (ou plugin opt-in)" {
+  local bad=0 name cat tags effect timeout cmd_deps func_name desc file
+  while IFS='|' read -r name cat tags effect timeout cmd_deps func_name desc; do
+    [[ "$func_name" == doctor_* ]] || continue
+    file="$(_catalog_file_of_func "$func_name")" || continue
+    [[ "$file" == steps.d/* ]] && continue
+    if [[ "$file" != lib/steps/doctor/* ]]; then
+      echo "check de doctor fora de lib/steps/doctor/: $func_name em $file"
+      bad=1
+    fi
+  done < <(step_catalog)
+  [ "$bad" -eq 0 ]
+}
+
+@test "catálogo: mapa de co-localização cobre todas as categorias do catálogo" {
+  local bad=0 cat
+  while read -r cat; do
+    [[ -n "$cat" ]] || continue
+    if [[ -z "$(_catalog_expected_files "$cat")" ]]; then
+      echo "categoria sem entrada no mapa: $cat"
+      bad=1
+    fi
+  done < <(step_catalog | awk -F'|' 'NF > 1 { print $2 }' | sort -u)
+  [ "$bad" -eq 0 ]
+}

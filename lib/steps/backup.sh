@@ -9,6 +9,7 @@ backup_dir() {
   printf '%s\n' "${XDG_CACHE_HOME:-$HOME/.cache}/system-upgrade/backups"
 }
 
+
 # Normaliza a retenção. BACKUP_CONFIGS=0 é a forma explícita de desligar o
 # backup; quando ele está ativo, manter ao menos um arquivo evita criar e apagar
 # imediatamente o único backup por causa de BACKUP_KEEP=0/valor inválido.
@@ -18,6 +19,7 @@ backup_keep_count() {
   (( keep < 1 )) && keep=1
   printf '%s' "$keep"
 }
+
 
 # Rotação pura: dado um diretório e quantos manter, emite (stdout) os caminhos
 # de tarballs full-upgrade EXCEDENTES (mais antigos) que devem ser removidos.
@@ -35,6 +37,7 @@ backup_rotation_victims() {
   printf '%s\n' "${all[@]:0:cut}"
 }
 
+
 # Seleciona, da lista de paths candidatos, apenas os que existem no disco.
 # Lê paths separados por espaço de $1; emite um por linha os existentes.
 backup_existing_paths() {
@@ -44,6 +47,7 @@ backup_existing_paths() {
     [[ -e "$p" ]] && printf '%s\n' "$p"
   done
 }
+
 
 backup_critical_configs() {
   if [[ "${BACKUP_CONFIGS:-1}" != "1" ]]; then
@@ -159,5 +163,85 @@ backup_critical_configs() {
   fi
 
   (( rotation_failed == 0 )) || return "$RC_WARN"
+  return 0
+}
+
+
+# ── Snapshot pré-upgrade (btrfs via snapper/timeshift) ──────────────────────────
+# Timeshift pode avisar sobre rotação mesmo depois de criar o snapshot com sucesso.
+# A saída crua fica no log; este filtro só reduz ruído no terminal.
+timeshift_terminal_output() {
+  sed '/^Maximum backups exceeded for backup level /d'
+}
+
+
+preupgrade_snapshot() {
+  local tool="${SNAPSHOT_TOOL:-auto}"
+  [[ "$tool" == "none" ]] && { log "  Snapshot desabilitado (SNAPSHOT_TOOL=none)."; return 0; }
+
+  # Só faz sentido em btrfs no /.
+  local rootfs
+  rootfs="$(findmnt -no FSTYPE / 2>/dev/null || true)"
+  if [[ "$rootfs" != "btrfs" ]]; then
+    log "  Raiz não é btrfs (${rootfs:-?}); snapshot pulado."
+    return 0
+  fi
+
+  # Auto-detecta ferramenta.
+  if [[ "$tool" == "auto" ]]; then
+    if has snapper; then tool="snapper"
+    elif has timeshift; then tool="timeshift"
+    else log "  Nenhuma ferramenta de snapshot (snapper/timeshift) instalada; pulando."; return 0; fi
+  fi
+
+  # Pré-flight de espaço: um snapshot CoW começa barato, mas a divergência
+  # subsequente pode encher o subvolume. Se o livre estiver abaixo do limiar,
+  # avisa e NÃO cria (snapshot que estoura o disco é pior que não ter). 0 = off.
+  local min_free="${SNAPSHOT_MIN_FREE_GIB:-2}"
+  if [[ "$min_free" =~ ^[0-9]+$ ]] && (( min_free > 0 )); then
+    local avail_kib
+    avail_kib="$(avail_kib_for_path /)"
+    if [[ -n "$avail_kib" ]] && ! space_is_sufficient "$avail_kib" "$min_free"; then
+      local avail_gib=$(( avail_kib / 1048576 ))
+      log "  ${C_YELLOW}Espaço livre em / (${avail_gib} GiB) abaixo do mínimo p/ snapshot (${min_free} GiB).${C_RESET}"
+      log "  Pulando snapshot para não arriscar encher o subvolume."
+      log "  Remediação: libere espaço (paccache -r, limpe snapshots antigos) ou ajuste SNAPSHOT_MIN_FREE_GIB."
+      STEP_REASON="espaço livre (${avail_gib} GiB) < mínimo p/ snapshot (${min_free} GiB)"
+      return "$RC_WARN"
+    fi
+  fi
+
+  local desc
+  desc="full-upgrade pré-upgrade $(date '+%Y-%m-%d %H:%M')"
+  case "$tool" in
+    snapper)
+      has snapper || { log "  snapper não instalado."; return 0; }
+      if run_logged sudo snapper -c root create -d "$desc"; then
+        log "  Snapshot snapper criado: ${desc}"
+      else
+        log "  Aviso: falha ao criar snapshot snapper."; return "$RC_WARN"
+      fi
+      ;;
+    timeshift)
+      has timeshift || { log "  timeshift não instalado."; return 0; }
+      local timeshift_output timeshift_rc timeshift_result
+      log "  Criando snapshot Timeshift (a saída detalhada ficará no log)..."
+      timeshift_output="$(sudo timeshift --create --comments "$desc" --scripted 2>&1)"
+      timeshift_rc=$?
+      # \r → \n: progresso do timeshift ("12%... 32%... 43%...") acumula numa linha
+      # só no log; convertendo dá uma linha por atualização (legível em auditoria).
+      log_raw "$(printf '%s' "$timeshift_output" | tr '\r' '\n')"
+      if (( timeshift_rc == 0 )); then
+        timeshift_result="$(printf '%s\n' "$timeshift_output" | tr '\r' '\n' | grep -E 'Snapshot saved successfully' | tail -1 || true)"
+        [[ -n "$timeshift_result" ]] && log "  ${timeshift_result}"
+        log "  Snapshot timeshift criado: ${desc}"
+      else
+        printf '%s\n' "$timeshift_output" | tr '\r' '\n' | timeshift_terminal_output | tail -20 | log_out
+        log "  Aviso: falha ao criar snapshot timeshift."; return "$RC_WARN"
+      fi
+      ;;
+    *)
+      log "  SNAPSHOT_TOOL inválido: ${tool}"; return "$RC_WARN" ;;
+  esac
   return 0
 }

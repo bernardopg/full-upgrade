@@ -74,7 +74,8 @@ Two consequences for contributors: **(a)** a step that talks to the network must
 
 ### Adding or changing a step
 
-1. Implement the function in the relevant `lib/steps/<domain>.sh` (ai, audit, backup, cleanup, cloud_backup, editor, final_checks, firmware, ide, lang_js, lang_other, lang_py, lang_rust, manual_apps, mcp, news, packages, pacman, preflight, reference, repair, self_update, shell). Doctor checks live in `lib/steps/doctor/<area>.sh` (`_common`, `system`, `storage`, `boot`, `packages`, `dev`).
+1. Implement the function in the file that owns the step's **category** (ai, audit, backup, cleanup, cloud_backup, editor, final_checks, firmware, ide, lang_js, lang_other, lang_py, lang_rust, mcp, news, packages, pacman, preflight, repair, security, self_update, shell, tools). Doctor checks live in `lib/steps/doctor/<area>.sh` (`_common`, `system`, `storage`, `boot`, `packages`, `dev`) — **every** `doctor_*` in `lib/steps/` does, including the ones about other domains; the only exception is a doctor check that belongs to a `steps.d/` plugin (e.g. `doctor_obs_modules`), which stays self-contained in that plugin. `lib/steps/manual_apps.sh` holds only shared helpers for out-of-package-manager apps; the steps themselves live in ai.sh/security.sh/tools.sh. Optional integrations stay self-contained in `steps.d/*.sh`.
+   The category→file map is enforced by `tests/catalog_integrity.bats` (`_catalog_expected_files`): adding a category or a new step file means updating that map in the same commit.
 2. Add a catalog line in `lib/catalog.sh` with a realistic timeout and any `cmd_deps`.
 3. Call it from the correct point in `lib/main.sh` `run_all_steps()`.
 4. Use `RC_WARN`/`RC_TODO` for non-fatal outcomes; let a missing dependency become `skip`, not `fail`.

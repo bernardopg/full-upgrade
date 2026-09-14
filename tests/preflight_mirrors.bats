@@ -5,7 +5,8 @@ setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
   # shellcheck source=/dev/null
-  source "${FU_LIB}/steps/preflight.sh"
+  # mirrors migraram para pacman.sh na Série T4
+  source "${FU_LIB}/steps/pacman.sh"
 }
 
 @test "mirrorlist_has_server: aceita backup com Server ativo" {

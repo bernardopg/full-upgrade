@@ -36,7 +36,7 @@ ORDER=(
   lib/steps/pacman.sh lib/steps/news.sh lib/steps/repair.sh lib/steps/packages.sh
   lib/steps/lang_js.sh lib/steps/lang_py.sh lib/steps/lang_rust.sh
   lib/steps/lang_other.sh lib/steps/firmware.sh lib/steps/shell.sh lib/steps/editor.sh lib/steps/ide.sh
-  lib/steps/reference.sh
+  lib/steps/security.sh lib/steps/tools.sh
   lib/steps/ai.sh lib/steps/preflight.sh lib/steps/cleanup.sh lib/steps/final_checks.sh
   lib/steps/doctor/_common.sh lib/steps/doctor/system.sh lib/steps/doctor/storage.sh
   lib/steps/doctor/boot.sh lib/steps/doctor/packages.sh lib/steps/doctor/dev.sh

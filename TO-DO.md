@@ -162,18 +162,25 @@ co-localização. Executar DEPOIS da Série S (categorias estáveis primeiro).
 - `lib/steps/self_update.sh` mantém notices/update; os `repair_full_upgrade_*`
   migram para `repair.sh` (ou ficam, documentando a exceção).
 
-### T4 — 🟢 M ☐ Regra única de co-localização de `doctor_*`
+### T4 — 🟢 M ☑ Regra única de co-localização de `doctor_*`
 
-- Hoje 4 checks de doctor vivem fora do monolito (`doctor_gem_shadow` em
-  `lang_other.sh`, `doctor_manual_apps` em `manual_apps.sh`,
-  `doctor_mcp_servers` em `mcp.sh`, `doctor_obs_modules` em
-  `steps.d/85-obs.sh`). Definir: cada `doctor_*` vive no arquivo do seu
-  domínio; o split T1 absorve os que ficarem.
+- Regra adotada: **todo `doctor_*` vive em `lib/steps/doctor/<área>.sh`**; a
+  única exceção são os plugins `steps.d/*.sh` (autocontidos e opt-in via
+  `ENABLE_CUSTOM_TOOLS`), onde `doctor_obs_modules` permanece por design.
+- Aplicado: `doctor_gem_shadow` e `doctor_mcp_servers` → `doctor/dev.sh`;
+  `doctor_manual_apps` (+ helpers) → `doctor/packages.sh`.
+- Estendido ao resto do catálogo: `manual_apps.sh` virou módulo de helpers e os
+  steps foram para `ai.sh`, `security.sh` (novo) e `tools.sh` (novo);
+  `preupgrade_snapshot` → `backup.sh`; `refresh_mirrors` → `pacman.sh`;
+  `update_tldr_cache` → `shell.sh` (`reference.sh` removido).
 
-### T5 — 🟢 P ☐ `catalog.sh` declara `func_name` → teste de caminho
+### T5 — 🟢 P ☑ `catalog.sh` declara `func_name` → teste de caminho
 
-- Guard-rail opcional: função de step da categoria X vive no arquivo/dir
-  esperado de X (evita regressão da co-localização).
+- Implementado em `tests/catalog_integrity.bats` com três testes: mapa
+  explícito categoria→arquivo (`_catalog_expected_files`), `doctor_*` restrito a
+  `lib/steps/doctor/` e cobertura do mapa para toda categoria do catálogo.
+- Exceção documentada no próprio teste: `steps.d/*.sh` hospeda qualquer
+  categoria (plugin autocontido); `autofix` acompanha o domínio diagnosticado.
 
 ---
 

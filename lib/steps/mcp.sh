@@ -42,6 +42,7 @@ for path, pv in (d.get("projects") or {}).items():
 ' "$f" 2>/dev/null
 }
 
+
 # H6 — parser puro: extrai nomes de servidores MCP do config.toml do Codex
 # (seções [mcp_servers.<nome>]). Lê o path em $1; emite um nome por linha.
 parse_mcp_codex_names() {
@@ -65,6 +66,7 @@ if isinstance(servers, dict):
 ' "$f" 2>/dev/null
 }
 
+
 # Puro/testável: dicas de remediação para "TOML inválido" no config.toml do
 # Codex — quando o TOML inteiro falha o parse, TODOS os mcp_servers do Codex
 # somem do inventário, não apenas um. Recebe backup_exists (1/0: existe
@@ -83,6 +85,7 @@ codex_toml_remediation_hints() {
     printf '%s\n' "Compare com um backup anterior do config.toml e remova a tabela duplicada."
   fi
 }
+
 
 # Extrai nome, runtime e problemas acionáveis do config TOML do Codex sem
 # imprimir valores de env/headers. Emite nome<TAB>detalhe<TAB>problema.
@@ -144,6 +147,7 @@ if isinstance(servers, dict):
 ' "$f" 2>/dev/null
 }
 
+
 # Fontes JSON compatíveis: OpenCode (`mcp`) e hub central (`servers`), além do
 # formato Claude Desktop (`mcpServers`). Emite nome<TAB>detalhe<TAB>problema.
 parse_mcp_json_entries() {
@@ -188,6 +192,7 @@ for name in sorted(servers):
 ' "$f" 2>/dev/null
 }
 
+
 # Hermes mantém MCPs em YAML. Para o inventário basta extrair as chaves do
 # bloco top-level `mcp_servers`; o teste de conexão usa o CLI oficial abaixo.
 parse_mcp_hermes_names() {
@@ -205,154 +210,6 @@ parse_mcp_hermes_names() {
   ' "$f"
 }
 
-# H6 — Doctor read-only: enumera servidores MCP configurados nas fontes conhecidas
-# (hoje: Claude Code via ~/.claude.json, Codex via ~/.codex/config.toml). Lista
-# cada servidor com escopo e binário/runtime (stdio:npx, stdio:uvx, remote...).
-# Nunca muta nem falha o run; MCP_AUTO_UPDATE (default 0) é guardado p/ futuro
-# passo mutating. Sem fontes => skip limpo.
-doctor_mcp_servers() {
-  local claude_json="${HOME}/.claude.json"
-  local codex_toml="${HOME}/.codex/config.toml"
-  local opencode_json="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
-  local hub_json="${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json"
-  local hermes_yaml="${HOME}/.hermes/config.yaml"
-  local has_source=0
-
-  local -x CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="${CODEX_GITHUB_PERSONAL_ACCESS_TOKEN:-}"
-  local -x Z_AI_API_KEY="${Z_AI_API_KEY:-${ZAI_API_KEY:-}}"
-
-  local -A all=()        # name -> "detalhe"
-  local -A src_claude=() # name -> 1
-  local -A src_codex=()  # name -> 1
-  local -A src_opencode=() src_hub=() src_hermes=() scope_claude=() issues=()
-
-  # Claude (JSON): fonte primária, com escopo + binário.
-  if [[ -r "$claude_json" ]]; then
-    has_source=1
-    local name scope detail
-    while IFS=$'\t' read -r name scope detail; do
-      [[ -n "$name" ]] || continue
-      all["$name"]="$detail"
-      src_claude["$name"]=1
-      scope_claude["$name"]="$scope"
-    done < <(parse_mcp_claude_json "$claude_json")
-  fi
-
-  # Codex (TOML): runtime real e referências de ambiente obrigatórias.
-  if [[ -r "$codex_toml" ]]; then
-    has_source=1
-    # O wrapper local do Codex reutiliza a credencial protegida pelo keyring do
-    # gh. Espelha a resolução no Doctor sem persistir/imprimir o token.
-    if [[ -z "$CODEX_GITHUB_PERSONAL_ACCESS_TOKEN" ]] \
-       && grep -q 'CODEX_GITHUB_PERSONAL_ACCESS_TOKEN' "$codex_toml" && has gh; then
-      CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token 2>/dev/null || true)"
-    fi
-    local cname cdetail cissue
-    while IFS=$'\t' read -r cname cdetail cissue; do
-      [[ -n "$cname" ]] || continue
-      if [[ "$cname" == "__CONFIG_ERROR__" ]]; then
-        issues["codex"]="$cissue"
-        continue
-      fi
-      src_codex["$cname"]=1
-      [[ -n "${all[$cname]:-}" ]] || all["$cname"]="$cdetail"
-      [[ -z "$cissue" ]] || issues["codex:$cname"]="$cissue"
-    done < <(parse_mcp_codex_entries "$codex_toml")
-  fi
-
-  local source file sname sdetail sissue
-  for source in opencode hub; do
-    [[ "$source" == opencode ]] && file="$opencode_json" || file="$hub_json"
-    [[ -r "$file" ]] || continue
-    has_source=1
-    while IFS=$'\t' read -r sname sdetail sissue; do
-      [[ -n "$sname" ]] || continue
-      if [[ "$sname" == "__CONFIG_ERROR__" ]]; then
-        issues["$source"]="$sissue"
-        continue
-      fi
-      if [[ "$source" == opencode ]]; then src_opencode["$sname"]=1; else src_hub["$sname"]=1; fi
-      [[ -n "${all[$sname]:-}" ]] || all["$sname"]="$sdetail"
-      [[ -z "$sissue" ]] || issues["${source}:$sname"]="$sissue"
-    done < <(parse_mcp_json_entries "$file")
-  done
-
-  local hermes_name hermes_rc=0
-  if [[ -r "$hermes_yaml" ]]; then
-    has_source=1
-    while IFS= read -r hermes_name; do
-      [[ -n "$hermes_name" ]] || continue
-      src_hermes["$hermes_name"]=1
-      [[ -n "${all[$hermes_name]:-}" ]] || all["$hermes_name"]="configurado (hermes)"
-    done < <(parse_mcp_hermes_names "$hermes_yaml")
-    if has hermes; then
-      timeout 15 hermes mcp list >/dev/null 2>&1
-      hermes_rc=$?
-      if (( hermes_rc != 0 )); then
-        issues["hermes"]="'hermes mcp list' falhou (rc=${hermes_rc})"
-      fi
-    fi
-  fi
-
-  if (( has_source == 0 )); then
-    log "  Nenhuma fonte MCP configurada (Claude/Codex/OpenCode/mcp-central)."
-    return 0
-  fi
-
-  local n="${#all[@]}"
-  if (( n == 0 )); then
-    log "  Fontes MCP presentes, mas nenhum servidor configurado."
-    return 0
-  fi
-
-  local nc=0 nx=0 no=0 nh=0 nhe=0
-  nc="${#src_claude[@]}"
-  nx="${#src_codex[@]}"
-  no="${#src_opencode[@]}"
-  nh="${#src_hub[@]}"
-  nhe="${#src_hermes[@]}"
-  log "  MCP: ${n} servidor(es) distinto(s) — Claude: ${nc}, Codex: ${nx}, OpenCode: ${no}, Hub: ${nh}, Hermes: ${nhe}."
-
-  local sname sdetail srcs
-  for sname in $(printf '%s\n' "${!all[@]}" | sort); do
-    sdetail="${all[$sname]}"
-    srcs=""
-    if [[ -n "${src_claude[$sname]:-}" ]]; then
-      srcs="claude"
-      [[ "${scope_claude[$sname]:-global}" == project:* ]] && srcs="claude/${scope_claude[$sname]}"
-    fi
-    [[ -n "${src_codex[$sname]:-}" ]] && srcs="${srcs:+$srcs, }codex"
-    [[ -n "${src_opencode[$sname]:-}" ]] && srcs="${srcs:+$srcs, }opencode"
-    [[ -n "${src_hub[$sname]:-}" ]] && srcs="${srcs:+$srcs, }hub"
-    [[ -n "${src_hermes[$sname]:-}" ]] && srcs="${srcs:+$srcs, }hermes"
-    log "    • ${sname} [${srcs}, ${sdetail}]"
-  done
-  if (( ${#issues[@]} > 0 )); then
-    local ikey
-    log "  Problemas MCP detectados:"
-    for ikey in $(printf '%s\n' "${!issues[@]}" | sort); do
-      log "    • ${ikey}: ${issues[$ikey]}"
-    done
-    if [[ "${issues[codex]:-}" == "TOML inválido"* ]]; then
-      local _backup_exists=0 _has_headroom=0
-      [[ -f "${HOME}/.codex/config.toml.headroom-backup" ]] && _backup_exists=1
-      has headroom && _has_headroom=1
-      log "  Remediação (codex):"
-      local _hint_line
-      while IFS= read -r _hint_line; do
-        log "    • ${_hint_line}"
-      done < <(codex_toml_remediation_hints "$_backup_exists" "$_has_headroom")
-    fi
-    STEP_REASON="${#issues[@]} problema(s) de configuração MCP"
-    return "$RC_WARN"
-  fi
-  if (( ${MCP_AUTO_UPDATE:-0} == 1 )); then
-    log "  Remediação: MCP_AUTO_UPDATE=1 — o step 'Atualizar servidores MCP' refresca os runtimes uvx."
-  else
-    log "  Remediação: mantenha runtimes (npx/uvx/node) atualizados; MCP_AUTO_UPDATE=0 (ligue p/ refrescar uvx automaticamente)."
-  fi
-  return 0
-}
 
 # K1 — planner puro de atualização de servidores MCP. Lê uma fonte ($2) de um
 # tipo conhecido ($1 ∈ {claude, codex, json}) e classifica cada servidor numa ação:
@@ -496,6 +353,7 @@ elif kind == "json":
 ' "$kind" "$f" 2>/dev/null
 }
 
+
 # N2 — true (rc 0) se a saída do `uv cache clean` ($1) indica que o lock global
 # de ~/.cache/uv está ocupado por um server uvx ativo. Esse é o caso ESPERADO num
 # upgrade conduzido por agente: a própria sessão (Claude/Codex) mantém o serena
@@ -503,6 +361,7 @@ elif kind == "json":
 mcp_uv_lock_busy() {
   grep -qiE 'lock|in[ -]?use|another uv process|timeout' <<<"$1"
 }
+
 
 # K1 — step mutating (gated MCP_AUTO_UPDATE=1): refresca os servidores MCP cujo
 # runtime é uvx (ambiente em cache que defasa) rodando `uv cache clean <dist>`,

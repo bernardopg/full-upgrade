@@ -3,10 +3,6 @@
 # Dividido de editor_shell.sh (Série T3).
 # shellcheck shell=bash
 
-#!/usr/bin/env bash
-# steps/editor_shell.sh — nvim, zsh/omz, hyprpm
-# Sourced por full-upgrade.sh. Não executar direto.
-# shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
 update_nvim_lazy() {

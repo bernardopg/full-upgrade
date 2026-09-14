@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # tests/manual_apps.bats — funções puras dos steps de apps manuais
-# (lib/steps/manual_apps.sh). Não mutam nada; só lógica de classificação.
+# (helpers em lib/steps/manual_apps.sh; steps por domínio em ai.sh, security.sh,
+# tools.sh e o inventário em doctor/packages.sh). Não mutam nada.
 
 load test_helper
 
@@ -8,6 +9,10 @@ setup() {
   load_libs
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/manual_apps.sh"
+  source "${FU_LIB}/steps/ai.sh"
+  source "${FU_LIB}/steps/security.sh"
+  source "${FU_LIB}/steps/tools.sh"
+  source "${FU_LIB}/steps/doctor/packages.sh"
 }
 
 @test "_manual_apps_has_step: reconhece app coberto por step (droid)" {
