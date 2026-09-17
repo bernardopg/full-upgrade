@@ -68,7 +68,9 @@ update_ide_extensions() {
 
     if (( rc == RC_WARN )); then
       if _marketplace_5xx_output "$out"; then
-        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório após ${attempt} tentativa(s))."
+        # `attempt` sai do for em max_attempts+1 (incremento pós-loop), então
+        # reportar literalmente contaria uma tentativa que não houve.
+        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório após ${max_attempts} tentativa(s))."
         srv_fail=1
       else
         log "  ${cli}: falha de rede ao atualizar extensões."
