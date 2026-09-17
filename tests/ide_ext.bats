@@ -101,6 +101,7 @@ setup() {
 
 @test "step: 503 do marketplace (Server returned 503, rc=1) vira warn com motivo próprio" {
   IDE_EXT_CLIS="code"
+  IDE_EXT_RETRY_DELAY_S=0
   has() { [[ "$1" == code ]]; }
   STEP_REASON=""
   # run_node_network_cmd real repassa rc/out do run_network_cmd; aqui o stub
@@ -113,8 +114,94 @@ setup() {
   [[ "$output" == *"marketplace indisponível"* ]]
 }
 
+@test "step: 5xx do marketplace tem retry e fecha ok quando uma tentativa passa" {
+  # Medição real de 2026-09-17: o endpoint de batch do open-vsx alterna 200/503
+  # sem relação com a rede local, então a primeira tentativa falhar não pode
+  # fechar o step em warn.
+  local calls_file="$BATS_TEST_TMPDIR/marketplace-calls"
+  : > "$calls_file"
+  IDE_EXT_CLIS="code"
+  IDE_EXT_MAX_ATTEMPTS=3
+  IDE_EXT_RETRY_DELAY_S=0
+  has() { [[ "$1" == code ]]; }
+  run_node_network_cmd() {
+    local calls
+    calls="$(wc -l < "$calls_file")"
+    printf '%s\n' x >> "$calls_file"
+    if (( calls == 0 )); then
+      printf 'Server returned 503\n'
+      return "$RC_WARN"
+    fi
+    printf "Extension 'a.b' v1 was successfully updated.\n"
+  }
+
+  run update_ide_extensions
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nova tentativa"* ]]
+  [[ "$output" == *"Total de extensões atualizadas: 1"* ]]
+  [ "$(wc -l < "$calls_file")" -eq 2 ]
+}
+
+@test "step: 5xx persistente respeita o teto de tentativas" {
+  local calls_file="$BATS_TEST_TMPDIR/marketplace-calls-max"
+  : > "$calls_file"
+  IDE_EXT_CLIS="code"
+  IDE_EXT_MAX_ATTEMPTS=3
+  IDE_EXT_RETRY_DELAY_S=0
+  has() { [[ "$1" == code ]]; }
+  run_node_network_cmd() {
+    printf '%s\n' x >> "$calls_file"
+    printf 'Server returned 503\n'
+    return "$RC_WARN"
+  }
+
+  run update_ide_extensions
+
+  [ "$status" -eq "$RC_WARN" ]
+  [ "$(wc -l < "$calls_file")" -eq 3 ]
+  [[ "$output" == *"marketplace indisponível"* ]]
+}
+
+@test "step: erro não-5xx não ganha retry (repetir não muda o motivo)" {
+  local calls_file="$BATS_TEST_TMPDIR/ide-non5xx-calls"
+  : > "$calls_file"
+  IDE_EXT_CLIS="code"
+  IDE_EXT_MAX_ATTEMPTS=3
+  IDE_EXT_RETRY_DELAY_S=0
+  has() { [[ "$1" == code ]]; }
+  run_node_network_cmd() {
+    printf '%s\n' x >> "$calls_file"
+    printf 'could not resolve host\n'
+    return "$RC_WARN"
+  }
+
+  run update_ide_extensions
+
+  [ "$status" -eq "$RC_WARN" ]
+  [ "$(wc -l < "$calls_file")" -eq 1 ]
+  [[ "$output" == *"falha de rede"* ]]
+}
+
+@test "_marketplace_5xx_output: reconhece as formas de 5xx do marketplace" {
+  run _marketplace_5xx_output 'Server returned 503'
+  [ "$status" -eq 0 ]
+  run _marketplace_5xx_output 'HTTP 504 Gateway Timeout'
+  [ "$status" -eq 0 ]
+  run _marketplace_5xx_output 'ERROR: Service Unavailable'
+  [ "$status" -eq 0 ]
+  # Rede local e erros permanentes do marketplace não são 5xx transitórios.
+  run _marketplace_5xx_output 'could not resolve host'
+  [ "$status" -ne 0 ]
+  run _marketplace_5xx_output 'Server returned 404'
+  [ "$status" -ne 0 ]
+  run _marketplace_5xx_output ''
+  [ "$status" -ne 0 ]
+}
+
 @test "step: 503 via RC_WARN também ganha motivo de marketplace" {
   IDE_EXT_CLIS="code"
+  IDE_EXT_MAX_ATTEMPTS=1
   has() { [[ "$1" == code ]]; }
   STEP_REASON=""
   run_node_network_cmd() { printf 'Server returned 503\n'; return "$RC_WARN"; }

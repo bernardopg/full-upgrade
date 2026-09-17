@@ -106,6 +106,28 @@ GIT_REMOTE_GONE_RE='repository not found|not found: did you run git update-serve
 # bytecode incompatível, mantendo o cache persistente entre runs.
 AUR_GRADLE_USER_HOME="${AUR_GRADLE_USER_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/full-upgrade/gradle-aur}"
 
+# ── Extensões de IDE (marketplace) ──
+# O endpoint de BATCH do marketplace (`POST /vscode/gallery/extensionquery`,
+# open-vsx) devolve 503 intermitente por WAF/capacidade: medido em 2026-09-17
+# com curls consecutivos, 200/503/200 sem rajada e sem relação com a rede
+# local. 503 é transitório POR DEFINIÇÃO (o servidor pede retry) e nada no
+# full-upgrade corrige o outro lado — então o step tenta de novo algumas vezes
+# antes de virar `warn`. O teto do step no catálogo é 600s e cada tentativa
+# custa ~5-10s, logo o retry não ameaça o timeout.
+IDE_EXT_MAX_ATTEMPTS="${IDE_EXT_MAX_ATTEMPTS:-3}"
+IDE_EXT_RETRY_DELAY_S="${IDE_EXT_RETRY_DELAY_S:-5}"
+
+# ── Pendência final: holds intencionais por IgnorePkg ──
+# Contexto (2026-09-17): o run fechava em `todo` eternamente porque o
+# python-aiostream 0.8.1 ([extra]) conflita com o pin `aiostream<0.8.0` do
+# vdirsyncer — o upstream ainda não destravou. Com `IgnorePkg` no pacman.conf o
+# pacote nunca sobe: `pacman -Syu` não o atualiza e o `checkupdates` descarta a
+# linha (filtra qualquer sufixo `[ignorado]`), mas a pendência continuava sendo
+# reportada como acionável. Agora o hold vira NOTA ("segurado por IgnorePkg —
+# pendência intencional"), não conta no motivo, e o run fecha satisfeito. O
+# mesmo tratamento vale para o autofix: pendência só de segurados NÃO dispara
+# `pacman -Syu` em loop.
+
 # ── PNPM no PATH (se usado) ──
 PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
 PNPM_BIN_HOME="${PNPM_BIN_HOME:-$PNPM_HOME/bin}"

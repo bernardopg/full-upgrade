@@ -23,28 +23,52 @@ _ide_ext_clis() {
   fi
 }
 
+# Helper puro: a saída é um 5xx do marketplace (transitório por definição)?
+# O Code-OSS imprime apenas `Server returned 503` quando o endpoint de batch
+# (`POST /vscode/gallery/extensionquery`) do open-vsx responde 5xx.
+_marketplace_5xx_output() {
+  grep -qiE 'server returned 50[0234]|http 50[0234]|status code 50[0234]|service unavailable|bad gateway|gateway time-?out' <<<"${1:-}"
+}
+
 # H3 — atualiza as extensões instaladas de cada IDE da família VSCode presente.
 # Usa `<cli> --update-extensions` (VSCode 1.86+, suportado também por cursor/
 # codium). Read/rede: falha de rede vira RC_WARN; nenhum CLI presente → 0 (o
 # main.sh já pula via has). Best-effort: erro num CLI não impede os demais, mas
-# o step termina em RC_WARN se algum falhar. O 503 do marketplace (ex.:
-# `Server returned 503` do open-vsx, visto em 2026-09-17) é transitório por
-# definição e ganha motivo próprio em vez do genérico "falha de rede".
+# o step termina em RC_WARN se algum falhar.
+#
+# 5xx do marketplace ganha retry limitado (IDE_EXT_MAX_ATTEMPTS): é o caso
+# medido em 2026-09-17 contra o open-vsx, que alterna 200/503 no mesmo endpoint
+# sem relação com a rede local. Só quando todas as tentativas falham o step vira
+# `warn`, com motivo próprio em vez do genérico "falha de rede".
 update_ide_extensions() {
   local -a clis=()
   mapfile -t clis < <(_ide_ext_clis)
 
-  local cli found=0 status=0 out rc updated total=0 net_fail=0 srv_fail=0
-  local srv_re='server returned 50[0234]|service unavailable|bad gateway|gateway time-?out|http 50[0234]|status code 50[0234]|returned error: 50[0234]'
+  local max_attempts="${IDE_EXT_MAX_ATTEMPTS:-3}"
+  local retry_delay="${IDE_EXT_RETRY_DELAY_S:-5}"
+  local cli found=0 status=0 out rc updated total=0 net_fail=0 srv_fail=0 attempt
+
   for cli in "${clis[@]}"; do
     has "$cli" || continue
     found=1
     log "  Atualizando extensões de ${cli}..."
-    out="$(run_node_network_cmd "$cli" --update-extensions)"
-    rc=$?
+    for (( attempt=1; attempt<=max_attempts; attempt++ )); do
+      out="$(run_node_network_cmd "$cli" --update-extensions)"
+      rc=$?
+      # Só o 5xx do marketplace vale retry: qualquer outro rc tem outro motivo
+      # (rede local, layout de CLI, erro de extensão) e repetir não muda nada.
+      if (( rc == 0 )) || ! _marketplace_5xx_output "$out"; then
+        break
+      fi
+      if (( attempt < max_attempts )); then
+        log "  ${cli}: marketplace indisponível (HTTP 5xx); nova tentativa ${attempt}/${max_attempts} em ${retry_delay}s..."
+        sleep "$retry_delay"
+      fi
+    done
+
     if (( rc == RC_WARN )); then
-      if grep -qiE "$srv_re" <<<"$out"; then
-        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório)."
+      if _marketplace_5xx_output "$out"; then
+        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório após ${attempt} tentativa(s))."
         srv_fail=1
       else
         log "  ${cli}: falha de rede ao atualizar extensões."
@@ -54,8 +78,8 @@ update_ide_extensions() {
       continue
     fi
     if (( rc != 0 )); then
-      if grep -qiE "$srv_re" <<<"$out"; then
-        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório, rc=${rc})."
+      if _marketplace_5xx_output "$out"; then
+        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório após ${attempt} tentativa(s), rc=${rc})."
         srv_fail=1
       else
         log "  ${cli}: erro ao atualizar extensões (rc=${rc})."
