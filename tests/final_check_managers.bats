@@ -170,3 +170,108 @@ stub() {
   final_check_managers || true
   [[ "$STEP_REASON" == *"pnpm global"* ]]
 }
+
+# ── IgnorePkg: pendência intencional não é pendência acionável ────────────────
+# Caso real (2026-09-17): python-aiostream 0.8.1 no [extra] contra o pin
+# `aiostream<0.8.0` do vdirsyncer 0.21.0. O pacote é segurado por IgnorePkg e o
+# pacman segue listando a pendência (anotada `[ignorado]`), então sem este
+# tratamento a verificação final fechava o run em `todo` para sempre e o autofix
+# reexecutava `pacman -Syu` sem nenhum efeito.
+
+@test "pending_is_ignored_pkg: nome presente na lista em uma linha por nome" {
+  run pending_is_ignored_pkg "python-aiostream" $'python-aiostream\noutro-pacote'
+  [ "$status" -eq 0 ]
+}
+
+@test "pending_is_ignored_pkg: nome ausente não casa" {
+  run pending_is_ignored_pkg "linux" $'python-aiostream\noutro-pacote'
+  [ "$status" -ne 0 ]
+}
+
+@test "pending_is_ignored_pkg: lista vazia ou nome vazio não casa" {
+  run pending_is_ignored_pkg "python-aiostream" ""
+  [ "$status" -ne 0 ]
+  run pending_is_ignored_pkg "" "python-aiostream"
+  [ "$status" -ne 0 ]
+}
+
+@test "pending_is_ignored_pkg: não casa por substring (evita falso positivo)" {
+  # IgnorePkg=python-aiostream NÃO pode saciar python-aiostream-extra.
+  run pending_is_ignored_pkg "python-aiostream-extra" "python-aiostream"
+  [ "$status" -ne 0 ]
+}
+
+@test "pacman_ignored_packages: normaliza lista com vírgula e espaço via pacman-conf" {
+  # `pacman-conf IgnorePkg` devolve tudo numa linha ("foo bar baz"); o helper
+  # precisa quebrar em uma nome por linha, senão pending_is_ignored_pkg (que
+  # compara linha inteira) nunca casaria.
+  stub pacman-conf "foo bar baz"
+
+  run pacman_ignored_packages
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(printf '%s\n' foo bar baz)" ]
+}
+
+@test "pacman_ignored_packages: vírgula como separador também é normalizada" {
+  stub pacman-conf "foo,bar baz"
+
+  local list
+  list="$(pacman_ignored_packages)"
+  [ "$(printf '%s\n' "$list" | wc -l)" -eq 3 ]
+  run pending_is_ignored_pkg "foo" "$list"
+  [ "$status" -eq 0 ]
+  run pending_is_ignored_pkg "bar" "$list"
+  [ "$status" -eq 0 ]
+  run pending_is_ignored_pkg "baz" "$list"
+  [ "$status" -eq 0 ]
+}
+
+@test "pacman_ignored_packages: sem IgnorePkg não emite nada" {
+  stub pacman-conf ""
+
+  run pacman_ignored_packages
+  [ "$status" -eq 0 ]
+  [ -z "${output//[[:space:]]/}" ]
+}
+
+@test "final_check_pending: pacote segurado por IgnorePkg vira nota, não pendência" {
+  stub checkupdates "python-aiostream 0.7.2-1 -> 0.8.1-1 [ignorado]"
+  pacman_ignored_packages() { printf '%s\n' python-aiostream; }
+
+  # QUIET=1 (do load_libs) manda `log` só para o arquivo; aqui o texto do
+  # relatório é a asserção, então o stdout precisa estar ligado.
+  QUIET=0
+  run final_check_pending
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"segurado(s) por IgnorePkg"* ]]
+  [[ "$output" == *"Sem pendências acionáveis"* ]]
+}
+
+@test "final_check_pending: pendência real continua sendo pendência com IgnorePkg ativo" {
+  # Guarda de regressão: o saciado por IgnorePkg não pode engolir um pacote
+  # qualquer que também esteja pendente.
+  stub checkupdates "$(printf '%s\n' 'python-aiostream 0.7.2-1 -> 0.8.1-1 [ignorado]' 'linux 6.17-1 -> 6.18-1')"
+  pacman_ignored_packages() { printf '%s\n' python-aiostream; }
+
+  QUIET=0
+  # Sem `run`: STEP_REASON é atribuído pela própria função e um subshell não
+  # devolveria o valor para a asserção. O texto do relatório já é coberto pelo
+  # teste anterior (nota do IgnorePkg); aqui o que importa é a contagem: só o
+  # pacote não-segurado entra em "pendências acionáveis".
+  final_check_pending || true
+  [[ "$STEP_REASON" == *"1 pacote(s) oficial(is) pendente(s)"* ]]
+}
+
+@test "autofix_final_pending: pendência só de IgnorePkg não dispara pacman -Syu" {
+  stub checkupdates "python-aiostream 0.7.2-1 -> 0.8.1-1 [ignorado]"
+  pacman_ignored_packages() { printf '%s\n' python-aiostream; }
+  # pacman stubado com rc=1: se o autofix decidir remediar, o step falha e o
+  # teste acusa em vez de rodar `sudo pacman -Syu` de verdade.
+  stub pacman "" 1
+
+  AUTO_FIX_FINAL_PENDING=1
+  QUIET=0
+  run autofix_final_pending
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhuma pendência acionável para remediar"* ]]
+}

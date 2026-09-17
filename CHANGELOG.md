@@ -14,6 +14,31 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   novo mais tarde)` de `falha de rede`. Regressão em `tests/core.bats` + 3
   casos em `tests/ide_ext.bats`.
 
+### Adicionado
+
+- **IDE: retry automático do 503 do marketplace.** O endpoint batch do
+  open-vsx (`POST /vscode/gallery/extensionquery`, atrás de WAF) devolve
+  200/503 intermitente mesmo em curls consecutivos (medido em 2026-09-17) —
+  falha do servidor, não da rede local. `lib/steps/ide.sh` retenta até
+  `IDE_EXT_MAX_ATTEMPTS` (padrão 3, novo em `lib/globals.sh`) com pausa de
+  `IDE_EXT_RETRY_DELAY_S` (padrão 5s): se alguma tentativa tem sucesso, o step
+  fecha OK com nota de tentativas; só esgotando vira `warn`. Cada tentativa
+  custa ~5-10s, dentro do teto de 600s do step no catálogo. 5 casos novos em
+  `tests/ide_ext.bats`.
+- **Pendência final: pacote segurado por `IgnorePkg` vira nota, não pendência.**
+  Com `IgnorePkg = python-aiostream` no `pacman.conf` (hold contra o pin
+  `aiostream<0.8.0` do vdirsyncer, que o upstream ainda não destravou), o run
+  listava a pendência como acionável para sempre e o autofix reexecutava
+  `pacman -Syu` em vão — `checkupdates` descarta a linha anotada `[ignorado]`,
+  mas o relatório continuava exigindo a atualização que o hold proíbe.
+  `pacman_ignored_packages()` lê a lista efetiva via `pacman-conf IgnorePkg`
+  (com fallback de parsing do pacman.conf quando o binário falha de verdade —
+  rc≠0 —, nunca quando só não há holds), `pending_is_ignored_pkg()` casa nome
+  exato, e `final_check_pending`/`autofix_final_pending` tratam o hold como
+  pendência intencional: nota com instrução de liberação, run fecha OK. No AUR
+  (`paru -Qua`/`yay -Qua`, que NÃO filtram ignorados) o hold também é saciado.
+  10 casos novos em `tests/final_check_managers.bats`.
+
 ## [3.44.0] - 2026-09-14
 ### Alterado
 

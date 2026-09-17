@@ -17,6 +17,54 @@ pending_is_held_cluster() {
 }
 
 
+# Pacotes que o PRÓPRIO usuário segurou via `IgnorePkg` no pacman.conf.
+#
+# Diferente do cluster Haskell (que o pacman segura sozinho até o rebuild
+# publicar), aqui a pendência é intencional e local: ela reaparece em todo run
+# como "oficial pendente", o autofix reexecuta `pacman -Syu` para nada (o pacote
+# nunca sobe) e o run fecha em `todo` para sempre, sem nada acionável.
+#
+# Caso real (2026-09-17): `python-aiostream` 0.8.1 no [extra] contra o pin
+# `aiostream<0.8.0` do `vdirsyncer` 0.21.0 — o upstream do vdirsyncer ainda não
+# destravou (constraint confirmada no main do repositório), então o hold é a
+# única forma de manter `pip check` limpo sem quebrar o vdirsyncer. O pacman
+# segue listando a pendência, anotada como `[ignorado]`/`[ignored]`.
+#
+# Lê a lista efetiva via `pacman-conf IgnorePkg` (respeita include/Include e é
+# independente de locale); sem `pacman-conf`, faz o parsing do pacman.conf. Uma
+# nome por linha no stdout.
+pacman_ignored_packages() {
+  local out=""
+  local conf_rc=0
+  # `pacman-conf` distingue rc=0+stdout vazio ("chave válida, sem valores" —
+  # é o que ele responde para IgnorePkg sem hold) de rc=1 ("chave desconhecida").
+  # Tratar o primeiro como falha e cair no parse manual era um bug: o fallback
+  # leria o /etc/pacman.conf REAL da máquina, vazando o estado dela para quem
+  # só queria a lista efetiva (ex.: testes unitários sem stub). Só fazemos o
+  # fallback quando o binário não existe ou falha de verdade.
+  if has pacman-conf; then
+    out="$(pacman-conf IgnorePkg 2>/dev/null)" || conf_rc=1
+  fi
+  if (( conf_rc != 0 )); then
+    out="$(sed -nE 's/^[[:space:]]*IgnorePkg[[:space:]]*=[[:space:]]*(.*)$/\1/p' \
+      "${PACMAN_CONF_FILE:-/etc/pacman.conf}" 2>/dev/null || true)"
+  fi
+  [[ -n "${out//[[:space:]]/}" ]] || return 0
+  # `pacman-conf` devolve a lista separada por espaço; o pacman.conf aceita
+  # vírgula e espaço. Normaliza os dois separadores para uma nome por linha.
+  printf '%s\n' "${out//,/ }" | tr -s '[:space:]' '\n' | grep -E '[^[:space:]]' || true
+}
+
+
+# Puro/testável: `$1` está na lista de pacotes segurados (uma por linha em $2)?
+pending_is_ignored_pkg() {
+  local name="${1:-}" list="${2:-}"
+  [[ -n "${name//[[:space:]]/}" ]] || return 1
+  [[ -n "${list//[[:space:]]/}" ]] || return 1
+  grep -qxF -- "$name" <<<"$list"
+}
+
+
 
 final_pending_reason() {
   local official="$1" aur="$2"
@@ -37,7 +85,9 @@ final_check_pending() {
   local filtered
   local official_count=0 aur_count=0
 
-  local -a held_official=() actionable_official=()
+  local -a held_official=() actionable_official=() held_ignored=()
+  local ignored_list=""
+  ignored_list="$(pacman_ignored_packages)"
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
     if [[ -n "${out//[[:space:]]/}" ]]; then
@@ -47,6 +97,8 @@ final_check_pending() {
         _nm="${_ln%%[[:space:]]*}"
         if pending_is_held_cluster "$_nm"; then
           held_official+=("$_ln")
+        elif pending_is_ignored_pkg "$_nm" "$ignored_list"; then
+          held_ignored+=("$_ln")
         else
           actionable_official+=("$_ln")
         fi
@@ -55,6 +107,12 @@ final_check_pending() {
       if (( ${#held_official[@]} > 0 )); then
         log "  ${#held_official[@]} pacote(s) oficiais segurados por rebuild upstream (cluster Haskell/GHC); o pacman evita o partial upgrade até o cluster publicar — não acionável agora:"
         printf '%s\n' "${held_official[@]}" | log_stream
+      fi
+
+      if (( ${#held_ignored[@]} > 0 )); then
+        log "  ${#held_ignored[@]} pacote(s) segurado(s) por IgnorePkg no pacman.conf — pendência intencional do usuário; 'pacman -Syu' não sobe enquanto o hold existir:"
+        printf '%s\n' "${held_ignored[@]}" | log_stream
+        log "  Para liberar: remova de IgnorePkg em /etc/pacman.conf (só depois de a dependência upstream destravar)."
       fi
 
       if (( ${#actionable_official[@]} > 0 )); then
@@ -74,15 +132,23 @@ final_check_pending() {
   fi
 
   if [[ -n "${out//[[:space:]]/}" ]]; then
+    # `paru -Qua`/`yay -Qua` listam pacotes AUR ignorados por IgnorePkg
+    # normalmente (não há o `grep -v '\[.*\]'` que o checkupdates faz no lado
+    # oficial), então o hold também precisa ser saciado aqui — senão a pendência
+    # reaparece em todo run mesmo sendo intencional.
     filtered="$(
-      printf '%s\n' "$out" | awk -v ignored="$FULL_UPGRADE_AUR_IGNORE" '
+      printf '%s\n' "$out" | awk -v ignored="$FULL_UPGRADE_AUR_IGNORE" -v pkg_ignore="$ignored_list" '
         BEGIN {
           split(ignored, names, /[[:space:]]+/)
           for (i in names) if (names[i] != "") skip[names[i]] = 1
+          split(pkg_ignore, kept, /[[:space:]]+/)
+          for (i in kept) if (kept[i] != "") held[kept[i]] = 1
         }
         {
           name = $1
-          if (!(name in skip)) print
+          if (name in skip) next
+          if (name in held) next
+          print
         }
       '
     )"
@@ -97,8 +163,26 @@ final_check_pending() {
       elif has yay; then
         remediation "yay -Syu"
       fi
-    elif [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
-      log "  Pendencias restantes apenas em pacotes AUR ignorados: ${FULL_UPGRADE_AUR_IGNORE}"
+    else
+      # Nada acionável sobrou: diz POR QUE, listando cada classe de hold em vez
+      # de um motivo genérico — sem isso o operador não sabe se a pendência
+      # sumiu por hold local ou por ignore configurado no full-upgrade.
+      local -a _aur_held_ignored=()
+      if [[ -n "${ignored_list//[[:space:]]/}" ]]; then
+        local _ln_aur
+        while IFS= read -r _ln_aur; do
+          [[ -n "${_ln_aur//[[:space:]]/}" ]] || continue
+          pending_is_ignored_pkg "${_ln_aur%%[[:space:]]*}" "$ignored_list" \
+            && _aur_held_ignored+=("$_ln_aur")
+        done <<< "$out"
+      fi
+      if (( ${#_aur_held_ignored[@]} > 0 )); then
+        log "  ${#_aur_held_ignored[@]} pacote(s) AUR segurado(s) por IgnorePkg no pacman.conf — pendência intencional do usuário:"
+        printf '%s\n' "${_aur_held_ignored[@]}" | log_stream
+      fi
+      if [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
+        log "  Pendencias restantes apenas em pacotes AUR ignorados: ${FULL_UPGRADE_AUR_IGNORE}"
+      fi
     fi
   fi
 
@@ -116,8 +200,8 @@ final_check_pending() {
   fi
 
   if (( pending == 0 )); then
-    if (( ${#held_official[@]} > 0 )); then
-      log "  Sem pendências acionáveis: só restam pacotes segurados por rebuild upstream (aguarde o cluster publicar)."
+    if (( ${#held_official[@]} > 0 )) || (( ${#held_ignored[@]} > 0 )); then
+      log "  Sem pendências acionáveis: só restam pacotes segurados (rebuild upstream / IgnorePkg)."
     else
       log "  Nenhuma atualização pendente em pacman/AUR."
     fi
@@ -257,13 +341,21 @@ autofix_final_pending() {
 
   local out
   local -a actionable=()
+  # Pacotes segurados por IgnorePkg são pendência intencional: `pacman -Syu`
+  # nunca os sobe enquanto o hold existir, então reexecutar aqui seria um ciclo
+  # de remediação que não remedia nada (mesmo tratamento do cluster Haskell).
+  local ignored_list=""
+  ignored_list="$(pacman_ignored_packages)"
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
     local _ln _nm
     while IFS= read -r _ln; do
       [[ -n "${_ln//[[:space:]]/}" ]] || continue
       _nm="${_ln%%[[:space:]]*}"
-      pending_is_held_cluster "$_nm" || actionable+=("$_ln")
+      if pending_is_held_cluster "$_nm" || pending_is_ignored_pkg "$_nm" "$ignored_list"; then
+        continue
+      fi
+      actionable+=("$_ln")
     done <<< "$out"
   fi
 
