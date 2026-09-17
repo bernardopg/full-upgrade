@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.45.0] - 2026-09-17
 ### Corrigido
 
 - **IDE: `Server returned 503` do marketplace vira aviso transitório com
