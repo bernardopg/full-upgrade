@@ -806,6 +806,9 @@ setup() {
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'HTTP 503 Service Unavailable'
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'The requested URL returned error: 502'
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'504 Gateway Timeout'
+  # Forma crua do VSCode/Code-OSS contra o open-vsx (run real 2026-09-17):
+  # `code --update-extensions` imprime só "Server returned 503" com rc=1.
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'Server returned 503'
 }
 
 @test "NETWORK_TRANSIENT_RE: NÃO casa os 4xx permanentes de GIT_REMOTE_GONE_RE" {

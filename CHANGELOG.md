@@ -3,6 +3,16 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **IDE: `Server returned 503` do marketplace vira aviso transitório com
+  motivo próprio.** O `code --update-extensions` (Code-OSS contra o open-vsx)
+  imprime só `Server returned 503` com rc=1 (run real 2026-09-17); a forma não
+  casava `NETWORK_TRANSIENT_RE` e o step caía em motivo genérico de rede.
+  `lib/globals.sh` ganha o token `server returned 50[0234]` e
+  `lib/steps/ide.sh` distingue `marketplace indisponível (HTTP 503, tentar de
+  novo mais tarde)` de `falha de rede`. Regressão em `tests/core.bats` + 3
+  casos em `tests/ide_ext.bats`.
 
 ## [3.44.0] - 2026-09-14
 ### Alterado

@@ -27,12 +27,15 @@ _ide_ext_clis() {
 # Usa `<cli> --update-extensions` (VSCode 1.86+, suportado também por cursor/
 # codium). Read/rede: falha de rede vira RC_WARN; nenhum CLI presente → 0 (o
 # main.sh já pula via has). Best-effort: erro num CLI não impede os demais, mas
-# o step termina em RC_WARN se algum falhar.
+# o step termina em RC_WARN se algum falhar. O 503 do marketplace (ex.:
+# `Server returned 503` do open-vsx, visto em 2026-09-17) é transitório por
+# definição e ganha motivo próprio em vez do genérico "falha de rede".
 update_ide_extensions() {
   local -a clis=()
   mapfile -t clis < <(_ide_ext_clis)
 
-  local cli found=0 status=0 out rc updated total=0
+  local cli found=0 status=0 out rc updated total=0 net_fail=0 srv_fail=0
+  local srv_re='server returned 50[0234]|service unavailable|bad gateway|gateway time-?out|http 50[0234]|status code 50[0234]|returned error: 50[0234]'
   for cli in "${clis[@]}"; do
     has "$cli" || continue
     found=1
@@ -40,12 +43,24 @@ update_ide_extensions() {
     out="$(run_node_network_cmd "$cli" --update-extensions)"
     rc=$?
     if (( rc == RC_WARN )); then
-      log "  ${cli}: falha de rede ao atualizar extensões."
+      if grep -qiE "$srv_re" <<<"$out"; then
+        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório)."
+        srv_fail=1
+      else
+        log "  ${cli}: falha de rede ao atualizar extensões."
+        net_fail=1
+      fi
       (( status == 0 )) && status="$RC_WARN"
       continue
     fi
     if (( rc != 0 )); then
-      log "  ${cli}: erro ao atualizar extensões (rc=${rc})."
+      if grep -qiE "$srv_re" <<<"$out"; then
+        log "  ${cli}: marketplace indisponível ao atualizar extensões (transitório, rc=${rc})."
+        srv_fail=1
+      else
+        log "  ${cli}: erro ao atualizar extensões (rc=${rc})."
+        net_fail=1
+      fi
       (( status == 0 )) && status="$RC_WARN"
       continue
     fi
@@ -59,6 +74,10 @@ update_ide_extensions() {
     return 0
   fi
   log "  Total de extensões atualizadas: ${total}."
-  (( status == RC_WARN )) && STEP_REASON="falha de rede ao atualizar extensões de IDE"
+  if (( net_fail )); then
+    STEP_REASON="falha de rede ao atualizar extensões de IDE"
+  elif (( srv_fail )); then
+    STEP_REASON="marketplace indisponível ao atualizar extensões de IDE (ex.: HTTP 503, tentar de novo mais tarde)"
+  fi
   return "$status"
 }

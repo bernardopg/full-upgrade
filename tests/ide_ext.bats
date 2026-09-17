@@ -99,6 +99,40 @@ setup() {
   [[ "$output" == *"falha de rede"* ]]
 }
 
+@test "step: 503 do marketplace (Server returned 503, rc=1) vira warn com motivo próprio" {
+  IDE_EXT_CLIS="code"
+  has() { [[ "$1" == code ]]; }
+  STEP_REASON=""
+  # run_node_network_cmd real repassa rc/out do run_network_cmd; aqui o stub
+  # simula o VSCode/Code-OSS contra open-vsx fora do ar (run real 2026-09-17).
+  # NOTE: `run` isola em subshell — STEP_REASON não sobrevive; o motivo vai
+  # para o log via `log`, então checamos $output e não a variável.
+  run_node_network_cmd() { printf 'Server returned 503\n'; return 1; }
+  run update_ide_extensions
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"marketplace indisponível"* ]]
+}
+
+@test "step: 503 via RC_WARN também ganha motivo de marketplace" {
+  IDE_EXT_CLIS="code"
+  has() { [[ "$1" == code ]]; }
+  STEP_REASON=""
+  run_node_network_cmd() { printf 'Server returned 503\n'; return "$RC_WARN"; }
+  run update_ide_extensions
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"marketplace indisponível"* ]]
+}
+
+@test "step: erro genérico sem assinatura 5xx mantém motivo de rede" {
+  IDE_EXT_CLIS="code"
+  has() { [[ "$1" == code ]]; }
+  STEP_REASON=""
+  run_node_network_cmd() { printf 'algum erro desconhecido\n'; return 1; }
+  run update_ide_extensions
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"erro ao atualizar extensões (rc=1)"* ]]
+}
+
 @test "step: soma de múltiplos CLIs" {
   IDE_EXT_CLIS="code cursor"
   has() { [[ "$1" == code || "$1" == cursor ]]; }
