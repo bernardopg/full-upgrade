@@ -112,6 +112,12 @@ FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa uma versão exata de poetry-core, poetry-core é adicionado
 # automaticamente ao ignore efetivo para evitar conflito/ping-pong de versão.
 FULL_UPGRADE_PIP_USER_IGNORE=""
+# Plugins do DankMaterialShell fixados / pinned DMS plugins. Nomes de diretório
+# separados por espaço ou vírgula; globs permitidos. Um plugin fixado nunca sofre
+# fetch, pull nem reset --hard, então patches locais aplicados enquanto se espera
+# um release upstream sobrevivem ao update. Vale também para monorepos do registry
+# (use o nome sob .repos/). Ex: FULL_UPGRADE_DMS_PLUGINS_IGNORE="dankDiskUsage"
+FULL_UPGRADE_DMS_PLUGINS_IGNORE=""
 # Integrações opcionais desabilitadas por ID estável (não depende do nome do
 # step). Ex.: FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw,coderabbit"
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
