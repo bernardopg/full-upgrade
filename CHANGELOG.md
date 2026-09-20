@@ -4,6 +4,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+- **DMS: plugins fixados via `FULL_UPGRADE_DMS_PLUGINS_IGNORE`.** Plugins do DankMaterialShell listados nessa variável (nomes de diretório, espaço ou vírgula, globs permitidos) são pulados antes do `git fetch`, então nunca sofrem `pull` nem o `reset --hard` da recuperação de divergência. Preserva patches locais aplicados enquanto se espera o release upstream que os incorpora. Vale também para monorepos do registry (use o nome sob `.repos/`). O resumo do step lista os plugins fixados para que o pin não seja esquecido.
+
 ## [3.46.0] - 2026-09-20
 ### Adicionado
 - **Auto-remediação do MCP do Codex.** `AUTO_FIX_CODEX_MCP=1` (padrão) remove com backup e rollback tabelas TOML duplicadas semanticamente idênticas em `~/.codex/config.toml`, incluindo a recorrência de `headroom init codex` reanexar `[mcp_servers.headroom_memory]`; blocos divergentes continuam como `todo` para decisão humana.
