@@ -218,6 +218,8 @@ EOF
   FULL_UPGRADE_PIP_USER_IGNORE=... pacotes pip --user ignorados
                                    (padrão: poetry poetry-core chardet uvicorn
                                    urwid redis)
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE=... plugins DMS fixados: sem fetch/pull/reset
+                                   (globs permitidos; preserva patches locais)
   STALE_SERVICES_IGNORE=...        units saciadas da auditoria de libs antigas
                                    (globs permitidos)
   NO_COLOR=1 / NO_UNICODE=1        desliga cores / símbolos Unicode
@@ -329,6 +331,8 @@ EOF
     "pacotes AUR ignorados no update automático (padrão: burpsuite; use vazio para atualizar tudo)"
   usage_flag "FULL_UPGRADE_PIP_USER_IGNORE" \
     "pacotes pip --user ignorados no update genérico (padrão: poetry poetry-core chardet uvicorn urwid redis)"
+  usage_flag "FULL_UPGRADE_DMS_PLUGINS_IGNORE" \
+    "plugins do DankMaterialShell fixados: nunca sofrem fetch/pull/reset --hard, preservando patches locais enquanto se espera um release upstream. Globs permitidos. Ex: FULL_UPGRADE_DMS_PLUGINS_IGNORE=\"dankDiskUsage\""
   usage_flag "STALE_SERVICES_IGNORE" \
     "units saciadas da auditoria de libs antigas (needrestart/checkservices): sem TODO/reinício. Ex: STALE_SERVICES_IGNORE=\"NetworkManager.service\""
   usage_flag "COREDUMP_IGNORE_EXE" \

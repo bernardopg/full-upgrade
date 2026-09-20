@@ -60,6 +60,7 @@ SUDO_READY=0
 # ── Listas de ignore (default público vazio; autor define via config) ──
 FULL_UPGRADE_AUR_IGNORE="${FULL_UPGRADE_AUR_IGNORE:-}"
 FULL_UPGRADE_PIP_USER_IGNORE="${FULL_UPGRADE_PIP_USER_IGNORE:-}"
+FULL_UPGRADE_DMS_PLUGINS_IGNORE="${FULL_UPGRADE_DMS_PLUGINS_IGNORE:-}" # plugins DMS fixados: nunca sofrem fetch/pull/reset (globs permitidos)
 FULL_UPGRADE_SKIP="${FULL_UPGRADE_SKIP:-}"   # nomes de steps separados por vírgula
 FULL_UPGRADE_DISABLED_INTEGRATIONS="${FULL_UPGRADE_DISABLED_INTEGRATIONS:-}" # IDs estáveis, separados por vírgula
 STALE_SERVICES_IGNORE="${STALE_SERVICES_IGNORE:-}" # units saciadas da auditoria de libs antigas (globs permitidos)

@@ -511,3 +511,78 @@ fatal: repository 'https://github.com/x/y/' not found"
   [ "$status" -eq 0 ]
   [ "$output" = "origin/main" ]
 }
+
+# ── plugins fixados (FULL_UPGRADE_DMS_PLUGINS_IGNORE) ─────────────────────────
+# A recuperação de divergência deste step termina em reset --hard. Um plugin com
+# patch local aplicado à mão (aguardando release upstream) precisa de uma saída
+# antes do fetch, não depois — daí o pin.
+
+@test "dms_plugin_is_pinned: lista vazia não fixa nada" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE=""
+  run dms_plugin_is_pinned "dankDiskUsage"
+  [ "$status" -ne 0 ]
+}
+
+@test "dms_plugin_is_pinned: lista só com espaços não fixa nada" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="   "
+  run dms_plugin_is_pinned "dankDiskUsage"
+  [ "$status" -ne 0 ]
+}
+
+@test "dms_plugin_is_pinned: nome exato fixa" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="dankDiskUsage"
+  run dms_plugin_is_pinned "dankDiskUsage"
+  [ "$status" -eq 0 ]
+}
+
+@test "dms_plugin_is_pinned: nome fora da lista não fixa" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="dankDiskUsage"
+  run dms_plugin_is_pinned "dankSoftwareDepot"
+  [ "$status" -ne 0 ]
+}
+
+@test "dms_plugin_is_pinned: aceita vírgula e espaço como separador" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="foo,dankDiskUsage bar"
+  run dms_plugin_is_pinned "dankDiskUsage"
+  [ "$status" -eq 0 ]
+}
+
+@test "dms_plugin_is_pinned: glob casa prefixo" {
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="dank*"
+  run dms_plugin_is_pinned "dankmailUnread"
+  [ "$status" -eq 0 ]
+}
+
+@test "update_dms_plugins: plugin fixado não sofre fetch nem pull" {
+  # Repo atrás do remote: sem o pin este é o caso "updated". Fixado, o HEAD
+  # local tem de continuar exatamente onde estava.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git"
+  local upstream="$MOCKDIR/upstream"
+  mkdir -p "$bare"
+  git init --bare -b main "$bare" --quiet 2>/dev/null
+
+  create_dummy_repo "$DMS_PLUGINS_DIR/dankDiskUsage"
+  git -C "$DMS_PLUGINS_DIR/dankDiskUsage" remote add origin "$bare" 2>/dev/null
+  git -C "$DMS_PLUGINS_DIR/dankDiskUsage" push -u origin HEAD --quiet 2>/dev/null || true
+
+  # commit novo no remote via um segundo clone
+  git clone --quiet "$bare" "$upstream"
+  configure_test_git_repo "$upstream"
+  echo "upstream change" > "$upstream/file.txt"
+  git -C "$upstream" add .
+  git -C "$upstream" commit -m "upstream" --quiet
+  git -C "$upstream" push --quiet 2>/dev/null || true
+
+  # patch local que o pin deve preservar
+  echo "local patch" > "$DMS_PLUGINS_DIR/dankDiskUsage/patched.txt"
+  local before
+  before="$(git -C "$DMS_PLUGINS_DIR/dankDiskUsage" rev-parse HEAD)"
+
+  FULL_UPGRADE_DMS_PLUGINS_IGNORE="dankDiskUsage"
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+
+  [ "$(git -C "$DMS_PLUGINS_DIR/dankDiskUsage" rev-parse HEAD)" = "$before" ]
+  [ -f "$DMS_PLUGINS_DIR/dankDiskUsage/patched.txt" ]
+}

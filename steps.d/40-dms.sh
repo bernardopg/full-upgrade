@@ -8,6 +8,23 @@
 # git_pull_ff_only) vivem em lib/core.sh — plugins Zsh, DMS e OBS repetiam o
 # mesmo par fetch/pull e por isso carregavam os mesmos dois bugs: repo raso
 # quebrando o ff-only, e pull.rebase+autostash deixando conflito com rc=0.
+# dms_plugin_is_pinned — 0 se $1 casa com FULL_UPGRADE_DMS_PLUGINS_IGNORE.
+# Existe porque a recuperação de divergência deste step termina em reset --hard:
+# ótimo para um clone intocado, destrutivo para um plugin com patch local
+# aplicado à mão enquanto se espera o release upstream que o incorpora. Fixar é
+# mais honesto que torcer pelo stash pop. Aceita espaço ou vírgula como
+# separador e globs, igual às outras listas de ignore.
+dms_plugin_is_pinned() {
+  local name="$1" pattern
+  [[ -n "${FULL_UPGRADE_DMS_PLUGINS_IGNORE//[[:space:],]/}" ]] || return 1
+  for pattern in ${FULL_UPGRADE_DMS_PLUGINS_IGNORE//,/ }; do
+    [[ -n "$pattern" ]] || continue
+    # shellcheck disable=SC2053  # glob intencional no lado direito
+    [[ "$name" == $pattern ]] && return 0
+  done
+  return 1
+}
+
 update_dms_plugins() {
   local plugins_dir="${DMS_PLUGINS_DIR:-${HOME}/.config/DankMaterialShell/plugins}"
 
@@ -16,13 +33,17 @@ update_dms_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=() gone=()
+  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=() gone=() pinned=()
   local plugin dir behind fetch_err net_fail=0 track_ref recovery rec_status rec_ref
 
   for dir in "$plugins_dir"/*/; do
     [[ -d "$dir" ]] || continue
     plugin="$(basename "$dir")"
     [[ "$plugin" == ".repos" ]] && continue
+    if dms_plugin_is_pinned "$plugin"; then
+      pinned+=("$plugin")
+      continue
+    fi
     if [[ ! -d "$dir/.git" ]]; then
       # Plugins instalados pelo registry do DMS são symlinks para subpastas de
       # monorepos clonados em .repos/<hash>/ — atualizados no loop de monorepos
@@ -116,6 +137,10 @@ update_dms_plugins() {
   for repo_dir in "$plugins_dir"/.repos/*/; do
     [[ -d "$repo_dir/.git" ]] || continue
     repo_name="$(basename "$repo_dir")"
+    if dms_plugin_is_pinned "$repo_name"; then
+      pinned+=(".repos/${repo_name}")
+      continue
+    fi
 
     if git_has_unmerged "$repo_dir"; then
       log "  monorepo ${repo_name}: conflito pendente de resolução (arquivos unmerged) — update adiado."
@@ -187,6 +212,10 @@ update_dms_plugins() {
     log "  DMS plugins atualizados: ${updated[*]}"
   else
     log "  DMS plugins: todos já atualizados."
+  fi
+  if (( ${#pinned[@]} > 0 )); then
+    log "  DMS plugins fixados por FULL_UPGRADE_DMS_PLUGINS_IGNORE (sem fetch/pull/reset): ${pinned[*]}"
+    log "  Remova o nome da lista quando o patch local não for mais necessário."
   fi
   (( ${#repo_managed[@]} > 0 )) && log "  DMS plugins via registry (.repos, atualizados como monorepo): ${repo_managed[*]}"
   (( ${#skipped[@]} > 0 )) && log "  DMS plugins sem git (ignorados): ${skipped[*]}"
