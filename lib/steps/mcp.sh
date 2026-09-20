@@ -87,6 +87,89 @@ codex_toml_remediation_hints() {
 }
 
 
+# Puro/testável: localiza tabelas TOML declaradas mais de uma vez no config do
+# Codex. Um TOML com tabela duplicada não parseia, e como TODO o inventário de
+# mcp_servers do Codex vem de um único load, uma duplicata derruba os 16
+# servidores de uma vez. O caso recorrente é `headroom init codex` reanexando
+# [mcp_servers.headroom_memory] no fim do arquivo quando o bloco já existe no
+# meio (formato diferente, mesma semântica), o que acontece a cada atualização
+# do headroom.
+#
+# Emite, por duplicata (da última para a primeira, para permitir remoção sem
+# recalcular offsets): nome<TAB>linha_original<TAB>início<TAB>fim<TAB>idêntica(1|0)
+# onde início/fim são 1-based inclusivos e já englobam comentários-marcador
+# contíguos ao bloco (ex.: "# --- Headroom memory MCP (auto-injected) ---").
+# idêntica=1 só quando o bloco duplicado parseia isolado e resulta na MESMA
+# tabela da primeira ocorrência — único caso seguro de remoção automática.
+codex_toml_duplicate_tables() {
+  local f="$1"
+  [[ -r "$f" ]] || return 1
+  python3 -c '
+import re, sys
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        lines = fh.read().splitlines()
+except Exception:
+    sys.exit(0)
+
+HDR = re.compile(r"^\s*\[\[?\s*([^]\[]+?)\s*\]\]?\s*(?:#.*)?$")
+
+# (nome, índice do header, índice inicial do bloco com comentários de cabeçalho)
+blocks = []
+for i, line in enumerate(lines):
+    m = HDR.match(line)
+    if not m:
+        continue
+    name = m.group(1).strip()
+    start = i
+    # Absorve comentários contíguos imediatamente acima (marcadores gerados).
+    j = i - 1
+    while j >= 0 and lines[j].lstrip().startswith("#"):
+        start = j
+        j -= 1
+    blocks.append([name, i, start])
+
+for idx, blk in enumerate(blocks):
+    nxt = blocks[idx + 1][2] if idx + 1 < len(blocks) else len(lines)
+    end = nxt - 1
+    # Não leva junto as linhas em branco que separam do próximo bloco.
+    while end > blk[1] and not lines[end].strip():
+        end -= 1
+    blk.append(end)
+
+def parsed(blk):
+    # Cada bloco é TOML válido isoladamente (header + pares). Parse isolado
+    # evita comparar texto e permite reconhecer formatações diferentes da
+    # mesma tabela (array inline vs multi-linha).
+    body = "\n".join(lines[blk[1]:blk[3] + 1])
+    try:
+        return tomllib.loads(body)
+    except Exception:
+        return None
+
+first = {}
+out = []
+for blk in blocks:
+    name = blk[0]
+    if name not in first:
+        first[name] = blk
+        continue
+    base, dup = parsed(first[name]), parsed(blk)
+    identical = 1 if (base is not None and base == dup) else 0
+    out.append((name, first[name][1] + 1, blk[2] + 1, blk[3] + 1, identical))
+
+# Ordem decrescente: remover de baixo para cima mantém as linhas de cima.
+for row in sorted(out, key=lambda r: r[2], reverse=True):
+    print("\t".join(str(v) for v in row))
+' "$f" 2>/dev/null
+}
+
+
 # Extrai nome, runtime e problemas acionáveis do config TOML do Codex sem
 # imprimir valores de env/headers. Emite nome<TAB>detalhe<TAB>problema.
 parse_mcp_codex_entries() {
@@ -462,4 +545,102 @@ mcp_update_servers() {
   log "  uv cache clean retornou erro (não-fatal): $(printf '%s' "$uv_out" | tail -n1)"
   STEP_REASON="uv cache clean falhou para servers MCP"
   return "$RC_WARN"
+}
+
+
+# Auto-remediação: remove tabelas duplicadas do ~/.codex/config.toml quando a
+# duplicata é semanticamente IDÊNTICA à primeira ocorrência.
+#
+# Motivação (regressão recorrente): `headroom init codex` — rodado pelo próprio
+# step "Atualizar Hermes/Headroom" e por qualquer reinstalação do headroom —
+# reanexa [mcp_servers.headroom_memory] no fim do arquivo sem checar se o bloco
+# já existe. O TOML passa a ter tabela duplicada, tomllib recusa o arquivo
+# inteiro e o Codex perde TODOS os mcp_servers de uma vez. O Doctor detectava e
+# só instruía a restaurar backup à mão, então o mesmo warn voltava a cada
+# atualização do headroom.
+#
+# Segurança: só remove bloco cuja tabela, parseada isoladamente, é igual à
+# primeira; qualquer divergência vira RC_TODO (decisão humana: pode ser um
+# override intencional). Sempre grava backup e faz rollback se o resultado não
+# parsear.
+autofix_codex_mcp_toml() {
+  local toml="${HOME}/.codex/config.toml"
+
+  if (( ${AUTO_FIX_CODEX_MCP:-1} == 0 )); then
+    log "  AUTO_FIX_CODEX_MCP=0; nada a remediar."
+    return 0
+  fi
+  if [[ ! -w "$toml" ]]; then
+    log "  ~/.codex/config.toml ausente ou sem permissão de escrita; nada a remediar."
+    return 0
+  fi
+  if ! has python3; then
+    log "  python3 indisponível; não é possível validar TOML."
+    return 0
+  fi
+
+  # Arquivo válido é o caso comum: sai barato, sem tocar em disco.
+  if python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$toml" 2>/dev/null; then
+    log "  ~/.codex/config.toml parseia sem erro; nada a remediar."
+    return 0
+  fi
+
+  local -a dups=()
+  mapfile -t dups < <(codex_toml_duplicate_tables "$toml")
+  if (( ${#dups[@]} == 0 )); then
+    log "  ~/.codex/config.toml inválido, mas sem tabela duplicada — causa fora do escopo desta remediação."
+    log "  Diagnóstico: python3 -c 'import tomllib;tomllib.load(open(\"${toml}\",\"rb\"))'"
+    STEP_REASON="config.toml do Codex inválido por causa não-duplicada"
+    return "$RC_TODO"
+  fi
+
+  local name first start end identical
+  local -a removable=() divergent=()
+  while IFS=$'\t' read -r name first start end identical; do
+    [[ -n "$name" ]] || continue
+    if (( identical == 1 )); then
+      removable+=("${start}\t${end}\t${name}\t${first}")
+    else
+      divergent+=("${name} (linha ${start}, original na ${first})")
+    fi
+  done < <(printf '%s\n' "${dups[@]}")
+
+  if (( ${#divergent[@]} > 0 )); then
+    log "  Tabela(s) duplicada(s) com conteúdo DIVERGENTE — remoção automática seria perda de config:"
+    local d
+    for d in "${divergent[@]}"; do log "    • ${d}"; done
+    log "  Resolva à mão qual bloco vale e apague o outro."
+    STEP_REASON="${#divergent[@]} tabela(s) duplicada(s) divergente(s) no config.toml do Codex"
+    return "$RC_TODO"
+  fi
+
+  local backup
+  backup="${toml}.bak-$(date +%Y%m%d-%H%M%S)-dupfix"
+  if ! cp -a -- "$toml" "$backup"; then
+    log "  Falha ao gravar backup em ${backup}; abortando sem tocar no arquivo."
+    STEP_REASON="backup do config.toml do Codex falhou"
+    return "$RC_WARN"
+  fi
+
+  # codex_toml_duplicate_tables já emite em ordem decrescente de início, então
+  # cada remoção não invalida os intervalos ainda pendentes.
+  local entry
+  for entry in "${removable[@]}"; do
+    IFS=$'\t' read -r start end name first <<< "$(printf '%b' "$entry")"
+    log "  Removendo duplicata de [${name}] (linhas ${start}-${end}; original preservado na linha ${first})."
+    sed -i "${start},${end}d" "$toml"
+  done
+
+  if ! python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$toml" 2>/dev/null; then
+    cp -a -- "$backup" "$toml"
+    log "  TOML continuou inválido após a remoção; backup restaurado (nenhuma alteração mantida)."
+    STEP_REASON="remoção de duplicata não corrigiu o config.toml do Codex"
+    return "$RC_WARN"
+  fi
+
+  local nservers
+  nservers="$(python3 -c 'import sys,tomllib; print(len(tomllib.load(open(sys.argv[1],"rb")).get("mcp_servers") or {}))' "$toml" 2>/dev/null || printf '?')"
+  log "  ${C_GREEN}config.toml do Codex válido novamente${C_RESET} — ${nservers} mcp_server(s) visível(is)."
+  log "  Backup do estado anterior: ${backup}"
+  return 0
 }

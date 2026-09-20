@@ -51,7 +51,11 @@ npm() {
   npm_global_prefix() { printf '%s' "$NPM_CONFIG_PREFIX"; }
   run update_npm_globals_secondary
   [ "$status" -eq 0 ]
-  [[ "$output" == *"já coberto por 'Atualizar npm global'"* ]]
+  # O logger pode quebrar a mensagem segundo COLUMNS; valida após colapsar o
+  # whitespace para não tornar este teste dependente de testes anteriores de UI.
+  local normalized
+  normalized="$(tr '\n' ' ' <<< "$output" | tr -s ' ')"
+  [[ "$normalized" == *"já coberto por 'Atualizar npm global'"* ]]
 }
 
 @test "npm secundário: sem pendentes => rc 0" {

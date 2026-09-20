@@ -597,3 +597,116 @@ _mock_coredumpctl() {
   [[ "$output" == *"prefixo global ok"* ]]
   [ -z "$STEP_REASON" ]
 }
+
+# ── journal noise derivado de COREDUMP_IGNORE_EXE ───────────────────────────
+# Regressão: um ffmpeg em loop (probe de stream num container) gerava ~600
+# linhas priority=err no journal. O Doctor de coredumps já saciava o exe via
+# COREDUMP_IGNORE_EXE, mas o Doctor de journal contava os mesmos eventos e
+# reabria warn a cada run.
+
+@test "journal noise: COREDUMP_IGNORE_EXE vira padrão de ruído do journal" {
+  COREDUMP_IGNORE_EXE="ffmpeg" run journal_noise_patterns
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Process [0-9]+ \(ffmpeg\) of user [0-9]+ (terminated abnormally|dumped core)'* ]]
+}
+
+@test "journal noise: padrão gerado casa com a linha real do systemd-coredump" {
+  local pat
+  pat="$(COREDUMP_IGNORE_EXE="ffmpeg" journal_noise_patterns | grep 'ffmpeg')"
+  run grep -qE "$pat" <<< 'Process 996417 (ffmpeg) of user 1000 terminated abnormally without generating a coredump.'
+  [ "$status" -eq 0 ]
+}
+
+@test "journal noise: exe sem ack não é filtrado" {
+  local pat
+  pat="$(COREDUMP_IGNORE_EXE="ffmpeg" journal_noise_patterns | grep 'ffmpeg')"
+  run grep -qE "$pat" <<< 'Process 1 (sshd) of user 0 dumped core.'
+  [ "$status" -ne 0 ]
+}
+
+@test "journal noise: metacaractere no nome do exe não vira padrão amplo" {
+  local pat
+  pat="$(COREDUMP_IGNORE_EXE="node.js" journal_noise_patterns | grep 'node')"
+  # O '.' deve ser literal: 'nodeXjs' não pode casar.
+  run grep -qE "$pat" <<< 'Process 9 (nodeXjs) of user 1000 dumped core.'
+  [ "$status" -ne 0 ]
+  run grep -qE "$pat" <<< 'Process 9 (node.js) of user 1000 dumped core.'
+  [ "$status" -eq 0 ]
+}
+
+@test "journal noise: pidref transitório do systemd é ruído embutido" {
+  run journal_noise_patterns
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'Failed to initialize pidref: No such process'* ]]
+}
+
+@test "journal hint: ciclo de ordenação systemd ganha remediação acionável" {
+  run journal_hint_for 'graphical-session.target: Found ordering cycle: foo.service/start after bar.service/start'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ciclo de ordenação systemd"* ]]
+  [[ "$output" == *"WantedBy="* ]]
+}
+
+# ── ack de coredumps (--doctor-ack-coredumps) ───────────────────────────────
+# Diferente de COREDUMP_IGNORE_EXE (mute permanente), o ack usa cutoff por
+# timestamp: dumps antigos somem, um crash novo do mesmo exe volta a avisar.
+
+_cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M\n' "$1" "$2"; }
+
+@test "coredump ack: descarta dumps anteriores ao ack" {
+  local ack out
+  ack="$(date -d '2026-09-19 00:00:00' +%s)"
+  out="$(_cd_line '2026-09-18 17:33:42' 'ioruba-desktop' \
+    | coredump_filter_acked "$(printf 'ioruba-desktop\t%s' "$ack")")"
+  [ -z "${out//[[:space:]]/}" ]
+}
+
+@test "coredump ack: preserva dump POSTERIOR ao ack (regressão volta a avisar)" {
+  local ack out
+  ack="$(date -d '2026-09-19 00:00:00' +%s)"
+  out="$(_cd_line '2026-09-20 08:00:00' 'ioruba-desktop' \
+    | coredump_filter_acked "$(printf 'ioruba-desktop\t%s' "$ack")")"
+  [[ "$out" == *"ioruba-desktop"* ]]
+}
+
+@test "coredump ack: exe sem ack passa intacto" {
+  local ack out
+  ack="$(date -d '2026-09-19 00:00:00' +%s)"
+  out="$(_cd_line '2026-09-18 10:00:00' 'outro-app' \
+    | coredump_filter_acked "$(printf 'ioruba-desktop\t%s' "$ack")")"
+  [[ "$out" == *"outro-app"* ]]
+}
+
+@test "coredump ack: arquivo de ack vazio é passthrough" {
+  local out
+  out="$(_cd_line '2026-09-18 10:00:00' 'app' | coredump_filter_acked "")"
+  [[ "$out" == *"app"* ]]
+}
+
+@test "coredump ack: ack só do exe certo não derruba os outros" {
+  local ack out
+  ack="$(date -d '2026-09-19 00:00:00' +%s)"
+  out="$( { _cd_line '2026-09-18 10:00:00' 'ioruba-desktop'
+            _cd_line '2026-09-18 10:00:00' 'sshd'; } \
+    | coredump_filter_acked "$(printf 'ioruba-desktop\t%s' "$ack")")"
+  [[ "$out" != *"ioruba-desktop"* ]]
+  [[ "$out" == *"sshd"* ]]
+}
+
+@test "coredump_ack_cutoff: última entrada do exe vence" {
+  local out
+  out="$(printf 'app\t100\napp\t200\noutro\t50\n' | coredump_ack_cutoff app)"
+  [ "$out" = "200" ]
+}
+
+@test "coredump_ack_cutoff: exe ausente não devolve nada" {
+  local out
+  out="$(printf 'app\t100\n' | coredump_ack_cutoff naoexiste)"
+  [ -z "$out" ]
+}
+
+@test "coredump_ack_cutoff: comentário e epoch inválido são ignorados" {
+  local out
+  out="$(printf '# nota\napp\tnao-numero\napp\t300\n' | coredump_ack_cutoff app)"
+  [ "$out" = "300" ]
+}

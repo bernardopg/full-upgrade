@@ -295,6 +295,8 @@ EOF
     "mostrar tendência dos últimos N runs (default 10) e sair. Tabela por padrão; JSON com --json"
   usage_flag "--doctor-ack-journal" \
     "listar assinaturas \"unknown\" do journal do boot atual e, com confirmação (salvo --yes), gravá-las em ~/.config/full-upgrade/journal-noise.txt"
+  usage_flag "--doctor-ack-coredumps" \
+    "marcar os crashes recorrentes ATUAIS como reconhecidos em ~/.config/full-upgrade/coredump-ack.txt; só dumps posteriores ao ack voltam a avisar"
 
   usage_section "SAÍDA"
   usage_flag "--json" \
@@ -472,6 +474,9 @@ parse_args() {
             ;;
             --doctor-ack-journal)
                 DO_DOCTOR_ACK_JOURNAL=1
+            ;;
+            --doctor-ack-coredumps)
+                DO_DOCTOR_ACK_COREDUMPS=1
             ;;
             --fail-fast)
                 FAIL_FAST=1
@@ -671,6 +676,11 @@ apply_mode_and_early_exits() {
 
     if (( DO_DOCTOR_ACK_JOURNAL )); then
         doctor_ack_journal_interactive
+        exit $?
+    fi
+
+    if (( DO_DOCTOR_ACK_COREDUMPS )); then
+        doctor_ack_coredumps_interactive
         exit $?
     fi
 

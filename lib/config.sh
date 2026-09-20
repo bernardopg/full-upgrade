@@ -40,6 +40,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AUTO_BTRFS_SCRUB:=0}"          # 1 = oferece iniciar `btrfs scrub start` quando o scrub estiver vencido/ausente sob --yes/confirmação; 0 = só reporta
 : "${AUTO_FIX_FINAL_PENDING:=0}"    # 1 = aplica pacman -Syu (e retry paru -Sua) quando a verificação final achar pendências acionáveis; 0 = só reporta
 : "${AUTO_FIX_PIP_DEPS:=0}"          # 1 = instala com 'pip install --user' as deps AUSENTES de pacotes pip --user apontadas pelo pip check; 0 = só reporta
+: "${AUTO_FIX_CODEX_MCP:=1}"        # 1 = remove tabela duplicada IDÊNTICA do ~/.codex/config.toml (com backup/rollback); 0 = só reporta
 : "${AUTO_MERGE_PACNEW:=0}"        # 1 = mescla sozinho os .pacnew cujo merge preserva 100% das linhas ativas do arquivo atual (com backup); 0 = só reporta
 : "${SECURE_BOOT_STRICT:=0}"        # 1 = --audit classifica Secure Boot desabilitado como média severidade; 0 = postura informativa
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
@@ -136,6 +137,7 @@ RUST_CVE_REBUILD_TTL_D
 AUTO_BTRFS_SCRUB
 AUTO_FIX_FINAL_PENDING
 AUTO_FIX_PIP_DEPS
+AUTO_FIX_CODEX_MCP
 AUTO_MERGE_PACNEW
 SECURE_BOOT_STRICT
 REPORT_ON_FINISH
@@ -334,7 +336,7 @@ load_config() {
   export TIMESHIFT_CLOUD_EXCLUDE_FILE TIMESHIFT_CLOUD_PROGRESS_INTERVAL
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS
-  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
   export AUR_HELPER PRIV_CMD
   export GCLOUD_BIN COPILOT_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
@@ -459,6 +461,18 @@ AUTO_FIX_FINAL_PENDING=0
 # Conflitos de versão ('requires X, but you have Y') seguem manuais.
 # Nunca roda sob --mode doctor/--dry-run/--no-repair.
 AUTO_FIX_PIP_DEPS=0
+
+# ── Auto-remediação do config MCP do Codex ──
+# 1 = ligado (default). O step 'Auto-remediar config MCP do Codex' remove de
+# ~/.codex/config.toml tabelas declaradas duas vezes QUANDO o bloco duplicado,
+# parseado isoladamente, é idêntico à primeira ocorrência. Caso recorrente:
+# 'headroom init codex' reanexa [mcp_servers.headroom_memory] no fim do arquivo
+# a cada atualização do headroom; o TOML passa a ser inválido e o Codex perde
+# TODOS os mcp_servers de uma vez. Sempre grava backup .bak-<data>-dupfix e faz
+# rollback se o arquivo não voltar a parsear. Duplicata com conteúdo divergente
+# nunca é removida — vira todo para decisão humana.
+# Nunca roda sob --mode doctor/--dry-run/--no-repair.
+AUTO_FIX_CODEX_MCP=1
 
 # ── Merge automático de .pacnew ──
 # 0 = só reporta (default). 1 = mescla sozinho os .pacnew em que a configuração
@@ -607,6 +621,7 @@ show_config() {
   _cfg_kv "AUTO_BTRFS_SCRUB" "$AUTO_BTRFS_SCRUB"
   _cfg_kv "AUTO_FIX_FINAL_PENDING" "$AUTO_FIX_FINAL_PENDING"
   _cfg_kv "AUTO_FIX_PIP_DEPS" "$AUTO_FIX_PIP_DEPS"
+  _cfg_kv "AUTO_FIX_CODEX_MCP" "$AUTO_FIX_CODEX_MCP"
   _cfg_kv "AUTO_MERGE_PACNEW" "$AUTO_MERGE_PACNEW"
   _cfg_kv "SECURE_BOOT_STRICT" "$SECURE_BOOT_STRICT"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"

@@ -723,6 +723,19 @@ run_all_steps() {
         step_skip "Doctor: módulos OBS" "OBS Studio não instalado"
     fi
     run_step "Doctor: AI CLIs" doctor_ai_clis
+    # Roda ANTES do Doctor de MCP: `headroom init codex` (disparado pelos steps
+    # de IA logo acima) reanexa [mcp_servers.headroom_memory] e invalida o TOML,
+    # zerando os mcp_servers do Codex no mesmo run. Remediar aqui faz o Doctor
+    # seguinte ver o estado já corrigido em vez de reabrir o mesmo warn.
+    if [[ ! -w "${HOME}/.codex/config.toml" ]]; then
+        step_skip "Auto-remediar config MCP do Codex" "config.toml do Codex ausente"
+    elif (( ${AUTO_FIX_CODEX_MCP:-1} == 0 )); then
+        step_skip "Auto-remediar config MCP do Codex" "AUTO_FIX_CODEX_MCP=0"
+    elif (( NO_REPAIR )); then
+        step_skip "Auto-remediar config MCP do Codex" "--no-repair"
+    else
+        run_step "Auto-remediar config MCP do Codex" autofix_codex_mcp_toml
+    fi
     if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
        || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
        || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]] \

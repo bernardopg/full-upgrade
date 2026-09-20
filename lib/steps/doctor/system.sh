@@ -267,6 +267,8 @@ journal_hint_for() {
       printf 'full-upgrade-tray: a unit tentou executar um caminho inexistente; atualize/reinstale o pacote e reinicie a unit com "systemctl --user daemon-reload && systemctl --user restart full-upgrade-tray.service"' ;;
     *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*)
       printf 'falha de autenticação sudo/PAM registrada: confirme se não há script/serviço tentando sudo com senha incorreta' ;;
+    *Found\ ordering\ cycle*|*Job\ *deleted\ to\ break\ ordering\ cycle*|*Breaking\ ordering\ cycle*)
+      printf 'ciclo de ordenação systemd: uma unit declara After= de um alvo que também a puxa via WantedBy=; o systemd quebra o ciclo descartando um job, então a unit pode não rodar. Rode "systemd-analyze verify <unit>" e troque o WantedBy= pelo serviço concreto (ou remova o After=)' ;;
     *dumped\ core*)
       printf 'coredump de app: "coredumpctl list" e "coredumpctl info <PID>" identificam o processo; crash de app de usuário (Electron/IDE) costuma ser bug do app, não do sistema' ;;
     *)
@@ -408,6 +410,9 @@ journal_noise_patterns() {
     'gkr-pam: couldn.t unlock the login keyring'
     # ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
     'Original source was unlinked while parsing service file'
+    # ── systemd: o processo morreu antes do registro do pidref. Corrida
+    #    interna do systemd com processo de vida curta; nada a fazer. ──
+    'Failed to initialize pidref: No such process'
     # ── Virtualização: host sem Intel TDX — informativo, não é falha ──
     'virt/tdx: TDX not supported by the host platform'
     # ── USB: falha de enumeração de dispositivo/hub com problema de hardware
@@ -436,6 +441,20 @@ journal_noise_patterns() {
     'iwlwifi [0-9].*: 0x[0-9A-Fa-f]+ \|'
   )
   printf '%s\n' "${pats[@]}"
+
+  # Coerência com COREDUMP_IGNORE_EXE: um executável já declarado como
+  # "crash esperado" (ex.: ffmpeg probando streams dentro de um container)
+  # é saciado no Doctor de coredumps, mas o systemd-coredump também emite
+  # uma linha priority=err por crash no journal. Sem espelhar a lista aqui,
+  # o mesmo evento reabria warn no Doctor de journal — um único ffmpeg em
+  # loop produzia centenas de "erros críticos" que o usuário já reconheceu.
+  local _exe _exe_re
+  for _exe in ${COREDUMP_IGNORE_EXE:-}; do
+    # Só o glob '*' é aceito como coringa; o resto vira literal para não
+    # transformar um nome com '.' ou '+' em padrão amplo demais.
+    _exe_re="$(sed -E 's/[][(){}.^$+?|\\]/\\&/g; s/\*/[^)]*/g' <<< "$_exe")"
+    printf 'Process [0-9]+ \(%s\) of user [0-9]+ (terminated abnormally|dumped core)\n' "$_exe_re"
+  done
 
   local noise_file="${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade/journal-noise.txt"
   if [[ -f "$noise_file" ]]; then
@@ -605,7 +624,16 @@ doctor_recurrent_coredumps() {
   local window_days=14 recent_days=2 min_crashes=3
   local window_raw recent_names window_grouped
 
+  # Ack do usuário (--doctor-ack-coredumps): dumps anteriores ao ack já foram
+  # reconhecidos e a causa, corrigida. Filtrar por TIMESTAMP em vez de mutar
+  # COREDUMP_IGNORE_EXE preserva a detecção de uma regressão futura do mesmo
+  # programa — o mute permanente cegaria o Doctor para sempre.
+  local ack_file acks=""
+  ack_file="$(coredump_ack_file)"
+  [[ -r "$ack_file" ]] && acks="$(cat -- "$ack_file" 2>/dev/null || true)"
+
   window_raw="$(coredumpctl list --no-legend --no-pager --since "-${window_days}d" 2>/dev/null || true)"
+  window_raw="$(printf '%s\n' "$window_raw" | coredump_filter_acked "$acks")"
 
   if [[ -z "${window_raw//[[:space:]]/}" ]]; then
     log "  Nenhum coredump nos últimos ${window_days} dias."
@@ -621,6 +649,7 @@ doctor_recurrent_coredumps() {
 
   recent_names="$(
     coredumpctl list --no-legend --no-pager --since "-${recent_days}d" 2>/dev/null \
+      | coredump_filter_acked "$acks" \
       | coredump_group_by_executable | awk '{ print $2 }'
   )"
 
@@ -656,6 +685,7 @@ doctor_recurrent_coredumps() {
   log "    ${hot}"
   log "  Investigue com: coredumpctl info <PID> e coredumpctl debug <PID>."
   log "  Crash repetido de app de usuário costuma ser bug do app; se for serviço, verifique também o Doctor de units falhadas."
+  log "  Já corrigiu a causa? 'full-upgrade --doctor-ack-coredumps' marca os dumps atuais como vistos (crash novo volta a avisar)."
 
   STEP_REASON="crash recorrente: ${hot}"
   return "$RC_TODO"
@@ -1144,4 +1174,139 @@ doctor_desktop_health() {
   fi
 
   return "$status"
+}
+
+
+# ── Acknowledgement de coredumps recorrentes ─────────────────────────────────
+# Caminho do arquivo de ack. Formato: "<exe><TAB><epoch do ack>", um por linha.
+coredump_ack_file() {
+    printf '%s/full-upgrade/coredump-ack.txt' "${XDG_CONFIG_HOME:-${HOME}/.config}"
+}
+
+
+# Puro/testável: lê o conteúdo do arquivo de ack em stdin e imprime o epoch
+# registrado para <exe>, ou nada se não houver ack. Última linha vence
+# (um novo ack sobrepõe o anterior sem exigir reescrita do arquivo).
+coredump_ack_cutoff() {
+    local want="$1" name epoch found=""
+    while IFS=$'\t' read -r name epoch; do
+        [[ -n "$name" && "${name:0:1}" != "#" ]] || continue
+        [[ "$name" == "$want" ]] || continue
+        [[ "$epoch" =~ ^[0-9]+$ ]] || continue
+        found="$epoch"
+    done
+    # Sempre rc 0: "sem ack" é resposta válida, não erro (chamador usa em $( )).
+    [[ -n "$found" ]] && printf '%s' "$found"
+    return 0
+}
+
+
+# Puro/testável: filtra linhas de `coredumpctl list` em stdin, descartando as
+# de executáveis com ack cujo crash é ANTERIOR ao ack. Diferente de
+# COREDUMP_IGNORE_EXE (mute permanente), o ack só apaga o histórico já
+# reconhecido: um crash novo do mesmo programa volta a aparecer. É o que
+# fecha o caso "corrigi o bug no app, para de me cobrar pelos dumps velhos"
+# sem cegar o Doctor para uma regressão futura.
+#
+# $1 = conteúdo do arquivo de ack (multilinha). Linha do coredumpctl:
+# "Qui 2026-09-18 17:33:42 -03  297557  1000 1000 SIGABRT present /caminho/exe 3.6M"
+coredump_filter_acked() {
+    local acks="$1"
+    [[ -n "${acks//[[:space:]]/}" ]] || { cat; return 0; }
+    has date || { cat; return 0; }
+
+    local -A cutoff=()
+    local name epoch
+    while IFS=$'\t' read -r name epoch; do
+        [[ -n "$name" && "${name:0:1}" != "#" ]] || continue
+        [[ "$epoch" =~ ^[0-9]+$ ]] || continue
+        cutoff["$name"]="$epoch"
+    done <<< "$acks"
+    (( ${#cutoff[@]} > 0 )) || { cat; return 0; }
+
+    local line exe ts when
+    while IFS= read -r line; do
+        [[ -n "${line//[[:space:]]/}" ]] || continue
+        # Executável: primeiro campo que começa com '/'.
+        exe=""
+        local f
+        for f in $line; do
+            [[ "${f:0:1}" == "/" ]] && { exe="${f##*/}"; break; }
+        done
+        if [[ -z "$exe" || -z "${cutoff[$exe]:-}" ]]; then
+            printf '%s\n' "$line"
+            continue
+        fi
+        # Data/hora: campos 2 e 3 ("Qui 2026-09-18 17:33:42 -03").
+        ts="$(awk '{ print $2, $3 }' <<< "$line")"
+        when="$(date -d "$ts" +%s 2>/dev/null || printf '')"
+        # Sem data parseável, preserva a linha (falha para o lado de avisar).
+        if [[ -z "$when" ]] || (( when > cutoff[$exe] )); then
+            printf '%s\n' "$line"
+        fi
+    done
+}
+
+
+# CLI entrypoint de --doctor-ack-coredumps (early-exit, antes do run normal).
+# Marca os crashes recorrentes ATUAIS como reconhecidos: o Doctor passa a
+# contar só dumps posteriores ao ack.
+doctor_ack_coredumps_interactive() {
+    if ! has coredumpctl; then
+        printf 'coredumpctl não encontrado; nada a fazer.\n'
+        return 0
+    fi
+
+    local raw
+    raw="$(coredumpctl list --no-legend --no-pager --since "-14d" 2>/dev/null || true)"
+    local ack_file
+    ack_file="$(coredump_ack_file)"
+    local acks=""
+    [[ -r "$ack_file" ]] && acks="$(cat -- "$ack_file")"
+    raw="$(printf '%s\n' "$raw" | coredump_filter_acked "$acks")"
+
+    local -a names=()
+    local count name path
+    while read -r count name path; do
+        [[ -n "$name" ]] || continue
+        (( count >= 3 )) || continue
+        coredump_exe_is_ignored "$name" && continue
+        names+=("$name")
+    done < <(printf '%s\n' "$raw" | coredump_group_by_executable)
+
+    if (( ${#names[@]} == 0 )); then
+        printf 'Nenhum crash recorrente pendente nos últimos 14 dias — nada a reconhecer.\n'
+        return 0
+    fi
+
+    printf '%d programa(s) com crash recorrente ainda não reconhecido(s):\n\n' "${#names[@]}"
+    for name in "${names[@]}"; do printf '  • %s\n' "$name"; done
+    printf '\nReconhecer marca os dumps ATUAIS como vistos; crashes novos voltam a avisar.\n\n'
+
+    if (( ASSUME_YES == 0 )); then
+        if [[ -t 0 ]]; then
+            printf 'Gravar ack em %s? [s/N] ' "$ack_file"
+            local answer
+            read -r answer
+            case "$answer" in
+                [sS][iI][mM]|[sS]) ;;
+                *) printf 'Cancelado.\n'; return 1 ;;
+            esac
+        else
+            printf 'Execução não interativa sem --yes; nada gravado. Rode com --yes para confirmar.\n'
+            return 1
+        fi
+    fi
+
+    local ack_dir
+    ack_dir="$(dirname -- "$ack_file")"
+    mkdir -p -- "$ack_dir" || { printf 'Erro: não foi possível criar %s.\n' "$ack_dir" >&2; return 1; }
+
+    local now
+    now="$(date +%s)"
+    for name in "${names[@]}"; do
+        printf '%s\t%s\n' "$name" "$now" >> "$ack_file"
+    done
+    printf '%d ack(s) gravado(s) em %s.\n' "${#names[@]}" "$ack_file"
+    return 0
 }

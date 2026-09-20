@@ -336,3 +336,115 @@ JSON
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"uv cache clean retornou erro"* ]]
 }
+
+# ── codex_toml_duplicate_tables / autofix_codex_mcp_toml ────────────────────
+# Regressão: `headroom init codex` reanexa [mcp_servers.headroom_memory] no fim
+# do config a cada atualização do headroom. O TOML fica inválido e o Codex
+# perde TODOS os mcp_servers de uma vez (Doctor reportava "Codex: 0").
+
+_write_codex_dup_identical() {
+  mkdir -p "$HOME/.codex"
+  cat > "$HOME/.codex/config.toml" <<'TOML'
+model = "gpt-5"
+
+[mcp_servers.headroom_memory]
+args = [
+    "-m",
+    "headroom.memory.mcp_server",
+]
+command = "/usr/bin/python3"
+startup_timeout_sec = 30
+
+[mcp_servers.outro]
+command = "npx"
+
+# --- Headroom memory MCP (auto-injected) ---
+[mcp_servers.headroom_memory]
+command = "/usr/bin/python3"
+args = ["-m", "headroom.memory.mcp_server"]
+startup_timeout_sec = 30
+# --- end Headroom memory ---
+TOML
+}
+
+@test "codex dup: detecta duplicata e a reconhece como idêntica apesar do formato" {
+  _write_codex_dup_identical
+  run codex_toml_duplicate_tables "$HOME/.codex/config.toml"
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  # nome<TAB>linha_original<TAB>início<TAB>fim<TAB>idêntica
+  [[ "${lines[0]}" == "mcp_servers.headroom_memory	3	14	19	1" ]]
+}
+
+@test "codex dup: config válido não produz duplicata" {
+  mkdir -p "$HOME/.codex"
+  printf '[mcp_servers.a]\ncommand = "x"\n' > "$HOME/.codex/config.toml"
+  run codex_toml_duplicate_tables "$HOME/.codex/config.toml"
+  [ "$status" -eq 0 ]
+  [ -z "${output//[[:space:]]/}" ]
+}
+
+@test "codex dup: [[array of tables]] repetido não é duplicata" {
+  mkdir -p "$HOME/.codex"
+  printf '[[hosts]]\nname = "a"\n\n[[hosts]]\nname = "b"\n' > "$HOME/.codex/config.toml"
+  run codex_toml_duplicate_tables "$HOME/.codex/config.toml"
+  [ "$status" -eq 0 ]
+  # TOML válido: o autofix nem chega a inspecionar, mas o parser não pode
+  # marcar [[x]] repetido como erro — é sintaxe legítima de array de tabelas.
+  python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb"))' "$HOME/.codex/config.toml"
+}
+
+@test "codex autofix: remove duplicata idêntica, preserva original e valida" {
+  _write_codex_dup_identical
+  run autofix_codex_mcp_toml
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"válido novamente"* ]]
+  # Arquivo volta a parsear com os dois servers distintos.
+  run python3 -c 'import sys,tomllib; print(sorted((tomllib.load(open(sys.argv[1],"rb")).get("mcp_servers") or {})))' "$HOME/.codex/config.toml"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"headroom_memory"* ]]
+  [[ "$output" == *"outro"* ]]
+  # Backup do estado anterior fica ao lado.
+  run bash -c 'ls "$HOME"/.codex/config.toml.bak-*-dupfix'
+  [ "$status" -eq 0 ]
+}
+
+@test "codex autofix: duplicata divergente vira todo e não toca no arquivo" {
+  mkdir -p "$HOME/.codex"
+  printf '[mcp_servers.x]\ncommand = "a"\n\n[mcp_servers.x]\ncommand = "DIFERENTE"\n' \
+    > "$HOME/.codex/config.toml"
+  local before
+  before="$(cat "$HOME/.codex/config.toml")"
+  run autofix_codex_mcp_toml
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"DIVERGENTE"* ]]
+  [[ "$(cat "$HOME/.codex/config.toml")" == "$before" ]]
+}
+
+@test "codex autofix: config já válido é no-op" {
+  mkdir -p "$HOME/.codex"
+  printf '[mcp_servers.a]\ncommand = "x"\n' > "$HOME/.codex/config.toml"
+  run autofix_codex_mcp_toml
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"nada a remediar"* ]]
+}
+
+@test "codex autofix: AUTO_FIX_CODEX_MCP=0 não mexe em config quebrado" {
+  _write_codex_dup_identical
+  local before
+  before="$(cat "$HOME/.codex/config.toml")"
+  AUTO_FIX_CODEX_MCP=0 run autofix_codex_mcp_toml
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$HOME/.codex/config.toml")" == "$before" ]]
+}
+
+@test "codex autofix: TOML inválido por outra causa vira todo sem editar" {
+  mkdir -p "$HOME/.codex"
+  printf '[mcp_servers.a\ncommand = "x"\n' > "$HOME/.codex/config.toml"
+  local before
+  before="$(cat "$HOME/.codex/config.toml")"
+  run autofix_codex_mcp_toml
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"sem tabela duplicada"* ]]
+  [[ "$(cat "$HOME/.codex/config.toml")" == "$before" ]]
+}

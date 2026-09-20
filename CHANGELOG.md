@@ -4,6 +4,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+- **Auto-remediação do MCP do Codex.** `AUTO_FIX_CODEX_MCP=1` (padrão) remove com backup e rollback tabelas TOML duplicadas semanticamente idênticas em `~/.codex/config.toml`, incluindo a recorrência de `headroom init codex` reanexar `[mcp_servers.headroom_memory]`; blocos divergentes continuam como `todo` para decisão humana.
+- **Reconhecimento temporal de coredumps.** `--doctor-ack-coredumps` registra crashes recorrentes já corrigidos em `~/.config/full-upgrade/coredump-ack.txt`; somente dumps posteriores ao ack voltam a ser reportados.
+
+### Corrigido
+- **Journal/Doctor:** executáveis em `COREDUMP_IGNORE_EXE` também filtram suas linhas do `systemd-coredump` no journal, e a corrida transitória `Failed to initialize pidref` não gera aviso.
+- **Journal/Doctor:** ciclos de ordenação do systemd agora recebem orientação acionável para corrigir a relação `After=`/`WantedBy=`.
+
 ## [3.45.0] - 2026-09-17
 ### Corrigido
 

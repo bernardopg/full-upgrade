@@ -347,7 +347,7 @@ _catalog_expected_files() {
     cleanup)    printf 'lib/steps/cleanup.sh' ;;
     final)      printf 'lib/steps/final_checks.sh lib/steps/self_update.sh' ;;
     doctor)     printf 'lib/steps/doctor/' ;;
-    autofix)    printf 'lib/steps/doctor/ lib/steps/final_checks.sh lib/steps/lang_rust.sh' ;;
+    autofix)    printf 'lib/steps/doctor/ lib/steps/final_checks.sh lib/steps/lang_rust.sh lib/steps/mcp.sh' ;;
     *)          printf '' ;;
   esac
 }
