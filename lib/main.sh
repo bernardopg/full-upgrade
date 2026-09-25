@@ -497,6 +497,12 @@ run_all_steps() {
         step_skip "Atualizar kimchi" "kimchi não instalado"
     fi
 
+    if has muse; then
+        run_step "Atualizar muse (Muse Code)" update_muse
+    else
+        step_skip "Atualizar muse (Muse Code)" "muse não instalado"
+    fi
+
     if has pool; then
         run_step "Atualizar pool (Poolside)" update_pool
     else
@@ -515,10 +521,34 @@ run_all_steps() {
         step_skip "Atualizar purple (cliente SSH)" "purple não instalado"
     fi
 
+    if has android; then
+        run_step "Atualizar Android CLI" update_android_cli
+    else
+        step_skip "Atualizar Android CLI" "android não instalado"
+    fi
+
+    if [[ -n "$(cloudflared_manual_bins)" ]]; then
+        run_step "Atualizar cloudflared" update_cloudflared
+    else
+        step_skip "Atualizar cloudflared" "nenhum cloudflared fora de pacote"
+    fi
+
     if has zap || has zap.sh; then
         run_step "Atualizar OWASP ZAP (core e add-ons)" update_zap
     else
         step_skip "Atualizar OWASP ZAP (core e add-ons)" "zap não instalado"
+    fi
+
+    if has gitleaks; then
+        run_step "Atualizar gitleaks" update_gitleaks
+    else
+        step_skip "Atualizar gitleaks" "gitleaks não instalado"
+    fi
+
+    if has trufflehog; then
+        run_step "Atualizar trufflehog" update_trufflehog
+    else
+        step_skip "Atualizar trufflehog" "trufflehog não instalado"
     fi
 
     if has gk; then

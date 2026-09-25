@@ -9,6 +9,7 @@ setup() {
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/lang_other.sh"
   log() { :; }; log_raw() { :; }; remediation() { :; }
+  export HOME="$BATS_TEST_TMPDIR/home"; mkdir -p "$HOME"
 }
 
 # ── update_go_tools ───────────────────────────────────────────────────────────
@@ -23,6 +24,29 @@ setup() {
   go() { [[ "$1" == env ]] && echo "$gp"; }
   run update_go_tools
   [ "$status" -eq 0 ]
+}
+
+@test "update_go_tools: reinstala go install de ~/.local/bin no mesmo GOBIN" {
+  mkdir -p "$HOME/.local/bin"
+  : >"$HOME/.local/bin/arxiv-pp-cli"; : >"$HOME/.local/bin/gitleaks"; : >"$HOME/.local/bin/dev"; : >"$HOME/.local/bin/gk"
+  chmod +x "$HOME/.local/bin/"*
+  go() {
+    case "$1 ${2:-}" in
+      "env GOPATH") echo "$BATS_TEST_TMPDIR/inexistente" ;;
+      "version -m")
+        case "$3" in
+          */arxiv-pp-cli) printf '%s\n\tpath\texample.com/arxiv/cmd/arxiv-pp-cli\n\tmod\texample.com/arxiv\tv0.0.1\n' "$3" ;;
+          */gitleaks) printf '%s\n\tpath\tcommand-line-arguments\n' "$3" ;;
+          */gk) printf '%s\n\tpath\tgkcli/cmd/installer-proxy\n\tmod\tgkcli\tv0.0.0-20260713140353-8a7aecbbd3d7\n' "$3" ;;
+          */dev) printf '%s\n\tpath\texample.com/dev\n\tmod\texample.com/dev\t(devel)\n' "$3" ;;
+        esac ;;
+    esac
+  }
+  run_logged() { echo "$*" >>"$BATS_TEST_TMPDIR/calls"; }
+  run update_go_tools
+  [ "$status" -eq 0 ]
+  run cat "$BATS_TEST_TMPDIR/calls"
+  [ "$output" = "env GOBIN=$HOME/.local/bin go install example.com/arxiv/cmd/arxiv-pp-cli@latest" ]
 }
 
 # ── update_dotnet_tools ───────────────────────────────────────────────────────

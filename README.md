@@ -590,6 +590,7 @@ Principais chaves:
 | `BACKUP_PATHS` | lista de `/etc` | Paths a arquivar, separados por espaço (default cobre `pacman`/boot/`systemd`). |
 | `BTRFS_SCRUB_MAX_DAYS` | `30` | Alerta no doctor se o último scrub btrfs em `/` for mais antigo que isso. |
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
+| `FWUPD_HSI_MIN` | `2` | `Doctor: fwupd security` avisa se o nível HSI ficar abaixo disso. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |

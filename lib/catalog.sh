@@ -63,7 +63,7 @@ Atualizar Rust (rustup)|lang-rust|rust,rustup,update,network,slow,lang|mutating|
 Atualizar bins do cargo|lang-rust|rust,cargo,update,network,slow,lang|mutating|600|cargo-install-update|update_cargo_bins|Atualiza binários Cargo usando cargo-install-update.
 Auditar binários cargo (CVEs)|lang-rust|rust,cargo,security,network,lang|read|120|cargo-audit|audit_cargo_bins|Audita binários Cargo contra advisories conhecidos.
 Auto-remediar CVEs de toolchain Rust|autofix|rust,cargo,security,update,network,slow|mutating|1800|cargo-audit|autofix_rust_cves|Sob AUTO_FIX_RUST_CVES=1 e confirmação/--yes, aplica rustup self update/update e cargo install-update para CVEs corrigíveis, rebuilda bins com CVE pinada no build (cargo install --force) e re-audita.
-Atualizar ferramentas Go|lang-other|go,update,network,lang|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas em GOPATH/bin.
+Atualizar ferramentas Go|lang-other|go,update,network,lang|mutating|300|go|update_go_tools|Atualiza ferramentas Go instaladas por go install em GOPATH/bin e ~/.local/bin (reinstala no mesmo diretório).
 Atualizar ferramentas .NET|lang-other|dotnet,update,network,lang|mutating|300|dotnet|update_dotnet_tools|Atualiza ferramentas .NET globais.
 Atualizar Google Cloud SDK|lang-other|gcloud,update,network,slow,lang|mutating|600|gcloud|update_gcloud|Atualiza componentes do Google Cloud SDK.
 Atualizar gems de usuário|lang-other|ruby,gem,update,network,lang|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
@@ -91,15 +91,20 @@ Atualizar CodeRabbit CLI|ai|coderabbit,update,network,ai|mutating|180|coderabbit
 Atualizar Kiro CLI (Amazon)|ai|ai,kiro,update,network|mutating|300|kiro-cli|update_kiro_cli|Atualiza a Kiro CLI (Amazon, fora de pacote) via self-update nativo (kiro-cli update --non-interactive).
 Atualizar Snyk CLI|security|security,snyk,update,network|mutating|180|snyk,curl|update_snyk|Atualiza o Snyk CLI (binário standalone static.snyk.io) com verificação obrigatória de sha256.
 Atualizar OWASP ZAP (core e add-ons)|security|security,zap,update,network|mutating|1200|zap,curl,tar,sha256sum,python3|update_zap|Atualiza o core manual do OWASP ZAP pelo release oficial verificado e depois os add-ons via Marketplace headless.
+Atualizar gitleaks|security|security,secrets,update,network|mutating|180|gitleaks|update_gitleaks|Atualiza o gitleaks (release do GitHub em ~/.local/bin) com verificação de sha256.
+Atualizar trufflehog|security|security,secrets,update,network|mutating|180|trufflehog|update_trufflehog|Atualiza o trufflehog (release do GitHub em ~/.local/bin) com verificação de sha256.
 Atualizar GitKraken CLI (gk)|tools|git,gk,update,network|mutating|180|gk,curl,unzip|update_gk|Atualiza o GitKraken CLI via releases do GitHub com verificação obrigatória de sha256.
 Atualizar grok (xAI CLI)|ai|ai,grok,update,network|mutating|300|grok|update_grok|Atualiza a CLI grok (xAI, self-download em ~/.grok) via update nativo com check prévio (grok update --check).
 Atualizar jcode|ai|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|Atualiza a CLI jcode (self-download em ~/.jcode) via update nativo após comparar com a release mais recente no GitHub.
 Atualizar qodercli (Qoder)|ai|ai,qoder,update,network|mutating|300|qodercli|update_qodercli|Atualiza a CLI qodercli (Qoder, self-download em ~/.qoder) via update nativo com check prévio (qodercli update --check).
 Atualizar qoderwake|ai|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
 Atualizar kimchi|ai|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
+Atualizar muse (Muse Code)|ai|ai,muse,update,network|mutating|300|muse|update_muse|Atualiza o Muse Code (Meta) pelo launcher em ~/.local/bin com MUSE_LAUNCHER_INSTALL=1, sem abrir a TUI.
 Atualizar pool (Poolside)|ai|ai,pool,update,network|mutating|180|pool|update_pool|Atualiza a CLI pool (agente Poolside, self-download em ~/.local/bin) via pool update, que só baixa release nova.
 Atualizar cua-driver|tools|automation,cua,update,network|mutating|300|cua-driver|update_cua_driver|Atualiza o cua-driver (trycua, self-download em ~/.cua-driver) só quando check-update --json indica nova versão; também atualiza as skills.
 Atualizar purple (cliente SSH)|tools|purple,update,network|mutating|180|purple|update_purple|Atualiza o purple (cliente SSH de terminal, self-download em ~/.local/bin) via purple update, com checksum.
+Atualizar Android CLI|tools|android,update,network|mutating|900|android|update_android_cli|Atualiza a Android CLI (android update), as skills instaladas (android skills update --all) e os pacotes do Android SDK (android sdk update).
+Atualizar cloudflared|tools|cloudflared,update,network|mutating|180||update_cloudflared|Atualiza cópias do cloudflared fora de pacote (~/.9router/bin, ~/.local/bin) via cloudflared update; rc 11 do upstream significa atualizado.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.

@@ -9,6 +9,27 @@ setup() {
   for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
 
+# ── FWUPD_HSI_MIN: limiar configurável do aviso de HSI ─────────────────────────
+
+_stub_fwupd_hsi1() {
+  has() { [[ "$1" == fwupdmgr ]]; }
+  fwupdmgr() { printf 'Host Security ID: HSI:1! (v2.1.7)\n\nHSI-1\n  ✔ UEFI Secure Boot: Enabled\nHSI-2\n  ✘ IOMMU: Not found\n'; }
+}
+
+@test "fwupd security: HSI:1 com o padrão (FWUPD_HSI_MIN=2) é aviso" {
+  _stub_fwupd_hsi1
+  unset FWUPD_HSI_MIN
+  run doctor_fwupd_security
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "fwupd security: HSI:1 com FWUPD_HSI_MIN=1 é aceito" {
+  _stub_fwupd_hsi1
+  FWUPD_HSI_MIN=1
+  run doctor_fwupd_security
+  [ "$status" -eq 0 ]
+}
+
 # ── fwupd 2.1.7: Locked MTD sem dados não é regressão da máquina ─────────────
 
 @test "fwupd HSI:1: somente Locked MTD não suportado é lacuna de medição" {

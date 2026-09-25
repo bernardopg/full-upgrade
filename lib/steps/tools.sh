@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lib/steps/tools.sh — utilitários de linha de comando fora de gestor de pacote
-# (GitKraken CLI, cua-driver). Plugins do OBS ficam em steps.d/85-obs.sh.
+# (GitKraken CLI, cua-driver, purple, Android CLI, cloudflared). Plugins do OBS ficam em steps.d/85-obs.sh.
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
@@ -114,6 +114,81 @@ update_gk() {
 # Binário self-download em ~/.local/bin/purple; `purple update` verifica checksum
 # e só baixa release nova. Helper em manual_apps.sh.
 update_purple() { _selfupdate_direct "purple" purple; }
+
+
+# ── Android CLI (Google) ────────────────────────────────────────────────────────
+# `android` (~/.local/bin, launcher em ~/.android/bin) tem três updaters
+# não-interativos: `android update` (a própria CLI; "Already up-to-date" quando
+# nada muda), `android skills update --all` (skills de agente instaladas) e
+# `android sdk update` (pacotes do SDK: build-tools, platform-tools, platforms).
+# O SDK só é tocado quando `android info` aponta um diretório existente.
+# rc: 0 ok · RC_WARN rede/falha de alguma fase.
+update_android_cli() {
+  has android || { log "  android (Android CLI) não encontrado."; return 0; }
+  local -a failed=()
+  local out rc sdk
+
+  out="$(run_network_cmd android update)"; rc=$?
+  printf '%s\n' "$out" | _strip_ansi | log_out
+  ((rc == 0)) || failed+=("cli")
+
+  out="$(run_network_cmd android skills update --all)"; rc=$?
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:].]*$' | tail -3 | log_out
+  ((rc == 0)) || failed+=("skills")
+
+  sdk="$(android info 2>/dev/null | awk '$1=="sdk:"{print $2; exit}')"
+  if [[ -n "$sdk" && -d "$sdk" ]]; then
+    out="$(run_network_cmd android sdk update)"; rc=$?
+    printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -10 | log_out
+    ((rc == 0)) || failed+=("sdk")
+  else
+    log "  Android SDK não encontrado; pulando android sdk update."
+  fi
+
+  if ((${#failed[@]} > 0)); then
+    log "  Android CLI: falha em ${failed[*]}."
+    STEP_REASON="android update falhou em: ${failed[*]}"
+    return "$RC_WARN"
+  fi
+  log "  Android CLI $(android -V 2>/dev/null | tail -1), skills e SDK atualizados."
+  return 0
+}
+
+
+# ── cloudflared fora de pacote ──────────────────────────────────────────────────
+# O 9router baixa o cloudflared para ~/.9router/bin só quando ele falta e nunca
+# mais o atualiza (fora do PATH, ficou seis meses parado). `cloudflared update`
+# troca o binário no lugar; por convenção do upstream sai com 11 quando
+# atualizou (para o supervisor reiniciar o túnel), então 0 e 11 são sucesso.
+# Um cloudflared do pacman fica com o pacman: só estes caminhos são tocados.
+cloudflared_manual_bins() {
+  local b
+  for b in "${HOME}/.9router/bin/cloudflared" "${HOME}/.local/bin/cloudflared"; do
+    [[ -x "$b" && ! -L "$b" ]] && printf '%s\n' "$b"
+  done
+  return 0
+}
+
+update_cloudflared() {
+  local -a bins=()
+  mapfile -t bins < <(cloudflared_manual_bins)
+  ((${#bins[@]} > 0)) || { log "  Nenhum cloudflared fora de pacote."; return 0; }
+  local b out rc any_fail=0
+  for b in "${bins[@]}"; do
+    out="$(run_network_cmd "$b" update)"
+    rc=$?
+    printf '%s\n' "$out" | grep -v ' INF ' | log_out
+    case "$rc" in
+      0 | 11) log "  ${b}: $("$b" --version 2>/dev/null | awk '{print $3; exit}')" ;;
+      *) log "  Falha ao atualizar ${b} (rc=${rc})."; any_fail=1 ;;
+    esac
+  done
+  if ((any_fail)); then
+    STEP_REASON="cloudflared update falhou"
+    return "$RC_WARN"
+  fi
+  return 0
+}
 
 
 # ── cua-driver (trycua) ─────────────────────────────────────────────────────────

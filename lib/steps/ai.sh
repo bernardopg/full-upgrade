@@ -611,6 +611,31 @@ _selfupdate_check_apply() {
 # CLI de agente self-download em ~/.local/bin/pool; helper em manual_apps.sh.
 update_pool() { _selfupdate_direct "pool (Poolside)" pool; }
 
+# ── muse (Muse Code, Meta) ──────────────────────────────────────────────────────
+# `muse` em ~/.local/bin é um launcher bash que baixa o binário real
+# (muse-bin-<versão>) e só se atualiza em background ao ser aberto, no máximo
+# de hora em hora. Sem uso, ficava parado na versão instalada (0.1.0 por um mês,
+# com a 1.4.0 disponível). MUSE_LAUNCHER_INSTALL=1 é o modo do próprio
+# instalador: atualiza o binário e sai sem abrir a TUI. As leituras de versão
+# usam MUSE_NO_AUTO_UPDATE=1 para não disparar o update em background.
+update_muse() {
+  has muse || { log "  muse não encontrado."; return 0; }
+  local before after out rc
+  before="$(MUSE_NO_AUTO_UPDATE=1 muse --version 2>/dev/null | head -1)"
+  log "  muse atual: ${before:-?}"
+  out="$(MUSE_LAUNCHER_INSTALL=1 run_network_cmd muse </dev/null)"
+  rc=$?
+  printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | log_out
+  if ((rc != 0)); then
+    log "  Falha ao atualizar o muse."
+    STEP_REASON="muse (MUSE_LAUNCHER_INSTALL=1) falhou (rc=${rc})"
+    return "$RC_WARN"
+  fi
+  after="$(MUSE_NO_AUTO_UPDATE=1 muse --version 2>/dev/null | head -1)"
+  log "  muse agora: ${after:-?}"
+  return 0
+}
+
 # ── grok (xAI CLI) ──────────────────────────────────────────────────────────────
 # Instalada via instalador próprio em ~/.grok (self-download). `grok update --check`
 # é read-only; `grok update` aplica. Falha de rede vira RC_WARN.

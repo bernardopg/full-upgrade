@@ -330,3 +330,82 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
   run _selfupdate_direct "purple" purple
   [ "$status" -eq 0 ]
 }
+
+# Release falso do GitHub: tag v2.0.0 com tar.gz + checksums goreleaser.
+_fake_github_release() {
+  local rel="$BATS_TEST_TMPDIR/rel" sum="${1:-good}"
+  mkdir -p "$rel" "$HOME/.local/bin"
+  printf '#!/bin/sh\necho "gitleaks version 2.0.0"\n' >"$rel/gitleaks"
+  chmod +x "$rel/gitleaks"
+  tar -czf "$rel/gitleaks_2.0.0_linux_x64.tar.gz" -C "$rel" gitleaks
+  if [[ "$sum" == good ]]; then
+    (cd "$rel" && sha256sum gitleaks_2.0.0_linux_x64.tar.gz >gitleaks_2.0.0_checksums.txt)
+  else
+    printf '%064d  gitleaks_2.0.0_linux_x64.tar.gz\n' 0 >"$rel/gitleaks_2.0.0_checksums.txt"
+  fi
+  printf '#!/bin/sh\necho "gitleaks version 1.0.0"\n' >"$HOME/.local/bin/gitleaks"
+  chmod +x "$HOME/.local/bin/gitleaks"
+  PATH="$HOME/.local/bin:$PATH"
+  uname() { echo x86_64; }
+  curl() {
+    local out="" url="" a
+    while (($#)); do
+      case "$1" in -o) out="$2"; shift ;; -w) printf 'https://github.com/gitleaks/gitleaks/releases/tag/v2.0.0'; return 0 ;; http*) url="$1" ;; esac
+      shift
+    done
+    cp "$BATS_TEST_TMPDIR/rel/${url##*/}" "$out"
+  }
+}
+
+@test "_github_release_bin_update: troca o binário quando o sha256 confere" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  _fake_github_release good
+  _github_release_bin_update gitleaks gitleaks gitleaks/gitleaks x64 arm64
+  run "$HOME/.local/bin/gitleaks" --version
+  [[ "$output" == *"2.0.0"* ]]
+}
+
+@test "_github_release_bin_update: checksum divergente mantém o binário" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  _fake_github_release bad
+  _github_release_bin_update gitleaks gitleaks gitleaks/gitleaks x64 arm64 || status=$?
+  [ "${status:-0}" -eq 1 ]
+  run "$HOME/.local/bin/gitleaks" --version
+  [[ "$output" == *"1.0.0"* ]]
+}
+
+@test "_github_release_bin_update: já na última versão não baixa nada" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  _fake_github_release good
+  printf '#!/bin/sh\necho "gitleaks version 2.0.0"\n' >"$HOME/.local/bin/gitleaks"
+  rm "$BATS_TEST_TMPDIR/rel/"*.tar.gz
+  # Sem tar.gz no release falso: qualquer tentativa de download falharia.
+  run _github_release_bin_update gitleaks gitleaks gitleaks/gitleaks x64 arm64
+  [ "$status" -eq 0 ]
+}
+
+@test "update_cloudflared: rc 11 do upstream (atualizado) é sucesso" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME/.9router/bin"
+  printf '#!/bin/sh\n[ "$1" = update ] && exit 11\necho "cloudflared version 2026.9.3"\n' >"$HOME/.9router/bin/cloudflared"
+  chmod +x "$HOME/.9router/bin/cloudflared"
+  run update_cloudflared
+  [ "$status" -eq 0 ]
+}
+
+@test "update_cloudflared: rc diferente de 0/11 vira RC_WARN" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME/.local/bin"
+  printf '#!/bin/sh\n[ "$1" = update ] && exit 1\n' >"$HOME/.local/bin/cloudflared"
+  chmod +x "$HOME/.local/bin/cloudflared"
+  run update_cloudflared
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "update_muse: usa o modo instalador do launcher" {
+  has() { [[ "$1" == muse ]]; }
+  muse() { echo "Muse Code 1.4.0"; }
+  run_network_cmd() { [[ "${MUSE_LAUNCHER_INSTALL:-}" == 1 ]] || return 1; }
+  run update_muse
+  [ "$status" -eq 0 ]
+}

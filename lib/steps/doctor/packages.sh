@@ -308,7 +308,8 @@ _manual_apps_has_step() {
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
     kiro-cli|kiro-cli-chat|kiro-cli-term|\
-    grok|jcode|qodercli|qoderwake|kimchi|cua-driver)
+    grok|jcode|qodercli|qoderwake|kimchi|cua-driver|\
+    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|cloudflared)
       return 0 ;;
     *) return 1 ;;
   esac

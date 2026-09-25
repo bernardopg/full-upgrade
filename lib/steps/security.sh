@@ -243,3 +243,11 @@ update_zap() {
   log "  Add-ons do ZAP atualizados (core ${core:-?})."
   return "$core_rc"
 }
+
+
+# ── Scanners de segredos (binários de release do GitHub) ──────────────────────
+# Instalados em ~/.local/bin a partir do tar.gz oficial, sem gestor de pacote.
+# O trufflehog tem auto-update embutido, mas só roda durante um scan; aqui ele é
+# atualizado mesmo sem uso. Helper em manual_apps.sh.
+update_gitleaks() { _github_release_bin_update "gitleaks" gitleaks gitleaks/gitleaks x64 arm64; }
+update_trufflehog() { _github_release_bin_update "trufflehog" trufflehog trufflesecurity/trufflehog amd64 arm64; }

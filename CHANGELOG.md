@@ -5,6 +5,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 ### Adicionado
 - **Novos steps self-download:** `Atualizar kilo (Kilo Code CLI)` e `Atualizar mimo (MiMo Code)` (forks do opencode, via `<bin> upgrade`), `Atualizar pool (Poolside)` e `Atualizar purple (cliente SSH)` (via `<bin> update`, que só baixa release nova e confere checksum).
+- **Mais steps para programas fora de pacote:** `Atualizar Android CLI` (CLI, skills e pacotes do SDK), `Atualizar gitleaks` e `Atualizar trufflehog` (release do GitHub com sha256 obrigatório, helper `_github_release_bin_update`), `Atualizar muse (Muse Code)` (modo instalador do launcher, sem abrir a TUI) e `Atualizar cloudflared` (cópias fora de pacote, como a do 9router; rc 11 do upstream = atualizado).
+- **Go:** `Atualizar ferramentas Go` também atualiza binários de `go install` em `~/.local/bin` (ex.: `*-pp-cli`), reinstalando no mesmo diretório; ignora builds locais e módulos sem caminho baixável (ex.: o `gk`).
+- **`FWUPD_HSI_MIN`** (padrão 2): nível HSI abaixo do qual `Doctor: fwupd security` avisa. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada.
 
 ### Corrigido
 - **Journal/Doctor: timeout com journal grande.** O teste de vazio `[[ -z "${var//[[:space:]]/}" ]]` é quadrático no bash; com uma unit em loop de restart (~83 mil linhas, 14 MB no `-p 3` do boot), `Doctor: journal erros críticos` estourava o limite de 30s antes de filtrar qualquer linha e escondia a causa. Todas as 105 ocorrências em `lib/`, `steps.d/` e `scripts/` agora usam o glob linear `[[ $var == *[![:space:]]* ]]`; o mesmo journal real é analisado em ~6s. `tests/shell_hygiene.bats` impede o idioma de voltar.

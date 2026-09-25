@@ -4,10 +4,19 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # globais cross-module (STEP_REASON etc.)
 
+# Binários `go install` vivem em GOPATH/bin, mas há quem instale com
+# GOBIN=~/.local/bin (ex.: os *-pp-cli do printing-press); sem varrer esse
+# diretório eles nunca eram atualizados. Cada módulo é reinstalado no mesmo
+# diretório onde foi achado. Binário de `go build` local (path
+# command-line-arguments ou mod "(devel)") ou de módulo privado não tem @latest
+# e é ignorado.
 update_go_tools() {
   local gopath
   gopath="$(go env GOPATH 2>/dev/null || true)"
-  if [[ -z "$gopath" || ! -d "$gopath/bin" ]]; then
+  local -a dirs=()
+  [[ -n "$gopath" && -d "$gopath/bin" ]] && dirs+=("$gopath/bin")
+  [[ -d "${HOME}/.local/bin" ]] && dirs+=("${HOME}/.local/bin")
+  if (( ${#dirs[@]} == 0 )); then
     log "  GOPATH/bin não encontrado; sem ferramentas Go para atualizar."
     return 0
   fi
@@ -15,16 +24,23 @@ update_go_tools() {
   local -A seen=()        # module path → 1
   local -A mod_to_bin=()  # module path → bin path (para capturar before_sum do bin real)
   local -a modules=()
-  local bin module
-  for bin in "$gopath"/bin/*; do
-    [[ -x "$bin" ]] || continue
-    module="$(go version -m "$bin" 2>/dev/null | awk '$1=="path"{print $2; exit}')"
-    [[ -n "$module" ]] || continue
-    if [[ -z "${seen[$module]+x}" ]]; then
-      seen[$module]=1
-      mod_to_bin[$module]="$bin"
-      modules+=("$module")
-    fi
+  local bin module dir info modver
+  for dir in "${dirs[@]}"; do
+    for bin in "$dir"/*; do
+      [[ -f "$bin" && -x "$bin" && ! -L "$bin" ]] || continue
+      info="$(go version -m "$bin" 2>/dev/null)" || continue
+      module="$(awk '$1=="path"{print $2; exit}' <<<"$info")"
+      modver="$(awk '$1=="mod"{print $3; exit}' <<<"$info")"
+      # Sem ponto no primeiro elemento o path não é baixável (ex.: o gk da
+      # GitKraken, compilado como "gkcli/cmd/installer-proxy").
+      [[ -n "$module" && "${module%%/*}" == *.* ]] || continue
+      [[ -n "$modver" && "$modver" != "(devel)" ]] || continue
+      if [[ -z "${seen[$module]+x}" ]]; then
+        seen[$module]=1
+        mod_to_bin[$module]="$bin"
+        modules+=("$module")
+      fi
+    done
   done
 
   if (( ${#modules[@]} == 0 )); then
@@ -38,7 +54,7 @@ update_go_tools() {
     mod_path="${mod_to_bin[$module]}"
     before_sum="$(go version -m "$mod_path" 2>/dev/null | awk '$1=="mod"{print $3}' || true)"
     log "  Atualizando Go tool: ${module}@latest"
-    if ! run_logged go install "${module}@latest"; then
+    if ! run_logged env GOBIN="$(dirname "$mod_path")" go install "${module}@latest"; then
       failed+=("$module"); continue
     fi
     after_sum="$(go version -m "$mod_path" 2>/dev/null | awk '$1=="mod"{print $3}' || true)"

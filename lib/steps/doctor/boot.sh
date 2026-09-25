@@ -82,21 +82,24 @@ doctor_fwupd_security() {
   # que há medições de runtime presentes (HSI-Runtime), não insegurança. E os
   # marcadores "✘" em sub-itens são esperados mesmo em níveis altos (atributos
   # não suportados/não aplicáveis no hardware), então NÃO devem disparar aviso
-  # por si só. Critério: avisar somente quando o nível agregado é baixo (< 2).
+  # por si só. Critério: avisar somente quando o nível agregado fica abaixo de
+  # FWUPD_HSI_MIN (padrão 2; HSI costuma ser limitado pelo hardware/UEFI).
   local hsi_level
   hsi_level="$(printf '%s\n' "$output" | grep -oiE 'HSI:[0-9]+' | head -n1 | grep -oE '[0-9]+' || true)"
 
   if [[ -n "$hsi_level" ]]; then
-    if (( hsi_level < 2 )); then
+    local hsi_min="${FWUPD_HSI_MIN:-2}"
+    [[ "$hsi_min" =~ ^[0-9]+$ ]] || hsi_min=2
+    if (( hsi_level < hsi_min )); then
       if fwupd_hsi_only_mtd_measurement_gap "$output" "$hsi_level"; then
         log "  fwupd security: HSI:1 limitado apenas por Locked MTD sem suporte/dados no fwupd 2.1.7; postura de firmware inalterada."
         return 0
       fi
       STEP_REASON="nível HSI baixo (HSI:${hsi_level} de 4)"
-      log "  fwupd security: nível HSI:${hsi_level} abaixo do recomendado (>= 2)."
+      log "  fwupd security: nível HSI:${hsi_level} abaixo do mínimo configurado (FWUPD_HSI_MIN=${hsi_min})."
       return "$RC_WARN"
     fi
-    log "  fwupd security: HSI:${hsi_level} de 4 (aceitável). Marcadores ✘ em sub-itens são normais."
+    log "  fwupd security: HSI:${hsi_level} de 4 (aceito com FWUPD_HSI_MIN=${hsi_min}). Marcadores ✘ em sub-itens são normais."
     return 0
   fi
 
