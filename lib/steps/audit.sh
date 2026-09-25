@@ -35,7 +35,7 @@ _audit_probe_cargo() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   [[ -d "$cargo_bin" ]] || return 0
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
   (( ${#bins[@]} )) || return 0
   local out
   out="$(cargo audit bin "${bins[@]}" 2>&1)"

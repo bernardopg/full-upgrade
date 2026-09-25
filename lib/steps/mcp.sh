@@ -346,8 +346,8 @@ def classify(cfg):
     if not parts:
         url = cfg.get("url") or cfg.get("endpoint") or cfg.get("serverUrl")
         if url or cfg.get("type") in ("http", "sse", "streamable-http"):
-            return ("remote", "")
-        return ("external", "")
+            return ("remote", "", "")
+        return ("external", "", "")
     base = os.path.basename(parts[0])
     rest = parts[1:]
     if base in NPX:
@@ -363,8 +363,8 @@ def classify(cfg):
                 i += 1; continue
             pkg = a; break
         if not pkg:
-            return ("fresh", "")
-        return ("pinned", "") if is_pinned(pkg) else ("fresh", "")
+            return ("fresh", "", "")
+        return ("pinned", "", "npm:" + pkg) if is_pinned(pkg) else ("fresh", "", "")
     if base in UVX:
         src = None; tool = None; i = 0
         while i < len(rest):
@@ -378,7 +378,7 @@ def classify(cfg):
             tool = a; break
         spec = src if src else tool
         if not spec:
-            return ("external", "")
+            return ("external", "", "")
         if src and src.startswith("git+"):
             dist = distname(tool) or (tool or "")
         elif src:
@@ -386,18 +386,18 @@ def classify(cfg):
         else:
             dist = distname(tool)
         if src and src.startswith("git+"):
-            return ("refresh", dist)
+            return ("refresh", dist, "")
         if is_pinned(spec):
-            return ("pinned", dist)
-        return ("refresh", dist)
-    return ("external", "")
+            return ("pinned", dist, "pypi:" + spec)
+        return ("refresh", dist, "")
+    return ("external", "", "")
 
 def emit(name, cfg, seen):
     if name in seen:
         return
     seen.add(name)
-    action, dist = classify(cfg)
-    print(name + "\t" + action + "\t" + dist)
+    action, dist, pin = classify(cfg)
+    print(name + "\t" + action + "\t" + dist + ("\t" + pin if pin else ""))
 
 seen = set()
 if kind == "claude":
@@ -437,6 +437,36 @@ elif kind == "json":
 }
 
 
+# Recebe "npm:<pkg>@<versão>" ou "pypi:<dist>==<versão>" (ou <dist>@<versão>) e
+# os nomes dos servers; imprime "<servers>: <pacote> <fixada> → <última>" quando
+# o registry publica outra versão como latest. Falha de rede = silêncio (o pin
+# só é reportado quando há certeza).
+mcp_pin_outdated() {
+  local pin="$1" servers="$2" eco spec pkg ver latest
+  eco="${pin%%:*}"; spec="${pin#*:}"
+  case "$eco" in
+    npm)
+      if [[ "$spec" == @* ]]; then
+        pkg="@${spec#@}"; pkg="${pkg%@*}"; ver="${spec##*@}"
+      else
+        pkg="${spec%@*}"; ver="${spec##*@}"
+      fi
+      [[ "$pkg" != "$spec" ]] || return 0
+      latest="$(timeout 20 npm view "$pkg" version 2>/dev/null | tail -1)"
+      ;;
+    pypi)
+      pkg="${spec%%[=@]*}"; ver="${spec##*[=@]}"
+      [[ "$pkg" != "$spec" && -n "$ver" ]] || return 0
+      latest="$(curl -fsS --max-time 20 "https://pypi.org/pypi/${pkg}/json" 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])' 2>/dev/null)"
+      ;;
+    *) return 0 ;;
+  esac
+  [[ -n "$latest" && "$latest" != "$ver" ]] || return 0
+  printf '%s: %s %s → %s\n' "$servers" "$pkg" "$ver" "$latest"
+}
+
+
 # N2 — true (rc 0) se a saída do `uv cache clean` ($1) indica que o lock global
 # de ~/.cache/uv está ocupado por um server uvx ativo. Esse é o caso ESPERADO num
 # upgrade conduzido por agente: a própria sessão (Claude/Codex) mantém o serena
@@ -459,15 +489,20 @@ mcp_update_servers() {
   local codex_toml="${HOME}/.codex/config.toml"
   local opencode_json="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
   local hub_json="${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json"
+  # pi e Cursor usam o mesmo formato JSON (mcpServers); o pi chegou a ter o
+  # único server playwright da máquina, invisível para este step.
+  local pi_json="${HOME}/.pi/agent/mcp.json" cursor_json="${HOME}/.cursor/mcp.json"
 
-  local -A action_of=() cache_of=() seen=()
-  local entry kind file name action dist key
+  local -A action_of=() cache_of=() seen=() pins=()
+  local entry kind file name action dist key pin
   for entry in "claude:${claude_json}" "codex:${codex_toml}" \
-               "json:${opencode_json}" "json:${hub_json}"; do
+               "json:${opencode_json}" "json:${hub_json}" \
+               "json:${pi_json}" "json:${cursor_json}"; do
     kind="${entry%%:*}"; file="${entry#*:}"
     [[ -r "$file" ]] || continue
-    while IFS=$'\t' read -r name action dist; do
+    while IFS=$'\t' read -r name action dist pin; do
       [[ -n "$name" ]] || continue
+      [[ -n "$pin" && ",${pins[$pin]:-}," != *",${name},"* ]] && pins["$pin"]+="${pins[$pin]:+,}${name}"
       # O mesmo nome pode apontar para runtimes diferentes em clientes
       # diferentes. Só deduplicamos a distribuição final em `targets`.
       key="${file}:${name}"
@@ -503,8 +538,26 @@ mcp_update_servers() {
 
   log "  MCP: ${total} servidor(es) — refresh(uvx): ${n_refresh}, auto-fresh(npx): ${n_fresh}, pinned: ${n_pinned}, externo: ${n_external}, remoto: ${n_remote}."
 
+  # Pin é decisão do usuário e nunca é alterado aqui, mas um pin atrás da
+  # última release publicada fica parado para sempre sem ninguém notar (visto em
+  # 2026-09-25: @playwright/mcp e markitdown-mcp). Consulta read-only ao registry.
+  local -a stale_pins=()
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && stale_pins+=("$line")
+  done < <(for pin in "${!pins[@]}"; do mcp_pin_outdated "$pin" "${pins[$pin]}"; done | sort)
+  if ((${#stale_pins[@]} > 0)); then
+    log "  Servers MCP com versão fixada atrás da última release:"
+    for line in "${stale_pins[@]}"; do log "    ${line}"; done
+    remediation "atualize a versão fixada desses servers MCP nas configs dos clientes (Claude, Codex, opencode, pi…)"
+  fi
+
   if (( n_refresh == 0 )); then
-    log "  Nada a refrescar: servers npx resolvem a última a cada run; pinned/externo/remoto ficam fora de escopo."
+    log "  Nada a refrescar: servers npx resolvem a última a cada run; externo/remoto ficam fora de escopo."
+    if ((${#stale_pins[@]} > 0)); then
+      STEP_REASON="${#stale_pins[@]} server(s) MCP fixado(s) em versão antiga"
+      return "$RC_TODO"
+    fi
     return 0
   fi
 
@@ -534,6 +587,10 @@ mcp_update_servers() {
   uv_rc=$?
   if (( uv_rc == 0 )); then
     log "  Cache uv refrescado para ${#names[@]} pacote(s) de servers MCP."
+    if ((${#stale_pins[@]} > 0)); then
+      STEP_REASON="${#stale_pins[@]} server(s) MCP fixado(s) em versão antiga"
+      return "$RC_TODO"
+    fi
     return 0
   fi
   if mcp_uv_lock_busy "$uv_out"; then

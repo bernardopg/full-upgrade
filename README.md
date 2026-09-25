@@ -291,14 +291,14 @@ eixos transversais (`network`, `slow`, `sudo`, nome da ferramenta, …).
 | `backup` | Backup de configs de `/etc`, snapshot pré-upgrade e réplica de snapshot em nuvem. |
 | `packages` | Gestores de pacote: pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap e Docker. |
 | `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
-| `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP. |
+| `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog. |
 | `firmware` | `fwupd` e `systemd-boot`. |
 | `lang-js` | Toolchain JavaScript: npm (dois prefixos), corepack, pnpm, Bun, Deno. |
 | `lang-py` | Toolchain Python: pip `--user`, pipx, uv (self/python/tools), Poetry. |
 | `lang-rust` | Toolchain Rust: rustup, binários cargo e auditoria de CVEs. |
 | `lang-other` | Demais toolchains: Arduino, Go, .NET, Google Cloud SDK, gems, ghcup. |
-| `ai` | CLIs de IA e otimização, incluindo as instaladas fora de gestor de pacote. |
-| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, OBS). |
+| `ai` | CLIs de IA e otimização (inclusive fora de gestor de pacote), plugins do Claude Code e do Codex, agent skills e servidores MCP. |
+| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, purple, Android CLI, cloudflared, OBS). |
 | `ide` | IDEs e extensões (Orca, Antigravity, VSCode/Cursor). |
 | `editor` | Neovim (plugins Lazy e ferramentas Mason). |
 | `shell` | Shell e terminal: Oh My Zsh, plugins Zsh, Yazi, Hyprland (hyprpm), cache do tldr. |

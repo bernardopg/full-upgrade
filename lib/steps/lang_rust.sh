@@ -82,13 +82,18 @@ audit_cargo_bins() {
   fi
 
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
 
   if (( ${#bins[@]} == 0 )); then
     log "  Sem binários cargo para auditar."
     return 0
   fi
 
+  # cargo-audit recusa binário acima de 100 MiB ("exceeds max size limit") e o
+  # erro sumia no meio da saída; os find acima já os excluem, aqui só avisamos.
+  local -a big=()
+  mapfile -t big < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size +104857600c -printf '%f\n' 2>/dev/null)
+  ((${#big[@]} > 0)) && log "  Fora da auditoria (acima do limite de 100 MiB do cargo-audit): ${big[*]}."
   log "  Auditando ${#bins[@]} binário(s) cargo por vulnerabilidades conhecidas..."
   local output rc_audit
   output="$(cargo audit bin "${bins[@]}" 2>&1)"
@@ -213,7 +218,7 @@ _rust_collect_vuln_bins() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   [[ -d "$cargo_bin" ]] || return 0
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
   (( ${#bins[@]} == 0 )) && return 0
 
   local output rc netre

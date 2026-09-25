@@ -216,6 +216,14 @@ update_cua_driver() {
     apply_out="$(run_network_cmd cua-driver update --apply)"
     apply_rc=$?
     printf '%s\n' "$apply_out" | log_out
+    hash -r 2>/dev/null || true
+    # O instalador "stopping any running cua-driver daemons before swap" mata o
+    # próprio `cua-driver update --apply` depois de trocar o binário (rc 143).
+    # A versão instalada é a prova: mudou, então a atualização aconteceu.
+    if ((apply_rc != 0)) && [[ -n "$current" ]] \
+      && [[ "$(cua-driver --version 2>/dev/null | awk 'NR==1{print $NF}')" != "$current" ]]; then
+      apply_rc=0
+    fi
     if ((apply_rc != 0)); then
       # O check-update anuncia a release mais nova mesmo quando o upstream a
       # retirou; o instalador recusa ("was withdrawn and must not be installed").

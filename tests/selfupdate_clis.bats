@@ -73,9 +73,12 @@ _stub_cua_driver() {
   cat >"$BATS_TEST_TMPDIR/bin/cua-driver" <<'SH'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "--version "*) echo "cua-driver 0.28.2" ;;
+  "--version "*) cat "$BATS_TEST_TMPDIR/cua-version" 2>/dev/null || echo "cua-driver 0.28.2" ;;
   "check-update --json") echo '{ "current_version": "0.28.2", "update_available": true }' ;;
-  "update --apply") printf '%s\n' "$CUA_APPLY_OUT"; exit "$CUA_APPLY_RC" ;;
+  "update --apply")
+    printf '%s\n' "$CUA_APPLY_OUT"
+    [ -n "${CUA_APPLY_NEWVER:-}" ] && echo "cua-driver $CUA_APPLY_NEWVER" >"$BATS_TEST_TMPDIR/cua-version"
+    exit "$CUA_APPLY_RC" ;;
   "skills update") echo "skills ok" ;;
 esac
 SH
@@ -98,4 +101,12 @@ SH
   update_cua_driver || status=$?
   [ "${status:-0}" -eq "$RC_WARN" ]
   [[ "$STEP_REASON" == *"rc=1"* ]]
+}
+
+@test "cua-driver: apply morto após trocar o binário (rc 143) conta como atualizado" {
+  _stub_cua_driver
+  export CUA_APPLY_RC=143 CUA_APPLY_OUT="==> stopping any running cua-driver daemons before swap"
+  export CUA_APPLY_NEWVER=0.29.1
+  run update_cua_driver
+  [ "$status" -eq 0 ]
 }

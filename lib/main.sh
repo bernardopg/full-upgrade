@@ -392,6 +392,18 @@ run_all_steps() {
         step_skip "Atualizar Ollama" "ollama não instalado"
     fi
 
+    if has claude; then
+        run_step "Atualizar plugins do Claude Code" update_claude_plugins
+    else
+        step_skip "Atualizar plugins do Claude Code" "claude não instalado"
+    fi
+
+    if has codex; then
+        run_step "Atualizar plugins do Codex" update_codex_plugins
+    else
+        step_skip "Atualizar plugins do Codex" "codex não instalado"
+    fi
+
     if has npx && [[ -d "${HOME}/.agents/skills" ]]; then
         run_step "Atualizar agent skills (skills CLI)" update_agent_skills
     else
@@ -402,7 +414,9 @@ run_all_steps() {
        && { [[ -r "${HOME}/.claude.json" ]] \
          || [[ -r "${HOME}/.codex/config.toml" ]] \
          || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
-         || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]]; }; then
+         || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]] \
+         || [[ -r "${HOME}/.pi/agent/mcp.json" ]] \
+         || [[ -r "${HOME}/.cursor/mcp.json" ]]; }; then
         run_step "Atualizar servidores MCP" mcp_update_servers
     else
         step_skip "Atualizar servidores MCP" "MCP_AUTO_UPDATE!=1 ou sem fonte MCP"

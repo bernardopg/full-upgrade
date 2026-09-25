@@ -55,9 +55,23 @@ setup() {
   has() { [[ "$1" == kilo ]]; }
   kilo() { [[ "$1" == --version ]] && printf '7.3.16\n'; }
   run_network_cmd() { printf '■  Upgrade failed\n■  bash: linha 1: `<!DOCTYPE html>\n'; return 0; }
+  curl() { echo '<!DOCTYPE html>'; }
   run update_kilo
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"kilo (Kilo Code CLI): falha ao atualizar"* ]]
+  [[ "$output" == *"não devolveu um script bash"* ]]
+}
+
+@test "kilo: upgrade nativo quebrado cai para o instalador oficial" {
+  has() { [[ "$1" == kilo ]]; }
+  kilo() { [[ "$1" == --version ]] && printf '7.8.1\n'; }
+  run_network_cmd() {
+    if [[ "$1" == kilo ]]; then printf '■  Upgrade failed\n'; return 0; fi
+    printf '#!/usr/bin/env bash\necho instalado\n'
+  }
+  run update_kilo
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"instalado"* ]]
 }
 
 @test "opencode-style: mimo usa o mesmo fluxo de upgrade" {

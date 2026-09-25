@@ -110,7 +110,33 @@ _opencode_style_upgrade() {
 }
 
 update_opencode() { _opencode_style_upgrade opencode opencode; }
-update_kilo() { _opencode_style_upgrade "kilo (Kilo Code CLI)" kilo; }
+# O `kilo upgrade` do 7.3.x baixa o instalador de kilo.ai/install, que virou a
+# página do site; o script oficial agora está em kilo.ai/cli/install e instala
+# no mesmo ~/.kilo/bin. Se o upgrade nativo falhar, cai para esse script, desde
+# que o download seja de fato um script bash (nunca executa HTML).
+KILO_INSTALLER_URL="${KILO_INSTALLER_URL:-https://kilo.ai/cli/install}"
+update_kilo() {
+  local rc before script
+  _opencode_style_upgrade "kilo (Kilo Code CLI)" kilo
+  rc=$?
+  ((rc == RC_WARN)) && [[ "$STEP_REASON" == "kilo upgrade falhou" ]] || return "$rc"
+
+  log "  Tentando o instalador oficial (${KILO_INSTALLER_URL})…"
+  script="$(run_network_cmd curl -fsSL "$KILO_INSTALLER_URL")" || return "$RC_WARN"
+  if [[ "$script" != '#!'*bash* ]]; then
+    log "  ${KILO_INSTALLER_URL} não devolveu um script bash; mantendo o kilo atual."
+    return "$RC_WARN"
+  fi
+  before="$(kilo --version 2>/dev/null | head -1)"
+  if ! bash -s -- --no-modify-path <<<"$script" 2>&1 | _strip_ansi | grep -v '^[[:space:]]*$' | tail -5 | log_out; then
+    log "  Instalador oficial do kilo falhou."
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  STEP_REASON=""
+  log "  kilo (Kilo Code CLI): ${before:-?} → $(kilo --version 2>/dev/null | head -1)"
+  return 0
+}
 update_mimo() { _opencode_style_upgrade "mimo (MiMo Code)" mimo; }
 
 
@@ -460,6 +486,197 @@ update_agent_skills() {
     log "  Falha ao atualizar agent skills (rede/registro indisponível)."
     return "$RC_WARN"
   fi
+
+  # Skill removida do upstream não é apagada em modo não-interativo e some da
+  # atualização para sempre; o aviso ficava cortado pelo tail acima.
+  local orphans
+  orphans="$(agent_skills_upstream_deleted <<<"$output")"
+  if [[ -n "$orphans" ]]; then
+    log "  Skills sem upstream (não recebem mais update, mantidas): ${orphans}."
+    log "  Para removê-las: npx skills remove --global ${orphans}"
+  fi
+  agent_skills_git_ff "${HOME}/.agents/skills"
+}
+
+# Nomes únicos (espaço) das skills que o `skills update` diz terem sido
+# apagadas no upstream: bullets "• nome" após "deleted upstream". Puro.
+agent_skills_upstream_deleted() {
+  _strip_ansi | awk '
+    /deleted upstream/ { grab = 1; next }
+    grab && /^[[:space:]]*•/ { sub(/^[[:space:]]*•[[:space:]]*/, ""); if (!seen[$0]++) out = out (out ? " " : "") $0; next }
+    { grab = 0 }
+    END { print out }'
+}
+
+# ~/.agents/skills pode ser um clone git (ex.: anthropics/skills) com as skills
+# do CLI ao lado. `skills update` não toca o clone, que ficava para trás do
+# upstream. Só faz fast-forward de árvore limpa; divergência ou conflito viram
+# TODO, nunca reset. rc: 0 ok/sem clone · RC_WARN rede · RC_TODO intervenção.
+agent_skills_git_ff() {
+  local dir="$1" out ref behind
+  [[ -d "${dir}/.git" ]] || return 0
+  if git_has_unmerged "$dir" || [[ -n "$(git -C "$dir" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
+    STEP_REASON="clone de skills em ${dir} tem alterações locais; atualize à mão"
+    return "$RC_TODO"
+  fi
+  if ! out="$(git_fetch_full "$dir")"; then
+    log_raw "$out"
+    if git_remote_gone "$out"; then
+      STEP_REASON="upstream do clone de skills em ${dir} inacessível"
+      return "$RC_TODO"
+    fi
+    STEP_REASON="fetch do clone de skills em ${dir} falhou"
+    return "$RC_WARN"
+  fi
+  ref="$(git_tracking_ref "$dir")"
+  behind="$(git -C "$dir" rev-list --count "HEAD..${ref}" 2>/dev/null || echo 0)"
+  ((behind > 0)) || return 0
+  # merge --ff-only contra o ref já verificado: o clone pode não ter upstream
+  # configurado (git_tracking_ref cai para origin/HEAD), e aí `pull origin`
+  # recusa por não saber o branch.
+  if ! git -C "$dir" merge-base --is-ancestor HEAD "$ref" 2>/dev/null \
+    || ! git -C "$dir" -c merge.autostash=false merge --ff-only --quiet "$ref" 2>>"${LOG_FILE:-/dev/null}"; then
+    STEP_REASON="clone de skills em ${dir} divergiu de ${ref}; atualize à mão"
+    return "$RC_TODO"
+  fi
+  log "  Clone de skills em ${dir}: +${behind} commit(s) de ${ref}."
+  return 0
+}
+
+
+# ── Plugins do Claude Code ─────────────────────────────────────────────────────
+# O Claude Code só atualiza sozinho o marketplace oficial; marketplaces de
+# terceiros (caveman, ponytail, headroom, codex…) ficam sem autoUpdate e os
+# plugins deles paravam na versão instalada (visto em 2026-09-25: 16 dias sem
+# refresh). Fluxo: `plugin marketplace update` (todos), depois `plugin update
+# <id> --scope user --json` para cada plugin de escopo user. Escopos
+# project/local pertencem a um projeto e synced é gerido pelo claude.ai: ficam
+# de fora. Nunca passa -y: plugin cujo comando de instalação mudou exige
+# confirmação humana e vira TODO. rc: 0 ok · RC_WARN rede/falha · RC_TODO.
+claude_plugin_user_ids() {
+  python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+seen = set()
+for p in data if isinstance(data, list) else []:
+    pid = p.get("id") or ""
+    if p.get("scope") == "user" and pid and pid not in seen:
+        seen.add(pid)
+        print(pid)
+'
+}
+
+# Lê as linhas JSON de `plugin update --json` (uma por plugin, prefixadas por
+# "<id>\t") e imprime "<classe>\t<id>\t<detalhe>": updated, current, confirm
+# (comando declarado mudou) ou fail.
+claude_plugin_update_classify() {
+  python3 -c '
+import json, sys
+for line in sys.stdin:
+    pid, _, raw = line.rstrip("\n").partition("\t")
+    try:
+        r = json.loads(raw)
+    except Exception:
+        print("fail\t%s\t%s" % (pid, raw.strip()[:160]))
+        continue
+    if r.get("shownCommand"):
+        print("confirm\t%s\t" % pid)
+    elif r.get("outcome") == "ok" and r.get("updateOutcome") == "updated":
+        print("updated\t%s\t%s → %s" % (pid, r.get("oldVersion", "?"), r.get("newVersion", "?")))
+    elif r.get("outcome") == "ok":
+        print("current\t%s\t" % pid)
+    else:
+        print("fail\t%s\t%s" % (pid, (r.get("message") or r.get("error") or "")[:160]))
+'
+}
+
+update_claude_plugins() {
+  has claude || { log "  claude não encontrado."; return 0; }
+  local mk_out mk_rc
+  mk_out="$(run_network_cmd claude plugin marketplace update </dev/null)"
+  mk_rc=$?
+  printf '%s\n' "$mk_out" | log_out
+  if ((mk_rc != 0)); then
+    log "  Falha ao atualizar os marketplaces de plugins do Claude Code."
+    STEP_REASON="claude plugin marketplace update falhou"
+    return "$RC_WARN"
+  fi
+
+  local -a ids=()
+  mapfile -t ids < <(claude plugin list --json </dev/null 2>/dev/null | claude_plugin_user_ids)
+  if ((${#ids[@]} == 0)); then
+    log "  Nenhum plugin do Claude Code em escopo user."
+    return 0
+  fi
+
+  local id raw results
+  results="$(for id in "${ids[@]}"; do
+    raw="$(claude plugin update "$id" --scope user --json </dev/null 2>&1 | grep -m1 '^{')"
+    printf '%s\t%s\n' "$id" "${raw:-{\}}"
+  done | claude_plugin_update_classify)"
+  log_raw "$results"
+
+  local cls detail n_updated=0 n_current=0
+  local -a confirm=() failed=()
+  while IFS=$'\t' read -r cls id detail; do
+    case "$cls" in
+      updated) ((n_updated++)); log "  ${id}: ${detail}" ;;
+      current) ((n_current++)) ;;
+      confirm) confirm+=("$id") ;;
+      fail) failed+=("$id"); log "  ${id}: falhou ${detail}" ;;
+    esac
+  done <<<"$results"
+  log "  Plugins do Claude Code: ${n_updated} atualizado(s), ${n_current} já na última versão (${#ids[@]} em escopo user)."
+  ((n_updated > 0)) && log "  Reinicie as sessões do Claude Code para carregar os plugins novos."
+
+  if ((${#failed[@]} > 0)); then
+    STEP_REASON="falha ao atualizar plugin(s): ${failed[*]}"
+    return "$RC_WARN"
+  fi
+  if ((${#confirm[@]} > 0)); then
+    remediation "revise e confirme: claude plugin update <plugin> --scope user (${confirm[*]})"
+    STEP_REASON="comando de instalação mudou em: ${confirm[*]}"
+    return "$RC_TODO"
+  fi
+  return 0
+}
+
+
+# ── Plugins do Codex ────────────────────────────────────────────────────────────
+# Plugins do Codex leem direto do snapshot git do marketplace em
+# ~/.codex/.tmp/marketplaces; `codex plugin marketplace upgrade` renova todos os
+# snapshots. Ele sai 0 mesmo quando um marketplace falha, então o texto decide.
+# Nome divergente entre plugin.json e o marketplace ("does not match marketplace
+# plugin name") é inconsistência do upstream: o Codex recusa aquele marketplace
+# até o autor corrigir, sem ação local possível — é registrado, não vira aviso.
+update_codex_plugins() {
+  has codex || { log "  codex não encontrado."; return 0; }
+  local out rc line upstream=() failed=()
+  out="$(run_network_cmd codex plugin marketplace upgrade </dev/null)"
+  rc=$?
+  while IFS= read -r line; do
+    [[ "$line" == *"Failed to upgrade marketplace"* ]] || continue
+    local mk="${line#*\`}"; mk="${mk%%\`*}"
+    if [[ "$line" == *"does not match marketplace plugin name"* ]]; then
+      upstream+=("$mk")
+      log "  ${mk}: inconsistência no upstream (${line##*: }); snapshot anterior mantido."
+    else
+      failed+=("$mk")
+      log "  ${line}"
+    fi
+  done <<<"$out"
+  if ((rc == RC_WARN)); then
+    STEP_REASON="rede indisponível para codex plugin marketplace upgrade"
+    return "$RC_WARN"
+  fi
+  if ((rc != 0 || ${#failed[@]} > 0)); then
+    STEP_REASON="falha ao renovar marketplace(s) do Codex: ${failed[*]:-rc=${rc}}"
+    return "$RC_WARN"
+  fi
+  log "  Marketplaces de plugins do Codex renovados${upstream[*]:+ (exceto ${upstream[*]}, pendente no upstream)}."
   return 0
 }
 

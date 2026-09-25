@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Mais steps para programas fora de pacote:** `Atualizar Android CLI` (CLI, skills e pacotes do SDK), `Atualizar gitleaks` e `Atualizar trufflehog` (release do GitHub com sha256 obrigatório, helper `_github_release_bin_update`), `Atualizar muse (Muse Code)` (modo instalador do launcher, sem abrir a TUI) e `Atualizar cloudflared` (cópias fora de pacote, como a do 9router; rc 11 do upstream = atualizado).
 - **Go:** `Atualizar ferramentas Go` também atualiza binários de `go install` em `~/.local/bin` (ex.: `*-pp-cli`), reinstalando no mesmo diretório; ignora builds locais e módulos sem caminho baixável (ex.: o `gk`).
 - **`FWUPD_HSI_MIN`** (padrão 2): nível HSI abaixo do qual `Doctor: fwupd security` avisa. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada.
+- **`Atualizar plugins do Claude Code`:** atualiza todos os marketplaces (`claude plugin marketplace update`) e cada plugin de escopo user (`claude plugin update --json`). Marketplaces de terceiros não têm autoUpdate e estavam 16 dias parados. Plugin cujo comando de instalação mudou vira TODO; o step nunca passa `-y`.
+- **`Atualizar plugins do Codex`:** renova os snapshots git dos marketplaces (`codex plugin marketplace upgrade`), que sai 0 mesmo com falha, então o texto decide. Nome divergente entre `plugin.json` e o marketplace é inconsistência do upstream e só é registrado.
+- **Agent skills:** um clone git em `~/.agents/skills` (ex.: anthropics/skills) recebe fast-forward seguro (árvore limpa, sem reset; divergência vira TODO). Skills apagadas no upstream, que o `skills update` mantém em modo não-interativo, passam a ser listadas com o comando de remoção.
+- **MCP:** versão fixada atrás da última release publicada (npm/PyPI) vira TODO com a lista de servers. As configs do pi (`~/.pi/agent/mcp.json`) e do Cursor entram na varredura.
 
 ### Corrigido
 - **Journal/Doctor: timeout com journal grande.** O teste de vazio `[[ -z "${var//[[:space:]]/}" ]]` é quadrático no bash; com uma unit em loop de restart (~83 mil linhas, 14 MB no `-p 3` do boot), `Doctor: journal erros críticos` estourava o limite de 30s antes de filtrar qualquer linha e escondia a causa. Todas as 105 ocorrências em `lib/`, `steps.d/` e `scripts/` agora usam o glob linear `[[ $var == *[![:space:]]* ]]`; o mesmo journal real é analisado em ~6s. `tests/shell_hygiene.bats` impede o idioma de voltar.
@@ -15,6 +19,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **cua-driver:** release anunciada pelo `check-update` mas retirada pelo upstream (`was withdrawn`) não gera mais aviso recorrente; demais falhas do apply viram aviso com motivo, e a saída do instalador vai indentada em vez de sair na coluna 0.
 - **Saída de updaters:** `droid`, `jcode`, `kimchi`, `qodercli`/`qoderwake`/`grok` imprimiam a saída crua na coluna 0; agora passam por `log_out`. Removidas 8 gravações duplicadas no log após `run_network_cmd`, que já grava a saída.
 - **`_strip_ansi`:** remove qualquer sequência CSI (inclui `\e[?25l` e `\e[J` de spinners), que antes sobravam no log.
+- **kilo:** o `kilo upgrade` 7.3.x baixa o instalador de `kilo.ai/install`, que virou página HTML. Quando o upgrade nativo falha, o step usa o script oficial `kilo.ai/cli/install`, e só se o download for de fato um script bash.
+- **cua-driver:** o instalador para os daemons antes de trocar o binário e mata o próprio `update --apply` (rc 143). Versão instalada diferente da anterior agora conta como atualizado.
+- **Auditoria cargo:** binários acima de 100 MiB (limite do `cargo-audit`, ex.: `tokensave`) saem da lista com aviso explícito; antes o `bad parameter ... exceeds max size limit` sumia no meio da saída.
 
 ## [3.47.0] - 2026-09-20
 ### Adicionado

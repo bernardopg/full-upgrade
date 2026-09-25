@@ -182,7 +182,7 @@ JSON
 {"mcpServers":{"markitdown":{"command":"uvx","args":["markitdown-mcp@0.0.1a4"]}}}
 JSON
   out="$(mcp_update_plan claude "$HOME/.claude.json")"
-  [[ "$out" == "markitdown"$'\t'"pinned"$'\t'"markitdown-mcp" ]]
+  [[ "$out" == "markitdown"$'\t'"pinned"$'\t'"markitdown-mcp"$'\t'"pypi:markitdown-mcp@0.0.1a4" ]]
 }
 
 @test "plan: uvx sem pin => refresh + dist" {
@@ -447,4 +447,25 @@ TOML
   [ "$status" -eq "$RC_TODO" ]
   [[ "$output" == *"sem tabela duplicada"* ]]
   [[ "$(cat "$HOME/.codex/config.toml")" == "$before" ]]
+}
+
+@test "mcp_pin_outdated: npm com escopo atrás da latest é reportado" {
+  npm() { echo "0.0.82"; }
+  run mcp_pin_outdated "npm:@playwright/mcp@0.0.81" "playwright"
+  [ "$output" = "playwright: @playwright/mcp 0.0.81 → 0.0.82" ]
+}
+
+@test "mcp_pin_outdated: pin igual à latest não é reportado" {
+  npm() { echo "3.0.0"; }
+  run mcp_pin_outdated "npm:@browserbasehq/mcp@3.0.0" "browserbase"
+  [ -z "$output" ]
+}
+
+@test "mcp_pin_outdated: pypi atrás da latest é reportado; rede fora = silêncio" {
+  curl() { echo '{"info":{"version":"0.0.1a7"}}'; }
+  run mcp_pin_outdated "pypi:markitdown-mcp@0.0.1a4" "markitdown"
+  [ "$output" = "markitdown: markitdown-mcp 0.0.1a4 → 0.0.1a7" ]
+  curl() { return 6; }
+  run mcp_pin_outdated "pypi:markitdown-mcp==0.0.1a4" "markitdown"
+  [ -z "$output" ]
 }
