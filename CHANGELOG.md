@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.48.0] - 2026-09-25
 ### Adicionado
 - **Novos steps self-download:** `Atualizar kilo (Kilo Code CLI)` e `Atualizar mimo (MiMo Code)` (forks do opencode, via `<bin> upgrade`), `Atualizar pool (Poolside)` e `Atualizar purple (cliente SSH)` (via `<bin> update`, que só baixa release nova e confere checksum).
 - **Mais steps para programas fora de pacote:** `Atualizar Android CLI` (CLI, skills e pacotes do SDK), `Atualizar gitleaks` e `Atualizar trufflehog` (release do GitHub com sha256 obrigatório, helper `_github_release_bin_update`), `Atualizar muse (Muse Code)` (modo instalador do launcher, sem abrir a TUI) e `Atualizar cloudflared` (cópias fora de pacote, como a do 9router; rc 11 do upstream = atualizado).
