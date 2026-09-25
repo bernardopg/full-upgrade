@@ -10,7 +10,7 @@ _AUR_TRANSIENT_SRC_RE='não passaram na verificação de validade|did not pass t
 # NOTA: versão original em lib/core.sh — duplicada aqui para isolamento de teste
 aur_ignore_args() {
   local item
-  [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]] || return 0
+  [[ $FULL_UPGRADE_AUR_IGNORE == *[![:space:]]* ]] || return 0
   for item in $FULL_UPGRADE_AUR_IGNORE; do
     [[ -n "$item" ]] || continue
     printf '%s\n' "--ignore=${item}"

@@ -176,7 +176,7 @@ doctor_failed_systemd_units() {
     failed_user=""
   fi
 
-  if [[ -z "${failed_system//[[:space:]]/}" && -z "${failed_user//[[:space:]]/}" ]]; then
+  if [[ $failed_system != *[![:space:]]* && $failed_user != *[![:space:]]* ]]; then
     if [[ "$user_scope" == "available" ]]; then
       log "  Nenhuma unit systemd falhada (sistema/usuário)."
     else
@@ -190,7 +190,7 @@ doctor_failed_systemd_units() {
   fi
 
   local _sys_cnt=0 _usr_cnt=0
-  if [[ -n "${failed_system//[[:space:]]/}" ]]; then
+  if [[ $failed_system == *[![:space:]]* ]]; then
     _sys_cnt="$(printf '%s\n' "$failed_system" | grep -c '[^[:space:]]' || true)"
     log "  Units systemd falhadas:"
     printf '%s\n' "$failed_system" | log_stream
@@ -203,9 +203,9 @@ doctor_failed_systemd_units() {
   # essas das units --user reais: se só restarem app-autostart, vira nota
   # informativa (✔) em vez de TODO.
   local _usr_real="" _usr_autostart=""
-  if [[ -n "${failed_user//[[:space:]]/}" ]]; then
+  if [[ $failed_user == *[![:space:]]* ]]; then
     while IFS= read -r _line; do
-      [[ -z "${_line//[[:space:]]/}" ]] && continue
+      [[ $_line != *[![:space:]]* ]] && continue
       if [[ "$_line" =~ ^[[:space:]]*app-.*@autostart\.service[[:space:]] ]] ||
          [[ "$_line" =~ ^[[:space:]]*app-.*\.scope[[:space:]] ]]; then
         _usr_autostart+="${_line}"$'\n'
@@ -217,11 +217,11 @@ doctor_failed_systemd_units() {
 
   _usr_cnt="$(printf '%s' "$_usr_real" | grep -c '[^[:space:]]' || true)"
 
-  if [[ -n "${_usr_real//[[:space:]]/}" ]]; then
+  if [[ $_usr_real == *[![:space:]]* ]]; then
     log "  Units systemd --user falhadas:"
     printf '%s' "$_usr_real" | sed '/^[[:space:]]*$/d' | log_stream
   fi
-  if [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
+  if [[ $_usr_autostart == *[![:space:]]* ]]; then
     local _auto_cnt
     _auto_cnt="$(printf '%s' "$_usr_autostart" | grep -c '[^[:space:]]' || true)"
     log "  ${_auto_cnt} unit(s) gerada(s) para app de sessão em estado failed (autostart/scope transitório — app encerrado, não é serviço persistente quebrado):"
@@ -236,7 +236,7 @@ doctor_failed_systemd_units() {
 
   # Se só há app-autostart (generator) e nenhuma unit de sistema/usuário real
   # falhada, é informativo — não aciona TODO.
-  if (( _sys_cnt == 0 )) && (( _usr_cnt == 0 )) && [[ -n "${_usr_autostart//[[:space:]]/}" ]]; then
+  if (( _sys_cnt == 0 )) && (( _usr_cnt == 0 )) && [[ $_usr_autostart == *[![:space:]]* ]]; then
     log "  Nenhuma unit de serviço real falhada; só unit(s) transitória(s) de app de sessão."
     return 0
   fi
@@ -460,7 +460,7 @@ journal_noise_patterns() {
   if [[ -f "$noise_file" ]]; then
     local pat
     while IFS= read -r pat; do
-      [[ -z "${pat//[[:space:]]/}" || "${pat:0:1}" == "#" ]] && continue
+      [[ $pat != *[![:space:]]* || "${pat:0:1}" == "#" ]] && continue
       printf '%s\n' "$pat"
     done < "$noise_file"
   fi
@@ -483,7 +483,7 @@ doctor_journal_errors() {
     return "$RC_WARN"
   fi
 
-  if [[ -z "${output//[[:space:]]/}" ]]; then
+  if [[ $output != *[![:space:]]* ]]; then
     log "  Nenhum erro crítico no journal do boot atual."
     return 0
   fi
@@ -495,7 +495,7 @@ doctor_journal_errors() {
   filtered_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
   noise_count=$(( line_count - filtered_count ))
 
-  if [[ -z "${filtered//[[:space:]]/}" ]]; then
+  if [[ $filtered != *[![:space:]]* ]]; then
     log "  Journal tem ${line_count} erro(s) crítico(s) — todos ruído conhecido filtrado (${noise_count} linha(s): firmware/ACPI, drivers, keyring, races de boot)."
     return 0
   fi
@@ -512,7 +512,7 @@ doctor_journal_errors() {
   local -A _hints=()
   local _g _h
   while IFS= read -r _g; do
-    [[ -n "${_g//[[:space:]]/}" ]] || continue
+    [[ $_g == *[![:space:]]* ]] || continue
     _h="$(journal_hint_for "$_g")"
     [[ -n "$_h" ]] && _hints["$_h"]=1
   done <<< "$grouped"
@@ -539,7 +539,7 @@ doctor_journal_errors() {
     recent_rc=$?
     if (( recent_rc == 0 )); then
       recent_filtered="$(journal_filter_known_noise "$recent_output" | journal_strip_prefix)"
-      if [[ -z "${recent_filtered//[[:space:]]/}" ]]; then
+      if [[ $recent_filtered != *[![:space:]]* ]]; then
         log "  Assinaturas remanescentes são históricas (anteriores ao início deste run) — informativas; o estado atual é auditado pelos demais Doctors."
         STEP_REASON="journal: ${filtered_count} ocorrência(s) histórica(s), nenhuma durante o run"
         return 0
@@ -554,7 +554,7 @@ doctor_journal_errors() {
 
   local _all_benign=1 _class
   while IFS= read -r _g; do
-    [[ -n "${_g//[[:space:]]/}" ]] || continue
+    [[ $_g == *[![:space:]]* ]] || continue
     _class="$(journal_effective_signature_class "$_g")"
     if [[ "$_class" != "benign" ]]; then
       _all_benign=0
@@ -635,7 +635,7 @@ doctor_recurrent_coredumps() {
   window_raw="$(coredumpctl list --no-legend --no-pager --since "-${window_days}d" 2>/dev/null || true)"
   window_raw="$(printf '%s\n' "$window_raw" | coredump_filter_acked "$acks")"
 
-  if [[ -z "${window_raw//[[:space:]]/}" ]]; then
+  if [[ $window_raw != *[![:space:]]* ]]; then
     log "  Nenhum coredump nos últimos ${window_days} dias."
     return 0
   fi
@@ -749,7 +749,7 @@ journal_unknown_signatures() {
 
   local output
   output="$(journalctl -q -p 3 -b --no-pager -o short-iso 2>&1)" || return 0
-  [[ -n "${output//[[:space:]]/}" ]] || return 0
+  [[ $output == *[![:space:]]* ]] || return 0
 
   local -a noise=()
   mapfile -t noise < <(journal_noise_patterns)
@@ -767,11 +767,11 @@ journal_unknown_signatures() {
     done
   fi
   filtered="$(printf '%s\n' "$filtered" | journal_strip_prefix)"
-  [[ -n "${filtered//[[:space:]]/}" ]] || return 0
+  [[ $filtered == *[![:space:]]* ]] || return 0
 
   local sig class
   while IFS= read -r sig; do
-    [[ -n "${sig//[[:space:]]/}" ]] || continue
+    [[ $sig == *[![:space:]]* ]] || continue
     class="$(journal_effective_signature_class "$sig")"
     if [[ "$class" == "unknown" ]]; then
       printf '%s\n' "$(sed -E 's/^[[:space:]]*[0-9]+[[:space:]]+//' <<< "$sig")"
@@ -918,7 +918,7 @@ doctor_stale_services() {
     # -r l = listar apenas, sem reiniciar; -b = batch mode (não interativo)
     output="$(sudo -n needrestart -r l -b 2>&1)"
     rc=$?
-    if (( rc != 0 )) && [[ -z "${output//[[:space:]]/}" ]]; then
+    if (( rc != 0 )) && [[ $output != *[![:space:]]* ]]; then
       log "  needrestart retornou código ${rc}."
       return "$RC_WARN"
     fi
@@ -1212,7 +1212,7 @@ coredump_ack_cutoff() {
 # "Qui 2026-09-18 17:33:42 -03  297557  1000 1000 SIGABRT present /caminho/exe 3.6M"
 coredump_filter_acked() {
     local acks="$1"
-    [[ -n "${acks//[[:space:]]/}" ]] || { cat; return 0; }
+    [[ $acks == *[![:space:]]* ]] || { cat; return 0; }
     has date || { cat; return 0; }
 
     local -A cutoff=()
@@ -1226,7 +1226,7 @@ coredump_filter_acked() {
 
     local line exe ts when
     while IFS= read -r line; do
-        [[ -n "${line//[[:space:]]/}" ]] || continue
+        [[ $line == *[![:space:]]* ]] || continue
         # Executável: primeiro campo que começa com '/'.
         exe=""
         local f

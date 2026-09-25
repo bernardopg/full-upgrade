@@ -69,7 +69,7 @@ check_arch_news() {
 
   local parsed
   parsed="$(printf '%s\n' "$out" | arch_news_parse)"
-  if [[ -z "${parsed//[[:space:]]/}" ]]; then
+  if [[ $parsed != *[![:space:]]* ]]; then
     log "  Feed de notícias vazio ou em formato inesperado; seguindo."
     return "$RC_WARN"
   fi

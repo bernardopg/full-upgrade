@@ -109,7 +109,7 @@ doctor_smart_health() {
     found=1
     local drives
     drives="$(smartctl --scan 2>/dev/null | awk '{print $1}' || true)"
-    if [[ -z "${drives//[[:space:]]/}" ]]; then
+    if [[ $drives != *[![:space:]]* ]]; then
       log "  smartctl --scan: nenhum disco encontrado."
     else
       local drive health
@@ -140,7 +140,7 @@ doctor_smart_health() {
     found=1
     local nvme_devs
     nvme_devs="$(nvme list 2>/dev/null | awk 'NR>2 && /^\/dev/{print $1}' || true)"
-    if [[ -n "${nvme_devs//[[:space:]]/}" ]]; then
+    if [[ $nvme_devs == *[![:space:]]* ]]; then
       local dev nvme_out crit_warn
       while IFS= read -r dev; do
         [[ -z "$dev" ]] && continue
@@ -193,7 +193,7 @@ doctor_btrfs_health() {
   # 1) Erros de device acumulados (write/read/flush/corruption/generation).
   local stats errs
   stats="$(sudo -n btrfs device stats / 2>/dev/null || true)"
-  if [[ -n "${stats//[[:space:]]/}" ]]; then
+  if [[ $stats == *[![:space:]]* ]]; then
     errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
     if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
       log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — possível defeito físico.${C_RESET}"
@@ -311,7 +311,7 @@ autofix_btrfs_scrub() {
 
   local mounts
   mounts="$(list_btrfs_mountpoints)"
-  if [[ -z "${mounts//[[:space:]]/}" ]]; then
+  if [[ $mounts != *[![:space:]]* ]]; then
     log "  Nenhum filesystem btrfs montado; nada a remediar."
     return 0
   fi
@@ -442,7 +442,7 @@ doctor_trim_health() {
   # o fstrim.timer porque devolve páginas ao GC do SSD imediatamente, sem scan.
   local discard_fs
   discard_fs="$(findmnt -lno TARGET,OPTIONS 2>/dev/null | mounts_with_discard | tr '\n' ' ' | sed 's/ *$//')"
-  if [[ -n "${discard_fs//[[:space:]]/}" ]]; then
+  if [[ $discard_fs == *[![:space:]]* ]]; then
     log "  TRIM contínuo ativo via discard mount option em: ${discard_fs}."
     return 0
   fi

@@ -129,7 +129,7 @@ doctor_js_conflicts() {
     npm_json="$(npm list -g --depth=0 --json 2>/dev/null || true)"
     pnpm_json="$(pnpm list -g --json 2>/dev/null || true)"
 
-    if [[ -n "${npm_json//[[:space:]]/}" && -n "${pnpm_json//[[:space:]]/}" ]]; then
+    if [[ $npm_json == *[![:space:]]* && $pnpm_json == *[![:space:]]* ]]; then
       local _npm_tmp _pnpm_tmp
       _npm_tmp="$(mktemp)"
       _pnpm_tmp="$(mktemp)"
@@ -160,7 +160,7 @@ PYEOF
 )"
       rm -f "$_npm_tmp" "$_pnpm_tmp"
 
-      if [[ -n "${conflicts//[[:space:]]/}" ]]; then
+      if [[ $conflicts == *[![:space:]]* ]]; then
         local cc
         cc="$(printf '%s\n' "$conflicts" | wc -l)"
         log "  Conflito npm/pnpm global: ${cc} pacote(s) instalado(s) em ambos:"
@@ -191,7 +191,7 @@ PYEOF
     if [[ "$pnpm_real" == */corepack/* ]]; then
       shadow="$(pnpm list -g --json 2>/dev/null | pnpm_global_shadow_managers)"
       shadow="${shadow//$'\n'/ }"
-      if [[ -n "${shadow//[[:space:]]/}" ]]; then
+      if [[ $shadow == *[![:space:]]* ]]; then
         log "  pnpm ativo vem do corepack (${pnpm_real}), mas o store global do pnpm contém: ${shadow}"
         log "  Instalação-sombra: devolve um shim antigo ao PATH e fica eterna em 'pnpm outdated -g'."
         remediation "remova a sombra do store global do pnpm: pnpm remove -g ${shadow}"
@@ -277,7 +277,7 @@ doctor_python_env() {
       local summary cnt tab
       tab="$(printf '\t')"
       summary="$(printf '%s\n' "$pip_check_out" | summarize_pip_check)"
-      if [[ -n "${summary//[[:space:]]/}" ]]; then
+      if [[ $summary == *[![:space:]]* ]]; then
         cnt="$(printf '%s\n' "$summary" | grep -c "$tab")"
         log "  pip check: ${cnt} pacote(s) com dependência quebrada:"
         # Origem de cada pacote (sistema/pacman vs pip --user) decide a
@@ -316,7 +316,7 @@ doctor_python_env() {
   if has pipx; then
     local pipx_json broken_count
     pipx_json="$(pipx list --json 2>/dev/null || true)"
-    if [[ -n "${pipx_json//[[:space:]]/}" ]]; then
+    if [[ $pipx_json == *[![:space:]]* ]]; then
       # venv quebrada = python interpreter não existe no venv
       broken_count="$(printf '%s\n' "$pipx_json" | python3 -c '
 import json, sys, os
@@ -329,7 +329,7 @@ for pkg, info in data.get("venvs", {}).items():
 for b in broken:
     print(b)
 ' 2>/dev/null || true)"
-      if [[ -n "${broken_count//[[:space:]]/}" ]]; then
+      if [[ $broken_count == *[![:space:]]* ]]; then
         local bc
         bc="$(printf '%s\n' "$broken_count" | wc -l)"
         log "  pipx: ${bc} venv(s) quebrada(s) — interpreter ausente:"
@@ -346,7 +346,7 @@ for b in broken:
   if has uv; then
     local uv_json broken_uv
     uv_json="$(uv tool list --format=json 2>/dev/null || true)"
-    if [[ -n "${uv_json//[[:space:]]/}" ]]; then
+    if [[ $uv_json == *[![:space:]]* ]]; then
       broken_uv="$(printf '%s\n' "$uv_json" | python3 -c '
 import json, sys, os
 try:
@@ -359,7 +359,7 @@ for tool in (data if isinstance(data, list) else []):
     if py and not os.path.isfile(py):
         print(f"{name}: {py}")
 ' 2>/dev/null || true)"
-      if [[ -n "${broken_uv//[[:space:]]/}" ]]; then
+      if [[ $broken_uv == *[![:space:]]* ]]; then
         local buc
         buc="$(printf '%s\n' "$broken_uv" | wc -l)"
         log "  uv tools: ${buc} ferramenta(s) com interpreter ausente:"
@@ -407,7 +407,7 @@ autofix_pip_user_deps() {
   local summary pkg detail origin entry req d
   local -a reqs=() failed_installs=()
   summary="$(python -m pip check 2>&1 | summarize_pip_check)"
-  if [[ -z "${summary//[[:space:]]/}" ]]; then
+  if [[ $summary != *[![:space:]]* ]]; then
     log "  pip check limpo; nada a remediar."
     return 0
   fi
@@ -450,7 +450,7 @@ autofix_pip_user_deps() {
 
   local after
   after="$(python -m pip check 2>&1 | summarize_pip_check)"
-  if [[ -z "${after//[[:space:]]/}" ]]; then
+  if [[ $after != *[![:space:]]* ]]; then
     log "  ${C_GREEN}pip check limpo após remediação.${C_RESET}"
     return 0
   fi

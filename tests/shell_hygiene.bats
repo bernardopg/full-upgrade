@@ -19,6 +19,34 @@ setup() {
   for _p in "${FU_LIB}"/steps/doctor/*.sh; do source "$_p"; done; unset _p
 }
 
+# `[[ -z "${var//[[:space:]]/}" ]]` parece barato, mas a substituição global do
+# bash é quadrática no tamanho da string: 200 KB levam ~1s, 400 KB ~4s. Com a
+# saída do journal de um boot com unit em loop (14 MB), `Doctor: journal erros
+# críticos` estourou o timeout de 30s antes de filtrar qualquer linha. O glob
+# `[[ $var == *[![:space:]]* ]]` responde a mesma pergunta em tempo linear.
+@test "fonte: nenhum teste de vazio via \${var//[[:space:]]/} em lib/ ou steps.d/" {
+  local hits
+  hits="$(grep -rnE -- '-[zn] "\$\{[A-Za-z_][A-Za-z_0-9]*//\[\[:space:\]\]/\}"' \
+    "${FU_ROOT}/lib" "${FU_ROOT}/steps.d" "${FU_ROOT}/scripts" \
+    "${FU_ROOT}/full-upgrade.sh" "${FU_ROOT}/build.sh" "${FU_ROOT}/install.sh" || true)"
+  if [[ -n "$hits" ]]; then
+    echo "use '[[ \$var == *[![:space:]]* ]]' (ou !=) em vez de strip + -n/-z:"
+    echo "$hits"
+  fi
+  [ -z "$hits" ]
+}
+
+@test "glob de conteúdo: equivale ao strip de espaços" {
+  local v
+  for v in '' ' ' $'\n\t ' 'x' $'  a\n' $'\n\nb'; do
+    if [[ -n "${v//[[:space:]]/}" ]]; then
+      [[ $v == *[![:space:]]* ]]
+    else
+      [[ $v != *[![:space:]]* ]]
+    fi
+  done
+}
+
 @test "pipefail: 'produtor | grep -q' com match cedo NÃO devolve 0 (a armadilha)" {
   # Prova que a armadilha é real neste bash, não folclore. Se um dia o bash
   # mudar esse comportamento, este teste avisa que o resto do arquivo perdeu o

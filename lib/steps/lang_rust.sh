@@ -300,9 +300,9 @@ _rust_rebuild_memo_record() {
 cargo_cve_bins_all_memo_known() {
   local bins_nl="$1" install_list="$2" memo="$3" now="$4" ttl="$5"
   local b crate ver
-  [[ -n "${bins_nl//[[:space:]]/}" ]] || return 0
+  [[ $bins_nl == *[![:space:]]* ]] || return 0
   while IFS= read -r b; do
-    [[ -n "${b//[[:space:]]/}" ]] || continue
+    [[ $b == *[![:space:]]* ]] || continue
     crate="$(cargo_crate_for_bin "$b" "$install_list")"
     [[ -n "$crate" ]] || return 1
     ver="$(cargo_crate_version "$crate" "$install_list")"

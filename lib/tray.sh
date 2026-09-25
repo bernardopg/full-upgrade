@@ -78,7 +78,7 @@ tray_summary_has_reboot() {
   [[ -n "$line" ]] || return 1
   local rr
   rr=$(tray_summary_reboot_reason "$line")
-  [[ -n "${rr//[[:space:]]/}" ]]
+  [[ $rr == *[![:space:]]* ]]
 }
 
 # Texto do reboot_recommendation de uma linha summary. Puro.
@@ -122,7 +122,7 @@ tray_tooltip_for_state() {
     error)   printf 'full-upgrade: último run com %s falha(s)' "$fail"; return 0 ;;
   esac
   local -a parts=()
-  if [[ -n "${reboot//[[:space:]]/}" ]]; then parts+=("Reboot pendente"); fi
+  if [[ $reboot == *[![:space:]]* ]]; then parts+=("Reboot pendente"); fi
   # "pendência(s)" e não "todo": tray_last_doctor_pending_items conta warn, todo
   # e fail juntos, então rotular tudo de todo mente sobre o run (um run com
   # 0 todo e 2 warn aparecia como "2 doctor todo").
@@ -163,7 +163,7 @@ tray_badge_text() {
 # Uso: tray_relative_time <iso8601> [now_epoch]  ->  "agora" | "há N min" | "há N h" | "há N d"
 tray_relative_time() {
   local iso="$1" now="${2:-}" ts delta
-  [[ -n "${iso//[[:space:]]/}" ]] || { printf ''; return 0; }
+  [[ $iso == *[![:space:]]* ]] || { printf ''; return 0; }
   ts=$(date -d "$iso" +%s 2>/dev/null) || { printf ''; return 0; }
   [[ "$ts" =~ ^[0-9]+$ ]] || { printf ''; return 0; }
   [[ "$now" =~ ^[0-9]+$ ]] || now=$(date +%s)
@@ -245,7 +245,7 @@ tray_last_doctor_pending_items() {
       fail) sym="${SYM_FAIL:-XX}" ;;
     esac
     (( ${#reason} > max_reason )) && reason="${reason:0:$max_reason}…"
-    if [[ -n "${reason//[[:space:]]/}" ]]; then
+    if [[ $reason == *[![:space:]]* ]]; then
       printf '%s %s — %s\n' "$sym" "$step" "$reason"
     else
       printf '%s %s\n' "$sym" "$step"
@@ -258,7 +258,7 @@ tray_json_array_from_lines() {
   local line sep=""
   printf '['
   while IFS= read -r line; do
-    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ $line == *[![:space:]]* ]] || continue
     printf '%s%s' "$sep" "$(json_escape "$line")"
     sep=','
   done
@@ -328,7 +328,7 @@ tray_self_bin() {
 # em FULL_UPGRADE_AUR_IGNORE, emitindo as demais linhas intactas — a linha
 # completa é o que o submenu Pendências exibe. Puro; lista vazia = passthrough.
 tray_filter_aur_ignore() {
-  [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]] || { cat; return 0; }
+  [[ $FULL_UPGRADE_AUR_IGNORE == *[![:space:]]* ]] || { cat; return 0; }
   local -A _ig=()
   local _p _line _pkg
   for _p in $FULL_UPGRADE_AUR_IGNORE; do [[ -n "$_p" ]] && _ig["$_p"]=1; done
@@ -358,7 +358,7 @@ tray_gather_updates_detail() {
     # ex.: build quebrado upstream) não são pendência do tray: sem o filtro o
     # applet fica em updates/attention para sempre mesmo com runs limpos, e o
     # badge conta algo que o próprio update se recusa a instalar.
-    if [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
+    if [[ $FULL_UPGRADE_AUR_IGNORE == *[![:space:]]* ]]; then
       if tray_filter_aur_ignore < "$aur_file" > "${aur_file}.filtered" 2>/dev/null; then
         mv -f "${aur_file}.filtered" "$aur_file"
       else
@@ -434,7 +434,7 @@ _tray_notify_transition() {
     attention)
       urgency=normal
       title="full-upgrade: atenção necessária"
-      if [[ -n "${reboot//[[:space:]]/}" ]]; then
+      if [[ $reboot == *[![:space:]]* ]]; then
         body="Reboot pendente: ${reboot}"
       else
         body="${todo} item(ns) do Doctor precisam de ação manual."

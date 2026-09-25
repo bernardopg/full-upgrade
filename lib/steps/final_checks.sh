@@ -49,7 +49,7 @@ pacman_ignored_packages() {
     out="$(sed -nE 's/^[[:space:]]*IgnorePkg[[:space:]]*=[[:space:]]*(.*)$/\1/p' \
       "${PACMAN_CONF_FILE:-/etc/pacman.conf}" 2>/dev/null || true)"
   fi
-  [[ -n "${out//[[:space:]]/}" ]] || return 0
+  [[ $out == *[![:space:]]* ]] || return 0
   # `pacman-conf` devolve a lista separada por espaço; o pacman.conf aceita
   # vírgula e espaço. Normaliza os dois separadores para uma nome por linha.
   printf '%s\n' "${out//,/ }" | tr -s '[:space:]' '\n' | grep -E '[^[:space:]]' || true
@@ -59,8 +59,8 @@ pacman_ignored_packages() {
 # Puro/testável: `$1` está na lista de pacotes segurados (uma por linha em $2)?
 pending_is_ignored_pkg() {
   local name="${1:-}" list="${2:-}"
-  [[ -n "${name//[[:space:]]/}" ]] || return 1
-  [[ -n "${list//[[:space:]]/}" ]] || return 1
+  [[ $name == *[![:space:]]* ]] || return 1
+  [[ $list == *[![:space:]]* ]] || return 1
   grep -qxF -- "$name" <<<"$list"
 }
 
@@ -90,10 +90,10 @@ final_check_pending() {
   ignored_list="$(pacman_ignored_packages)"
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
-    if [[ -n "${out//[[:space:]]/}" ]]; then
+    if [[ $out == *[![:space:]]* ]]; then
       local _ln _nm
       while IFS= read -r _ln; do
-        [[ -n "${_ln//[[:space:]]/}" ]] || continue
+        [[ $_ln == *[![:space:]]* ]] || continue
         _nm="${_ln%%[[:space:]]*}"
         if pending_is_held_cluster "$_nm"; then
           held_official+=("$_ln")
@@ -131,7 +131,7 @@ final_check_pending() {
     out="$(paru -Qua 2>/dev/null || true)"
   fi
 
-  if [[ -n "${out//[[:space:]]/}" ]]; then
+  if [[ $out == *[![:space:]]* ]]; then
     # `paru -Qua`/`yay -Qua` listam pacotes AUR ignorados por IgnorePkg
     # normalmente (não há o `grep -v '\[.*\]'` que o checkupdates faz no lado
     # oficial), então o hold também precisa ser saciado aqui — senão a pendência
@@ -153,7 +153,7 @@ final_check_pending() {
       '
     )"
 
-    if [[ -n "${filtered//[[:space:]]/}" ]]; then
+    if [[ $filtered == *[![:space:]]* ]]; then
       pending=1
       aur_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
       log "  Pendencias no AUR:"
@@ -168,10 +168,10 @@ final_check_pending() {
       # de um motivo genérico — sem isso o operador não sabe se a pendência
       # sumiu por hold local ou por ignore configurado no full-upgrade.
       local -a _aur_held_ignored=()
-      if [[ -n "${ignored_list//[[:space:]]/}" ]]; then
+      if [[ $ignored_list == *[![:space:]]* ]]; then
         local _ln_aur
         while IFS= read -r _ln_aur; do
-          [[ -n "${_ln_aur//[[:space:]]/}" ]] || continue
+          [[ $_ln_aur == *[![:space:]]* ]] || continue
           pending_is_ignored_pkg "${_ln_aur%%[[:space:]]*}" "$ignored_list" \
             && _aur_held_ignored+=("$_ln_aur")
         done <<< "$out"
@@ -180,7 +180,7 @@ final_check_pending() {
         log "  ${#_aur_held_ignored[@]} pacote(s) AUR segurado(s) por IgnorePkg no pacman.conf — pendência intencional do usuário:"
         printf '%s\n' "${_aur_held_ignored[@]}" | log_stream
       fi
-      if [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]]; then
+      if [[ $FULL_UPGRADE_AUR_IGNORE == *[![:space:]]* ]]; then
         log "  Pendencias restantes apenas em pacotes AUR ignorados: ${FULL_UPGRADE_AUR_IGNORE}"
       fi
     fi
@@ -220,7 +220,7 @@ final_check_pending() {
 # Conta linhas não vazias. Evita `wc -l` sobre string vazia contar 1.
 _count_lines() {
   local text="$1"
-  [[ -n "${text//[[:space:]]/}" ]] || { printf '0'; return 0; }
+  [[ $text == *[![:space:]]* ]] || { printf '0'; return 0; }
   grep -c '[^[:space:]]' <<< "$text"
 }
 
@@ -350,7 +350,7 @@ autofix_final_pending() {
     out="$(checkupdates 2>/dev/null || true)"
     local _ln _nm
     while IFS= read -r _ln; do
-      [[ -n "${_ln//[[:space:]]/}" ]] || continue
+      [[ $_ln == *[![:space:]]* ]] || continue
       _nm="${_ln%%[[:space:]]*}"
       if pending_is_held_cluster "$_nm" || pending_is_ignored_pkg "$_nm" "$ignored_list"; then
         continue
@@ -366,7 +366,7 @@ autofix_final_pending() {
     aur_pending="$(yay -Qua 2>/dev/null || true)"
   fi
 
-  if (( ${#actionable[@]} == 0 )) && [[ -z "${aur_pending//[[:space:]]/}" ]]; then
+  if (( ${#actionable[@]} == 0 )) && [[ $aur_pending != *[![:space:]]* ]]; then
     log "  Nenhuma pendência acionável para remediar."
     return 0
   fi
@@ -387,7 +387,7 @@ autofix_final_pending() {
   local -a _known_failed=()
   local _abf_file
   _abf_file="$(aur_build_failed_file)"
-  if [[ -n "${aur_pending//[[:space:]]/}" && -s "$_abf_file" ]]; then
+  if [[ $aur_pending == *[![:space:]]* && -s "$_abf_file" ]]; then
     mapfile -t _known_failed < <(grep -E '[^[:space:]]' "$_abf_file" 2>/dev/null | sort -u)
     if (( ${#_known_failed[@]} > 0 )); then
       local _remaining=""
@@ -397,7 +397,7 @@ autofix_final_pending() {
           !($1 in failed)
         ' || true
       )"
-      if [[ -z "${_remaining//[[:space:]]/}" ]]; then
+      if [[ $_remaining != *[![:space:]]* ]]; then
         log "  Pendência AUR restrita a pacote(s) que já falharam build neste run: ${_known_failed[*]}"
         log "  Falha de compilação é determinística — retry pulado (economiza rebuild garantido a falhar)."
         remediation "paru -S ${_known_failed[*]}  # ou aguarde o mantenedor corrigir o PKGBUILD"
@@ -409,7 +409,7 @@ autofix_final_pending() {
     fi
   fi
 
-  if [[ -n "${aur_pending//[[:space:]]/}" ]]; then
+  if [[ $aur_pending == *[![:space:]]* ]]; then
     local -a ignore_args=() aur_cmd=()
     mapfile -t ignore_args < <(aur_ignore_args)
     local _kf

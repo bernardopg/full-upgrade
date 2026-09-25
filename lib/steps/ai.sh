@@ -55,7 +55,7 @@ update_ollama() {
     STEP_REASON="rede indisponível para o instalador do Ollama"
     return "$RC_WARN"
   fi
-  if (( rc != 0 )) || [[ -z "${script//[[:space:]]/}" ]]; then
+  if (( rc != 0 )) || [[ $script != *[![:space:]]* ]]; then
     log "  Ollama: não foi possível obter o instalador."
     STEP_REASON="instalador do Ollama indisponível"
     return "$RC_WARN"
@@ -440,8 +440,8 @@ update_agent_skills() {
   # Resumo limpo no terminal: descarta ruído ("Checking…") e linhas vazias.
   local clean
   clean="$(printf '%s\n' "$output" | _strip_ansi | grep -ivE '^[[:space:]]*$|Checking skills from source|Checking for skill updates' | tail -6)"
-  if [[ -n "${clean//[[:space:]]/}" ]]; then
-    while IFS= read -r _l; do [[ -n "${_l//[[:space:]]/}" ]] && log "  ${_l}"; done <<< "$clean"
+  if [[ $clean == *[![:space:]]* ]]; then
+    while IFS= read -r _l; do [[ $_l == *[![:space:]]* ]] && log "  ${_l}"; done <<< "$clean"
   fi
 
   if (( rc != 0 )); then

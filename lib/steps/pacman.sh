@@ -69,7 +69,7 @@ repair_known_pacman_conflicts_before_update() {
       pending_vlc="$(checkupdates 2>/dev/null | awk '$1 ~ /^vlc($|-)|^libvlc$/ { print; found=1 } END { exit found ? 0 : 1 }' || true)"
     fi
 
-    if [[ -n "${pending_vlc//[[:space:]]/}" ]]; then
+    if [[ $pending_vlc == *[![:space:]]* ]]; then
       log "  Conflito conhecido: vlc-plugin-luajit (AUR) bloqueia vlc-plugin-lua oficial."
       log "  Trocando para o plugin oficial antes do update não interativo."
       run_logged sudo pacman -Rdd --noconfirm vlc-plugin-luajit || return 1

@@ -40,11 +40,11 @@ fwupd_hsi_only_mtd_measurement_gap() {
       in_hsi2 && /✘/ { print }
     '
   )"
-  [[ -n "${failures//[[:space:]]/}" ]] || return 1
+  [[ $failures == *[![:space:]]* ]] || return 1
 
   local others
   others="$(grep -viE 'Locked MTD.*(not supported|não suportado)' <<<"$failures")"
-  [[ -z "${others//[[:space:]]/}" ]]
+  [[ $others != *[![:space:]]* ]]
 }
 
 
@@ -239,7 +239,7 @@ doctor_boot_time() {
   # Em container/sistema sem boot completo, systemd-analyze falha — trata limpo.
   local time_out
   time_out="$(systemd-analyze time 2>/dev/null || true)"
-  if [[ -z "${time_out//[[:space:]]/}" ]]; then
+  if [[ $time_out != *[![:space:]]* ]]; then
     log "  systemd-analyze sem dados de boot (container?); pulando."
     return 0
   fi
@@ -247,7 +247,7 @@ doctor_boot_time() {
   # coluna 0, ignorava --quiet e não respeitava a largura do terminal.
   local _bt_line
   while IFS= read -r _bt_line; do
-    [[ -n "${_bt_line//[[:space:]]/}" ]] && log "  ${_bt_line}"
+    [[ $_bt_line == *[![:space:]]* ]] && log "  ${_bt_line}"
   done <<< "$time_out"
 
   # "Startup finished in ... = 12.345s" — pega o total após o último '='.
@@ -268,7 +268,7 @@ doctor_boot_time() {
   if has systemd-analyze; then
     local blame
     blame="$(systemd-analyze blame --no-pager 2>/dev/null | head -5 || true)"
-    if [[ -n "${blame//[[:space:]]/}" ]]; then
+    if [[ $blame == *[![:space:]]* ]]; then
       log "  Piores units no boot (top 5):"
       printf '%s\n' "$blame" | log_stream
     fi

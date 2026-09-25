@@ -83,7 +83,7 @@ merge_skip_lists() {
   local -A seen=()
   local list item out=""
   for list in "$@"; do
-    [[ -z "${list//[[:space:]]/}" ]] && continue
+    [[ $list != *[![:space:]]* ]] && continue
     IFS=',' read -ra items <<< "$list"
     for item in "${items[@]}"; do
       item="${item#"${item%%[![:space:]]*}"}"
@@ -99,7 +99,7 @@ merge_skip_lists() {
 
 add_skip_step() {
   local name="$1"
-  if [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
+  if [[ $FULL_UPGRADE_SKIP != *[![:space:]]* ]]; then
     FULL_UPGRADE_SKIP="$name"
   else
     FULL_UPGRADE_SKIP="${FULL_UPGRADE_SKIP},${name}"
@@ -111,7 +111,7 @@ skip_step_count() {
   local count=0
   local -a _skip_count_items=()
   local -A _skip_count_seen=()
-  [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]] && { printf '0'; return 0; }
+  [[ $FULL_UPGRADE_SKIP != *[![:space:]]* ]] && { printf '0'; return 0; }
   IFS=',' read -ra _skip_count_items <<< "$FULL_UPGRADE_SKIP"
   for item in "${_skip_count_items[@]}"; do
     item="${item#"${item%%[![:space:]]*}"}"
@@ -388,7 +388,7 @@ _retry() {
 
 aur_ignore_args() {
   local item
-  [[ -n "${FULL_UPGRADE_AUR_IGNORE//[[:space:]]/}" ]] || return 0
+  [[ $FULL_UPGRADE_AUR_IGNORE == *[![:space:]]* ]] || return 0
 
   for item in $FULL_UPGRADE_AUR_IGNORE; do
     [[ -n "$item" ]] || continue
@@ -883,7 +883,7 @@ _step_counter() {
 
 _step_skip_requested() {
   local name="$1"
-  [[ -z "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]] && return 1
+  [[ $FULL_UPGRADE_SKIP != *[![:space:]]* ]] && return 1
   local item
   IFS=',' read -ra _skip_items <<< "$FULL_UPGRADE_SKIP"
   for item in "${_skip_items[@]}"; do
@@ -905,7 +905,7 @@ skip_list_unknown_entries() {
   while IFS= read -r s; do
     [[ -n "$s" ]] && known["$s"]=1
   done
-  [[ -n "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]] || return 0
+  [[ $FULL_UPGRADE_SKIP == *[![:space:]]* ]] || return 0
   local -a items=()
   IFS=',' read -ra items <<< "$FULL_UPGRADE_SKIP"
   for item in "${items[@]}"; do
@@ -920,7 +920,7 @@ skip_list_unknown_entries() {
 # não dependem do texto apresentado ao usuário e sobrevivem a traduções/renomes.
 integration_disabled() {
   local id="$1" item
-  [[ -n "$id" && -n "${FULL_UPGRADE_DISABLED_INTEGRATIONS//[[:space:]]/}" ]] || return 1
+  [[ -n "$id" && $FULL_UPGRADE_DISABLED_INTEGRATIONS == *[![:space:]]* ]] || return 1
   IFS=',' read -ra _disabled_integrations <<< "$FULL_UPGRADE_DISABLED_INTEGRATIONS"
   for item in "${_disabled_integrations[@]}"; do
     item="${item#"${item%%[![:space:]]*}"}"
@@ -962,7 +962,7 @@ _step_display_name() {
 
 _log_step_reason() {
   local reason="$1" available shown
-  [[ -n "${reason//[[:space:]]/}" ]] || return 0
+  [[ $reason == *[![:space:]]* ]] || return 0
   available=$(( $(ui_width) - 6 ))
   (( available < 12 )) && available=12
   shown="$(ui_truncate "$reason" "$available")"
@@ -1061,7 +1061,7 @@ step_todo() {
   # ter o motivo mais forte (kernel novo).
   case "${STEP_NAMES[-1]}" in
     "Doctor: reboot pendente" | "Reiniciar serviços com libs antigas")
-      if [[ -z "${REBOOT_RECOMMENDATION//[[:space:]]/}" && -n "${STEP_REASON//[[:space:]]/}" ]]; then
+      if [[ $REBOOT_RECOMMENDATION != *[![:space:]]* && $STEP_REASON == *[![:space:]]* ]]; then
         REBOOT_RECOMMENDATION="$STEP_REASON"
       fi
       ;;

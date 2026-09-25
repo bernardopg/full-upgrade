@@ -150,7 +150,7 @@ update_gem_user() {
       log "  Detectado GEM_USER_HOME do usuário: ${gem_user_dir}"
       local outdated_user
       outdated_user="$(GEM_HOME="$gem_user_dir" gem outdated 2>/dev/null || true)"
-      if [[ -z "${outdated_user//[[:space:]]/}" ]]; then
+      if [[ $outdated_user != *[![:space:]]* ]]; then
         log "  Gems do usuário: todas atualizadas."
       else
         # N4: nunca atualizar gems que o Arch já gerencia — `gem update` puxaria
@@ -183,7 +183,7 @@ update_gem_user() {
 
   local outdated
   outdated="$(gem outdated 2>/dev/null || true)"
-  if [[ -z "${outdated//[[:space:]]/}" ]]; then
+  if [[ $outdated != *[![:space:]]* ]]; then
     log "  Sem gems desatualizadas."
     return 0
   fi

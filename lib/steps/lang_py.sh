@@ -64,10 +64,10 @@ update_pip_user() {
   # folhas, o resolver do pip sobe cada dep dentro da faixa permitida pelo pai.
   json="$(python -m pip list --user --outdated --format=json 2>/dev/null || true)"
   leaves_json="$(python -m pip list --user --not-required --format=json 2>/dev/null || true)"
-  if [[ -n "${json//[[:space:]]/}" && -z "${leaves_json//[[:space:]]/}" ]]; then
+  if [[ $json == *[![:space:]]* && $leaves_json != *[![:space:]]* ]]; then
     log "  Aviso: 'pip list --not-required' não retornou folhas; subindo todos os desatualizados (sem filtro de top-level)."
   fi
-  if [[ -n "${json//[[:space:]]/}" ]]; then
+  if [[ $json == *[![:space:]]* ]]; then
     mapfile -t pkgs < <(
       FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" \
       FULL_UPGRADE_PIP_USER_LEAVES="$leaves_json" \
@@ -110,7 +110,7 @@ for pkg in data:
   fi
 
   if (( ${#pkgs[@]} == 0 )); then
-    if [[ -n "${effective_ignore//[[:space:]]/}" ]]; then
+    if [[ $effective_ignore == *[![:space:]]* ]]; then
       log "  Sem pacotes pip --user desatualizados fora da lista de ignore."
     else
       log "  Sem pacotes pip --user desatualizados."
@@ -119,7 +119,7 @@ for pkg in data:
   fi
 
   log "  Atualizando pacotes pip --user: ${pkgs[*]}"
-  if [[ -n "${effective_ignore//[[:space:]]/}" ]]; then
+  if [[ $effective_ignore == *[![:space:]]* ]]; then
     log "  Ignorando no update genérico do pip: ${effective_ignore}"
   fi
   log "  (--break-system-packages: necessário no Arch — pip user-install não conflita com pacman)"
@@ -280,13 +280,13 @@ for pkg in data:
 
   core_req="$(poetry_core_requirement 2>/dev/null || true)"
 
-  if [[ -z "${latest//[[:space:]]/}" ]]; then
+  if [[ $latest != *[![:space:]]* ]]; then
     log "  Poetry ja está na versão mais recente (via pip --user)."
   else
     run_logged python -m pip install --user --break-system-packages --upgrade poetry || return $?
   fi
 
-  if [[ -n "${core_req//[[:space:]]/}" ]]; then
+  if [[ $core_req == *[![:space:]]* ]]; then
     log "  Garantindo poetry-core compatível com Poetry: ${core_req}"
     run_logged python -m pip install --user --break-system-packages "$core_req"
   fi

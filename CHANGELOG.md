@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+- **Journal/Doctor: timeout com journal grande.** O teste de vazio `[[ -z "${var//[[:space:]]/}" ]]` é quadrático no bash; com uma unit em loop de restart (~83 mil linhas, 14 MB no `-p 3` do boot), `Doctor: journal erros críticos` estourava o limite de 30s antes de filtrar qualquer linha e escondia a causa. Todas as 105 ocorrências em `lib/`, `steps.d/` e `scripts/` agora usam o glob linear `[[ $var == *[![:space:]]* ]]`; o mesmo journal real é analisado em ~6s. `tests/shell_hygiene.bats` impede o idioma de voltar.
 
 ## [3.47.0] - 2026-09-20
 ### Adicionado
