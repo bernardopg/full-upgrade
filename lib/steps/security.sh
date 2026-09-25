@@ -231,7 +231,6 @@ update_zap() {
   port="$(zap_free_port 2>/dev/null || true)"
   [[ "$port" =~ ^[0-9]+$ ]] || port=49152
   out="$(run_network_cmd "$zap_cmd" -cmd -port "$port" -addonupdate 2>&1)"; rc=$?
-  log_raw "$out"
 
   if grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza' <<<"$out"; then
     log "  Add-ons do ZAP atualizados (core ${core:-?})."

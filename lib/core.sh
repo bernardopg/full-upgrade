@@ -39,7 +39,7 @@ dep_satisfied() {
 # Usado para manter o arquivo de log legível mesmo quando comandos externos
 # (ex.: fwupdmgr) emitem escapes crus.
 _strip_ansi() {
-  # 1) remove sequências ANSI (cores/cursor);
+  # 1) remove sequências CSI (cores, cursor, `\e[?25l`, `\e[J` de spinners);
   # 2) colapsa atualizações in-place via carriage return (\r) — barras de
   #    progresso do curl/wget reescrevem a mesma linha com \r e, sem isso,
   #    cada quadro vira uma linha gigante ilegível no log. Mantém só o
@@ -47,7 +47,7 @@ _strip_ansi() {
   # 3) remove sequências OSC (\e]…BEL ou \e]…ST) — títulos de janela e os
   #    marcadores de sessão que ferramentas modernas emitem; sem isso viravam
   #    lixo de uma linha só no meio do log.
-  sed -E 's/\x1b\][^\x07\x1b]*(\x07|\x1b\\)?//g; s/\x1b\[[0-9;]*[mGKHfABCD]//g; s/.*\r([^\r])/\1/g; s/\r$//'
+  sed -E 's/\x1b\][^\x07\x1b]*(\x07|\x1b\\)?//g; s/\x1b\[[0-9;?]*[A-Za-z]//g; s/.*\r([^\r])/\1/g; s/\r$//'
 }
 
 # Grava conteúdo SOMENTE no arquivo de log (não no terminal), removendo ANSI.

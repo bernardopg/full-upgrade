@@ -52,6 +52,11 @@ setup() {
   [ "$result" = "linha" ]
 }
 
+@test "_strip_ansi: remove CSI de cursor e spinner (?25l, J)" {
+  result="$(printf '\033[?25l\033[999D\033[J■ Upgrade failed\033[?25h\n' | _strip_ansi)"
+  [ "$result" = "■ Upgrade failed" ]
+}
+
 # ── has ───────────────────────────────────────────────────────────────────────
 
 @test "has: comando existente retorna 0" {

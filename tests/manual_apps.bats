@@ -307,3 +307,26 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
   has() { [[ "$1" == gk ]]; }   # gk existe mas curl/unzip não
   run update_gk; [ "$status" -eq 0 ]
 }
+
+@test "_selfupdate_direct: update ok retorna 0" {
+  has() { return 0; }
+  run_network_cmd() { printf 'pool is already at v1.0.16.\n'; return 0; }
+  run _selfupdate_direct "pool (Poolside)" pool
+  [ "$status" -eq 0 ]
+}
+
+@test "_selfupdate_direct: falha vira RC_WARN com motivo" {
+  has() { return 0; }
+  run_network_cmd() { printf 'checksum mismatch\n'; return 1; }
+  STEP_REASON=""
+  _selfupdate_direct "purple" purple || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == "purple update falhou (rc=1)" ]]
+}
+
+@test "_selfupdate_direct: ausente é no-op" {
+  has() { return 1; }
+  run_network_cmd() { echo "não devia rodar"; return 1; }
+  run _selfupdate_direct "purple" purple
+  [ "$status" -eq 0 ]
+}

@@ -75,31 +75,43 @@ update_ollama() {
 # H1 — atualiza o opencode, instalado fora do npm (~/.opencode/bin) via seu
 # subcomando próprio `opencode upgrade`. Falha de rede → RC_WARN; outra falha do
 # upgrade também → RC_WARN (não-fatal, não derruba o run). Loga versão antes/depois.
-update_opencode() {
-  if ! has opencode; then
-    log "  opencode não encontrado no PATH."
+#
+# kilo (~/.kilo) e mimo (~/.mimocode) são forks do opencode com o mesmo
+# `<bin> upgrade`. Esse upgrade imprime "Upgrade failed" e ainda sai com 0 quando
+# o instalador falha (visto no kilo 7.3.16: a URL do instalador devolvia HTML e o
+# bash quebrava no `<!DOCTYPE`), então o texto também decide, não só o rc.
+_opencode_style_upgrade() {
+  local label="$1" bin="$2"
+  if ! has "$bin"; then
+    log "  ${label} não encontrado no PATH."
     return 0
   fi
   local before after out rc
-  before="$(opencode --version 2>/dev/null | head -1)"
-  log "  opencode atual: ${before:-?}"
-  out="$(run_network_cmd opencode upgrade)"
+  before="$("$bin" --version 2>/dev/null | head -1)"
+  log "  ${label} atual: ${before:-?}"
+  out="$(run_network_cmd "$bin" upgrade)"
   rc=$?
-  printf '%s\n' "$out" | grep -v '^$' | log_out || true
+  # A linha é cortada na tela: o erro do kilo despejava 200KB de HTML numa só
+  # linha. O log já tem a saída íntegra (run_network_cmd).
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]│]*$' | awk '{ print substr($0, 1, 300) }' | log_out || true
   if (( rc == RC_WARN )); then
-    log "  opencode: falha de rede ao atualizar."
-    STEP_REASON="rede indisponível para opencode upgrade"
+    log "  ${label}: falha de rede ao atualizar."
+    STEP_REASON="rede indisponível para ${bin} upgrade"
     return "$RC_WARN"
   fi
-  if (( rc != 0 )); then
-    log "  opencode: falha ao atualizar (rc=${rc})."
-    STEP_REASON="opencode upgrade falhou"
+  if (( rc != 0 )) || grep -qi 'upgrade failed' <<<"$out"; then
+    log "  ${label}: falha ao atualizar (rc=${rc})."
+    STEP_REASON="${bin} upgrade falhou"
     return "$RC_WARN"
   fi
-  after="$(opencode --version 2>/dev/null | head -1)"
-  log "  opencode agora: ${after:-?}"
+  after="$("$bin" --version 2>/dev/null | head -1)"
+  log "  ${label} agora: ${after:-?}"
   return 0
 }
+
+update_opencode() { _opencode_style_upgrade opencode opencode; }
+update_kilo() { _opencode_style_upgrade "kilo (Kilo Code CLI)" kilo; }
+update_mimo() { _opencode_style_upgrade "mimo (MiMo Code)" mimo; }
 
 
 # H1 — atualiza o pi (pi-coding-agent, pacote npm @earendil-works/pi-coding-agent).
@@ -467,7 +479,6 @@ update_droid() {
   local check
   check="$(run_network_cmd droid update --check 2>&1)"
   local check_rc=$?
-  log_raw "$check"
   if (( check_rc != 0 )); then
     log "  Não foi possível verificar atualização do droid (rede/Factory indisponível)."
     return "$RC_WARN"
@@ -478,7 +489,7 @@ update_droid() {
   fi
 
   log "  Atualizando droid…"
-  if ! run_network_cmd droid update; then
+  if ! run_network_cmd droid update | log_out; then
     log "  Falha ao atualizar o droid."
     return "$RC_WARN"
   fi
@@ -505,7 +516,6 @@ update_coderabbit() {
   log "  Verificando atualização do CodeRabbit CLI…"
   local out rc
   out="$(run_network_cmd coderabbit update 2>&1)"; rc=$?
-  log_raw "$out"
   if (( rc != 0 )); then
     log "  Falha ao atualizar o coderabbit."
     return "$RC_WARN"
@@ -537,7 +547,6 @@ update_kiro_cli() {
   log "  Atualizando Kiro CLI…"
   local out rc
   out="$(run_network_cmd kiro-cli update --non-interactive 2>&1)"; rc=$?
-  log_raw "$out"
   if (( rc != 0 )); then
     log "  Falha ao atualizar o kiro-cli."
     return "$RC_WARN"
@@ -573,7 +582,6 @@ _selfupdate_check_apply() {
   local check check_rc
   check="$(run_network_cmd "$bin" update --check 2>&1)"
   check_rc=$?
-  log_raw "$check"
   if ((check_rc != 0)); then
     log "  Não foi possível verificar atualização do ${label} (rede/upstream indisponível)."
     return "$RC_WARN"
@@ -587,7 +595,7 @@ _selfupdate_check_apply() {
   fi
 
   log "  Atualizando ${label}…"
-  if ! run_network_cmd "$bin" update "$@"; then
+  if ! run_network_cmd "$bin" update "$@" | log_out; then
     log "  Falha ao atualizar o ${label}."
     return "$RC_WARN"
   fi
@@ -598,6 +606,10 @@ _selfupdate_check_apply() {
   return 0
 }
 
+
+# ── pool (Poolside) ─────────────────────────────────────────────────────────────
+# CLI de agente self-download em ~/.local/bin/pool; helper em manual_apps.sh.
+update_pool() { _selfupdate_direct "pool (Poolside)" pool; }
 
 # ── grok (xAI CLI) ──────────────────────────────────────────────────────────────
 # Instalada via instalador próprio em ~/.grok (self-download). `grok update --check`
@@ -642,7 +654,7 @@ update_jcode() {
   fi
 
   log "  Atualizando jcode: ${current:-?} → ${latest}…"
-  if ! run_network_cmd jcode update; then
+  if ! run_network_cmd jcode update | log_out; then
     log "  Falha ao atualizar o jcode."
     return "$RC_WARN"
   fi
@@ -692,7 +704,6 @@ update_kimchi() {
   local check check_rc
   check="$(run_network_cmd kimchi update self --dry-run 2>&1)"
   check_rc=$?
-  log_raw "$check"
   if ((check_rc != 0)); then
     log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
     return "$RC_WARN"
@@ -703,7 +714,7 @@ update_kimchi() {
   fi
 
   log "  Atualizando kimchi…"
-  if ! run_network_cmd kimchi update self --force; then
+  if ! run_network_cmd kimchi update self --force | log_out; then
     log "  Falha ao atualizar o kimchi."
     return "$RC_WARN"
   fi

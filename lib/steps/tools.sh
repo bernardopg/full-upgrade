@@ -110,6 +110,12 @@ update_gk() {
 }
 
 
+# ── purple (cliente SSH de terminal) ────────────────────────────────────────────
+# Binário self-download em ~/.local/bin/purple; `purple update` verifica checksum
+# e só baixa release nova. Helper em manual_apps.sh.
+update_purple() { _selfupdate_direct "purple" purple; }
+
+
 # ── cua-driver (trycua) ─────────────────────────────────────────────────────────
 # Driver de automação self-download em ~/.cua-driver. Tem check/apply com JSON:
 # `cua-driver check-update --json` → campo "update_available"; `cua-driver update
@@ -124,7 +130,6 @@ update_cua_driver() {
   local check check_rc
   check="$(run_network_cmd cua-driver check-update --json 2>&1)"
   check_rc=$?
-  log_raw "$check"
   if ((check_rc != 0)); then
     log "  Não foi possível verificar atualização do cua-driver (rede/GitHub indisponível)."
     return "$RC_WARN"
@@ -132,8 +137,20 @@ update_cua_driver() {
 
   if grep -qiE '"update_available"[[:space:]]*:[[:space:]]*true' <<<"$check"; then
     log "  Atualizando cua-driver…"
-    if ! run_network_cmd cua-driver update --apply; then
+    local apply_out apply_rc
+    apply_out="$(run_network_cmd cua-driver update --apply)"
+    apply_rc=$?
+    printf '%s\n' "$apply_out" | log_out
+    if ((apply_rc != 0)); then
+      # O check-update anuncia a release mais nova mesmo quando o upstream a
+      # retirou; o instalador recusa ("was withdrawn and must not be installed").
+      # Nada a fazer localmente até sair outra release: não é aviso.
+      if grep -qi 'was withdrawn' <<<"$apply_out"; then
+        log "  Release anunciada foi retirada pelo upstream; mantendo cua-driver ${current:-?}."
+        return 0
+      fi
       log "  Falha ao atualizar o cua-driver."
+      STEP_REASON="cua-driver update --apply falhou (rc=${apply_rc})"
       return "$RC_WARN"
     fi
     hash -r 2>/dev/null || true
@@ -145,10 +162,7 @@ update_cua_driver() {
   fi
 
   # Skills do cua-driver (independente da versão do binário). Best-effort.
-  local sk
-  if sk="$(run_network_cmd cua-driver skills update 2>&1)"; then
-    log_raw "$sk"
-  else
+  if ! run_network_cmd cua-driver skills update >/dev/null; then
     log "  Aviso: não foi possível atualizar as skills do cua-driver (rede)."
   fi
   return 0

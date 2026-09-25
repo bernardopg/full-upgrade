@@ -368,6 +368,18 @@ run_all_steps() {
         step_skip "Atualizar opencode" "opencode não instalado"
     fi
 
+    if has kilo; then
+        run_step "Atualizar kilo (Kilo Code CLI)" update_kilo
+    else
+        step_skip "Atualizar kilo (Kilo Code CLI)" "kilo não instalado"
+    fi
+
+    if has mimo; then
+        run_step "Atualizar mimo (MiMo Code)" update_mimo
+    else
+        step_skip "Atualizar mimo (MiMo Code)" "mimo não instalado"
+    fi
+
     if has pi; then
         run_step "Atualizar pi (pi-coding-agent)" update_pi
     else
@@ -485,10 +497,22 @@ run_all_steps() {
         step_skip "Atualizar kimchi" "kimchi não instalado"
     fi
 
+    if has pool; then
+        run_step "Atualizar pool (Poolside)" update_pool
+    else
+        step_skip "Atualizar pool (Poolside)" "pool não instalado"
+    fi
+
     if has cua-driver; then
         run_step "Atualizar cua-driver" update_cua_driver
     else
         step_skip "Atualizar cua-driver" "cua-driver não instalado"
+    fi
+
+    if has purple; then
+        run_step "Atualizar purple (cliente SSH)" update_purple
+    else
+        step_skip "Atualizar purple (cliente SSH)" "purple não instalado"
     fi
 
     if has zap || has zap.sh; then

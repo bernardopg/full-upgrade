@@ -50,3 +50,21 @@ setup() {
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"falha ao atualizar"* ]]
 }
+
+@test "opencode-style: 'Upgrade failed' com rc 0 vira RC_WARN (kilo)" {
+  has() { [[ "$1" == kilo ]]; }
+  kilo() { [[ "$1" == --version ]] && printf '7.3.16\n'; }
+  run_network_cmd() { printf '■  Upgrade failed\n■  bash: linha 1: `<!DOCTYPE html>\n'; return 0; }
+  run update_kilo
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"kilo (Kilo Code CLI): falha ao atualizar"* ]]
+}
+
+@test "opencode-style: mimo usa o mesmo fluxo de upgrade" {
+  has() { [[ "$1" == mimo ]]; }
+  mimo() { [[ "$1" == --version ]] && printf '0.1.14\n'; }
+  run_network_cmd() { printf '●  From 0.1.3 → 0.1.14\n└  Done\n'; return 0; }
+  run update_mimo
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mimo (MiMo Code) agora: 0.1.14"* ]]
+}

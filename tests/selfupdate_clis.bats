@@ -64,3 +64,38 @@ _json_update_available() {
     }
   done
 }
+
+# Stub do cua-driver no PATH: check-update anuncia 0.28.3, apply devolve o que
+# CUA_APPLY_OUT/CUA_APPLY_RC mandarem. Nada toca rede nem ~/.cua-driver.
+_stub_cua_driver() {
+  source "${FU_LIB}/steps/tools.sh"
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat >"$BATS_TEST_TMPDIR/bin/cua-driver" <<'SH'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "--version "*) echo "cua-driver 0.28.2" ;;
+  "check-update --json") echo '{ "current_version": "0.28.2", "update_available": true }' ;;
+  "update --apply") printf '%s\n' "$CUA_APPLY_OUT"; exit "$CUA_APPLY_RC" ;;
+  "skills update") echo "skills ok" ;;
+esac
+SH
+  chmod +x "$BATS_TEST_TMPDIR/bin/cua-driver"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+}
+
+@test "cua-driver: release retirada pelo upstream não vira aviso" {
+  _stub_cua_driver
+  export CUA_APPLY_RC=1
+  export CUA_APPLY_OUT="error: cua-driver-rs-v0.28.3 was withdrawn and must not be installed; pin a different release"
+  run update_cua_driver
+  [ "$status" -eq 0 ]
+}
+
+@test "cua-driver: falha real do apply vira aviso com motivo" {
+  _stub_cua_driver
+  export CUA_APPLY_RC=1 CUA_APPLY_OUT="error: checksum mismatch"
+  STEP_REASON=""
+  update_cua_driver || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"rc=1"* ]]
+}

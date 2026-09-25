@@ -3,8 +3,15 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+- **Novos steps self-download:** `Atualizar kilo (Kilo Code CLI)` e `Atualizar mimo (MiMo Code)` (forks do opencode, via `<bin> upgrade`), `Atualizar pool (Poolside)` e `Atualizar purple (cliente SSH)` (via `<bin> update`, que só baixa release nova e confere checksum).
+
 ### Corrigido
 - **Journal/Doctor: timeout com journal grande.** O teste de vazio `[[ -z "${var//[[:space:]]/}" ]]` é quadrático no bash; com uma unit em loop de restart (~83 mil linhas, 14 MB no `-p 3` do boot), `Doctor: journal erros críticos` estourava o limite de 30s antes de filtrar qualquer linha e escondia a causa. Todas as 105 ocorrências em `lib/`, `steps.d/` e `scripts/` agora usam o glob linear `[[ $var == *[![:space:]]* ]]`; o mesmo journal real é analisado em ~6s. `tests/shell_hygiene.bats` impede o idioma de voltar.
+- **opencode e forks:** `Upgrade failed` com rc 0 agora vira aviso; antes o step fechava `ok` sem atualizar (visto no kilo 7.3.16, cujo instalador devolvia HTML). A saída exibida é cortada em 300 colunas para não despejar a página na tela.
+- **cua-driver:** release anunciada pelo `check-update` mas retirada pelo upstream (`was withdrawn`) não gera mais aviso recorrente; demais falhas do apply viram aviso com motivo, e a saída do instalador vai indentada em vez de sair na coluna 0.
+- **Saída de updaters:** `droid`, `jcode`, `kimchi`, `qodercli`/`qoderwake`/`grok` imprimiam a saída crua na coluna 0; agora passam por `log_out`. Removidas 8 gravações duplicadas no log após `run_network_cmd`, que já grava a saída.
+- **`_strip_ansi`:** remove qualquer sequência CSI (inclui `\e[?25l` e `\e[J` de spinners), que antes sobravam no log.
 
 ## [3.47.0] - 2026-09-20
 ### Adicionado

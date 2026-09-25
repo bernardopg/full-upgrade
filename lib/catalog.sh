@@ -75,6 +75,8 @@ Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|t
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.
 Atualizar Claude Code CLI|ai|claude,update,network,slow|mutating|600|claude|update_claude_code|Atualiza Claude Code CLI (o instalador nativo baixa ~300 MB por release).
 Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.
+Atualizar kilo (Kilo Code CLI)|ai|ai,opencode,update,network|mutating|180|kilo|update_kilo|Atualiza a CLI kilo (fork do opencode, instalador próprio em ~/.kilo) via kilo upgrade; 'Upgrade failed' com rc 0 vira aviso.
+Atualizar mimo (MiMo Code)|ai|ai,opencode,update,network|mutating|180|mimo|update_mimo|Atualiza a CLI mimo (fork do opencode, instalador próprio em ~/.mimocode) via mimo upgrade.
 Atualizar Ollama|ai|ollama,update,network|mutating|600|ollama|update_ollama|Sob OLLAMA_SELF_UPDATE=1 reexecuta o instalador oficial do Ollama; senão só reporta a versão.
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
 Atualizar agent skills (skills CLI)|ai|skills,caveman,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza agent skills globais em ~/.agents/skills via 'npx skills update --global' (caveman, cavecrew, 9router-*, etc).
@@ -95,7 +97,9 @@ Atualizar jcode|ai|ai,jcode,update,network|mutating|300|jcode,curl|update_jcode|
 Atualizar qodercli (Qoder)|ai|ai,qoder,update,network|mutating|300|qodercli|update_qodercli|Atualiza a CLI qodercli (Qoder, self-download em ~/.qoder) via update nativo com check prévio (qodercli update --check).
 Atualizar qoderwake|ai|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
 Atualizar kimchi|ai|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
+Atualizar pool (Poolside)|ai|ai,pool,update,network|mutating|180|pool|update_pool|Atualiza a CLI pool (agente Poolside, self-download em ~/.local/bin) via pool update, que só baixa release nova.
 Atualizar cua-driver|tools|automation,cua,update,network|mutating|300|cua-driver|update_cua_driver|Atualiza o cua-driver (trycua, self-download em ~/.cua-driver) só quando check-update --json indica nova versão; também atualiza as skills.
+Atualizar purple (cliente SSH)|tools|purple,update,network|mutating|180|purple|update_purple|Atualiza o purple (cliente SSH de terminal, self-download em ~/.local/bin) via purple update, com checksum.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
 Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.
