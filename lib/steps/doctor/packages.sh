@@ -47,7 +47,7 @@ doctor_flatpak_repair_dry_run() {
     return "$RC_WARN"
   fi
 
-  if [[ -z "${output//[[:space:]]/}" ]]; then
+  if [[ $output != *[![:space:]]* ]]; then
     log "  Flatpak repair dry-run: nenhuma inconsistência reportada."
   else
     printf '%s\n' "$output" | grep -v '^$' | log_out || true
@@ -103,12 +103,12 @@ doctor_pacman_health() {
   output="$("${check_cmd[@]}" 2>&1)"
   rc=$?
 
-  if (( rc != 0 )) && [[ -z "${output//[[:space:]]/}" ]]; then
+  if (( rc != 0 )) && [[ $output != *[![:space:]]* ]]; then
     log "  ${check_cmd_label} retornou código ${rc} sem saída:"
     return "$RC_WARN"
   fi
 
-  if [[ -z "${output//[[:space:]]/}" ]]; then
+  if [[ $output != *[![:space:]]* ]]; then
     log "  ${check_cmd_label}: nenhum pacote com arquivo faltando."
     return 0
   fi
@@ -123,7 +123,7 @@ doctor_pacman_health() {
   filtered="$(printf '%s\n' "$output" | pacman_qk_filter_noise "${_pacman_health_noise[@]}")"
   noise_count=$(( $(printf '%s\n' "$output" | grep -c '[^[:space:]]' || true) - $(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true) ))
 
-  if [[ -z "${filtered//[[:space:]]/}" ]]; then
+  if [[ $filtered != *[![:space:]]* ]]; then
     log "  ${check_cmd_label}: apenas falsos positivos conhecidos (${noise_count} ignorados)."
     return 0
   fi
@@ -277,7 +277,7 @@ doctor_pacman_hooks() {
   local failed_hooks
   failed_hooks="$(journalctl -b "${boot_id}" -p err -g 'ALPM-scriptlet|alpm-hook' --no-pager --output=short-monotonic 2>/dev/null | grep -v '^$' || true)"
 
-  if [[ -z "${failed_hooks//[[:space:]]/}" ]]; then
+  if [[ $failed_hooks != *[![:space:]]* ]]; then
     log "  Nenhum hook ALPM com falha registrado no boot atual."
     return 0
   fi

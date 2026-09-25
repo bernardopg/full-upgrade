@@ -61,7 +61,7 @@ _error() {
   return 1
 }
 
-[[ -n "${header//[[:space:]]/}" ]] || _error "mensagem vazia"
+[[ $header == *[![:space:]]* ]] || _error "mensagem vazia"
 (( ${#header} <= max_length )) || _error "cabeçalho excede ${max_length} caracteres (${#header})"
 
 # Conventional Commits aceito pelo parser do commitlint: tipo, escopo opcional,
@@ -72,7 +72,7 @@ fi
 
 type="${BASH_REMATCH[1]}"
 subject="${BASH_REMATCH[4]}"
-[[ -n "${subject//[[:space:]]/}" ]] || _error "descrição vazia"
+[[ $subject == *[![:space:]]* ]] || _error "descrição vazia"
 
 valid_type=0
 for allowed in "${types[@]}"; do

@@ -270,7 +270,7 @@ print_banner() {
   if (( JSON_SUMMARY )); then
     log_always "${C_CYAN}  [JSON] Resumo JSON será impresso ao final.${C_RESET}"
   fi
-  if [[ -n "${FULL_UPGRADE_SKIP//[[:space:]]/}" ]]; then
+  if [[ $FULL_UPGRADE_SKIP == *[![:space:]]* ]]; then
     local skip_count; skip_count="$(skip_step_count)"
     if (( skip_count > 8 )); then
       COMPACT_SKIP_OUTPUT=1
@@ -279,7 +279,7 @@ print_banner() {
       log_always "${C_YELLOW}  [SKIP] Steps ignorados: ${FULL_UPGRADE_SKIP}${C_RESET}"
     fi
   fi
-  if [[ -n "${FULL_UPGRADE_DISABLED_INTEGRATIONS//[[:space:]]/}" ]]; then
+  if [[ $FULL_UPGRADE_DISABLED_INTEGRATIONS == *[![:space:]]* ]]; then
     log_always "${C_YELLOW}  [INTEGRAÇÕES DESABILITADAS] ${FULL_UPGRADE_DISABLED_INTEGRATIONS}${C_RESET}"
   fi
 }
@@ -439,7 +439,7 @@ summary_slowest_steps_json() {
 
 reboot_recommendation_from_reason() {
   local reason="$1"
-  [[ -n "${reason//[[:space:]]/}" ]] || return 1
+  [[ $reason == *[![:space:]]* ]] || return 1
   printf 'Reboot recomendado: %s\n' "$reason"
 }
 
@@ -565,7 +565,7 @@ print_summary() {
       # pelo ui_wrap puro a linha colapsava para "→ " e a continuação voltava
       # para a coluna do marcador, destoando das linhas curtas ao redor.
       local act_text="$act_name" act_pad=$(( 4 + ${#act_sym} + 2 ))
-      [[ -n "${act_reason//[[:space:]]/}" ]] && act_text="${act_name} — ${act_reason}"
+      [[ $act_reason == *[![:space:]]* ]] && act_text="${act_name} — ${act_reason}"
       local act_prefix="    ${act_sym}  " act_indent
       act_indent="$(printf '%*s' "$act_pad" '')"
       local -a act_lines=()
@@ -613,7 +613,7 @@ print_pkg_changes() {
   [[ -r "$before" && -r "$after" ]] || return 0
   local diff
   diff="$(pkg_diff "$before" "$after" 2>/dev/null)"
-  [[ -n "${diff//[[:space:]]/}" ]] || return 0
+  [[ $diff == *[![:space:]]* ]] || return 0
 
   local up ins rem
   up="$(grep -c '^U ' <<< "$diff" || true)"

@@ -423,6 +423,31 @@ _mock_journal_scoped() {
   [[ "$output" == *"Nenhum erro crítico"* ]]
 }
 
+@test "journal_errors: flood de unit em loop (80k linhas) termina rápido" {
+  # Regressão real: uma unit --user órfã com Restart=always falhava a cada 2s e
+  # deixou ~83k linhas (14 MB) no -p3 do boot. O teste de vazio via
+  # "${output//[[:space:]]/}" é quadrático no bash e estourou o timeout de 30s
+  # do catálogo sem chegar ao filtro. O limite abaixo é folgado para CI lento;
+  # a versão quadrática não termina nem em minutos.
+  #
+  # O flood é gerado dentro do mock, sem export: 14 MB no ambiente fariam todo
+  # comando externo falhar com E2BIG e o teste passaria por engano.
+  QUIET=0 LOG_FILE=/dev/null
+  has() { [[ "$1" == journalctl ]]; }
+  journalctl() {
+    local i
+    for ((i = 0; i < 40000; i++)); do
+      printf '2026-09-25T00:24:00-03:00 host systemd[729]: orphan.service: Failed to set up standard output: No such file or directory\n'
+      printf '2026-09-25T00:24:00-03:00 host systemd[729]: orphan.service: Failed at step STDOUT spawning /nope: No such file or directory\n'
+    done
+  }
+  local start=$SECONDS
+  run doctor_journal_errors
+  (( SECONDS - start < 20 ))
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"orphan.service"* ]]
+}
+
 # ── doctor_recurrent_coredumps (crash recorrente por programa) ────────────────
 
 _mock_coredumpctl() {

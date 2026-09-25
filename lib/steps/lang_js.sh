@@ -129,7 +129,7 @@ npm_manifest_has_local_file_deps() {
   # Checar apenas dependencies e optionalDependencies — devDependencies não são
   # instaladas em `npm install -g` e podem ter file:../ legítimos de monorepo.
   meta="$(npm view "$spec" dependencies optionalDependencies --json 2>/dev/null || true)"
-  [[ -n "${meta//[[:space:]]/}" ]] || return 1
+  [[ $meta == *[![:space:]]* ]] || return 1
 
   # Skippar apenas file: com path absoluto (/...) — esses referenciam o sistema
   # local do publicador e falhariam na instalação. file:./vendor/ são vendored
@@ -242,7 +242,7 @@ update_npm_globals() {
   fi
 
   outdated="$(npm outdated -g --depth=0 --json 2>/dev/null || true)"
-  if [[ -n "${outdated//[[:space:]]/}" && "$outdated" != "{}" ]]; then
+  if [[ $outdated == *[![:space:]]* && "$outdated" != "{}" ]]; then
     log "  Pacotes npm globais desatualizados:"
     npm outdated -g --depth=0 2>/dev/null | log_stream || true
   else
@@ -366,7 +366,7 @@ update_npm_globals_secondary() {
 
   local outdated
   outdated="$(npm outdated -g --prefix "$sec" --depth=0 --json 2>/dev/null || true)"
-  if [[ -z "${outdated//[[:space:]]/}" || "$outdated" == "{}" ]]; then
+  if [[ $outdated != *[![:space:]]* || "$outdated" == "{}" ]]; then
     log "  Sem pacotes npm globais pendentes em ${sec}."
     return 0
   fi
@@ -578,7 +578,7 @@ for name, info in deps.items():
         print(name)
 ' 2>/dev/null || true)"
 
-  if [[ -n "${filedeps//[[:space:]]/}" ]]; then
+  if [[ $filedeps == *[![:space:]]* ]]; then
     while IFS= read -r pkg; do
       [[ -n "$pkg" ]] || continue
       log "  Removendo dep local inválida do pnpm global: ${pkg} (file:)"

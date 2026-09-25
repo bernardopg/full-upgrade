@@ -36,7 +36,7 @@ update_tokensave() {
   output="$(_retry 2 "$tokensave_bin" upgrade 2>&1)"
   rc=$?
   # _retry já gravou a saída crua no log; aqui é só exibição.
-  [[ -n "${output//[[:space:]]/}" ]] && printf '%s\n' "$output" | _strip_ansi | log_out
+  [[ $output == *[![:space:]]* ]] && printf '%s\n' "$output" | _strip_ansi | log_out
 
   if (( rc == RC_WARN )); then
     installed="$(_tokensave_version "$before" 2>/dev/null || true)"
