@@ -672,6 +672,11 @@ update_codex_plugins() {
     STEP_REASON="rede indisponível para codex plugin marketplace upgrade"
     return "$RC_WARN"
   fi
+  # Com falha só de upstream o codex às vezes sai 1 ("1 upgrade failure(s)"):
+  # o rc só conta quando não há falha já classificada que o explique.
+  if ((rc != 0 && ${#upstream[@]} > 0 && ${#failed[@]} == 0)); then
+    rc=0
+  fi
   if ((rc != 0 || ${#failed[@]} > 0)); then
     STEP_REASON="falha ao renovar marketplace(s) do Codex: ${failed[*]:-rc=${rc}}"
     return "$RC_WARN"

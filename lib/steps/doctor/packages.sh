@@ -175,7 +175,17 @@ doctor_arch_audit_cves() {
   netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
   out="$(arch-audit 2>&1)"
   rc=$?
+  # O tracker (security.archlinux.org) às vezes estoura o tempo numa consulta e
+  # responde em ~2s na seguinte (run real 2026-09-25); uma nova tentativa evita
+  # um aviso por instabilidade momentânea.
   if (( rc != 0 )) && grep -qiE "$netre" <<<"$out"; then
+    log_raw "$out"
+    sleep 5
+    out="$(arch-audit 2>&1)"
+    rc=$?
+  fi
+  if (( rc != 0 )) && grep -qiE "$netre" <<<"$out"; then
+    log_raw "$out"
     log "  arch-audit: falha de rede ao consultar o tracker de segurança."
     STEP_REASON="rede indisponível para arch-audit"
     return "$RC_WARN"

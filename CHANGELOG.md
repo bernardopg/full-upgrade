@@ -3,6 +3,11 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+- **Plugins do Codex:** com falha só de upstream (nome divergente no `plugin.json`), o `codex plugin marketplace upgrade` às vezes sai com 1; isso não vira mais aviso.
+- **arch-audit:** um timeout momentâneo do tracker de segurança ganha uma segunda tentativa após 5s antes de virar aviso, e a saída do erro vai para o log.
+- **Journal/Doctor:** `kvm: ... Unhandled WRMSR/RDMSR` (MSR não emulado escrito pelo kernel de uma VM convidada) é tratado como ruído.
+
 
 ## [3.48.0] - 2026-09-25
 ### Adicionado

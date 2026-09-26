@@ -415,6 +415,9 @@ journal_noise_patterns() {
     'Failed to initialize pidref: No such process'
     # ── Virtualização: host sem Intel TDX — informativo, não é falha ──
     'virt/tdx: TDX not supported by the host platform'
+    # ── KVM: o kernel convidado de uma VM (Docker/emulador) escreveu um MSR que
+    #    o KVM não emula e ignorou. Assunto do convidado; o host segue normal. ──
+    'kvm: kvm \[[0-9]+\]: vcpu[0-9]+, guest rIP: .*Unhandled (WR|RD)MSR'
     # ── USB: falha de enumeração de dispositivo/hub com problema de hardware
     #    (mau contato, controlador do dispositivo falhando). O kernel já faz
     #    power-cycle e desiste; não há ação do full-upgrade — é between-device.

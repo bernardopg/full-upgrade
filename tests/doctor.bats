@@ -756,3 +756,11 @@ _cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M
   out="$(printf '# nota\napp\tnao-numero\napp\t300\n' | coredump_ack_cutoff app)"
   [ "$out" = "300" ]
 }
+
+@test "journal_noise_patterns: WRMSR não emulado de convidado KVM é ruído" {
+  local line='kvm: kvm [2561776]: vcpu0, guest rIP: 0xffffffff87403a51 Unhandled WRMSR(0xc2) = 0xffff' p hit=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
+  done < <(journal_noise_patterns)
+  [ "$hit" -eq 1 ]
+}

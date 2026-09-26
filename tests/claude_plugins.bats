@@ -96,6 +96,13 @@ _skills_repos() {
   [ "$status" -eq 0 ]
 }
 
+@test "update_codex_plugins: só falha de upstream com rc 1 não vira aviso" {
+  has() { [[ "$1" == codex ]]; }
+  codex() { echo 'Failed to upgrade marketplace `x`: plugin.json name `a` does not match marketplace plugin name `b`'; return 1; }
+  run update_codex_plugins
+  [ "$status" -eq 0 ]
+}
+
 @test "update_codex_plugins: outra falha com rc 0 vira RC_WARN" {
   has() { [[ "$1" == codex ]]; }
   codex() { echo 'Failed to upgrade marketplace `ponytail`: git fetch failed'; }

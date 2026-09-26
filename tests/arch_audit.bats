@@ -116,8 +116,22 @@ setup() {
 }
 
 @test "step: falha de rede vira RC_WARN" {
+  sleep() { :; }
   arch-audit() { printf 'error: could not resolve host security.archlinux.org\n'; return 1; }
   run doctor_arch_audit_cves
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"rede"* ]]
+}
+
+@test "step: falha de rede momentânea é superada pela segunda tentativa" {
+  sleep() { :; }
+  arch-audit() {
+    if [[ ! -e "$BATS_TEST_TMPDIR/tentou" ]]; then
+      : >"$BATS_TEST_TMPDIR/tentou"
+      printf 'error: connection timed out\n'; return 1
+    fi
+    return 0
+  }
+  run doctor_arch_audit_cves
+  [ "$status" -eq 0 ]
 }
