@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.48.1] - 2026-09-26
 ### Corrigido
 - **Plugins do Codex:** com falha só de upstream (nome divergente no `plugin.json`), o `codex plugin marketplace upgrade` às vezes sai com 1; isso não vira mais aviso.
 - **arch-audit:** um timeout momentâneo do tracker de segurança ganha uma segunda tentativa após 5s antes de virar aviso, e a saída do erro vai para o log.
