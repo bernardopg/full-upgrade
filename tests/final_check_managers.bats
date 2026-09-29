@@ -19,9 +19,10 @@ setup() {
   STEP_REASON=""
 
   # Todos os gerenciadores nascem stubados e silenciosos. Sem isso, um teste que
-  # stuba só o npm deixaria cargo/gem/flatpak reais rodarem (I/O de rede lento).
+  # stuba só o npm deixaria cargo/gem/flatpak reais rodarem (I/O de rede lento),
+  # e o `paru -Qua` real trazia as pendências AUR da máquina para o teste.
   local m
-  for m in pnpm cargo-install-update gem flatpak; do
+  for m in pnpm cargo-install-update gem flatpak yay paru; do
     stub "$m" ""
   done
   # Isola o prefixo secundário do ~/.npm-global real da máquina de teste.
