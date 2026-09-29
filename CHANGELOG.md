@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.48.3] - 2026-09-29
 ### Corrigido
 - **Hermes:** `Atualizar Hermes` estourava o limite de 300s em runs alternados. O GitHub leva de 14 a 50s para responder requisições smart-HTTP do repo `NousResearch/hermes-agent` (outros repos respondem em 0,3s na mesma rede), o git espera calado e o fetch interno do Hermes tem teto próprio de 300s. O step agora passa `GIT_HTTP_LOW_SPEED_LIMIT`/`GIT_HTTP_LOW_SPEED_TIME` ao git do Hermes, para a requisição parada abortar em 20s (`HERMES_GIT_STALL_S`), repete o `hermes update` até 3 vezes só em falha de rede (`HERMES_UPDATE_ATTEMPTS`), e o limite do catálogo sobe para 420s.
 - **Rede:** `Operation too slow` (limite de baixa velocidade do curl/git) passa a ser classificado como falha de rede transitória.
