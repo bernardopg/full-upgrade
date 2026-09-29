@@ -9,6 +9,15 @@ hermes_is_current() {
   grep -qiE 'already up.to.date|up to date|no updates? available|nenhuma atualiza' <<<"$1"
 }
 
+# O GitHub às vezes demora 14–50s para responder qualquer requisição smart-HTTP
+# do repo NousResearch/hermes-agent (outros repos respondem em 0,3s, na mesma
+# rede). O git espera calado, o fetch interno do Hermes tem teto próprio de 300s
+# e o step estourava o catálogo. Com o limite de baixa velocidade do curl (via
+# env, herdado pelo git que o Hermes chama) a requisição parada aborta em
+# HERMES_GIT_STALL_S e a próxima tentativa costuma sair em segundos.
+HERMES_GIT_STALL_S="${HERMES_GIT_STALL_S:-20}"
+HERMES_UPDATE_ATTEMPTS="${HERMES_UPDATE_ATTEMPTS:-3}"
+
 update_hermes() {
   local hermes_bin
   hermes_bin="$(command -v hermes || true)"
@@ -27,7 +36,8 @@ update_hermes() {
   # gateway por até 75s e levou 113s em medição real, portanto o timeout total do
   # catálogo é deliberadamente maior.
   local check_out check_rc
-  if check_out="$(timeout 30 env CI=1 NO_COLOR=1 TERM=dumb GIT_TERMINAL_PROMPT=0 hermes update --check 2>&1)"; then
+  local -x GIT_TERMINAL_PROMPT=0 GIT_HTTP_LOW_SPEED_LIMIT=1 GIT_HTTP_LOW_SPEED_TIME="$HERMES_GIT_STALL_S"
+  if check_out="$(timeout 30 env CI=1 NO_COLOR=1 TERM=dumb hermes update --check 2>&1)"; then
     check_rc=0
   else
     check_rc=$?
@@ -44,17 +54,23 @@ update_hermes() {
     log "  Check do Hermes falhou (rc=${check_rc}); tentando o update completo."
   fi
 
-  local output_file rc
+  local output_file rc attempt
   output_file="${LOG_DIR}/hermes-update-${RUN_ID}.log"
 
   # Hermes can emit TTY animations from nested Node postinstall/demo tooling.
   # Keep the full output in its own log and show only actionable lines here.
-  CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
-  rc=$?
-  {
-    printf '\n===== hermes update (%s) =====\n' "$(date -Is)"
-    sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
-  } >> "$LOG_FILE"
+  # Só falha de rede é repetida: o Hermes sai no fetch, antes de tocar no
+  # checkout, então a nova tentativa parte do mesmo estado.
+  for (( attempt = 1; attempt <= HERMES_UPDATE_ATTEMPTS; attempt++ )); do
+    CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
+    rc=$?
+    {
+      printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)"
+      sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
+    } >> "$LOG_FILE"
+    (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "$NETWORK_TRANSIENT_RE" "$output_file" || break
+    log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo."
+  done
 
   grep -E '^(✓|⚠|✗|→|  ✓|  ⚠|  →|Tip:|Up to date|Already|No update|error:|Error:|warning:|Warning:|fatal:|Traceback)' "$output_file" \
     | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \

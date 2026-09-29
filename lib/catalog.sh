@@ -69,7 +69,7 @@ Atualizar Google Cloud SDK|lang-other|gcloud,update,network,slow,lang|mutating|6
 Atualizar gems de usuário|lang-other|ruby,gem,update,network,lang|mutating|300|gem|update_gem_user|Atualiza gems instaladas no usuário.
 Atualizar ghcup|lang-other|haskell,ghcup,update,network,lang|mutating|300|ghcup|update_ghcup|Atualiza ghcup.
 Atualizar cache do tldr|shell|tldr,reference,cache,update,network|mutating|120|tldr|update_tldr_cache|Atualiza o cache local de páginas do Tealdeer (tldr); falhas preservam o cache anterior e viram aviso.
-Atualizar Hermes|ai|hermes,update,network|mutating|300|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
+Atualizar Hermes|ai|hermes,update,network|mutating|420|hermes|update_hermes|Atualiza Hermes CLI quando disponível.
 Atualizar RTK|ai|rtk,update,network|mutating|180|curl|update_rtk|Atualiza o RTK (Rust Token Killer) para a última release publicada no GitHub.
 Atualizar TokenSave|ai|tokensave,code-intelligence,update,network|mutating|300|tokensave|update_tokensave|Atualiza o TokenSave pelo self-updater oficial, preservando a instalação atual em caso de falha.
 Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openclaw|Atualiza OpenClaw quando disponível.

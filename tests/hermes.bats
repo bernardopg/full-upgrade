@@ -33,7 +33,7 @@ setup() {
   local row timeout_s
   row="$(step_catalog | grep '^Atualizar Hermes|')"
   timeout_s="$(cut -d'|' -f5 <<<"$row")"
-  [ "$timeout_s" -eq 300 ]
+  [ "$timeout_s" -eq 420 ]
 }
 
 @test "update_hermes: timeout do probe cai para o update completo" {
@@ -67,4 +67,45 @@ setup() {
   [ "$rc" -eq "$RC_WARN" ]
   [[ "$STEP_REASON" == *"rede indisponível"* ]]
   [[ "$STEP_REASON" == *"hermes-update-network.log"* ]]
+}
+
+@test "update_hermes: requisição parada no GitHub é repetida e o update conclui" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="stall"
+  LOG_FILE=/dev/null
+  timeout() { return 124; }
+  echo 0 > "$BATS_TEST_TMPDIR/calls"
+  hermes() {
+    local n
+    n=$(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 ))
+    echo "$n" > "$BATS_TEST_TMPDIR/calls"
+    # O limite de baixa velocidade precisa chegar ao git que o Hermes chama.
+    [[ "${GIT_HTTP_LOW_SPEED_LIMIT:-}" == 1 && -n "${GIT_HTTP_LOW_SPEED_TIME:-}" ]] || return 2
+    if (( n == 1 )); then
+      printf "fatal: unable to access 'https://github.com/NousResearch/hermes-agent.git/': Operation too slow. Less than 1 bytes/sec transferred the last 20 seconds\n"
+      return 1
+    fi
+    printf '✓ Update complete!\n'
+  }
+
+  run update_hermes
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq 2 ]
+}
+
+@test "update_hermes: falha que não é de rede não é repetida" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="nonet"
+  LOG_FILE=/dev/null
+  timeout() { return 124; }
+  echo 0 > "$BATS_TEST_TMPDIR/calls"
+  hermes() {
+    echo $(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 )) > "$BATS_TEST_TMPDIR/calls"
+    printf 'error: merge conflict in hermes_cli/main.py\n'
+    return 1
+  }
+
+  run update_hermes
+  [ "$status" -eq 1 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq 1 ]
 }
