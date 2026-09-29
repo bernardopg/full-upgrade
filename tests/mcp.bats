@@ -449,14 +449,24 @@ TOML
   [[ "$(cat "$HOME/.codex/config.toml")" == "$before" ]]
 }
 
+# O helper chama `timeout 20 npm`: o timeout executa o binário do PATH, não uma
+# função do shell, então o stub precisa ser um executável (senão o npm real
+# consulta o registry e o teste quebra a cada release upstream).
+_stub_npm_version() {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  printf '#!/bin/sh\necho %s\n' "$1" > "$BATS_TEST_TMPDIR/bin/npm"
+  chmod +x "$BATS_TEST_TMPDIR/bin/npm"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+}
+
 @test "mcp_pin_outdated: npm com escopo atrás da latest é reportado" {
-  npm() { echo "0.0.82"; }
+  _stub_npm_version 0.0.82
   run mcp_pin_outdated "npm:@playwright/mcp@0.0.81" "playwright"
   [ "$output" = "playwright: @playwright/mcp 0.0.81 → 0.0.82" ]
 }
 
 @test "mcp_pin_outdated: pin igual à latest não é reportado" {
-  npm() { echo "3.0.0"; }
+  _stub_npm_version 3.0.0
   run mcp_pin_outdated "npm:@browserbasehq/mcp@3.0.0" "browserbase"
   [ -z "$output" ]
 }
