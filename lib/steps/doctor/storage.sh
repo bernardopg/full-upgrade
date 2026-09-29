@@ -16,6 +16,14 @@ smart_health_class() {
   esac
 }
 
+# Motivos que o `smartctl -H` lista sob um FAILED (linhas "- ..."), juntos por
+# "; ". Num NVMe o FAILED vem do critical_warning, e o bit mais comum é só
+# temperatura acima do limite: sem o motivo, "SMART FAILED" soava como disco
+# morrendo quando a ação é resfriar. Puro/testável.
+smart_failed_causes() {
+  sed -n 's/^- //p' <<<"$1" | paste -sd';' | sed 's/;/; /g'
+}
+
 
 # Severidade de um contador SMART (setores realocados / não corrigíveis).
 # Inteiro > 0 => "warn"; 0/vazio/não-numérico => "ok".
@@ -115,13 +123,17 @@ doctor_smart_health() {
       local drive health
       while IFS= read -r drive; do
         [[ -z "$drive" ]] && continue
-        health="$(sudo -n smartctl -H "$drive" 2>/dev/null | awk '/overall-health|SMART overall/{print $NF}' | head -1 || true)"
+        local health_out causes
+        health_out="$(sudo -n smartctl -H "$drive" 2>/dev/null || true)"
+        health="$(awk '/overall-health|SMART overall/{print $NF}' <<<"$health_out" | head -1)"
         local reallocated uncorrectable
         reallocated="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Reallocated_Sector_Ct/{print $10}' | head -1 || true)"
         uncorrectable="$(sudo -n smartctl -A "$drive" 2>/dev/null | awk '/Offline_Uncorrectable/{print $10}' | head -1 || true)"
         case "$(smart_health_class "$health")" in
           ok)   log "  ${drive}: saúde SMART OK (${health})" ;;
-          todo) log "  ${drive}: saúde SMART ${health} — verificar imediatamente."
+          todo) causes="$(smart_failed_causes "$health_out")"
+                log "  ${drive}: saúde SMART ${health}${causes:+ (${causes})} — verificar imediatamente."
+                STEP_REASON="${drive}: SMART ${health}${causes:+ (${causes})}"
                 status="$RC_TODO" ;;
         esac
         if [[ "$(smart_counter_severity "$reallocated")" == "warn" ]]; then

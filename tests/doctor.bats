@@ -196,6 +196,14 @@ _stub_fwupd_hsi1() {
   run smart_health_class FAILED;   [ "$output" = "todo" ]
 }
 
+@test "smart_failed_causes: extrai o motivo do FAILED (temperatura de NVMe)" {
+  local out=$'SMART overall-health self-assessment test result: FAILED!\n- temperature is above or below threshold\n'
+  run smart_failed_causes "$out"
+  [ "$output" = "temperature is above or below threshold" ]
+  run smart_failed_causes "SMART overall-health self-assessment test result: PASSED"
+  [ -z "$output" ]
+}
+
 # ── smart_counter_severity ────────────────────────────────────────────────────
 @test "smart_counter_severity: >0 => warn" {
   run smart_counter_severity 1;   [ "$output" = "warn" ]
