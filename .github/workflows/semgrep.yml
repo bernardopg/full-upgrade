@@ -59,9 +59,14 @@ jobs:
         run: |
           # Semgrep 1.173.0 fixa mcp==1.29.0 e click==8.4.2, que já corrigem as
           # CVEs de servidor MCP (CVE-2026-52869/52870/59950) e de click.edit()
-          # (PYSEC-2026-2132) antes ignoradas aqui. Sem exceções: qualquer
-          # vulnerabilidade conhecida no lock bloqueia o workflow.
+          # (PYSEC-2026-2132) antes ignoradas aqui. Qualquer vulnerabilidade
+          # conhecida no lock bloqueia o workflow, com uma exceção:
+          # CVE-2026-102274 (PyJWT < 2.14.0: JWK malformado derruba o PyJWKSet)
+          # não tem correção instalável, porque o semgrep 1.178.0 (última
+          # versão) fixa pyjwt~=2.13.0. O scan aqui é offline e nunca carrega
+          # um JWKS. Remover o --ignore-vuln quando o semgrep liberar pyjwt>=2.14.
           python3 -m pip_audit --strict --require-hashes --disable-pip \
+            --ignore-vuln CVE-2026-102274 \
             -r .github/requirements-semgrep.txt
 
       - name: Upload SARIF to GitHub code scanning
