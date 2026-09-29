@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.48.4] - 2026-09-29
 ### Corrigido
 - **Doctor: SMART e NVMe:** um `FAILED` agora mostra o motivo listado pelo `smartctl -H` (ex.: `temperature is above or below threshold`) na tela e no motivo do step, que antes vinha vazio. Num NVMe o bit mais comum é só temperatura, e sem o motivo o aviso soava como disco morrendo.
 
