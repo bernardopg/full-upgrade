@@ -127,6 +127,14 @@ for pkg in data:
 }
 
 
+# Executáveis em ~/.local/bin que o pipx se recusou a relinkar ("File exists at
+# X and points to X, not <venv>"). Costuma ser uma cópia antiga de `pip install
+# --user` da mesma ferramenta: o pipx atualiza o venv, mas o PATH segue rodando
+# a versão velha. Puro/testável.
+pipx_shadowed_bins() {
+  grep -oE 'File exists at [^[:space:]]+' <<<"$1" | awk '{print $4}' | sort -u
+}
+
 update_pipx() {
   local output rc
   output="$(pipx upgrade-all 2>&1)"
@@ -136,28 +144,24 @@ update_pipx() {
   # "No packages upgraded" = nada a fazer — substituir por msg limpa em pt-BR
   if grep -q 'No packages upgraded' <<<"$output"; then
     log "  pipx: todos os pacotes já atualizados."
-    return "$rc"
+  else
+    # Suprimir "upgrading X..." — manter só sumário e linhas de pacotes atualizados
+    printf '%s\n' "$output" | grep -v '^upgrading ' | grep -v '^$' | log_out || true
   fi
 
-  # Suprimir "upgrading X..." — manter só sumário e linhas de pacotes atualizados
-  printf '%s\n' "$output" | grep -v '^upgrading ' | grep -v '^$' | log_out || true
-
-  # Detecta symlink quebrado/auto-referente em ~/.local/bin (pipx avisa
-  # "File exists at ... and points to <ele mesmo>, not <venv>"). Costuma
-  # ocorrer quando a mesma ferramenta foi instalada via pip --user E pipx.
-  # Não é erro do update; sinalizamos remediação sem falhar o step.
-  local _selfln
-  while IFS= read -r _selfln; do
-    [[ -n "$_selfln" ]] || continue
-    log "  ${C_YELLOW}Aviso: '${_selfln}' é um symlink auto-referente (pip --user vs pipx).${C_RESET}"
-    remediation "pipx reinstall \$(basename '${_selfln}')   ou   rm '${_selfln}' && pipx ensurepath"
-  done < <(
-    printf '%s\n' "$output" \
-      | grep -oE 'File exists at [^[:space:]]+' \
-      | awk '{print $4}' \
-      | sort -u
-  )
-  return "$rc"
+  # Checado mesmo com "No packages upgraded": o aviso sai a cada run, inclusive
+  # quando o venv já está atualizado e só o link ficou para trás.
+  local bin
+  local -a shadowed=()
+  mapfile -t shadowed < <(pipx_shadowed_bins "$output")
+  (( rc == 0 && ${#shadowed[@]} > 0 )) || return "$rc"
+  for bin in "${shadowed[@]}"; do
+    log "  ${C_YELLOW}Aviso: ${bin} não é o link do pipx; o PATH roda outra cópia (provável pip --user).${C_RESET}"
+    remediation "python -m pip uninstall --break-system-packages $(basename "$bin")   (ou rm '${bin}') && pipx reinstall $(basename "$bin")"
+  done
+  # shellcheck disable=SC2034  # global cross-module lida por core.sh
+  STEP_REASON="pipx não relinkou: ${shadowed[*]}"
+  return "$RC_TODO"
 }
 
 

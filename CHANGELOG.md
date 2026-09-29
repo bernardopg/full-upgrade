@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+- **pipx:** o aviso `File exists at ~/.local/bin/X ... Not modifying` (cópia antiga de `pip install --user` sombreando o link do pipx) era ignorado quando vinha junto de `No packages upgraded`, e o step fechava `ok` com o PATH rodando a versão velha. Agora vira TODO com o executável no motivo e a remediação (`python -m pip uninstall` + `pipx reinstall`); a remediação antiga sugeria `pip uninstall --user`, opção que não existe.
 
 ## [3.48.4] - 2026-09-29
 ### Corrigido

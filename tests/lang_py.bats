@@ -65,6 +65,23 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+# Regressão: o aviso vinha junto de "No packages upgraded" e o step retornava
+# antes de checá-lo, então o poetry 2.4.1 do pip --user seguia no PATH enquanto
+# o venv do pipx já estava no 2.5.1, sem nenhum aviso.
+@test "update_pipx: link sombreado com nada a atualizar vira TODO" {
+  log() { :; }; log_raw() { :; }; remediation() { :; }
+  pipx() {
+    printf 'upgrading poetry...\n⚠️  File exists at /home/u/.local/bin/poetry and points to /home/u/.local/bin/poetry, not /home/u/.local/share/pipx/venvs/poetry/bin/poetry. Not modifying.\nNo packages upgraded\n'
+  }
+  local rc
+  set +e
+  update_pipx >/dev/null
+  rc=$?
+  set -e
+  [ "$rc" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *"/home/u/.local/bin/poetry"* ]]
+}
+
 @test "update_uv_self: propaga rc do uv" {
   uv() { echo "updated"; return 0; }
   run update_uv_self
