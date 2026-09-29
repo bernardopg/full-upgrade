@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+- **Hermes:** o `hermes update` troca o erro do git por diagnósticos próprios (`Network error — cannot reach the remote repository`, `GitHub appears to be having an outage`, `GitHub rejected the anonymous fetch`). Sem eles no regex de rede, uma requisição parada no GitHub virava `fail` sem nova tentativa; agora é repetida e, se persistir, vira aviso de rede.
 
 ## [3.48.5] - 2026-09-29
 ### Corrigido

@@ -109,3 +109,34 @@ setup() {
   [ "$status" -eq 1 ]
   [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq 1 ]
 }
+
+# Regressão real (run 20260929-202410): o Hermes troca o erro do git por frases
+# próprias ("✗ Network error — cannot reach the remote repository."). Sem elas no
+# regex a requisição parada virava fail, sem nova tentativa.
+@test "update_hermes: diagnóstico de rede do próprio Hermes é repetido" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="hermesnet"
+  LOG_FILE=/dev/null
+  timeout() { return 124; }
+  echo 0 > "$BATS_TEST_TMPDIR/calls"
+  hermes() {
+    local n
+    n=$(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 ))
+    echo "$n" > "$BATS_TEST_TMPDIR/calls"
+    if (( n == 1 )); then
+      printf '→ Fetching updates...\n✗ Network error — cannot reach the remote repository.\n'
+      return 1
+    fi
+    printf '✓ Update complete!\n'
+  }
+
+  run update_hermes
+  [ "$status" -eq 0 ]
+  [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq 2 ]
+}
+
+@test "NETWORK_TRANSIENT_RE: casa os diagnósticos de fetch do Hermes" {
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ Network error — cannot reach the remote repository.'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ GitHub appears to be having an outage — try again in a few minutes'
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ GitHub rejected the anonymous fetch (asked for a login)'
+}
