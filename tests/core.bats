@@ -605,6 +605,13 @@ setup() {
   printf '%s\n' 'Connection timed out' | grep -qiE "$NETWORK_TRANSIENT_RE"
 }
 
+# Regressão: o `mimo upgrade` não repassa o timeout de TCP do servidor de
+# release (Xiaomi FDS, cnbj1), só esta frase; sem ela a queda virava
+# "mimo upgrade falhou" em vez de falha de rede.
+@test "NETWORK_TRANSIENT_RE: casa falha de resolução de versão do mimo (FDS)" {
+  grep -qiE "$NETWORK_TRANSIENT_RE" <<<'failed to resolve latest version from FDS'
+}
+
 # Regressão: as CLIs de IA em JS (pi, codex, gemini, qwen, cline, kimi) e o
 # instalador nativo do Claude Code propagam o erro cru do Node/undici sem
 # traduzir. Sem esses tokens no regex, uma queda de rede era classificada como
