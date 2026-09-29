@@ -764,3 +764,11 @@ _cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M
   done < <(journal_noise_patterns)
   [ "$hit" -eq 1 ]
 }
+
+@test "journal_noise_patterns: multicast RX não suportado do wpa_supplicant é ruído" {
+  local line='wpa_supplicant[716]: p2p-dev-wlan0: nl80211: kernel reports: multicast RX registrations are not supported' p hit=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
+  done < <(journal_noise_patterns)
+  [ "$hit" -eq 1 ]
+}

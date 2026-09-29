@@ -418,6 +418,9 @@ journal_noise_patterns() {
     # ── KVM: o kernel convidado de uma VM (Docker/emulador) escreveu um MSR que
     #    o KVM não emula e ignorou. Assunto do convidado; o host segue normal. ──
     'kvm: kvm \[[0-9]+\]: vcpu[0-9]+, guest rIP: .*Unhandled (WR|RD)MSR'
+    # ── wpa_supplicant: o driver wifi não suporta registro de multicast RX
+    #    via nl80211; o wpa_supplicant segue sem isso a cada associação. ──
+    'nl80211: kernel reports: multicast RX registrations are not supported'
     # ── USB: falha de enumeração de dispositivo/hub com problema de hardware
     #    (mau contato, controlador do dispositivo falhando). O kernel já faz
     #    power-cycle e desiste; não há ação do full-upgrade — é between-device.
