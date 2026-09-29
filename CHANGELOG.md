@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.48.2] - 2026-09-29
 ### Corrigido
 - **mimo (MiMo Code):** `failed to resolve latest version from FDS` (servidor de release da Xiaomi inacessível) passa a ser classificado como falha de rede, com motivo `rede indisponível para mimo upgrade`, em vez de `mimo upgrade falhou`.
 - **Testes:** os testes de `mcp_pin_outdated` para npm stubavam o `npm` como função, mas o helper chama `timeout 20 npm`, que executa o binário real; o teste consultava o registry e quebrava a cada release do `@playwright/mcp`. O stub agora é um executável no `PATH`.
