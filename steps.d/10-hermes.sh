@@ -14,7 +14,10 @@ hermes_is_current() {
 # rede). O git espera calado, o fetch interno do Hermes tem teto próprio de 300s
 # e o step estourava o catálogo. Com o limite de baixa velocidade do curl (via
 # env, herdado pelo git que o Hermes chama) a requisição parada aborta em
-# HERMES_GIT_STALL_S e a próxima tentativa costuma sair em segundos.
+# HERMES_GIT_STALL_S e a próxima tentativa costuma sair em segundos. A lentidão
+# vem em rajadas e também atinge o POST que gera o pack (`RPC failed; curl 28`):
+# um limite fixo de 20s falhou 3 vezes seguidas em 1 minuto. Por isso cada nova
+# tentativa espera 10s e dobra a paciência (20s, 40s, 60s).
 HERMES_GIT_STALL_S="${HERMES_GIT_STALL_S:-20}"
 HERMES_UPDATE_ATTEMPTS="${HERMES_UPDATE_ATTEMPTS:-3}"
 
@@ -62,6 +65,7 @@ update_hermes() {
   # Só falha de rede é repetida: o Hermes sai no fetch, antes de tocar no
   # checkout, então a nova tentativa parte do mesmo estado.
   for (( attempt = 1; attempt <= HERMES_UPDATE_ATTEMPTS; attempt++ )); do
+    GIT_HTTP_LOW_SPEED_TIME=$(( HERMES_GIT_STALL_S * attempt ))
     CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
     rc=$?
     {
@@ -69,7 +73,8 @@ update_hermes() {
       sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
     } >> "$LOG_FILE"
     (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "$NETWORK_TRANSIENT_RE" "$output_file" || break
-    log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo."
+    log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo em 10s."
+    sleep 10
   done
 
   grep -E '^(✓|⚠|✗|→|  ✓|  ⚠|  →|Tip:|Up to date|Already|No update|error:|Error:|warning:|Warning:|fatal:|Traceback)' "$output_file" \

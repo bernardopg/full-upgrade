@@ -41,6 +41,7 @@ setup() {
   RUN_ID="test"
   LOG_FILE=/dev/null
   timeout() { return 124; }
+  sleep() { :; }
   hermes() { printf '✓ Update complete!\n'; }
 
   run update_hermes
@@ -54,6 +55,7 @@ setup() {
   RUN_ID="network"
   LOG_FILE=/dev/null
   timeout() { return 124; }
+  sleep() { :; }
   hermes() {
     printf 'fatal: unable to access repository: Could not resolve host\n'
     return 1
@@ -74,13 +76,15 @@ setup() {
   RUN_ID="stall"
   LOG_FILE=/dev/null
   timeout() { return 124; }
+  sleep() { :; }
   echo 0 > "$BATS_TEST_TMPDIR/calls"
   hermes() {
     local n
     n=$(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 ))
     echo "$n" > "$BATS_TEST_TMPDIR/calls"
-    # O limite de baixa velocidade precisa chegar ao git que o Hermes chama.
-    [[ "${GIT_HTTP_LOW_SPEED_LIMIT:-}" == 1 && -n "${GIT_HTTP_LOW_SPEED_TIME:-}" ]] || return 2
+    # O limite de baixa velocidade chega ao git que o Hermes chama e cresce a
+    # cada tentativa (20s, depois 40s).
+    [[ "${GIT_HTTP_LOW_SPEED_LIMIT:-}" == 1 && "${GIT_HTTP_LOW_SPEED_TIME:-}" == $(( 20 * n )) ]] || return 2
     if (( n == 1 )); then
       printf "fatal: unable to access 'https://github.com/NousResearch/hermes-agent.git/': Operation too slow. Less than 1 bytes/sec transferred the last 20 seconds\n"
       return 1
@@ -98,6 +102,7 @@ setup() {
   RUN_ID="nonet"
   LOG_FILE=/dev/null
   timeout() { return 124; }
+  sleep() { :; }
   echo 0 > "$BATS_TEST_TMPDIR/calls"
   hermes() {
     echo $(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 )) > "$BATS_TEST_TMPDIR/calls"
@@ -118,6 +123,7 @@ setup() {
   RUN_ID="hermesnet"
   LOG_FILE=/dev/null
   timeout() { return 124; }
+  sleep() { :; }
   echo 0 > "$BATS_TEST_TMPDIR/calls"
   hermes() {
     local n

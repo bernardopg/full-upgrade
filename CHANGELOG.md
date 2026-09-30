@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+- **Hermes:** a lentidão do GitHub vem em rajadas e também atinge o POST que gera o pack (`RPC failed; curl 28`); três tentativas seguidas com o limite fixo de 20s falharam em 1 minuto. Cada nova tentativa agora espera 10s e aumenta o limite de requisição parada (20s, 40s, 60s).
 
 ## [3.48.6] - 2026-09-30
 ### Corrigido
