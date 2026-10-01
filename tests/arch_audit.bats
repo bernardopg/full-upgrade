@@ -78,7 +78,7 @@ setup() {
   [[ "$output" == *"pacman -Syu"* ]]
 }
 
-@test "step: apenas CVE sem correção upstream => informativo (return 0)" {
+@test "step: tracker sem versão corrigida => RC_WARN requer validação" {
   # 2 afetados na saída padrão; -u vazio (nenhum corrigível ainda).
   arch-audit() {
     if [[ "$*" == *"-u"* || "$*" == *"--upgradable"* ]]; then
@@ -91,9 +91,9 @@ setup() {
     return 0
   }
   run doctor_arch_audit_cves
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"sem correção upstream"* ]]
-  [[ "$output" == *"informativo"* ]]
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"sem versão corrigida cadastrada"* ]]
+  [[ "$output" == *"valide"* ]]
 }
 
 @test "step: mistura corrigível + sem-correção => RC_WARN e cita o resto" {
@@ -112,7 +112,7 @@ setup() {
   run doctor_arch_audit_cves
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"1 pacote(s) com CVE já corrigível"* ]]
-  [[ "$output" == *"2 sem correção"* ]]
+  [[ "$output" == *"2 sem versão corrigida cadastrada"* ]]
 }
 
 @test "step: falha de rede vira RC_WARN" {
@@ -120,7 +120,7 @@ setup() {
   arch-audit() { printf 'error: could not resolve host security.archlinux.org\n'; return 1; }
   run doctor_arch_audit_cves
   [ "$status" -eq "$RC_WARN" ]
-  [[ "$output" == *"rede"* ]]
+  [[ "$output" == *"inconclusivo"* ]]
 }
 
 @test "step: falha de rede momentânea é superada pela segunda tentativa" {
@@ -134,4 +134,21 @@ setup() {
   }
   run doctor_arch_audit_cves
   [ "$status" -eq 0 ]
+}
+
+@test "step: falha operacional não vira ausência de CVEs" {
+  arch-audit() { printf 'invalid response\n'; return 1; }
+  run doctor_arch_audit_cves
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" != *"Sem CVEs"* ]]
+}
+
+@test "step: consulta de correções falhada é inconclusiva" {
+  arch-audit() {
+    [[ "$*" == *-u* ]] && return 1
+    printf 'linux is affected by issues.\n'
+  }
+  doctor_arch_audit_cves || rc=$?
+  [ "${rc:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"inconclusiva"* ]]
 }

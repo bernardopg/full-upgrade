@@ -222,6 +222,38 @@ headroom_unit_unsupported_flags() {
   done < <(sed -n 's/^ExecStart=//p' <<<"$unit_text" | grep -oE -- '--[a-z][a-z0-9-]*' | sort -u)
 }
 
+# Testa apenas destinos locais explícitos, sem credenciais nem requests de API.
+headroom_local_upstream_unavailable() {
+  python3 - "$1" <<'PYUPSTREAM'
+import shlex, socket, sys
+from urllib.parse import urlsplit
+for line in sys.argv[1].splitlines():
+    if not line.startswith("ExecStart="):
+        continue
+    try:
+        args = shlex.split(line.partition("=")[2])
+    except ValueError:
+        continue
+    for i, arg in enumerate(args):
+        for flag in ("--openai-api-url", "--anthropic-api-url"):
+            if arg == flag and i + 1 < len(args):
+                value = args[i + 1]
+            elif arg.startswith(flag + "="):
+                value = arg.partition("=")[2]
+            else:
+                continue
+            try:
+                url = urlsplit(value)
+                if url.hostname not in ("localhost", "127.0.0.1", "::1"):
+                    continue
+                port = url.port or (443 if url.scheme == "https" else 80)
+                with socket.create_connection((url.hostname, port), timeout=2):
+                    pass
+            except (OSError, ValueError):
+                print(f"{flag}: destino local indisponível")
+PYUPSTREAM
+}
+
 check_headroom_unit_compat() {
   local unit="${HEADROOM_USER_UNIT:-${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user/headroom.service}"
   [[ -r "$unit" ]] || return 0
@@ -239,6 +271,14 @@ check_headroom_unit_compat() {
   mapfile -t unsupported < <(headroom_unit_unsupported_flags "$unit_text" "$help_text")
   if (( ${#unsupported[@]} == 0 )); then
     log "  Headroom: ExecStart compatível com a CLI instalada."
+    local unavailable
+    unavailable="$(headroom_local_upstream_unavailable "$unit_text")"
+    if [[ -n "$unavailable" ]]; then
+      log "  Headroom: ${unavailable}"
+      log "  Configure um upstream válido para as rotas usadas; serviço preservado durante sessões ativas."
+      STEP_REASON="Headroom: ${unavailable}; revisar rota usada após desativar o upstream"
+      return "$RC_TODO"
+    fi
     return 0
   fi
 

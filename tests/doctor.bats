@@ -13,7 +13,7 @@ setup() {
 
 _stub_fwupd_hsi1() {
   has() { [[ "$1" == fwupdmgr ]]; }
-  fwupdmgr() { printf 'Host Security ID: HSI:1! (v2.1.7)\n\nHSI-1\n  ✔ UEFI Secure Boot: Enabled\nHSI-2\n  ✘ IOMMU: Not found\n'; }
+  fwupdmgr() { printf 'Host Security ID: HSI:1 (v2.1.7)\n\nHSI-1\n  ✔ UEFI Secure Boot: Enabled\nHSI-2\n  ✘ IOMMU: Not found\n'; }
 }
 
 @test "fwupd security: HSI:1 com o padrão (FWUPD_HSI_MIN=2) é aviso" {
@@ -779,4 +779,21 @@ _cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M
     [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
   done < <(journal_noise_patterns)
   [ "$hit" -eq 1 ]
+}
+
+@test "fwupd: runtime inseguro avisa mesmo acima do piso" {
+  has() { [[ "$1" == fwupdmgr ]]; }
+  fwupdmgr() { printf 'Host Security ID: HSI:3!\n'; }
+  FWUPD_HSI_MIN=1
+  run doctor_fwupd_security
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "restart: runtimes ficam para manutenção, postgres pode reiniciar" {
+  for unit in docker.service containerd.service podman.service; do
+    run service_restart_is_session_critical "$unit"
+    [ "$status" -eq 0 ]
+  done
+  run service_restart_is_session_critical postgresql.service
+  [ "$status" -ne 0 ]
 }

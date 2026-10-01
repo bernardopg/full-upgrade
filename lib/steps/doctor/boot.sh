@@ -43,7 +43,7 @@ fwupd_hsi_only_mtd_measurement_gap() {
   [[ $failures == *[![:space:]]* ]] || return 1
 
   local others
-  others="$(grep -viE 'Locked MTD.*(not supported|não suportado)' <<<"$failures")"
+  others="$(grep -viE '(Locked MTD|MTD Trancado).*(not supported|não suportado)' <<<"$failures")"
   [[ $others != *[![:space:]]* ]]
 }
 
@@ -75,15 +75,16 @@ doctor_fwupd_security() {
   if [[ -n "$failed_attrs" ]]; then
     # `paste -d', '` trataria , e espaço como delimitadores alternados; o join
     # tem que ser feito com um separador só.
-    log "  Sem suporte neste hardware: $(paste -sd',' - <<<"$failed_attrs" | sed 's/,/, /g')"
+    log "  Atributos sem proteção confirmada: $(paste -sd',' - <<<"$failed_attrs" | sed 's/,/, /g')"
   fi
 
-  # O nível HSI agregado (0–4) é o sinal de verdade. O sufixo "!" indica apenas
-  # que há medições de runtime presentes (HSI-Runtime), não insegurança. E os
-  # marcadores "✘" em sub-itens são esperados mesmo em níveis altos (atributos
-  # não suportados/não aplicáveis no hardware), então NÃO devem disparar aviso
-  # por si só. Critério: avisar somente quando o nível agregado fica abaixo de
-  # FWUPD_HSI_MIN (padrão 2; HSI costuma ser limitado pelo hardware/UEFI).
+  # O sufixo ! indica falhas de runtime, independentemente do piso HSI.
+  # Não confundir Secure Boot/lockdown desativados com hardware sem suporte.
+  if grep -qiE 'HSI:[0-9]+!' <<<"$output"; then
+    STEP_REASON="fwupd: segurança de runtime requer revisão (HSI com !)"
+    log "  Revise Secure Boot, lockdown e swap; veja a tabela completa no log."
+    return "$RC_WARN"
+  fi
   local hsi_level
   hsi_level="$(printf '%s\n' "$output" | grep -oiE 'HSI:[0-9]+' | head -n1 | grep -oE '[0-9]+' || true)"
 

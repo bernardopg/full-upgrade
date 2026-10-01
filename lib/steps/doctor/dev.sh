@@ -39,6 +39,27 @@ doctor_ai_clis() {
     # individual preserva o inventário das demais e evita estourar o timeout do
     # step inteiro por causa de uma só ferramenta. Funções são usadas apenas
     # como doubles nos testes; binários reais sempre passam pelo timeout.
+    if [[ "$cmd" == 9router ]]; then
+      # --version inicializa SQLite/tray neste pacote; leia apenas metadados.
+      local entry_path package_file
+      entry_path="$(readlink -f "$(command -v "$cmd")" 2>/dev/null)"
+      package_file="$(dirname "${entry_path:-/nonexistent}")/package.json"
+      ver=""
+      if [[ -r "$package_file" ]]; then
+        ver="$(python3 - "$package_file" <<'PYVERSION'
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+    if data.get("name") == "9router":
+        print(data.get("version", ""))
+except (OSError, ValueError):
+    pass
+PYVERSION
+)"
+      fi
+      log "  ${label}: ${ver:-instalado (versão indisponível nos metadados)}"
+      continue
+    fi
     if [[ "$(type -t "$cmd")" == function ]]; then
       out="$("$cmd" --version 2>/dev/null)"
       rc=$?

@@ -56,7 +56,7 @@ _strip_ansi() {
 log_raw() {
   local _lf="${LOG_FILE:-/dev/null}"
   [[ -z "$_lf" ]] && _lf="/dev/null"
-  printf '%b\n' "$*" | _strip_ansi >> "$_lf"
+  printf '%s\n' "$*" | _strip_ansi >> "$_lf"
 }
 
 # Mata uma árvore de processos (filhos primeiro, depois o pai) com o sinal dado.
@@ -156,10 +156,10 @@ log() {
   local _lf="${LOG_FILE:-/dev/null}"
   [[ -z "$_lf" ]] && _lf="/dev/null"
   if (( QUIET )); then
-    printf '%b\n' "$*" | _strip_ansi >> "$_lf"
+    printf '%s\n' "$*" | _strip_ansi >> "$_lf"
   else
     _log_to_terminal "$*"                       # terminal: mantém cores
-    printf '%b\n' "$*" | _strip_ansi >> "$_lf"  # arquivo: sem ANSI
+    printf '%s\n' "$*" | _strip_ansi >> "$_lf"  # arquivo: sem ANSI
   fi
 }
 
@@ -168,7 +168,7 @@ log_always() {
   local _lf="${LOG_FILE:-/dev/null}"
   [[ -z "$_lf" ]] && _lf="/dev/null"
   _log_to_terminal "$*"                         # terminal: mantém cores
-  printf '%b\n' "$*" | _strip_ansi >> "$_lf"    # arquivo: sem ANSI
+  printf '%s\n' "$*" | _strip_ansi >> "$_lf"    # arquivo: sem ANSI
 }
 
 run_logged() {
@@ -671,6 +671,9 @@ service_restart_is_session_critical() {
       autovt@*.service | serial-getty@*.service)
       return 0
       ;;
+    # Runtimes de containers podem interromper jobs e demorar além do orçamento
+    # do step. Reinício pertence à janela de manutenção dos workloads.
+    docker.service | containerd.service | podman.service | \
     NetworkManager.service | systemd-networkd.service | systemd-resolved.service | \
       wpa_supplicant.service | iwd.service | connman.service | netctl.service | \
       netctl@*.service | dhcpcd.service | dhcpcd@*.service)
@@ -735,6 +738,18 @@ parse_cargo_vuln_bins() {
     | grep -oE '/[^[:space:]]+$' \
     | xargs -r -n1 basename 2>/dev/null \
     | sort -u
+}
+
+# Inclui unsound, mesmo quando cargo-audit permite o aviso e retorna zero.
+# A linha de resumo identifica o binário; não mistura yanked/unmaintained.
+parse_cargo_risk_bins() {
+  awk '
+    /^Warning:[[:space:]]+unsound/ { unsound=1 }
+    tolower($0) ~ /vulnerabilit(y|ies) found in / || (tolower($0) ~ /allowed warnings? found in / && unsound) {
+      bin=$NF; sub(/^.*\//, "", bin); print bin
+    }
+    /found in / { unsound=0 }
+  ' | sort -u
 }
 
 # Classifica um binário cargo: imprime "toolchain" (gerenciado por rustup/pacman,
@@ -1081,6 +1096,10 @@ step_skip() {
   if (( ! ${COMPACT_SKIP_OUTPUT:-0} )); then
     _maybe_print_section "$_cat"
     _prev_kind="${LAST_OUTPUT_KIND}"
+  fi
+  # Skips pedidos já foram descontados no catálogo; ausências dinâmicas não.
+  if (( ${TOTAL_STEPS:-0} > 0 )) && ! _step_skip_requested "$name"; then
+    TOTAL_STEPS=$((TOTAL_STEPS - 1))
   fi
   STEP_NAMES+=("$name")
   STEP_CATEGORIES+=("$_cat")

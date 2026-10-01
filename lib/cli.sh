@@ -636,7 +636,7 @@ apply_mode_and_early_exits() {
             tray_disable_systemd_unit
             exit 0 ;;
         status)  tray_print_status; exit 0 ;;
-        check)   tray_check_and_print; exit 0 ;;
+        check)   tray_check_and_print; exit $? ;;
     esac
 
     if [[ -n "$EXPLAIN_STEP" ]]; then

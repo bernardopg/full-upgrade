@@ -11,7 +11,6 @@ update_fwupd() {
   refresh_output="$(_retry 2 env LC_ALL=C fwupdmgr refresh --force 2>&1)"
   rc_refresh=$?
   # Filtrar linhas de progresso de download do terminal (gravadas no log integralmente)
-  log_raw "$refresh_output"
   printf '%s\n' "$refresh_output" | grep -v '^Downloading\|^Baixando' | log_out || true
 
   if (( rc_refresh != 0 && rc_refresh != RC_WARN )); then

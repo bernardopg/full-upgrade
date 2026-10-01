@@ -1,0 +1,14 @@
+CHANGELOG.md
+lib/cli.sh
+lib/core.sh
+lib/steps/ai.sh
+lib/steps/doctor/boot.sh
+lib/steps/doctor/packages.sh
+lib/steps/editor.sh
+lib/tray.sh
+tests/arch_audit.bats
+tests/claude_plugins.bats
+tests/cli.bats
+tests/doctor.bats
+tests/pi.bats
+tests/tray.bats

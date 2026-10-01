@@ -588,7 +588,6 @@ for name, info in deps.items():
 
   output="$(_retry 2 pnpm -g update 2>&1)"
   rc=$?
-  log_raw "$output"
 
   if (( rc == RC_WARN )); then
     log "  pnpm global: falha de rede transitória após 2 tentativas."
@@ -658,7 +657,6 @@ update_deno() {
   log "  deno atual: $(deno --version 2>/dev/null | awk 'NR==1{print $2}' || echo '?')"
   output="$(_retry 2 deno upgrade 2>&1)"
   rc=$?
-  log_raw "$output"
   if grep -qiE "already.*latest|is the most recent|up to date" <<<"$output"; then
     log "  deno já na versão mais recente."
     return 0

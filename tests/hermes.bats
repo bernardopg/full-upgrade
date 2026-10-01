@@ -146,3 +146,32 @@ setup() {
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ GitHub appears to be having an outage — try again in a few minutes'
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ GitHub rejected the anonymous fetch (asked for a login)'
 }
+
+@test "Hermes captura stderr Git ocultado e repete apenas falha de rede real" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="hidden"
+  LOG_FILE="$LOG_DIR/main.log"
+  local fake_bin="$LOG_DIR/bin"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf 'De https://github.com/example/repo\nfatal: Operation too slow\n' >&2
+exit 128
+EOF
+  chmod +x "$fake_bin/git"
+  PATH="$fake_bin:$PATH"
+  timeout() { return 124; }
+  sleep() { :; }
+  hermes() {
+    echo call >> "$LOG_DIR/calls"
+    local stderr
+    stderr="$(git fetch 2>&1)"
+    printf 'Failed to fetch updates from origin.\n  %s\n' "${stderr%%$'\n'*}"
+    return 1
+  }
+  run update_hermes
+  [ "$status" -eq "$RC_WARN" ]
+  [ "$(wc -l < "$LOG_DIR/calls")" -eq 3 ]
+  grep -q 'fatal: Operation too slow' "$LOG_FILE"
+  [ -z "$(find "$LOG_DIR" -maxdepth 1 -type d -name 'hermes-git.*')" ]
+}

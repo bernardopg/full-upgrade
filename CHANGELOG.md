@@ -4,6 +4,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.48.8] - 2026-10-01
+
+### Corrigido
+
+- **Rust:** achados persistentes continuam WARN, inclusive `unsound`; cobertura parcial e falhas operacionais não viram resultado limpo. Teto explícito de 512 MiB inclui binários grandes como TokenSave. Memo de rebuild é invalidado quando a advisory DB muda; rebuild usa fonte copiada e lock recém-resolvido compartilhado com cargo-auditable, preservando o registro de origem do cargo, evitando metadados do lock antigo do registry. Contagens identificam binários, não CVEs.
+- **Tray:** início/fim de execuções externas publicam o estado sem rede; o applet observa substituições atômicas do JSON e atualiza ícone/menu imediatamente. Saídas antecipadas também liberam o estado running; cache conserva a data real da consulta.
+- **Hermes:** wrapper temporário do Git preserva stderr completo ocultado pela CLI upstream, permitindo repetir falhas reais de rede sem classificar todo fetch falhado como transitório.
+- **Output/inventário:** log_raw preserva escapes JSON; elimina gravações duplicadas em Deno/fwupd/gcloud/pnpm/jcode. Skips dinâmicos ajustam progresso; descoberta Go compartilhada e payload Muse evitam falsos candidatos sem updater.
+- **Doctor:** versão 9router lida de metadados, sem inicializar SQLite/tray. Headroom sinaliza upstream local indisponível; Bluetooth recomenda diagnóstico por dispositivo/perfil, sem restart automático.
+- **Tray:** menu com ícones e ações agrupadas; motivos completos, detalhes Flatpak e listas sem limite artificial. Evita reconstruir menus idênticos, bloqueia ações conflitantes e encerra o polling se a execução não iniciar.
+- **Tray:** timeout/erro de consulta preserva o último estado e informa verificação incompleta, sem anunciar sucesso. Respeita os códigos de saída normais de checkupdates e yay; o CLI propaga erros do probe.
+- **pi/Codex:** OAuth expirado vira TODO com orientação de login; manifesto incompatível no marketplace vira WARN de atualização parcial, preservando o snapshot.
+- **Mason:** atualiza ferramentas instaladas com versão diferente do registro, usando MasonInstall headless; erros deixam de aparecer como conclusão bem-sucedida.
+- **Doctor:** HSI com `!` sinaliza segurança de runtime; reconhece MTD em português. Tracker sem versão corrigida exige validação upstream; falhas de consulta não viram ausência de CVEs.
+- **Serviços:** Docker/containerd/Podman ficam para uma janela de manutenção, evitando interromper workloads durante a atualização.
+
 ## [3.48.7] - 2026-09-30
 ### Corrigido
 - **Hermes:** a lentidão do GitHub vem em rajadas e também atinge o POST que gera o pack (`RPC failed; curl 28`); três tentativas seguidas com o limite fixo de 20s falharam em 1 minuto. Cada nova tentativa agora espera 10s e aumenta o limite de requisição parada (20s, 40s, 60s).

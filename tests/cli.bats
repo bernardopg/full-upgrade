@@ -638,3 +638,11 @@ reset_flags() {
   run apply_mode_and_early_exits
   [ "$status" -eq 0 ]
 }
+
+@test "tray check: consulta falhada preserva status de saída" {
+  reset_flags
+  TRAY_MODE=check
+  tray_check_and_print() { return 1; }
+  run apply_mode_and_early_exits
+  [ "$status" -eq 1 ]
+}

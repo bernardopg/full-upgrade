@@ -35,16 +35,16 @@ _audit_probe_cargo() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   [[ -d "$cargo_bin" ]] || return 0
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -536870913c 2>/dev/null)
   (( ${#bins[@]} )) || return 0
   local out
-  out="$(cargo audit bin "${bins[@]}" 2>&1)"
+  out="$(cargo audit bin --max-binary-size 536870912 "${bins[@]}" 2>&1)"
   if grep -qiE "$_audit_rede_re" <<<"$out"; then
     _audit_add info cargo "Auditoria cargo indisponível" "Falha de rede ao buscar advisory DB" "Repita com rede"
     return 0
   fi
   local -a vb=()
-  mapfile -t vb < <(printf '%s\n' "$out" | parse_cargo_vuln_bins)
+  mapfile -t vb < <(printf '%s\n' "$out" | parse_cargo_risk_bins)
   (( ${#vb[@]} )) || return 0
 
   local -a toolchain=() cargobins=()
@@ -70,7 +70,7 @@ _audit_probe_cargo() {
     rustup_out="$(run_network_cmd rustup check 2>/dev/null)"
     rustup_rc=$?
     if (( rustup_rc == 0 )) && ! _audit_rustup_check_has_update "$rustup_out"; then
-      _audit_add info cargo "CVEs em toolchain Rust sem correção local" \
+      _audit_add medium cargo "Achados de segurança em toolchain Rust sem correção local" \
         "${#toolchain[@]} binário(s): ${toolchain[*]}; rustup já está na última versão, CVEs vivem em crates vendorizadas upstream" \
         "Sem ação local; aguarde rebuild upstream do rustup/toolchain"
       return 0
@@ -98,8 +98,8 @@ _audit_probe_arch_audit() {
   manual=$(( total - fixable ))
   (( fixable > 0 )) && _audit_add high pacman "$fixable pacote(s) oficial(is) com CVE já corrigível" \
     "Versão corrigida disponível nos repos" "sudo pacman -Syu"
-  (( manual > 0 )) && _audit_add info pacman "$manual pacote(s) oficial(is) com CVE sem correção upstream" \
-    "Afetados conhecidos, ainda sem versão corrigida; acompanhe o tracker de segurança Arch" "Sem ação local; aguarde atualização upstream"
+  (( manual > 0 )) && _audit_add info pacman "$manual pacote(s) oficial(is) exigem validação upstream" \
+    "Tracker sem versão corrigida cadastrada; não confirma vulnerabilidade da versão instalada" "Valide cada advisory por versão e fonte upstream"
   return 0
 }
 

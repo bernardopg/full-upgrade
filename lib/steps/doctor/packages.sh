@@ -160,11 +160,8 @@ arch_audit_affected_count() {
 # Sem arch-audit, o run_step pula via cmd_deps do catálogo.
 #  • corrigíveis (já há versão corrigida nos repos, via `arch-audit -u`) → RC_WARN
 #    acionável (`pacman -Syu`);
-#  • apenas sem correção upstream → informativo (return 0): como os CVEs de
-#    toolchain Rust (K3), não há ação local e todo sistema Arch atualizado tem
-#    alguns — não vira todo/warn recorrente. A contagem é exibida (visibilidade);
-#    o `--audit` consolidado lista os pacotes para revisão de segurança;
-#  • nenhuma → 0. Falha de rede ao consultar o tracker → RC_WARN.
+#  • sem versão corrigida cadastrada → RC_WARN, requer validação upstream;
+#  • nenhuma → 0. Consulta falhada → RC_WARN inconclusivo.
 doctor_arch_audit_cves() {
   if ! has arch-audit; then
     log "  arch-audit não instalado; pulando."
@@ -184,10 +181,10 @@ doctor_arch_audit_cves() {
     out="$(arch-audit 2>&1)"
     rc=$?
   fi
-  if (( rc != 0 )) && grep -qiE "$netre" <<<"$out"; then
+  if (( rc != 0 )); then
     log_raw "$out"
-    log "  arch-audit: falha de rede ao consultar o tracker de segurança."
-    STEP_REASON="rede indisponível para arch-audit"
+    log "  arch-audit: consulta ao tracker falhou (rc=${rc}); diagnóstico inconclusivo."
+    STEP_REASON="consulta ao tracker arch-audit inconclusiva"
     return "$RC_WARN"
   fi
   log_raw "$out"
@@ -199,11 +196,17 @@ doctor_arch_audit_cves() {
     return 0
   fi
 
-  # Corrigíveis = pacotes que já têm versão corrigida nos repos. `arch-audit -u`
-  # ("show only packages that have already been fixed") é a fonte robusta — não
-  # depende do texto da saída padrão. Segunda consulta ao tracker; se falhar,
-  # cai para 0 (trata tudo como sem-correção) em vez de quebrar o step.
-  fixable="$(arch-audit -u --quiet 2>/dev/null | grep -cE '.' || true)"
+  # -u só informa correções cadastradas no tracker, não todo fix upstream.
+  # Uma consulta falha não pode virar zero corrigíveis.
+  local fixes
+  fixes="$(arch-audit -u --quiet 2>&1)"
+  rc=$?
+  if (( rc != 0 )); then
+    log_raw "$fixes"
+    STEP_REASON="arch-audit: consulta de correções inconclusiva"
+    return "$RC_WARN"
+  fi
+  fixable="$(printf '%s\n' "$fixes" | grep -cE '.' || true)"
   fixable="${fixable:-0}"
   (( fixable > total )) && fixable="$total"
   manual=$(( total - fixable ))
@@ -211,14 +214,14 @@ doctor_arch_audit_cves() {
   if (( fixable > 0 )); then
     log "  ${C_YELLOW}arch-audit: ${fixable} pacote(s) com CVE já corrigível nos repos.${C_RESET}"
     log "  Remediação: sudo pacman -Syu"
-    (( manual > 0 )) && log "  ${C_DIM}+ ${manual} sem correção upstream ainda (informativo).${C_RESET}"
-    STEP_REASON="arch-audit: ${fixable} corrigível(is), ${manual} sem correção"
+    (( manual > 0 )) && log "  ${C_DIM}+ ${manual} sem versão corrigida cadastrada no tracker (requer validação upstream).${C_RESET}"
+    STEP_REASON="arch-audit: ${fixable} corrigível(is), ${manual} sem versão corrigida cadastrada"
     return "$RC_WARN"
   fi
 
-  log "  ${total} pacote(s) com CVE conhecida — todos sem correção upstream disponível ainda; não acionável localmente (informativo). Veja \`full-upgrade --audit\` para a lista."
-  STEP_REASON="arch-audit: ${total} sem correção (informativo)"
-  return 0
+  log "  ${total} pacote(s) sinalizado(s) pelo arch-audit, sem versão corrigida cadastrada no tracker. Isso não prova ausência de correção upstream; valide a versão instalada e o advisory. Veja \`full-upgrade --audit\` para a lista."
+  STEP_REASON="arch-audit: ${total} pacote(s) requerem validação; tracker sem versão corrigida cadastrada"
+  return "$RC_WARN"
 }
 
 
@@ -319,7 +322,7 @@ _manual_apps_has_step() {
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
     kiro-cli|kiro-cli-chat|kiro-cli-term|\
     grok|jcode|qodercli|qoderwake|kimchi|cua-driver|\
-    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|cloudflared)
+    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared)
       return 0 ;;
     *) return 1 ;;
   esac
@@ -382,6 +385,9 @@ doctor_manual_apps() {
       name="${f##*/}"
       total=$((total + 1))
       kind="$(_manual_apps_kind "$name")"
+      if [[ "$kind" == candidate ]] && has go && declare -F go_tool_module >/dev/null && go_tool_module "$f" >/dev/null; then
+        kind=covered
+      fi
       case "$kind" in
         covered) covered=$((covered + 1)) ;;
         backup) backups=$((backups + 1)); backup_items+=("${name}  (${bindir})") ;;
@@ -431,7 +437,7 @@ doctor_manual_apps() {
   done
 
   if (( ${#uncovered[@]} > 0 )); then
-    log "  Candidatos sem step atualizam-se sozinhos (GUIs/Electron) ou exigem reinstalação manual."
+    log "  Candidatos sem step: origem e mecanismo de atualização ainda precisam ser verificados."
   fi
   if (( backups > 0 )); then
     log "  Backups/remanescentes detectados (${backups}) foram excluídos da contagem de candidatos; revise/remova manualmente quando tiver certeza."

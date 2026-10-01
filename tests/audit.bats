@@ -338,7 +338,7 @@ setup() {
   [[ "${AUDIT_FINDINGS[0]}" == "high|cargo|"* ]]
 }
 
-@test "probe cargo: rustup vulnerável mas atualizado => info" {
+@test "probe cargo: rustup vulnerável mas atualizado => medium" {
   has() { [[ "$1" == cargo-audit || "$1" == cargo || "$1" == rustup ]]; }
   CARGO_HOME="$BATS_TEST_TMPDIR/cargo-rustup-current"
   mkdir -p "$CARGO_HOME/bin"
@@ -353,7 +353,7 @@ setup() {
   _audit_probe_cargo
   set -e
   [ "${#AUDIT_FINDINGS[@]}" -eq 1 ]
-  [[ "${AUDIT_FINDINGS[0]}" == "info|cargo|"* ]]
+  [[ "${AUDIT_FINDINGS[0]}" == "medium|cargo|"* ]]
   [[ "${AUDIT_FINDINGS[0]}" == *"sem correção local"* ]]
 }
 

@@ -21,6 +21,26 @@ hermes_is_current() {
 HERMES_GIT_STALL_S="${HERMES_GIT_STALL_S:-20}"
 HERMES_UPDATE_ATTEMPTS="${HERMES_UPDATE_ATTEMPTS:-3}"
 
+# Hermes upstream imprime só a primeira linha do stderr do fetch. Este wrapper
+# local conserva o stderr real sem modificar a instalação nem registrar argv.
+hermes_prepare_git_capture() {
+  local real_git
+  real_git="$(type -P git)" || return 1
+  HERMES_GIT_WRAPPER="$(mktemp -d "${LOG_DIR}/hermes-git.XXXXXX")" || return 1
+  export HERMES_REAL_GIT="$real_git"
+  export HERMES_GIT_STDERR="${LOG_DIR}/hermes-git-${RUN_ID}.log"
+  : > "$HERMES_GIT_STDERR"
+  cat > "${HERMES_GIT_WRAPPER}/git" <<'GITWRAPPER'
+#!/usr/bin/env bash
+# tee conserva o diagnóstico que a CLI Hermes trunca ao capturar stderr.
+"$HERMES_REAL_GIT" "$@" 2> >(tee -a "$HERMES_GIT_STDERR" >&2)
+rc=$?
+wait
+exit "$rc"
+GITWRAPPER
+  chmod 700 "${HERMES_GIT_WRAPPER}/git"
+}
+
 update_hermes() {
   local hermes_bin
   hermes_bin="$(command -v hermes || true)"
@@ -58,6 +78,12 @@ update_hermes() {
   fi
 
   local output_file rc attempt
+  local HERMES_GIT_WRAPPER="" capture_path="$PATH"
+  if hermes_prepare_git_capture; then
+    capture_path="${HERMES_GIT_WRAPPER}:$PATH"
+  else
+    log "  Não foi possível preparar captura do stderr Git; diagnóstico limitado pela CLI Hermes."
+  fi
   output_file="${LOG_DIR}/hermes-update-${RUN_ID}.log"
 
   # Hermes can emit TTY animations from nested Node postinstall/demo tooling.
@@ -66,8 +92,13 @@ update_hermes() {
   # checkout, então a nova tentativa parte do mesmo estado.
   for (( attempt = 1; attempt <= HERMES_UPDATE_ATTEMPTS; attempt++ )); do
     GIT_HTTP_LOW_SPEED_TIME=$(( HERMES_GIT_STALL_S * attempt ))
-    CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
+    [[ -n "$HERMES_GIT_WRAPPER" ]] && : > "$HERMES_GIT_STDERR"
+    PATH="$capture_path" CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
     rc=$?
+    if [[ -n "$HERMES_GIT_WRAPPER" && -s "$HERMES_GIT_STDERR" ]]; then
+      printf '\n--- Git stderr completo ---\n' >> "$output_file"
+      cat "$HERMES_GIT_STDERR" >> "$output_file"
+    fi
     {
       printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)"
       sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
@@ -76,6 +107,8 @@ update_hermes() {
     log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo em 10s."
     sleep 10
   done
+
+  [[ -n "$HERMES_GIT_WRAPPER" ]] && rm -rf -- "$HERMES_GIT_WRAPPER"
 
   grep -E '^(✓|⚠|✗|→|  ✓|  ⚠|  →|Tip:|Up to date|Already|No update|error:|Error:|warning:|Warning:|fatal:|Traceback)' "$output_file" \
     | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \

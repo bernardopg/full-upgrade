@@ -4,6 +4,7 @@
 setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
+  HEADROOM_USER_UNIT="$BATS_TEST_TMPDIR/no-unit"
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/lang_py.sh"
 }
@@ -107,4 +108,10 @@ setup() {
   uv() { echo "upgraded"; return 0; }
   run update_uv_tools
   [ "$status" -eq 0 ]
+}
+
+@test "Headroom upstream local fechado vira pendência sem testar destino externo" {
+  run headroom_local_upstream_unavailable 'ExecStart=headroom proxy --openai-api-url http://127.0.0.1:0 --anthropic-api-url https://api.anthropic.com'
+  [ "$status" -eq 0 ]
+  [ "$output" = '--openai-api-url: destino local indisponível' ]
 }

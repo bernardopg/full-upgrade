@@ -37,11 +37,15 @@ acquire_run_lock() {
   # Já com o lock: agora sim pode truncar e gravar o próprio pid.
   printf '%s\n' "$$" >"$FU_LOCK_FILE"
   log "  Lock adquirido: ${FU_LOCK_FILE}"
+  if (( ${DRY_RUN:-0} == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] && declare -F tray_check_now >/dev/null; then
+    tray_check_now cached >/dev/null 2>&1 || true
+  fi
   return 0
 }
 
 
 release_run_lock() {
+  local was_held="${FU_LOCK_HELD:-0}"
   [[ -n "$FU_LOCK_FD" ]] || return 0
   flock -u 9 2>/dev/null || true
   exec 9>&- 2>/dev/null || true
@@ -53,6 +57,9 @@ release_run_lock() {
   fi
   FU_LOCK_FD=""
   FU_LOCK_HELD=0
+  if (( was_held && ${DRY_RUN:-0} == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] && declare -F tray_check_now >/dev/null; then
+    tray_check_now cached >/dev/null 2>&1 || true
+  fi
 }
 
 

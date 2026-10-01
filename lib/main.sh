@@ -854,14 +854,6 @@ finalize_sync_tray() {
     if declare -F release_run_lock >/dev/null 2>&1; then
         release_run_lock
     fi
-
-    # Sem isto o applet segue exibindo o estado do run anterior até o próximo
-    # poll. Só sincroniza quando o tray já foi usado e fora de --dry-run.
-    if (( DRY_RUN == 0 )) && [[ -r "${TRAY_STATE_FILE:-}" ]] \
-        && type tray_check_now >/dev/null 2>&1; then
-        log "  Sincronizando estado do systray..."
-        tray_check_now no_notify >/dev/null 2>&1 || true
-    fi
 }
 
 finalize() {

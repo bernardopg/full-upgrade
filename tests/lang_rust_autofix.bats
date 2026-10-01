@@ -58,11 +58,11 @@ teardown() {
   [[ "$output" == *"remediadas"* ]]
 }
 
-@test "autofix: CVE remanescente só de toolchain (rustup) => RC 0 informativo (K3)" {
+@test "autofix: CVE remanescente só de toolchain (rustup) => RC_WARN (K3)" {
   _rust_collect_vuln_bins() { printf 'rustup\n'; return 0; }   # nunca some; é toolchain
   run autofix_rust_cves
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"não acionável"* ]]
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"risco persiste"* ]]
 }
 
 @test "autofix: CVE remanescente em binário cargo-installed => RC_WARN" {
@@ -127,7 +127,7 @@ stable-x86_64-unknown-linux-gnu updated - rustc 1.98.0 (from rustc 1.97.1)'
   # rustup relata "unchanged" nas duas invocações => nada foi reescrito.
   _rust_run_capture() { printf 'rustup unchanged - 1.29.0\n'; return 0; }
   run autofix_rust_cves
-  [ "$status" -eq 0 ]
+  [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"Re-auditoria dispensada"* ]]
   [[ "$output" != *"Re-auditando após remediação"* ]]
   # exatamente 1 sweep: o "antes". O "depois" foi deduzido, não medido.
@@ -149,13 +149,13 @@ stable-x86_64-unknown-linux-gnu updated - rustc 1.98.0 (from rustc 1.97.1)'
   [ "$(cat "$STATEF")" -eq 2 ]
 }
 
-@test "autofix: no-op preserva o veredito informativo de toolchain (K3)" {
+@test "autofix: no-op preserva o aviso de toolchain (K3)" {
   _rust_collect_vuln_bins() { printf 'rustup\n'; return 0; }
   _rust_run_capture() { printf 'rustup unchanged - 1.29.0\n'; return 0; }
   run autofix_rust_cves
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"CVEs antes: 1 → depois: 1"* ]]
-  [[ "$output" == *"não acionável"* ]]
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"Binários com achados antes: 1 → depois: 1"* ]]
+  [[ "$output" == *"risco persiste"* ]]
 }
 
 # ── memo do rebuild sem fix ───────────────────────────────────────────────────

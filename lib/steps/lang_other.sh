@@ -10,6 +10,15 @@
 # diretório onde foi achado. Binário de `go build` local (path
 # command-line-arguments ou mod "(devel)") ou de módulo privado não tem @latest
 # e é ignorado.
+go_tool_module() {
+  local info module modver
+  info="$(go version -m "$1" 2>/dev/null)" || return 1
+  module="$(awk '$1=="path"{print $2; exit}' <<<"$info")"
+  modver="$(awk '$1=="mod"{print $3; exit}' <<<"$info")"
+  [[ -n "$module" && "${module%%/*}" == *.* && -n "$modver" && "$modver" != "(devel)" ]] || return 1
+  printf '%s' "$module"
+}
+
 update_go_tools() {
   local gopath
   gopath="$(go env GOPATH 2>/dev/null || true)"
@@ -24,17 +33,11 @@ update_go_tools() {
   local -A seen=()        # module path → 1
   local -A mod_to_bin=()  # module path → bin path (para capturar before_sum do bin real)
   local -a modules=()
-  local bin module dir info modver
+  local bin module dir
   for dir in "${dirs[@]}"; do
     for bin in "$dir"/*; do
       [[ -f "$bin" && -x "$bin" && ! -L "$bin" ]] || continue
-      info="$(go version -m "$bin" 2>/dev/null)" || continue
-      module="$(awk '$1=="path"{print $2; exit}' <<<"$info")"
-      modver="$(awk '$1=="mod"{print $3; exit}' <<<"$info")"
-      # Sem ponto no primeiro elemento o path não é baixável (ex.: o gk da
-      # GitKraken, compilado como "gkcli/cmd/installer-proxy").
-      [[ -n "$module" && "${module%%/*}" == *.* ]] || continue
-      [[ -n "$modver" && "$modver" != "(devel)" ]] || continue
+      module="$(go_tool_module "$bin")" || continue
       if [[ -z "${seen[$module]+x}" ]]; then
         seen[$module]=1
         mod_to_bin[$module]="$bin"
@@ -123,7 +126,6 @@ update_gcloud() {
   local output rc
   output="$(_retry 2 "${GCLOUD_BIN:-gcloud}" components update --quiet 2>&1)"
   rc=$?
-  log_raw "$output"
   (( rc == RC_WARN )) && { log "  gcloud: falha de rede transitória após 2 tentativas."; return "$RC_WARN"; }
   printf '%s\n' "$output" | grep -v '^Beginning update\.' | log_out || true
   return "$rc"

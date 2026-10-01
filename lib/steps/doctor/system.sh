@@ -260,7 +260,7 @@ journal_hint_for() {
     *Uncaught\ \(in\ promise\)\ DisconnectedError*|*Uncaught\ \(in\ promise\)\ cancel*|*Uncaught\ \(in\ promise\)\ CustomError:\ fh*)
       printf 'erro de promise em app Electron/Chromium sem serviço falhado; normalmente benigno se não houver crash visível' ;;
     *Bluetooth:\ hci0*|*a2dp-sink*|*btd_service_connect*|*bluetoothd*|*profiles/audio/avdtp.c*|*bluez_output*)
-      printf 'Bluetooth/áudio transitório (normalmente benigno): verifique firmware do adaptador e reconexão do dispositivo; se recorrente, "systemctl restart bluetooth"' ;;
+      printf 'Bluetooth/áudio: correlacione dispositivo e perfil com journalctl -u bluetooth e btmon; verifique multipoint, alcance e firmware se recorrente' ;;
     *ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
       printf 'USB serial FTDI: erro transitório de flow control; verifique cabo/dispositivo ttyUSB0 se houver falha prática' ;;
     *full-upgrade-tray.service:\ Failed\ at\ step\ EXEC\ spawning\ */full-upgrade:*)
@@ -574,7 +574,7 @@ doctor_journal_errors() {
     return 0
   fi
 
-  STEP_REASON="${severity_count} erro(s) crítico(s) do run (${severity_unique} assinatura(s))"
+  STEP_REASON="journal: ${severity_count} ocorrência(s) não classificadas como benignas durante o run (${severity_unique} assinatura(s)); consulte dispositivos/perfis e log"
   return "$RC_WARN"
 }
 

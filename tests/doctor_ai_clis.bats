@@ -48,7 +48,7 @@ setup() {
   [[ "$output" == *"cline: instalado (versão indisponível)"* ]]
 }
 
-@test "doctor: limita a consulta de versão de cada CLI" {
+@test "doctor: 9router não inicializa runtime para consultar versão" {
   local fake_bin="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$fake_bin"
   printf '#!/usr/bin/env bash\nsleep 2\n' > "$fake_bin/9router"
@@ -60,6 +60,19 @@ setup() {
   run doctor_ai_clis
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"9router: verificação de versão excedeu 1s."* ]]
+  [[ "$output" == *"9router: instalado (versão indisponível nos metadados)"* ]]
   [[ "$output" == *"1 CLI(s) de IA detectada(s)"* ]]
+}
+
+@test "doctor: versão 9router vem de package.json sem executar a CLI" {
+  local bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bin"
+  printf '#!/bin/sh\nexit 99\n' > "$bin/9router"
+  chmod +x "$bin/9router"
+  printf '{"name":"9router","version":"1.2.3"}' > "$bin/package.json"
+  PATH="$bin:$PATH"
+  has() { [[ "$1" == 9router ]]; }
+  run doctor_ai_clis
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"9router: 1.2.3"* ]]
 }

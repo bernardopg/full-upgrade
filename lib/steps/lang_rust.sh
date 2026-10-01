@@ -82,26 +82,28 @@ audit_cargo_bins() {
   fi
 
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -536870913c 2>/dev/null)
 
+  local -a big=()
+  mapfile -t big < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size +536870912c -printf '%f\n' 2>/dev/null)
+  ((${#big[@]} > 0)) && log "  Fora da auditoria (acima do limite de 512 MiB do cargo-audit): ${big[*]}."
   if (( ${#bins[@]} == 0 )); then
+    if (( ${#big[@]} > 0 )); then
+      STEP_REASON="nenhum binário cargo auditado: todos excedem 512 MiB"
+      return "$RC_WARN"
+    fi
     log "  Sem binários cargo para auditar."
     return 0
   fi
 
-  # cargo-audit recusa binário acima de 100 MiB ("exceeds max size limit") e o
-  # erro sumia no meio da saída; os find acima já os excluem, aqui só avisamos.
-  local -a big=()
-  mapfile -t big < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size +104857600c -printf '%f\n' 2>/dev/null)
-  ((${#big[@]} > 0)) && log "  Fora da auditoria (acima do limite de 100 MiB do cargo-audit): ${big[*]}."
   log "  Auditando ${#bins[@]} binário(s) cargo por vulnerabilidades conhecidas..."
   local output rc_audit
-  output="$(cargo audit bin "${bins[@]}" 2>&1)"
+  output="$(cargo audit bin --max-binary-size 536870912 "${bins[@]}" 2>&1)"
   rc_audit=$?
   if (( rc_audit != 0 )) && grep -qiE 'name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect' <<<"$output"; then
     log "  cargo audit: falha de rede; tentando novamente em 5s..."
     sleep 5
-    output="$(cargo audit bin "${bins[@]}" 2>&1)"
+    output="$(cargo audit bin --max-binary-size 536870912 "${bins[@]}" 2>&1)"
     rc_audit=$?
   fi
   log_raw "$output"
@@ -112,7 +114,7 @@ audit_cargo_bins() {
   # Extrai os binários com vulnerabilidade: cargo-audit emite
   #   error: N vulnerabilities found in /home/user/.cargo/bin/<nome>
   local -a vuln_bins=()
-  mapfile -t vuln_bins < <(printf '%s\n' "$output" | parse_cargo_vuln_bins)
+  mapfile -t vuln_bins < <(printf '%s\n' "$output" | parse_cargo_risk_bins)
   local vuln_count="${#vuln_bins[@]}"
   # Fallback se o formato mudar: conta linhas 'error:'.
   if (( vuln_count == 0 )); then
@@ -120,7 +122,15 @@ audit_cargo_bins() {
   fi
 
   if (( vuln_count == 0 )); then
-    log "  Sem CVEs críticas em binários cargo do usuário."
+    if (( rc_audit != 0 )); then
+      STEP_REASON="auditoria cargo falhou (rc=${rc_audit}); consulte o log"
+      return "$RC_WARN"
+    fi
+    if (( ${#big[@]} > 0 )) || grep -qiE 'report will be incomplete|Warning:[[:space:]]+(unsound|unmaintained|yanked)' <<<"$output"; then
+      STEP_REASON="auditoria cargo com cobertura parcial ou advisories informativos; consulte o log"
+      return "$RC_WARN"
+    fi
+    log "  Sem achados de segurança em binários cargo do usuário."
     return 0
   fi
 
@@ -139,62 +149,13 @@ audit_cargo_bins() {
     fi
   done
 
-  # K3: CVEs só em binários da toolchain (rustup/cargo/rustc), sem nenhum binário
-  # cargo-installed acionável. Se o rustup já está na última versão, não há
-  # remediação local: a CVE vive numa crate vendorizada no binário upstream e só
-  # é corrigida quando o upstream reconstrói. Rebaixa de warn para nota
-  # informativa (return 0) em vez de poluir todo run com um aviso irreparável.
-  if (( ${#cargo_bins[@]} == 0 && ${#toolchain_bins[@]} > 0 )) && has rustup; then
-    local _rc_out _rc_rc
-    _rc_out="$(run_network_cmd rustup check 2>/dev/null)"
-    _rc_rc=$?
-    if (( _rc_rc != RC_WARN )) && ! rustup_check_has_update "$_rc_out"; then
-      log "  ${vuln_count} binário(s) da toolchain com CVE conhecida: ${vuln_bins[*]}"
-      log "  rustup já na última versão — estas CVEs vivem em crates vendorizadas no binário upstream e só somem quando o upstream reconstrói. Não acionável localmente (informativo)."
-      log "  Detalhes brutos do cargo-audit foram preservados no log, sem imprimir erros alarmistas no terminal."
-      return 0
-    fi
-  fi
-
-  # K4 — "conhecidas": todo bin cargo-installed com CVE coberto pelo memo nofix
-  # fresco (rebuild com resolução fresca já tentado para este crate@versão e a
-  # CVE persistiu — determinístico até upstream publicar) e toolchain (se houver)
-  # já no latest. Mesma filosofia do K3: sem ação local possível, vira nota
-  # informativa em vez de warn recorrente no systray. CVE nova (sem memo)
-  # continua warnando e o autofix tenta o rebuild.
-  if (( ${#cargo_bins[@]} > 0 )); then
-    local _k4_install _k4_memo
-    _k4_install="$(cargo install --list 2>/dev/null || true)"
-    _k4_memo=""
-    [[ -r "$(_rust_rebuild_memo_file)" ]] && _k4_memo="$(cat "$(_rust_rebuild_memo_file)" 2>/dev/null)"
-    if cargo_cve_bins_all_memo_known "$(printf '%s\n' "${cargo_bins[@]}")" \
-        "$_k4_install" "$_k4_memo" "$(date +%s)" "${RUST_CVE_REBUILD_TTL_D:-7}"; then
-      local _k4_tc_known=1
-      if (( ${#toolchain_bins[@]} > 0 )); then
-        _k4_tc_known=0
-        if has rustup; then
-          local _k4_out _k4_rc
-          _k4_out="$(run_network_cmd rustup check 2>/dev/null)"
-          _k4_rc=$?
-          (( _k4_rc != RC_WARN )) && ! rustup_check_has_update "$_k4_out" && _k4_tc_known=1
-        fi
-      fi
-      if (( _k4_tc_known )); then
-        log "  ${vuln_count} binário(s) com CVE conhecida: ${vuln_bins[*]}"
-        log "  Rebuild com resolução fresca já tentado sem cura (memo ${RUST_CVE_REBUILD_TTL_D:-7}d) + toolchain no latest — aguarda upstream (informativo)."
-        return 0
-      fi
-    fi
-  fi
-
-  # Exibe detalhes somente quando há uma ação local possível. A saída bruta já
-  # foi gravada no log, então CVEs upstream-only não parecem falha do run.
+  # Risco permanece visível mesmo quando depende de correção upstream.
   printf '%s\n' "$output" \
     | grep -v '^\s*Fetching advisory\|^\s*Loaded \|^\s*Updating crates\|^warning:.*not built with' \
     | grep -v '^$' \
     | grep -A 8 '^Crate:' || true
 
-  log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com CVEs conhecidas: ${vuln_bins[*]}${C_RESET}"
+  log "  ${C_YELLOW}Aviso: ${vuln_count} binário(s) com achados de segurança: ${vuln_bins[*]}${C_RESET}"
   if (( ${#cargo_bins[@]} > 0 )); then
     log "    • Instalados via cargo (${#cargo_bins[@]}): ${cargo_bins[*]}"
     remediation "cargo install-update -a"
@@ -205,7 +166,7 @@ audit_cargo_bins() {
     remediation "rustup self update && rustup update"
     remediation "sudo pacman -Syu rust rustup  # se gerenciados pelo pacman"
   fi
-  STEP_REASON="${vuln_count} binário(s) com CVE (${#toolchain_bins[@]} toolchain, ${#cargo_bins[@]} cargo)"
+  STEP_REASON="${vuln_count} binário(s) com achados de segurança (${#toolchain_bins[@]} toolchain, ${#cargo_bins[@]} cargo)"
   return "$RC_WARN"
 }
 
@@ -218,18 +179,23 @@ _rust_collect_vuln_bins() {
   local cargo_bin="${CARGO_HOME:-$HOME/.cargo}/bin"
   [[ -d "$cargo_bin" ]] || return 0
   local -a bins=()
-  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -104857601c 2>/dev/null)
+  mapfile -t bins < <(find "$cargo_bin" -maxdepth 1 -type f -executable -size -536870913c 2>/dev/null)
   (( ${#bins[@]} == 0 )) && return 0
 
   local output rc netre
   netre='name or service not known|name resolution|could not resolve|network is unreachable|no route to host|connection timed out|connection refused|failed to connect'
-  output="$(cargo audit bin "${bins[@]}" 2>&1)"
+  output="$(cargo audit bin --max-binary-size 536870912 "${bins[@]}" 2>&1)"
   rc=$?
   log_raw "$output"
   if (( rc != 0 )) && grep -qiE "$netre" <<<"$output"; then
     return "$RC_WARN"
   fi
-  printf '%s\n' "$output" | parse_cargo_vuln_bins
+  local risks
+  risks="$(printf '%s\n' "$output" | parse_cargo_risk_bins)"
+  if (( rc != 0 )) && [[ -z "$risks" ]]; then
+    return "$RC_WARN"
+  fi
+  printf '%s\n' "$risks"
   return 0
 }
 
@@ -276,18 +242,30 @@ rust_rebuild_memo_upsert() {
 _rust_rebuild_memo_skip() {
   local f; f="$(_rust_rebuild_memo_file)"
   [[ -r "$f" ]] || return 1
+  local db_revision
+  db_revision="$(git -C "${CARGO_HOME:-$HOME/.cargo}/advisory-db" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "$db_revision" ]] && ! grep -qxF "# advisory-db ${db_revision}" "$f"; then
+    return 1
+  fi
   rust_rebuild_memo_is_fresh "$(cat "$f" 2>/dev/null)" "$1" "$2" \
     "$(date +%s)" "${RUST_CVE_REBUILD_TTL_D:-7}"
 }
 
 _rust_rebuild_memo_record() {
-  local f cur=""
+  local f cur="" db_revision
   f="$(_rust_rebuild_memo_file)"
   [[ -r "$f" ]] && cur="$(cat "$f" 2>/dev/null)"
   # if explícito em vez de A && B || C (SC2015): aqui a semântica é "qualquer
   # falha no upsert ou no mv descarta o .tmp", e o encadeamento com || esconde
   # que o rm também roda quando o mv falha após upsert bem-sucedido.
-  if rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)" > "${f}.tmp" 2>/dev/null &&
+  db_revision="$(git -C "${CARGO_HOME:-$HOME/.cargo}/advisory-db" rev-parse HEAD 2>/dev/null || true)"
+  # Advisory DB nova invalida todas as tentativas antigas, inclusive CVEs novas.
+  if [[ -n "$db_revision" ]] && ! grep -qxF "# advisory-db ${db_revision}" <<<"$cur"; then
+    cur=""
+  fi
+  if { printf '# advisory-db %s\n' "$db_revision";
+       rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)";
+     } > "${f}.tmp" 2>/dev/null &&
     mv -f "${f}.tmp" "$f" 2>/dev/null; then
     return 0
   fi
@@ -316,6 +294,52 @@ cargo_cve_bins_all_memo_known() {
   return 0
 }
 
+# cargo install de registry resolve um lock temporário, mas cargo-auditable
+# consulta o manifest original. Copie a fonte e resolva um único lock explícito
+# para a compilação e seus metadados, sem modificar o cache de crates.
+_rust_rebuild_crate() {
+  local crate="$1" version="$2" source_dir work rc bin
+  local -a installed_bins=()
+  source_dir="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -mindepth 2 -maxdepth 2 -type d -name "${crate}-${version}" -print -quit 2>/dev/null)"
+  if ! has cargo-auditable || [[ -z "$source_dir" ]]; then
+    run_logged cargo install --force "$crate"
+    return "$?"
+  fi
+  mapfile -t installed_bins < <(cargo install --list 2>/dev/null | awk -v crate="$crate" '
+    /^[^[:space:]]/ { active=($1==crate); next }
+    active && /^[[:space:]]/ { gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print }
+  ')
+  (( ${#installed_bins[@]} > 0 )) || return 1
+  work="$(mktemp -d "${TMPDIR:-/tmp}/full-upgrade-rust.XXXXXX")" || return 1
+  if cp -a "$source_dir/." "$work/" && run_logged cargo update --manifest-path "$work/Cargo.toml"; then
+    if run_logged cargo auditable build --release --locked --manifest-path "$work/Cargo.toml" --target-dir "$work/target"; then
+      rc=0
+      # Preserve o registro crates.io do cargo; install --path o trocaria por
+      # um caminho temporário e impediria atualizações por cargo-install-update.
+      for bin in "${installed_bins[@]}"; do
+        if [[ ! "$bin" =~ ^[a-zA-Z0-9_.-]+$ || ! -x "$work/target/release/$bin" ]]; then
+          rc=1; break
+        fi
+      done
+      if (( rc == 0 )); then
+        for bin in "${installed_bins[@]}"; do
+          if ! install -m755 "$work/target/release/$bin" "${CARGO_HOME:-$HOME/.cargo}/bin/.${bin}.full-upgrade.$$" ||
+             ! mv -f "${CARGO_HOME:-$HOME/.cargo}/bin/.${bin}.full-upgrade.$$" "${CARGO_HOME:-$HOME/.cargo}/bin/$bin"; then
+            rm -f "${CARGO_HOME:-$HOME/.cargo}/bin/.${bin}.full-upgrade.$$"
+            rc=1; break
+          fi
+        done
+      fi
+    else
+      rc=1
+    fi
+  else
+    rc=1
+  fi
+  rm -rf -- "$work"
+  return "$rc"
+}
+
 # F7 — auto-remediação opcional de CVEs de toolchain/cargo.
 # O gate de config (AUTO_FIX_RUST_CVES) é aplicado em main.sh; aqui também é
 # defensivo. Mede CVEs antes, aplica `rustup self update && rustup update`
@@ -324,7 +348,7 @@ cargo_cve_bins_all_memo_known() {
 # vulnerável (já na última versão, CVE pinada no build), rebuilda com
 # `cargo install --force` (resolução fresca de deps) e re-audita de novo.
 # Sem rede → RC_WARN; recusa/não interativo sem --yes → RC_TODO; CVEs
-# remanescentes sem remediação possível → informativo; falha de rebuild → RC_WARN.
+# remanescentes sem remediação possível → RC_WARN; falha de rebuild → RC_WARN.
 autofix_rust_cves() {
   if (( ${AUTO_FIX_RUST_CVES:-0} == 0 )); then
     log "  AUTO_FIX_RUST_CVES desligado; nada a remediar."
@@ -429,7 +453,7 @@ autofix_rust_cves() {
     fi
     mapfile -t after < <(printf '%s\n' "$after_list" | grep -v '^[[:space:]]*$')
   fi
-  log "  CVEs antes: ${#vuln[@]} → depois: ${#after[@]}."
+  log "  Binários com achados antes: ${#vuln[@]} → depois: ${#after[@]}."
   if (( ${#after[@]} == 0 )); then
     log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"
     return 0
@@ -448,8 +472,9 @@ autofix_rust_cves() {
   done
 
   if (( ${#after_cargo[@]} == 0 )); then
-    log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — não acionável localmente (informativo)."
-    return 0
+    log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — aguarda upstream; risco persiste."
+    STEP_REASON="achados de segurança persistem na toolchain: ${after_toolchain[*]}"
+    return "$RC_WARN"
   fi
 
   # Fase 2 — rebuild com resolução fresca. `cargo install-update` só age quando
@@ -476,7 +501,7 @@ autofix_rust_cves() {
       continue
     fi
     log "  Rebuild com resolução fresca de dependências: cargo install --force ${crate}"
-    if run_logged cargo install --force "$crate"; then
+    if _rust_rebuild_crate "$crate" "$crate_ver"; then
       rebuilt=1
       rebuilt_ver["$b"]="${crate}"$'\t'"$crate_ver"
     else
@@ -502,14 +527,15 @@ autofix_rust_cves() {
         after_cargo+=("$b")
       fi
     done
-    log "  CVEs após rebuild: ${#after[@]}."
+    log "  Binários com achados após rebuild: ${#after[@]}."
     if (( ${#after[@]} == 0 )); then
       log "  ${C_GREEN}Todas as CVEs corrigíveis foram remediadas.${C_RESET}"
       return 0
     fi
     if (( ${#after_cargo[@]} == 0 )); then
-      log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — não acionável localmente (informativo)."
-      return 0
+      log "  CVEs remanescentes restritas à toolchain (${after_toolchain[*]}): vivem em crates vendorizadas no binário rustup upstream, já na última versão — aguarda upstream; risco persiste."
+      STEP_REASON="achados de segurança persistem na toolchain: ${after_toolchain[*]}"
+      return "$RC_WARN"
     fi
   fi
 
@@ -525,11 +551,12 @@ autofix_rust_cves() {
 
   if (( ${#rebuild_failed[@]} == 0 )); then
     if (( ${#memo_skipped[@]} > 0 )); then
-      log "  CVEs seguem em ${after_cargo[*]}: rebuild com resolução fresca já foi tentado sem fix (memo de ${RUST_CVE_REBUILD_TTL_D:-7}d) — aguarda upstream (informativo)."
+      log "  CVEs seguem em ${after_cargo[*]}: rebuild com resolução fresca já foi tentado sem fix (memo de ${RUST_CVE_REBUILD_TTL_D:-7}d) — aguarda upstream; risco persiste."
     else
-      log "  CVEs persistem após rebuild com resolução fresca (${after_cargo[*]}): sem versão corrigida compatível publicada — aguarda upstream (informativo)."
+      log "  CVEs persistem após rebuild com resolução fresca (${after_cargo[*]}): sem versão corrigida compatível publicada — aguarda upstream; risco persiste."
     fi
-    return 0
+    STEP_REASON="achados de segurança persistem: ${after[*]} (rebuild sem fix ou dispensado pelo memo)"
+    return "$RC_WARN"
   fi
 
   log "  ${C_YELLOW}CVEs remanescentes acionáveis (${#after_cargo[@]}): ${after_cargo[*]}${C_RESET}"

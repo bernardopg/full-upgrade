@@ -165,3 +165,17 @@ setup() {
   tags="$(step_catalog | awk -F'|' '$1 == "Atualizar pi (pi-coding-agent)" {print $3}')"
   [[ "$tags" == *slow* ]]
 }
+
+@test "pi: invalid_grant requer login, preserva atualização parcial" {
+  has() { [[ "$1" == pi ]]; }
+  pi() { printf '0.84.1\n'; }
+  run_network_cmd() {
+    case "$*" in
+      *--models*) printf 'invalid_grant: refresh token expired\n'; return 1 ;;
+      *) printf 'updated\n'; return 0 ;;
+    esac
+  }
+  update_pi || rc=$?
+  [ "${rc:-0}" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *"/login"* ]]
+}

@@ -89,18 +89,18 @@ _skills_repos() {
 }
 
 # ── update_codex_plugins ──────────────────────────────────────────────────────
-@test "update_codex_plugins: nome divergente no upstream não vira aviso" {
+@test "update_codex_plugins: nome divergente no upstream vira RC_WARN" {
   has() { [[ "$1" == codex ]]; }
   codex() { echo 'Failed to upgrade marketplace `claude-plugins-official`: failed to refresh plugin cache for x: plugin.json name `a` does not match marketplace plugin name `b`'; echo 'Error: 1 upgrade failure(s) occurred.'; }
   run update_codex_plugins
-  [ "$status" -eq 0 ]
+  [ "$status" -eq "$RC_WARN" ]
 }
 
-@test "update_codex_plugins: só falha de upstream com rc 1 não vira aviso" {
+@test "update_codex_plugins: falha de upstream com rc 1 vira RC_WARN" {
   has() { [[ "$1" == codex ]]; }
   codex() { echo 'Failed to upgrade marketplace `x`: plugin.json name `a` does not match marketplace plugin name `b`'; return 1; }
   run update_codex_plugins
-  [ "$status" -eq 0 ]
+  [ "$status" -eq "$RC_WARN" ]
 }
 
 @test "update_codex_plugins: outra falha com rc 0 vira RC_WARN" {

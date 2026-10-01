@@ -755,3 +755,51 @@ EOF
   [ "${#result[@]}" -eq 1 ]
   [ "${result[0]}" = "zed 1 -> 2" ]
 }
+
+@test "tray: coleta falhada preserva o estado anterior" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  TRAY_STATE_FILE="$LOG_DIR/state.json"
+  printf '%s\n' '{"state":"updates","repo":7}' > "$TRAY_STATE_FILE"
+  tray_is_full_upgrade_running() { return 1; }
+  tray_last_summary_counts() { printf '0 0 0'; }
+  tray_last_summary_line() { return 1; }
+  tray_gather_updates_detail() { printf '0 0 0'; return 1; }
+  run tray_check_now no_notify
+  [ "$status" -eq 1 ]
+  [ "$(cat "$TRAY_STATE_FILE")" = '{"state":"updates","repo":7}' ]
+}
+
+@test "tray: checkupdates rc 2 é normal, rc 1 falha" {
+  has() { [[ "$1" == checkupdates ]]; }
+  detect_aur_helper() { return 1; }
+  checkupdates() { return 2; }
+  run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
+  [ "$status" -eq 0 ]
+  checkupdates() { return 1; }
+  run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
+  [ "$status" -eq 1 ]
+}
+
+@test "tray: motivos completos e detalhes Flatpak no JSON" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  TRAY_STATE_FILE="$LOG_DIR/state.json"
+  local reason="$(printf 'credencial expirada %.0s' {1..12})fim"
+  printf '{"event":"step","step":"Atualizar IA","status":"warn","reason":"%s"}\n' "$reason" > "$LOG_DIR/run.jsonl"
+  tray_latest_completed_real_jsonl() { printf '%s' "$LOG_DIR/run.jsonl"; }
+  run tray_last_doctor_pending_items
+  [[ "$output" == *"$reason" ]]
+  tray_write_state updates idle 0 0 1 0 0 '' '' '' '' '' '[]' '[]' '[]' '["org.example.App"]'
+  run python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["flatpak_updates"] == ["org.example.App"]' "$TRAY_STATE_FILE"
+  [ "$status" -eq 0 ]
+}
+
+@test "tray: yay rc 1 sem diagnóstico é vazio, com diagnóstico é erro" {
+  has() { return 1; }
+  detect_aur_helper() { printf 'yay'; }
+  yay() { return 1; }
+  run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
+  [ "$status" -eq 0 ]
+  yay() { printf 'network unavailable\n' >&2; return 1; }
+  run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
+  [ "$status" -eq 1 ]
+}

@@ -184,7 +184,7 @@ update_pi() {
   # mesmo imprime "Extensions are skipped"), então sem esta fase as extensões
   # ficariam permanentemente defasadas. Best-effort: registra o motivo mas não
   # retorna ainda, para a fase 3 rodar mesmo assim.
-  local degraded=""
+  local degraded="" auth_pending=0
   log "  Atualizando extensões do pi via 'pi update --extensions'…"
   out="$(run_node_network_cmd pi update --extensions)"
   rc=$?
@@ -216,7 +216,11 @@ update_pi() {
     # refrescar TODOS os catálogos de provedores — máquinas com vários provedores
     # estouram sempre. Binário e extensões já foram atualizados acima; o catálogo
     # fica levemente defasado até o upstream do pi subir o limite.
-    if grep -qiE 'timed out|timeout|tempo esgotado' <<<"$out"; then
+    if grep -qiE 'invalid_grant|refresh token expired' <<<"$out"; then
+      degraded="autenticação do pi expirada; abra pi, execute /login e depois pi update --models"
+      auth_pending=1
+      log "  pi: credencial de renovação expirada; requer novo login interativo."
+    elif grep -qiE 'timed out|timeout|tempo esgotado' <<<"$out"; then
       log "  pi: timeout ao refrescar catálogos de modelos (limite interno de 15s do pi); binário atualizado."
       degraded="timeout no refresh de catálogos do pi (limite interno de 15s do pi; conhecido upstream)"
     else
@@ -230,6 +234,7 @@ update_pi() {
 
   if [[ -n "$degraded" ]]; then
     STEP_REASON="$degraded"
+    (( auth_pending )) && return "$RC_TODO"
     return "$RC_WARN"
   fi
   return 0
@@ -651,7 +656,7 @@ update_claude_plugins() {
 # snapshots. Ele sai 0 mesmo quando um marketplace falha, então o texto decide.
 # Nome divergente entre plugin.json e o marketplace ("does not match marketplace
 # plugin name") é inconsistência do upstream: o Codex recusa aquele marketplace
-# até o autor corrigir, sem ação local possível — é registrado, não vira aviso.
+# até o autor corrigir. Preserve o snapshot, mas registre a atualização parcial.
 update_codex_plugins() {
   has codex || { log "  codex não encontrado."; return 0; }
   local out rc line upstream=() failed=()
@@ -672,10 +677,9 @@ update_codex_plugins() {
     STEP_REASON="rede indisponível para codex plugin marketplace upgrade"
     return "$RC_WARN"
   fi
-  # Com falha só de upstream o codex às vezes sai 1 ("1 upgrade failure(s)"):
-  # o rc só conta quando não há falha já classificada que o explique.
-  if ((rc != 0 && ${#upstream[@]} > 0 && ${#failed[@]} == 0)); then
-    rc=0
+  if (( ${#upstream[@]} > 0 )); then
+    STEP_REASON="marketplace(s) do Codex com manifesto incompatível: ${upstream[*]}${failed[*]:+; outras falhas: ${failed[*]}}"
+    return "$RC_WARN"
   fi
   if ((rc != 0 || ${#failed[@]} > 0)); then
     STEP_REASON="falha ao renovar marketplace(s) do Codex: ${failed[*]:-rc=${rc}}"
@@ -885,7 +889,6 @@ update_jcode() {
   fi
   latest="$(printf '%s\n' "$meta" | sed -nE 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v?([0-9][^"]*)".*/\1/p' | head -1)"
   if [[ -z "$latest" ]]; then
-    log_raw "$meta"
     log "  Não foi possível parsear a versão mais recente do jcode."
     return "$RC_WARN"
   fi
