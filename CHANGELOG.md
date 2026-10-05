@@ -4,6 +4,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Build/Hermes:** o `build.sh` removia toda linha `#!/usr/bin/env bash` dos módulos inlinados, inclusive o shebang do wrapper Git que o step do Hermes gera por heredoc. No pacote instalado o Python do Hermes recusava executá-lo (`Exec format error`): o stderr completo do fetch nunca era capturado e a migração de plugins do Hermes falhava. Agora só o shebang da linha 1 de cada módulo sai.
+- **Hermes:** o diagnóstico genérico `Failed to fetch updates from origin` (e o teto `git fetch timed out after`) é repetido com o limite de requisição parada crescente e, se persistir, vira aviso de rede em vez de `fail`.
+
 ## [3.48.8] - 2026-10-01
 
 ### Corrigido

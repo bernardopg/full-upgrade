@@ -55,3 +55,20 @@ setup() {
   run bash -c 'ls "$1".* 2>/dev/null | wc -l' _ "$OUT"
   [ "$output" = "0" ]
 }
+
+# Regressão real (pacote 3.48.8): o filtro de cabeçalho apagava QUALQUER linha
+# `#!/usr/bin/env bash`, inclusive a do wrapper git que o step do Hermes gera por
+# heredoc. Sem shebang o Python do Hermes recusava executá-lo (`Exec format
+# error`) e o update falhava sem stderr capturado.
+@test "build: preserva shebang de scripts gerados por heredoc" {
+  env FULL_UPGRADE_BUILD_OUT="$OUT" bash "${ROOT}/build.sh" >/dev/null
+
+  run grep -A1 "cat > \"\${HERMES_GIT_WRAPPER}/git\" <<'GITWRAPPER'" "$OUT"
+  [ "$status" -eq 0 ]
+  [ "${lines[1]}" = '#!/usr/bin/env bash' ]
+  # Só o shebang da linha 1 de cada módulo sai: o standalone mantém o próprio
+  # e todos os que aparecem fora da linha 1 nas fontes.
+  local inner
+  inner="$(awk 'FNR > 1 && /^#!\/usr\/bin\/env bash$/' "${ROOT}"/lib/*.sh "${ROOT}"/lib/steps/*.sh "${ROOT}"/lib/steps/*/*.sh "${ROOT}"/steps.d/*.sh | wc -l)"
+  [ "$(grep -c '^#!/usr/bin/env bash$' "$OUT")" -eq $(( inner + 1 )) ]
+}

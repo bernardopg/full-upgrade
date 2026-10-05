@@ -141,6 +141,32 @@ setup() {
   [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq 2 ]
 }
 
+# Regressão real (runs 2026-09-30 a 2026-10-05): fetch lento de clone parcial
+# saía só com o diagnóstico genérico do Hermes + "De https://...", sem frase de
+# rede; o step virava fail sem nova tentativa.
+@test "update_hermes: falha genérica de fetch do Hermes é repetida e vira warn" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="genericfetch"
+  LOG_FILE=/dev/null
+  timeout() { return 124; }
+  sleep() { :; }
+  echo 0 > "$BATS_TEST_TMPDIR/calls"
+  hermes() {
+    echo $(( $(cat "$BATS_TEST_TMPDIR/calls") + 1 )) > "$BATS_TEST_TMPDIR/calls"
+    printf '→ Fetching updates...\n✗ Failed to fetch updates from origin.\n  De https://github.com/NousResearch/hermes-agent\n'
+    return 1
+  }
+
+  local rc
+  set +e
+  update_hermes >/dev/null
+  rc=$?
+  set -e
+  [ "$rc" -eq "$RC_WARN" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/calls")" -eq "$HERMES_UPDATE_ATTEMPTS" ]
+  [[ "$STEP_REASON" == *"rede indisponível"* ]]
+}
+
 @test "NETWORK_TRANSIENT_RE: casa os diagnósticos de fetch do Hermes" {
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ Network error — cannot reach the remote repository.'
   grep -qiE "$NETWORK_TRANSIENT_RE" <<<'✗ GitHub appears to be having an outage — try again in a few minutes'

@@ -21,6 +21,13 @@ hermes_is_current() {
 HERMES_GIT_STALL_S="${HERMES_GIT_STALL_S:-20}"
 HERMES_UPDATE_ATTEMPTS="${HERMES_UPDATE_ATTEMPTS:-3}"
 
+# Diagnósticos genéricos de fetch do Hermes. Ele já separa auth/SSH/429/outage
+# em frases próprias; o que sobra no genérico é transporte (pack interrompido,
+# lazy fetch de clone parcial, teto de 300s do próprio Hermes). Sem isto, uma
+# requisição lenta do GitHub cujo stderr não casava NETWORK_TRANSIENT_RE virava
+# fail sem nova tentativa (runs de 2026-09-30 a 2026-10-05).
+HERMES_FETCH_FAILURE_RE='failed to fetch updates from origin|git fetch timed out after'
+
 # Hermes upstream imprime só a primeira linha do stderr do fetch. Este wrapper
 # local conserva o stderr real sem modificar a instalação nem registrar argv.
 hermes_prepare_git_capture() {
@@ -103,7 +110,7 @@ update_hermes() {
       printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)"
       sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
     } >> "$LOG_FILE"
-    (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "$NETWORK_TRANSIENT_RE" "$output_file" || break
+    (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file" || break
     log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo em 10s."
     sleep 10
   done
@@ -115,7 +122,7 @@ update_hermes() {
     | tail -40 | log_out || true
   log "  Log Hermes: ${output_file}"
   if (( rc != 0 )); then
-    if grep -qiE "$NETWORK_TRANSIENT_RE" "$output_file"; then
+    if grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file"; then
       STEP_REASON="rede indisponível durante hermes update (detalhes: ${output_file})"
       return "$RC_WARN"
     fi

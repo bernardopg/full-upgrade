@@ -28,6 +28,15 @@ fi
 TMP_OUT="$(mktemp "${OUT}.XXXXXX")"
 trap 'rm -f -- "$TMP_OUT"' EXIT
 
+# Tira o cabeçalho de cada módulo inlinado. O shebang sai só da linha 1: um
+# filtro global também apagava o shebang de scripts gerados por heredoc (o
+# wrapper git do Hermes), e o Python recusa executar script sem `#!`
+# (`Exec format error`) — no pacote instalado o update do Hermes falhava sem
+# nenhum stderr capturado.
+strip_module_header() {
+  awk 'NR == 1 && /^#!\/usr\/bin\/env bash$/ { next } /^# shellcheck shell=bash$/ { next } { print }' "$1"
+}
+
 # Ordem de dependência (igual ao entrypoint).
 ORDER=(
   lib/globals.sh lib/ui.sh lib/core.sh lib/json.sh lib/sudo.sh
@@ -97,7 +106,7 @@ unset _missing _f
   for f in "${ORDER[@]}"; do
     printf '# ===== %s =====\n' "$f"
     # remove shebang e diretivas de shell duplicadas de cada módulo
-    grep -vE '^#!/usr/bin/env bash$|^# shellcheck shell=bash$' "${ROOT}/${f}"
+    strip_module_header "${ROOT}/${f}"
     printf '\n'
   done
 
@@ -108,7 +117,7 @@ unset _missing _f
   for f in "${ROOT}"/steps.d/*.sh; do
     [[ -e "$f" ]] || continue
     printf '# ===== steps.d/%s =====\n' "$(basename -- "$f")"
-    grep -vE '^#!/usr/bin/env bash$|^# shellcheck shell=bash$' "$f"
+    strip_module_header "$f"
     printf '\n'
   done
 
