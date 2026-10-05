@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.48.9] - 2026-10-05
 ### Corrigido
 
 - **Build/Hermes:** o `build.sh` removia toda linha `#!/usr/bin/env bash` dos módulos inlinados, inclusive o shebang do wrapper Git que o step do Hermes gera por heredoc. No pacote instalado o Python do Hermes recusava executá-lo (`Exec format error`): o stderr completo do fetch nunca era capturado e a migração de plugins do Hermes falhava. Agora só o shebang da linha 1 de cada módulo sai.
