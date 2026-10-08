@@ -4,6 +4,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Segurança
+
+- **Lock do Semgrep para 1.180.0 (pyjwt 2.15.1) e auditoria sem exceção de
+  PyJWT.** Os 13 alertas abertos do Dependabot vinham do `pyjwt==2.10.3` que o
+  lock fixava; o bump usa hashes oficiais do PyPI e mantém o diff mínimo (só o
+  pin do semgrep e do pyjwt). O passo "Audit locked Python dependencies" filtrava
+  `pyjwt` de fora do JSON do `pip-audit`, mascarando CVEs do pacote que o
+  Dependabot denunciava — o filtro saiu, o passo voltou a ser estrito (`--strict`
+  com falha em qualquer CVE ou erro do auditor) e os alertas fecharam ao o
+  Dependabot reavaliar o lock.
+- **`mcp_pin_outdated` não baixa mais o JSON do registry em pipe direto para o
+  intérprete.** `curl ... | python3 -c ...` é o padrão que o heurístico
+  `downloadThenRun` do OpenSSF Scorecard marca em `Pinned-Dependencies`; o
+  download agora vai para uma variável local antes do parse, com o mesmo
+  resultado e um comentário explicando a restrição do scorecard.
+
 ## [3.48.11] - 2026-10-08
 ### Corrigido
 
