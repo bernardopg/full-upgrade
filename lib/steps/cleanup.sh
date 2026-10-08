@@ -184,6 +184,56 @@ cleanup_aur_cache() {
 
 
 
+# Lista os temp dirs git-* do Codex em dir mais antigos que keep dias. O CLI
+# vaza um clone bare por tentativa de refresh de marketplace de plugins (visto:
+# ~9,5 mil dirs / 23 GiB acumulados); só o primeiro nível é tocado.
+codex_tmp_dirs_to_delete() {
+  local dir="$1" keep="$2"
+  [[ -d "$dir" ]] || return 0
+  [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=1
+  find "$dir" -maxdepth 1 -type d -name 'git-*' -mtime "+$keep" -print 2>/dev/null
+}
+
+
+
+# Remove os temp dirs git-* que o Codex abandona em ~/.codex/.tmp a cada refresh
+# de marketplace de plugins (clones bare sem dono). Só remove os mais antigos
+# que CODEX_TMP_KEEP_DAYS (default 1) para não tocar no clone de um refresh em
+# andamento. Cache do usuário — não precisa de sudo; falha operacional real
+# (remoção) vira warn, nunca todo/fail — temp dir transitório não é erro do run.
+cleanup_codex_plugin_tmp() {
+  local dir="${CODEX_TMP_DIR:-${HOME}/.codex/.tmp}"
+  local keep="${CODEX_TMP_KEEP_DAYS:-1}"
+  [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=1
+  if [[ ! -d "$dir" ]]; then
+    log "  Diretório temporário do Codex ${dir} não existe; nada a limpar."
+    return 0
+  fi
+  local before
+  before="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+  local -a victims=()
+  mapfile -t victims < <(codex_tmp_dirs_to_delete "$dir" "$keep")
+  if (( ${#victims[@]} == 0 )); then
+    log "  Nenhum temp dir git-* com mais de ${keep} dia(s) em ${dir}."
+    return 0
+  fi
+  log "  Removendo ${#victims[@]} temp dir(s) git-* com mais de ${keep} dia(s) em ${dir}..."
+  if ! run_logged rm -rf -- "${victims[@]}"; then
+    STEP_REASON="falha ao remover temp dirs do Codex em ${dir}"
+    return "$RC_WARN"
+  fi
+  local after
+  after="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+  if [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then
+    log "  Temp dirs do Codex removidos: ${#victims[@]} diretório(s), ${dir}: ${before}MB → ${after}MB (liberado $(( before - after ))MB)."
+  else
+    log "  Temp dirs do Codex removidos: ${#victims[@]} diretório(s)."
+  fi
+  return 0
+}
+
+
+
 snapshot_keep_count() {
   local keep="${SNAPSHOT_KEEP:-5}"
   [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=5

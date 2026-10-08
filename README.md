@@ -380,6 +380,11 @@ em `/var/lib/systemd/coredump` mais antigos que `COREDUMP_KEEP_DAYS` (default
 metadados do journal, então crashes ativos (3+ vezes com ocorrência nas últimas
 48 h) continuam `todo` por desenho — o que some é o acúmulo eterno de dumps
 transitórios, nunca o diagnóstico.
+- **Temp dirs do Codex:** `Limpar temp dirs de plugins do Codex` remove os
+clones bare `git-*` que o CLI do Codex abandona em `~/.codex/.tmp` a cada
+refresh de marketplace de plugins (acumulam dezenas de GiB), mantendo os mais
+novos que `CODEX_TMP_KEEP_DAYS` (default `1`) para não tocar num refresh em
+andamento. Falha de remoção vira `warn`, nunca `fail`.
 - **Retenção de snapshots:** `Limpar snapshots full-upgrade antigos` remove
 apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
 `SNAPSHOT_KEEP` mais recentes. A listagem Timeshift usa privilégio administrativo
@@ -595,6 +600,7 @@ Principais chaves:
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); o journal preserva os metadados. |
+| `CODEX_TMP_KEEP_DAYS` | `1` | Dias de retenção de temp dirs `git-*` em `~/.codex/.tmp` (0/inválido = 1); os mais novos são preservados para não quebrar um refresh em andamento. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um `cargo install --force` cujo rebuild anterior não corrigiu a CVE (memo em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv`); versão nova do crate ou `0` reabrem a tentativa. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |

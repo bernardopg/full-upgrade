@@ -665,6 +665,14 @@ run_all_steps() {
     fi
 
     if (( NO_CLEANUP )); then
+        step_skip "Limpar temp dirs de plugins do Codex" "--no-cleanup"
+    elif [[ -d "${HOME}/.codex/.tmp" ]]; then
+        run_step "Limpar temp dirs de plugins do Codex" cleanup_codex_plugin_tmp
+    else
+        step_skip "Limpar temp dirs de plugins do Codex" "sem ~/.codex/.tmp"
+    fi
+
+    if (( NO_CLEANUP )); then
         step_skip "Remover pacotes órfãos" "--no-cleanup"
     elif has pacman; then
         if (( SUDO_READY )); then

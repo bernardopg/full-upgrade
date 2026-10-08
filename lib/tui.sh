@@ -64,6 +64,7 @@ MIN_FREE_GIB|int||Espaço mínimo livre em / antes de mutações (GiB)
 MIN_BOOT_FREE_MIB|int||Espaço mínimo livre em /boot (MiB; ESP é pequeno)
 BTRFS_SCRUB_MAX_DAYS|int||Alerta se o último scrub btrfs for mais antigo (dias)
 COREDUMP_KEEP_DAYS|int||Retenção de dumps em /var/lib/systemd/coredump (dias)
+CODEX_TMP_KEEP_DAYS|int||Retenção de temp dirs git-* em ~/.codex/.tmp (dias)
 BACKUP_CONFIGS|bool||Arquiva configs críticas de /etc antes do update
 BACKUP_KEEP|int||Quantos tarballs privados manter (mínimo 1 quando ativo)
 TIMESHIFT_CLOUD_BACKUP|bool||Réplica do snapshot Timeshift para nuvem (Restic+rclone)

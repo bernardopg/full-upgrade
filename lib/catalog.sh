@@ -117,6 +117,7 @@ Atualizar extensões de IDE (VSCode/Cursor)|ide|vscode,cursor,extensions,update,
 Atualizar plugins Hyprland (hyprpm)|shell|hyprpm,update,network|mutating|120|hyprpm|update_hyprpm|Atualiza plugins Hyprland via hyprpm.
 Limpar cache do pacman|cleanup|pacman,sudo|mutating|60||cleanup_paccache|Remove versões antigas do cache pacman mantendo duas.
 Limpar cache de build do AUR|cleanup|aur,cache|mutating|120||cleanup_aur_cache|Remove artefatos de build/clone do AUR (paru/yay) que crescem sem limite.
+Limpar temp dirs de plugins do Codex|cleanup|codex,cache|mutating|120||cleanup_codex_plugin_tmp|Remove temp dirs git-* que o Codex vaza em ~/.codex/.tmp a cada refresh de marketplace (clones bare abandonados), mantendo os mais novos que CODEX_TMP_KEEP_DAYS.
 Limpar snapshots full-upgrade antigos|cleanup|snapshot,sudo|mutating|1800||cleanup_old_snapshots|Remove snapshots antigos criados pelo full-upgrade mantendo SNAPSHOT_KEEP.
 Remover pacotes órfãos|cleanup|pacman,sudo|mutating|120||cleanup_orphans|Remove pacotes órfãos somente com confirmação ou --yes.
 Verificar arquivos .pacnew/.pacsave|packages|pacman,config,repair,sudo|read|30||check_pacnew_files|Lista arquivos pendentes e, com AUTO_MERGE_PACNEW=1, mescla casos seguros fora de doctor/dry-run/no-repair.

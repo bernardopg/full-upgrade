@@ -3,6 +3,9 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Codex:** novo step `Limpar temp dirs de plugins do Codex` (cleanup, sem sudo) remove os clones bare `git-*` que o CLI do Codex vaza em `~/.codex/.tmp` a cada refresh de marketplace de plugins — acumulam sem limite (observado: ~9,5 mil dirs / 23 GiB). Só entram dirs mais antigos que `CODEX_TMP_KEEP_DAYS` (default `1`, 0/inválido = 1), preservando um refresh em andamento; falha de remoção vira `warn`, nunca `fail`.
 
 ## [3.48.9] - 2026-10-05
 ### Corrigido
