@@ -3,6 +3,9 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Codex:** `Limpar temp dirs de plugins do Codex` agora cobre também os stagings `marketplace-upgrade-*` em `~/.codex/.tmp/marketplaces/.staging` e `marketplace-plugin-source-*` em `~/.codex/plugins/.marketplace-plugin-source-staging` — é neles que está o volume real do vazamento (cada staging é um clone completo do marketplace; observado: 587 stagings / ~23 GiB, enquanto os `git-*` somavam só ~33 MB em shells quase vazios).
 
 ## [3.48.10] - 2026-10-08
 ### Adicionado

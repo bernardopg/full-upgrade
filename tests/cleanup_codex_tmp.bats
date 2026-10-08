@@ -14,14 +14,16 @@ setup() {
   # `log` escreveria em terminal/log; silencioso nos testes.
   log() { :; }
   log_stream() { cat >/dev/null; }
-  # Isola o diretório temporário para não tocar no ~/.codex/.tmp real.
+  # Isola os três diretórios-alvo para não tocar no ~/.codex real.
   CODEX_TMP_DIR="$BATS_TEST_TMPDIR/codex-tmp"
-  export CODEX_TMP_DIR
-  mkdir -p "$CODEX_TMP_DIR"
+  CODEX_MKT_STAGING_DIR="$CODEX_TMP_DIR/marketplaces/.staging"
+  CODEX_SRC_STAGING_DIR="$BATS_TEST_TMPDIR/plugin-source-staging"
+  export CODEX_TMP_DIR CODEX_MKT_STAGING_DIR CODEX_SRC_STAGING_DIR
+  mkdir -p "$CODEX_MKT_STAGING_DIR" "$CODEX_SRC_STAGING_DIR"
 }
 
-mk_git_tmp() { # mk_git_tmp <nome> [idade em dias]
-  local d="$CODEX_TMP_DIR/$1"
+mk_git_tmp() { # mk_git_tmp <nome> [idade em dias] [dir-base]
+  local d="${3:-$CODEX_TMP_DIR}/$1"
   mkdir -p "$d/objects" "$d/refs"
   touch "$d/HEAD"
   if [[ -n "${2:-}" ]]; then
@@ -59,11 +61,26 @@ mk_git_tmp() { # mk_git_tmp <nome> [idade em dias]
   [ -z "$output" ]
 }
 
+@test "codex_tmp_dirs_to_delete: padrão custom pega staging de marketplace" {
+  mk_git_tmp marketplace-upgrade-velho 5 "$CODEX_MKT_STAGING_DIR"
+  mk_git_tmp marketplace-upgrade-novo "" "$CODEX_MKT_STAGING_DIR"
+  mk_git_tmp git-fora-do-padrao 5 "$CODEX_MKT_STAGING_DIR"
+
+  run codex_tmp_dirs_to_delete "$CODEX_MKT_STAGING_DIR" 1 "marketplace-upgrade-*"
+  [ "$status" -eq 0 ]
+  grep -q "marketplace-upgrade-velho" <<<"$output"
+  ! grep -q "marketplace-upgrade-novo" <<<"$output"
+  ! grep -q "git-fora-do-padrao" <<<"$output"
+}
+
 @test "cleanup_codex_plugin_tmp: remove velhos, preserva recentes, retorna ok" {
   mk_git_tmp git-velho1 10
   mk_git_tmp git-velho2 3
   mk_git_tmp git-recente
-  mkdir -p "$CODEX_TMP_DIR/marketplaces"  # conteúdo real: intocado
+  mk_git_tmp marketplace-upgrade-velho 10 "$CODEX_MKT_STAGING_DIR"
+  mk_git_tmp marketplace-upgrade-recente "" "$CODEX_MKT_STAGING_DIR"
+  mk_git_tmp marketplace-plugin-source-velho 10 "$CODEX_SRC_STAGING_DIR"
+  mkdir -p "$CODEX_TMP_DIR/marketplaces/caveman"  # snapshot real: intocado
   CODEX_TMP_KEEP_DAYS=1
   export CODEX_TMP_KEEP_DAYS
 
@@ -72,7 +89,10 @@ mk_git_tmp() { # mk_git_tmp <nome> [idade em dias]
   [ ! -e "$CODEX_TMP_DIR/git-velho1" ]
   [ ! -e "$CODEX_TMP_DIR/git-velho2" ]
   [ -d "$CODEX_TMP_DIR/git-recente" ]
-  [ -d "$CODEX_TMP_DIR/marketplaces" ]
+  [ ! -e "$CODEX_MKT_STAGING_DIR/marketplace-upgrade-velho" ]
+  [ -d "$CODEX_MKT_STAGING_DIR/marketplace-upgrade-recente" ]
+  [ ! -e "$CODEX_SRC_STAGING_DIR/marketplace-plugin-source-velho" ]
+  [ -d "$CODEX_TMP_DIR/marketplaces/caveman" ]
 }
 
 @test "cleanup_codex_plugin_tmp: sem temp dirs velhos retorna ok sem remover nada" {
@@ -85,9 +105,11 @@ mk_git_tmp() { # mk_git_tmp <nome> [idade em dias]
   [ -d "$CODEX_TMP_DIR/git-recente" ]
 }
 
-@test "cleanup_codex_plugin_tmp: diretório ausente retorna ok sem ruído" {
+@test "cleanup_codex_plugin_tmp: diretórios ausentes retornam ok sem ruído" {
   CODEX_TMP_DIR="$BATS_TEST_TMPDIR/nao-existe"
-  export CODEX_TMP_DIR
+  CODEX_MKT_STAGING_DIR="$BATS_TEST_TMPDIR/tambem-nao"
+  CODEX_SRC_STAGING_DIR="$BATS_TEST_TMPDIR/nem-existe"
+  export CODEX_TMP_DIR CODEX_MKT_STAGING_DIR CODEX_SRC_STAGING_DIR
 
   run cleanup_codex_plugin_tmp
   [ "$status" -eq 0 ]

@@ -187,48 +187,72 @@ cleanup_aur_cache() {
 # Lista os temp dirs git-* do Codex em dir mais antigos que keep dias. O CLI
 # vaza um clone bare por tentativa de refresh de marketplace de plugins (visto:
 # ~9,5 mil dirs / 23 GiB acumulados); só o primeiro nível é tocado.
+# Lista os temp dirs do Codex em dir (padrão glob, default git-*) mais antigos
+# que keep dias. O CLI vaza um clone bare por tentativa de refresh de plugin e
+# um staging marketplace-upgrade-* por refresh de marketplace (visto: ~9,5 mil
+# git-* e 587 stagings, ~23 GiB no total); só o primeiro nível é tocado.
 codex_tmp_dirs_to_delete() {
-  local dir="$1" keep="$2"
+  local dir="$1" keep="$2" pattern="${3:-git-*}"
   [[ -d "$dir" ]] || return 0
   [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=1
-  find "$dir" -maxdepth 1 -type d -name 'git-*' -mtime "+$keep" -print 2>/dev/null
+  find "$dir" -maxdepth 1 -type d -name "$pattern" -mtime "+$keep" -print 2>/dev/null
 }
 
 
 
-# Remove os temp dirs git-* que o Codex abandona em ~/.codex/.tmp a cada refresh
-# de marketplace de plugins (clones bare sem dono). Só remove os mais antigos
-# que CODEX_TMP_KEEP_DAYS (default 1) para não tocar no clone de um refresh em
-# andamento. Cache do usuário — não precisa de sudo; falha operacional real
-# (remoção) vira warn, nunca todo/fail — temp dir transitório não é erro do run.
+# Remove os temp dirs que o Codex abandona a cada refresh de plugins:
+#   - clones bare git-* em ~/.codex/.tmp;
+#   - stagings marketplace-upgrade-* em ~/.codex/.tmp/marketplaces/.staging
+#     (o grosso do volume: cada um é um clone completo do marketplace);
+#   - stagings marketplace-plugin-source-* em
+#     ~/.codex/plugins/.marketplace-plugin-source-staging.
+# Só remove os mais antigos que CODEX_TMP_KEEP_DAYS (default 1) para não tocar
+# num refresh em andamento. Cache do usuário — não precisa de sudo; falha
+# operacional real (remoção) vira warn, nunca todo/fail — temp dir transitório
+# não é erro do run.
 cleanup_codex_plugin_tmp() {
-  local dir="${CODEX_TMP_DIR:-${HOME}/.codex/.tmp}"
   local keep="${CODEX_TMP_KEEP_DAYS:-1}"
   [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=1
-  if [[ ! -d "$dir" ]]; then
-    log "  Diretório temporário do Codex ${dir} não existe; nada a limpar."
-    return 0
-  fi
-  local before
-  before="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+  local codex_tmp="${CODEX_TMP_DIR:-${HOME}/.codex/.tmp}"
+  local -a specs=(
+    "${codex_tmp}|git-*"
+    "${CODEX_MKT_STAGING_DIR:-${codex_tmp}/marketplaces/.staging}|marketplace-upgrade-*"
+    "${CODEX_SRC_STAGING_DIR:-${HOME}/.codex/plugins/.marketplace-plugin-source-staging}|marketplace-plugin-source-*"
+  )
+  local spec dir pattern before after found=0 removed=0 freed=0
   local -a victims=()
-  mapfile -t victims < <(codex_tmp_dirs_to_delete "$dir" "$keep")
-  if (( ${#victims[@]} == 0 )); then
-    log "  Nenhum temp dir git-* com mais de ${keep} dia(s) em ${dir}."
+  for spec in "${specs[@]}"; do
+    dir="${spec%%|*}"
+    pattern="${spec#*|}"
+    [[ -d "$dir" ]] || continue
+    found=1
+    victims=()
+    mapfile -t victims < <(codex_tmp_dirs_to_delete "$dir" "$keep" "$pattern")
+    if (( ${#victims[@]} == 0 )); then
+      continue
+    fi
+    before="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+    log "  Removendo ${#victims[@]} temp dir(s) ${pattern} com mais de ${keep} dia(s) em ${dir}..."
+    if ! run_logged rm -rf -- "${victims[@]}"; then
+      STEP_REASON="falha ao remover temp dirs do Codex em ${dir}"
+      return "$RC_WARN"
+    fi
+    after="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
+    removed=$(( removed + ${#victims[@]} ))
+    if [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then
+      freed=$(( freed + before - after ))
+      log "  ${dir}: ${before}MB → ${after}MB."
+    fi
+  done
+  if (( found == 0 )); then
+    log "  Sem diretórios temporários do Codex; nada a limpar."
     return 0
   fi
-  log "  Removendo ${#victims[@]} temp dir(s) git-* com mais de ${keep} dia(s) em ${dir}..."
-  if ! run_logged rm -rf -- "${victims[@]}"; then
-    STEP_REASON="falha ao remover temp dirs do Codex em ${dir}"
-    return "$RC_WARN"
+  if (( removed == 0 )); then
+    log "  Nenhum temp dir do Codex com mais de ${keep} dia(s)."
+    return 0
   fi
-  local after
-  after="$(du -sm "$dir" 2>/dev/null | awk '{print $1}')"
-  if [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then
-    log "  Temp dirs do Codex removidos: ${#victims[@]} diretório(s), ${dir}: ${before}MB → ${after}MB (liberado $(( before - after ))MB)."
-  else
-    log "  Temp dirs do Codex removidos: ${#victims[@]} diretório(s)."
-  fi
+  log "  Temp dirs do Codex removidos: ${removed} diretório(s), liberado ${freed}MB."
   return 0
 }
 
