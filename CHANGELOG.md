@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.48.12] - 2026-10-08
 ### Segurança
 
 - **Lock do Semgrep para 1.180.0 (pyjwt 2.15.1) e auditoria sem exceção de
