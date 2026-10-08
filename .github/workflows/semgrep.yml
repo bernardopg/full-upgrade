@@ -59,21 +59,21 @@ jobs:
         run: |
           # Semgrep 1.173.0 fixa mcp==1.29.0 e click==8.4.2, que já corrigem as
           # CVEs de servidor MCP (CVE-2026-52869/52870/59950) e de click.edit()
-          # (PYSEC-2026-2132) antes ignoradas aqui. Qualquer vulnerabilidade
-          # conhecida no lock bloqueia o workflow, com uma exceção: o PyJWT. O
-          # semgrep 1.178.0 (última versão) fixa pyjwt~=2.13.0, e o GitHub
-          # segue publicando advisories do 2.13 corrigidos só no 2.14.0 (nove
-          # em 29/09/2026). Listar CVE por CVE quebrava o workflow a cada nova.
-          # O PyJWT só serve ao login do semgrep; este scan é offline e não
-          # valida JWT nem carrega JWKS. Remover a exceção quando o semgrep
-          # liberar pyjwt>=2.14.
+          # (PYSEC-2026-2132). O semgrep até o 1.178.0 travava pyjwt~=2.13.0 e
+          # forçava uma exceção aqui, porque o GitHub publicava advisories do
+          # 2.13 corrigidos só no 2.14.0; o 1.180.0 libera pyjwt~=2.15.0 e o
+          # lock inteiro passa limpo. Agora qualquer vulnerabilidade conhecida
+          # no lock bloqueia o workflow, sem exceção.
           python3 -m pip_audit --strict --require-hashes --disable-pip \
-            -f json -o pip-audit.json -r .github/requirements-semgrep.txt || true
+            -f json -o pip-audit.json -r .github/requirements-semgrep.txt || audit_rc=$?
           jq -e '.dependencies' pip-audit.json >/dev/null
-          jq -r '.dependencies[] | select(.name == "pyjwt") | .vulns[] | "  ignorado (pyjwt fixado pelo semgrep): \(.id)"' pip-audit.json
-          vulns="$(jq -r '.dependencies[] | select(.name != "pyjwt") | .name as $n | .vulns[] | "\($n) \(.id) fix=\(.fix_versions | join(","))"' pip-audit.json)"
+          vulns="$(jq -r '.dependencies[] | .name as $n | .vulns[] | "\($n) \(.id) fix=\(.fix_versions | join(","))"' pip-audit.json)"
           if [[ -n "$vulns" ]]; then
             printf 'Vulnerabilidades no lock:\n%s\n' "$vulns"
+            exit 1
+          fi
+          if [[ -n "${audit_rc:-}" ]]; then
+            printf 'pip-audit terminou com erro (rc=%s)\n' "$audit_rc"
             exit 1
           fi
 

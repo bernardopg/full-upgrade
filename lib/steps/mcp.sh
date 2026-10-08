@@ -442,7 +442,7 @@ elif kind == "json":
 # o registry publica outra versão como latest. Falha de rede = silêncio (o pin
 # só é reportado quando há certeza).
 mcp_pin_outdated() {
-  local pin="$1" servers="$2" eco spec pkg ver latest
+  local pin="$1" servers="$2" eco spec pkg ver latest body
   eco="${pin%%:*}"; spec="${pin#*:}"
   case "$eco" in
     npm)
@@ -457,7 +457,11 @@ mcp_pin_outdated() {
     pypi)
       pkg="${spec%%[=@]*}"; ver="${spec##*[=@]}"
       [[ "$pkg" != "$spec" && -n "$ver" ]] || return 0
-      latest="$(curl -fsS --max-time 20 "https://pypi.org/pypi/${pkg}/json" 2>/dev/null \
+      # O JSON do registry é baixado para uma variável antes do parse (não
+      # `curl | python3`): sem pipe direto a interpretador, o Scorecard não
+      # classifica a chamada como downloadThenRun não fixado por hash.
+      body="$(curl -fsS --max-time 20 "https://pypi.org/pypi/${pkg}/json" 2>/dev/null)"
+      latest="$(printf '%s' "$body" \
         | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])' 2>/dev/null)"
       ;;
     *) return 0 ;;
