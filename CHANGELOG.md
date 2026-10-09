@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.48.13] - 2026-10-09
 ### Adicionado
 
 - Integração da suíte Artcraft: atualização de releases estáveis com SHA-256,
