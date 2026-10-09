@@ -50,7 +50,7 @@ ORDER=(
   lib/steps/doctor/_common.sh lib/steps/doctor/system.sh lib/steps/doctor/storage.sh
   lib/steps/doctor/boot.sh lib/steps/doctor/packages.sh lib/steps/doctor/dev.sh
   lib/steps/backup.sh lib/steps/cloud_backup.sh lib/steps/self_update.sh lib/steps/audit.sh lib/steps/mcp.sh
-  lib/steps/manual_apps.sh
+  lib/steps/manual_apps.sh lib/steps/artcraft.sh
   lib/main.sh
 )
 

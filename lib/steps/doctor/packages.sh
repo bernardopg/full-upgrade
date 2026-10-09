@@ -317,6 +317,9 @@ _manual_apps_has_step() {
   # steps acima e com ai.sh/self_update.sh/steps.d.
   local marker="$1"
   case "$marker" in
+    photocraft|photocraft-cli|vectorcraft|vectorcraft-cli|filmcraft|filmcraft-cli|\
+    lightcraft|lightcraft-cli|pdfcraft|pdfcraft-cli|effectcraft|effectcraft-cli|designcraft|designcraft-cli)
+      [[ -r "${ARTCRAFT_DIR:-$HOME/development/artcraft}/${marker%-cli}/installation.json" ]] ;;
     droid|snyk|zap|zap.sh|zaproxy|rtk|tokensave|openclaw|\
     hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
@@ -451,4 +454,13 @@ doctor_manual_apps() {
     for u in "${auxiliary_items[@]}"; do log_raw "manual-app-auxiliar: ${u}"; done
   fi
   return 0
+}
+
+doctor_artcraft() {
+  local rc=0
+  artcraft_run doctor || rc=$?
+  if (( rc != 0 )); then
+    STEP_REASON="Artcraft: instalação local incompleta; confira o log"
+    return "$RC_TODO"
+  fi
 }

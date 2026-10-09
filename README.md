@@ -664,7 +664,10 @@ aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
 | `steps.d/40-dms.sh` | `update_dms_plugins` | diretório `DMS_PLUGINS_DIR` existe |
 | `steps.d/60-openclaw.sh` | `update_openclaw` | `openclaw` no PATH ou `OPENCLAW_BIN` |
 | `steps.d/70-rtk.sh` | `update_rtk` | `rtk` no PATH ou `RTK_BIN` |
+| `lib/steps/artcraft.sh` + hooks em `tools.sh`/`doctor/packages.sh` | `update_artcraft`, `doctor_artcraft` | inventário em `ARTCRAFT_DIR` (padrão `~/development/artcraft`); bandeja verifica releases sem instalar |
 | `steps.d/80-orca.sh` | `ensure_orca_ide` | Orca instalado (binário/`ORCA_IDE_PACKAGE`); instala novo só com `ENABLE_CUSTOM_TOOLS=1` |
+
+A suíte Artcraft tem filtro `--only artcraft`, atualização em `full`/`update` e auditoria local em `doctor`. O step baixa apenas versões estáveis mais novas dos apps já instalados, valida SHA-256 e inicialização MCP, e atualiza os binários GUI/CLI, ícones, `.desktop`, MIME e inventários. Os caminhos usados pelos quatro clientes MCP continuam iguais. Cada app conserva a versão anterior e backups privados para rollback; falha de download, integridade, MCP ou integração mantém esse app na versão anterior, sem impedir a atualização dos demais. Os clones originais, inclusive alterações locais, são preservados; `source-current` aponta para o clone da nova tag. A bandeja inclui contagem e lista de releases Artcraft; `FULL_UPGRADE_DISABLED_INTEGRATIONS="artcraft"` desliga atualização, doctor e consulta de releases.
 
 **Opt-in via `ENABLE_CUSTOM_TOOLS=1`** (porque INSTALA pacote, não só atualiza):
 

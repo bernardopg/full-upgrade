@@ -250,3 +250,12 @@ update_cua_driver() {
   fi
   return 0
 }
+
+update_artcraft() {
+  local rc=0
+  artcraft_run update || rc=$?
+  if (( rc != 0 )); then
+    STEP_REASON="Artcraft: atualização incompleta; confira o log (versões anteriores preservadas)"
+    return "$RC_WARN"
+  fi
+}

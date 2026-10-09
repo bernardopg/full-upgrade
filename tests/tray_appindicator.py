@@ -37,6 +37,14 @@ ctx = dict(json=json, datetime=datetime, textwrap=textwrap,
                                IconSize=SimpleNamespace(MENU=1), main_quit=lambda: None),
            indicator=SimpleNamespace(set_menu=menus.append))
 exec(compile(functions, '<tray>', 'exec'), ctx)
+artcraft = {'state': 'updates', 'artcraft': 2,
+            'artcraft_updates': ['photocraft v0.1.0 -> v0.2.0', 'pdfcraft v0.1.0 -> v0.2.0']}
+assert ctx['_updates_total'](artcraft) == 2
+ctx['rebuild_menu'](artcraft)
+craft_menu = next(item for item in menus[-1].children if item.label == 'Suíte Artcraft (2)')
+assert all(any(entry in child.label for child in craft_menu.children) for entry in artcraft['artcraft_updates'])
+menus.clear()
+ctx['_menu_key'] = None
 entries = [('Aviso %d: ' % i) + 'autenticação expirada; abra pi e execute /login ' * 4 for i in range(35)]
 data = {'state': 'attention', 'todo': 35, 'doctor_pending': entries}
 ctx['rebuild_menu'](data)

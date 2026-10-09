@@ -420,12 +420,12 @@ tray_write_state() {
   mkdir -p "${LOG_DIR}" 2>/dev/null || true
   local tmp
   tmp=$(mktemp "${TRAY_STATE_FILE}.tmp.XXXXXX" 2>/dev/null) || return 1
-  if printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s,"flatpak_updates":%s}\n' \
+  if printf '{"state":%s,"prev_state":%s,"repo":%s,"aur":%s,"flatpak":%s,"todo":%s,"fail":%s,"reboot":%s,"checked_at":%s,"last_run_at":%s,"log_file":%s,"jsonl_file":%s,"repo_updates":%s,"aur_updates":%s,"doctor_pending":%s,"flatpak_updates":%s,"artcraft":%s,"artcraft_updates":%s}\n' \
       "$(json_escape "$1")" "$(json_escape "$2")" \
       "$(tray_num_or_zero "$3")" "$(tray_num_or_zero "$4")" "$(tray_num_or_zero "$5")" \
       "$(tray_num_or_zero "$6")" "$(tray_num_or_zero "$7")" \
       "$(json_escape "$8")" "$(json_escape "$9")" "$(json_escape "${10}")" \
-      "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" "${16:-[]}" > "$tmp" \
+      "$(json_escape "${11}")" "$(json_escape "${12}")" "${13:-[]}" "${14:-[]}" "${15:-[]}" "${16:-[]}" "$(tray_num_or_zero "${17:-0}")" "${18:-[]}" > "$tmp" \
       && chmod 600 "$tmp" 2>/dev/null \
       && mv -f "$tmp" "${TRAY_STATE_FILE}" 2>/dev/null; then
     return 0
@@ -490,21 +490,31 @@ tray_check_now() {
   local running=0
   tray_is_full_upgrade_running && running=1
 
-  local repo=0 aur=0 flatpak=0 updates=0
-  local repo_file aur_file flatpak_file doctor_file repo_json='[]' aur_json='[]' doctor_json='[]' flatpak_json='[]'
+  local repo=0 aur=0 flatpak=0 artcraft=0 updates=0
+  local repo_file aur_file flatpak_file doctor_file repo_json='[]' aur_json='[]' doctor_json='[]' flatpak_json='[]' artcraft_json='[]'
+  local artcraft_file
   repo_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-repo.$$" )
   aur_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-aur.$$" )
   flatpak_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-flatpak.$$" )
+  artcraft_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-artcraft.$$" )
   doctor_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-doctor.$$" )
   if (( ! running && ! cached )); then
     local counts
     if ! counts=$(tray_gather_updates_detail "$repo_file" "$aur_file" "$flatpak_file"); then
-      rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file"
+      rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" "$artcraft_file"
       printf '%s' "${prev:-unknown}"
       return 1
     fi
+    if declare -F artcraft_installed >/dev/null && artcraft_installed && ! integration_disabled artcraft && ! _step_skip_requested "Atualizar suíte Artcraft"; then
+      if ! artcraft_check_updates > "$artcraft_file"; then
+        rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" "$artcraft_file"
+        printf '%s' "${prev:-unknown}"
+        return 1
+      fi
+      artcraft=$(tray_count_list < "$artcraft_file")
+    fi
     read -r repo aur flatpak <<< "$counts"
-    updates=$(tray_total_updates "$repo" "$aur" "$flatpak")
+    updates=$(tray_total_updates "$repo" "$aur" "$flatpak" "$artcraft")
   fi
   local todo=0 fail=0 reboot=0
   read -r todo fail reboot <<< "$(tray_last_summary_counts)"
@@ -524,13 +534,17 @@ tray_check_now() {
   aur_json=$(tray_json_array_from_lines < "$aur_file")
   flatpak_json=$(tray_json_array_from_lines < "$flatpak_file")
   doctor_json=$(tray_json_array_from_lines < "$doctor_file")
-  rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" 2>/dev/null || true
+  artcraft_json=$(tray_json_array_from_lines < "$artcraft_file")
+  rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" "$artcraft_file" 2>/dev/null || true
 
   if (( cached )) && [[ -r "$TRAY_STATE_FILE" ]]; then
     repo=$(tray_num_or_zero "$(tray_read_state_field "$TRAY_STATE_FILE" repo)")
     aur=$(tray_num_or_zero "$(tray_read_state_field "$TRAY_STATE_FILE" aur)")
     flatpak=$(tray_num_or_zero "$(tray_read_state_field "$TRAY_STATE_FILE" flatpak)")
-    updates=$(tray_total_updates "$repo" "$aur" "$flatpak")
+    artcraft=$(tray_num_or_zero "$(tray_read_state_field "$TRAY_STATE_FILE" artcraft)")
+    updates=$(tray_total_updates "$repo" "$aur" "$flatpak" "$artcraft")
+    artcraft_json=$(tray_read_state_field "$TRAY_STATE_FILE" artcraft_updates)
+    [[ "$artcraft_json" == \[* ]] || artcraft_json='[]'
     repo_json=$(tray_read_state_field "$TRAY_STATE_FILE" repo_updates)
     aur_json=$(tray_read_state_field "$TRAY_STATE_FILE" aur_updates)
     flatpak_json=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak_updates)
@@ -548,7 +562,7 @@ tray_check_now() {
   state=$(tray_compute_state "$running" "$fail" "$todo" "$updates")
 
   tray_write_state "$state" "$prev" "$repo" "$aur" "$flatpak" "$todo" "$fail" "$reboot_reason" \
-    "$checked_at" "$last_run_at" "$last_log" "$last_jsonl" "$repo_json" "$aur_json" "$doctor_json" "$flatpak_json" || return 1
+    "$checked_at" "$last_run_at" "$last_log" "$last_jsonl" "$repo_json" "$aur_json" "$doctor_json" "$flatpak_json" "$artcraft" "$artcraft_json" || return 1
 
   if (( do_notify )) && [[ -n "$prev" && "$prev" != "$state" && "$state" != "running" ]]; then
     _tray_notify_transition "$prev" "$state" "$updates" "$todo" "$fail" "$reboot_reason"
@@ -718,11 +732,12 @@ tray_print_status() {
     echo "Sem estado ainda. Rode 'full-upgrade --tray-check' para computar." >&2
     return 0
   fi
-  local state repo aur flatpak todo fail checked reboot last_run log_file
+  local state repo aur flatpak artcraft todo fail checked reboot last_run log_file
   state=$(tray_read_state_field "$TRAY_STATE_FILE" state 2>/dev/null || echo "?")
   repo=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
   flatpak=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
+  artcraft=$(tray_read_state_field "$TRAY_STATE_FILE" artcraft 2>/dev/null || echo 0)
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   reboot=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || echo "")
@@ -735,7 +750,7 @@ tray_print_status() {
   [[ -n "$last_rel" ]] && last_run="${last_run} (${last_rel})"
   cat <<EOF
 Estado      : ${state}
-Updates     : ${repo} repo + ${aur} AUR + ${flatpak} Flatpak
+Updates     : ${repo} repo + ${aur} AUR + ${flatpak} Flatpak + ${artcraft} Artcraft
 A resolver  : ${todo}
 Falhas      : ${fail}
 Reboot      : ${reboot:-não}
@@ -817,14 +832,15 @@ tray_pid_is_daemon() {
 tray_check_and_print() {
   local state rc=0
   state=$(tray_check_now no_notify) || rc=$?
-  local repo aur flatpak todo fail
+  local repo aur flatpak artcraft todo fail
   repo=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
   flatpak=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
+  artcraft=$(tray_read_state_field "$TRAY_STATE_FILE" artcraft 2>/dev/null || echo 0)
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
-  printf 'Estado: %s | updates: %s repo + %s AUR + %s Flatpak | a resolver: %s | falhas: %s\n' \
-    "$state" "$repo" "$aur" "$flatpak" "$todo" "$fail"
+  printf 'Estado: %s | updates: %s repo + %s AUR + %s Flatpak + %s Artcraft | a resolver: %s | falhas: %s\n' \
+    "$state" "$repo" "$aur" "$flatpak" "$artcraft" "$todo" "$fail"
   return "$rc"
 }
 
@@ -1019,7 +1035,7 @@ def _ints(data):
 
 
 def _updates_total(data):
-    return _int(data.get("repo")) + _int(data.get("aur")) + _int(data.get("flatpak"))
+    return _int(data.get("repo")) + _int(data.get("aur")) + _int(data.get("flatpak")) + _int(data.get("artcraft"))
 
 
 def tooltip_for_state(data):
@@ -1239,7 +1255,7 @@ def finish_refresh(data, user_initiated=False, probed=False, error=""):
         elif todo > 0:
             body = f"{todo} avisos e pendências."
         elif updates > 0:
-            body = f"{updates} atualizações: {repo} oficiais, {aur} AUR, {_int(data.get('flatpak'))} Flatpak."
+            body = f"{updates} atualizações: {repo} oficiais, {aur} AUR, {_int(data.get('flatpak'))} Flatpak, {_int(data.get('artcraft'))} Artcraft."
         else:
             body = "Nenhuma atualização ou pendência detectada."
         desktop_notify("Verificação concluída", body, "normal")
@@ -1378,7 +1394,7 @@ def rebuild_menu(data):
     if run_rel:
         details.append(f"Última execução: {run_rel}")
     if _updates_total(data):
-        details.append(f"Atualizações: {repo} oficiais, {aur} AUR, {flatpak} Flatpak")
+        details.append(f"Atualizações: {repo} oficiais, {aur} AUR, {flatpak} Flatpak, {_int(data.get('artcraft'))} Artcraft")
     if reboot:
         details.append(f"Reinicialização pendente: {reboot}")
     if details:
@@ -1387,6 +1403,7 @@ def rebuild_menu(data):
         ("Pacotes oficiais", "repo_updates", repo, "package-x-generic"),
         ("Pacotes AUR", "aur_updates", aur, "package-x-generic"),
         ("Aplicativos Flatpak", "flatpak_updates", flatpak, "application-x-executable"),
+        ("Suíte Artcraft", "artcraft_updates", _int(data.get("artcraft")), "applications-graphics"),
         ("Avisos e pendências", "doctor_pending", todo, "dialog-warning"),
     ):
         entries = as_list(data, field)
@@ -1525,10 +1542,11 @@ _tray_yad_apply() {
   icon=$(tray_resolve_icon "$(tray_icon_name_for_state "$state")")
   reboot_reason=$(tray_read_state_field "$TRAY_STATE_FILE" reboot 2>/dev/null || true)
   updates=$(tray_read_state_field "$TRAY_STATE_FILE" repo 2>/dev/null || echo 0)
-  local aur fpk
+  local aur fpk artcraft
   aur=$(tray_read_state_field "$TRAY_STATE_FILE" aur 2>/dev/null || echo 0)
   fpk=$(tray_read_state_field "$TRAY_STATE_FILE" flatpak 2>/dev/null || echo 0)
-  updates=$(( $(tray_num_or_zero "$updates") + $(tray_num_or_zero "$aur") + $(tray_num_or_zero "$fpk") ))
+  artcraft=$(tray_read_state_field "$TRAY_STATE_FILE" artcraft 2>/dev/null || echo 0)
+  updates=$(tray_total_updates "$updates" "$aur" "$fpk" "$artcraft")
   todo=$(tray_read_state_field "$TRAY_STATE_FILE" todo 2>/dev/null || echo 0)
   fail=$(tray_read_state_field "$TRAY_STATE_FILE" fail 2>/dev/null || echo 0)
   tooltip=$(tray_tooltip_for_state "$state" "$updates" "$todo" "$fail" "$reboot_reason")

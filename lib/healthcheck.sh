@@ -326,6 +326,13 @@ needrestart
 checkservices
 fastfetch
 neofetch
+photocraft
+vectorcraft
+filmcraft
+lightcraft
+pdfcraft
+effectcraft
+designcraft
 EOF
 }
 

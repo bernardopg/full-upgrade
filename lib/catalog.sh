@@ -83,6 +83,7 @@ Atualizar plugins do Claude Code|ai|ai,claude,plugins,update,network|mutating|60
 Atualizar plugins do Codex|ai|ai,codex,plugins,update,network|mutating|300|codex|update_codex_plugins|Renova os snapshots git dos marketplaces de plugins do Codex (codex plugin marketplace upgrade); inconsistência do upstream é registrada sem aviso.
 Atualizar agent skills (skills CLI)|ai|skills,caveman,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza agent skills globais em ~/.agents/skills via 'npx skills update --global' (caveman, cavecrew, 9router-*, etc).
 Atualizar servidores MCP|ai|mcp,update,network|mutating|180||mcp_update_servers|Sob MCP_AUTO_UPDATE=1 refresca o cache uv dos servers MCP uvx (rebuild da última no próximo launch); versão fixada atrás da última release vira TODO; npx/externo/remoto são reportados.
+Atualizar suíte Artcraft|tools|artcraft,desktop,manual,update,network|mutating|1200|python3,git,desktop-file-validate,update-mime-database,update-desktop-database|update_artcraft|Atualiza as releases oficiais dos sete apps Artcraft com SHA-256, teste MCP, fontes, atalhos, MIME e rollback por aplicativo.
 Garantir Orca IDE|ide|orca,ide,desktop,aur,network,ai|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.
 Garantir Antigravity|ide|antigravity,ide,desktop,aur,network,ai|mutating|600||ensure_antigravity|Instala/atualiza Google Antigravity e Antigravity IDE via AUR, validando manifests oficiais e launchers.
 Atualizar Kimi CLI|ai|kimi,update,network,slow|mutating|300|kimi|update_kimi|Kimi (Moonshot): npm global no prefixo ativo é coberto por 'Atualizar npm global'; npm global em outro prefixo (ex.: ~/.npm-global) => npm install -g --prefix; standalone => updater oficial 'kimi update' (RC_TODO se layout não suportado).
@@ -147,6 +148,7 @@ Doctor: arquivos .pacnew/.pacsave|doctor|pacman,config|read|60||doctor_pacfiles|
 Doctor: hooks ALPM com falha|doctor|pacman,journal|read|15||doctor_pacman_hooks|Detecta hooks ALPM com erro no journal do boot atual.
 Doctor: SMART e NVMe|doctor|disk,smart,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
+Doctor: suíte Artcraft|doctor|artcraft,desktop,manual|read|60|python3|doctor_artcraft|Confere versões, binários GUI/CLI, symlinks e launchers da instalação Artcraft sem rede nem alterações.
 Doctor: apps manuais (fora de pacote)|doctor|manual,inventory|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
 Doctor: módulos OBS|doctor|obs|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
 Doctor: AI CLIs|doctor|ai|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA e otimização (Claude, Codex, OpenCode, Pi, Hermes, Headroom, TokenSave e demais CLIs conhecidas).

@@ -4,6 +4,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- Integração da suíte Artcraft: atualização de releases estáveis com SHA-256,
+  teste MCP e rollback por app; clones originais preservados, integração desktop
+  e MIME, doctor local, filtros/modos, configuração/TUI, inventário e bandeja.
+
 ## [3.48.12] - 2026-10-08
 ### Segurança
 

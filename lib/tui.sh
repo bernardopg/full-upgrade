@@ -51,6 +51,7 @@ TUI_SKIP_CSV_BASE=""      # CSV bruto de FULL_UPGRADE_SKIP no arquivo (cache)
 # Formato: chave|tipo|meta|descrição (meta = opções de enum separadas por ",").
 tui_param_catalog() {
   cat <<'EOF'
+ARTCRAFT_DIR|path||Diretório da suíte Artcraft instalada por releases locais
 ENABLE_CUSTOM_TOOLS|bool||Habilita steps customizados de ~/.config/full-upgrade/steps.d
 LANG_OVERRIDE|enum|auto,pt,en|Idioma das mensagens (auto = detecta de $LANG)
 SNAPSHOT_TOOL|enum|auto,snapper,timeshift,none|Ferramenta de snapshot pré-upgrade

@@ -422,6 +422,14 @@ run_all_steps() {
         step_skip "Atualizar servidores MCP" "MCP_AUTO_UPDATE!=1 ou sem fonte MCP"
     fi
 
+    if integration_disabled artcraft; then
+        step_skip "Atualizar suíte Artcraft" "integração desabilitada: artcraft"
+    elif artcraft_installed; then
+        run_step "Atualizar suíte Artcraft" update_artcraft
+    else
+        step_skip "Atualizar suíte Artcraft" "suíte Artcraft não instalada"
+    fi
+
     if declare -F orca_ide_installed >/dev/null 2>&1 && orca_ide_installed; then
         run_step "Garantir Orca IDE" ensure_orca_ide
     elif (( ${ENABLE_CUSTOM_TOOLS:-0} == 1 )); then
@@ -791,6 +799,13 @@ run_all_steps() {
     run_step "Doctor: hooks ALPM com falha" doctor_pacman_hooks
     run_step "Doctor: SMART e NVMe" doctor_smart_health
     run_step "Doctor: saúde da sessão desktop" doctor_desktop_health
+    if integration_disabled artcraft; then
+        step_skip "Doctor: suíte Artcraft" "integração desabilitada: artcraft"
+    elif artcraft_installed; then
+        run_step "Doctor: suíte Artcraft" doctor_artcraft
+    else
+        step_skip "Doctor: suíte Artcraft" "suíte Artcraft não instalada"
+    fi
     run_step "Doctor: apps manuais (fora de pacote)" doctor_manual_apps
 
     if has obs || pacman -Q obs-studio >/dev/null 2>&1; then
