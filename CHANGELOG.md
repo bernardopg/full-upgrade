@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- Btrfs: reconhece o resumo saudável `no errors found` e a data de um scrub
+  retomado (`Scrub resumed`), observados na validação real desta máquina.
+- Regressão de mirrors cobre o ciclo completo backup, falha e rollback,
+  verificando conteúdo e idade real dos arquivos restaurados.
+
 ## [3.48.14] - 2026-10-13
 ### Corrigido
 
@@ -11,7 +18,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   stdout/stderr persistidos também em modo quiet, com rollback preservado.
 - Btrfs: doctor avalia erros e conclusão do scrub, além da idade; consulta
   indisponível ou scrub incompleto não vira sucesso nem novo scrub automático.
-  Reconhece os formatos saudáveis `no errors` e `no errors found`, inclusive scrub retomado.
 - Mirrors: backup e restauração preservam a data original; reflector tem limite
   interno para permitir rollback antes do timeout da etapa.
 - Hermes: falhas de build TypeScript e carregamento de provider não viram OK
