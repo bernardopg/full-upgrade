@@ -30,6 +30,42 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
+@test "mirrors: ciclo backup, reflector falhado e rollback mantém idade original" {
+  MIRROR_TOOL=reflector MIRROR_MAX_AGE_DAYS=0
+  local original="$BATS_TEST_TMPDIR/mirrorlist" old
+  printf 'Server = https://mirror.example/$repo/os/$arch\n' > "$original"
+  touch -d '10 days ago' "$original"
+  old="$(stat -c %Y "$original")"
+  has() { [[ "$1" == pacman || "$1" == reflector ]]; }
+  timeout() { [ "$1" -eq 90 ] || return 99; shift; "$@"; }
+  mirrorlist_has_server() { grep -Eq '^Server =' "$BATS_TEST_TMPDIR/backup"; }
+  sudo() {
+    if [[ "$1" == cp ]]; then
+      local src dst
+      case "$3:$4" in
+        /etc/pacman.d/mirrorlist:/etc/pacman.d/mirrorlist.full-upgrade.bak)
+          src="$BATS_TEST_TMPDIR/mirrorlist"; dst="$BATS_TEST_TMPDIR/backup" ;;
+        /etc/pacman.d/mirrorlist.full-upgrade.bak:/etc/pacman.d/mirrorlist)
+          src="$BATS_TEST_TMPDIR/backup"; dst="$BATS_TEST_TMPDIR/mirrorlist" ;;
+        *) return 99 ;;
+      esac
+      command cp "$2" "$src" "$dst"
+    elif [[ "$1" == reflector ]]; then
+      printf 'partial write\n' > "$BATS_TEST_TMPDIR/mirrorlist"
+      return 1
+    else
+      return 99
+    fi
+  }
+  run refresh_mirrors
+  [ "$status" -eq "$RC_WARN" ]
+  [ "$(stat -c %Y "$original")" -eq "$old" ]
+  [ "$(stat -c %Y "$BATS_TEST_TMPDIR/backup")" -eq "$old" ]
+  grep -q '^Server =' "$original"
+  run mirror_is_fresh "$(stat -c %Y "$original")" "$(date +%s)" 7
+  [ "$status" -ne 0 ]
+}
+
 @test "pacman: lock respeita DBPath configurado e nunca é removido" {
   pacman-conf() { printf '%s/\n' "$BATS_TEST_TMPDIR"; }
   run pacman_db_is_locked

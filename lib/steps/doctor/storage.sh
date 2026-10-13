@@ -261,7 +261,7 @@ btrfs_scrub_state() {
     printf 'never'; return 0
   fi
   if grep -qiE 'Uncorrectable:[[:space:]]*[1-9]' <<<"$txt" \
-      || grep -i 'Error summary:' <<<"$txt" | grep -ivE 'Error summary:[[:space:]]*no errors[[:space:]]*$' >/dev/null; then
+      || grep -i 'Error summary:' <<<"$txt" | grep -ivE 'Error summary:[[:space:]]*no errors( found)?[[:space:]]*$' >/dev/null; then
     printf 'errors'; return 0
   fi
   if grep -qiE 'Status:[[:space:]]*(running|started)' <<<"$txt"; then
@@ -271,7 +271,7 @@ btrfs_scrub_state() {
     printf 'incomplete'; return 0
   fi
   if ! grep -qiE 'Status:[[:space:]]*(finished|done)' <<<"$txt" \
-      || ! grep -qiE 'Error summary:[[:space:]]*no errors' <<<"$txt"; then
+      || ! grep -qiE 'Error summary:[[:space:]]*no errors( found)?[[:space:]]*$' <<<"$txt"; then
     printf 'unknown'; return 0
   fi
   local started last_epoch now_epoch age_days
