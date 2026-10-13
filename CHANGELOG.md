@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.48.14] - 2026-10-13
 ### Corrigido
 
 - Artcraft: respostas MCP até 1 MiB, cobrindo o catálogo grande do PDFCraft;
