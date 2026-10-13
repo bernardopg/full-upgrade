@@ -11,7 +11,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   stdout/stderr persistidos também em modo quiet, com rollback preservado.
 - Btrfs: doctor avalia erros e conclusão do scrub, além da idade; consulta
   indisponível ou scrub incompleto não vira sucesso nem novo scrub automático.
-  Reconhece os formatos saudáveis `no errors` e `no errors found`.
+  Reconhece os formatos saudáveis `no errors` e `no errors found`, inclusive scrub retomado.
 - Mirrors: backup e restauração preservam a data original; reflector tem limite
   interno para permitir rollback antes do timeout da etapa.
 - Hermes: falhas de build TypeScript e carregamento de provider não viram OK

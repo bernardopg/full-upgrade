@@ -66,7 +66,7 @@ setup() {
 
 @test "state: scrub recente => ok:<dias>" {
   local recent; recent="$(LC_ALL=C date -d '2 days ago' '+%a %b %d %T %Y')"
-  run btrfs_scrub_state "Scrub started:    $recent"$'\nStatus: finished\nError summary: no errors found' 30
+  run btrfs_scrub_state "Scrub resumed:    $recent"$'\nStatus: finished\nError summary: no errors found' 30
   [[ "$output" == ok:* ]]
   [ "${output#ok:}" -le 3 ]
 }

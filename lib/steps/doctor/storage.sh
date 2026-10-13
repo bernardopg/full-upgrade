@@ -275,7 +275,7 @@ btrfs_scrub_state() {
     printf 'unknown'; return 0
   fi
   local started last_epoch now_epoch age_days
-  started="$(printf '%s\n' "$txt" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
+  started="$(printf '%s\n' "$txt" | sed -nE 's/.*(started at|Scrub (started|resumed):)[[:space:]]*//Ip' | head -1)"
   [[ -n "$started" ]] || { printf 'unknown'; return 0; }
   # LC_ALL=C: a data vem de `btrfs scrub status` sob LC_ALL=C (inglês); parsear
   # no mesmo locale evita falha quando o ambiente está em pt_BR ("qui jun ...").
