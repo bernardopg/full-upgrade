@@ -60,7 +60,7 @@ def latest(app):
 async def smoke(cli, args):
     with tempfile.TemporaryFile() as errors:
         process = await asyncio.create_subprocess_exec(str(cli), *args, stdin=asyncio.subprocess.PIPE,
-                                                      stdout=asyncio.subprocess.PIPE, stderr=errors)
+                                                      stdout=asyncio.subprocess.PIPE, stderr=errors, limit=1024 * 1024)
         async def request(identifier, method, params):
             process.stdin.write((json.dumps({'jsonrpc': '2.0', 'id': identifier,
                                             'method': method, 'params': params}) + '\n').encode())

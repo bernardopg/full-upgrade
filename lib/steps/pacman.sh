@@ -5,6 +5,12 @@
 
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
+pacman_db_is_locked() {
+  local dbpath
+  dbpath="$(pacman-conf DBPath 2>/dev/null)" || dbpath=/var/lib/pacman/
+  [[ -e "${dbpath%/}/db.lck" ]]
+}
+
 ensure_pacman_lock_is_clean() {
   local lock="/var/lib/pacman/db.lck"
   if [[ ! -e "${lock}" ]]; then
@@ -550,10 +556,14 @@ mirrorlist_has_server() {
 _restore_mirror_backup() {
   local backup="$1" mirrorlist="$2"
   if mirrorlist_has_server "$backup"; then
-    run_logged sudo cp -f "$backup" "$mirrorlist" 2>/dev/null || true
+    if ! run_logged sudo cp -pf "$backup" "$mirrorlist"; then
+      log "  Aviso: falha ao restaurar backup do mirrorlist: ${backup}"
+      return 1
+    fi
   else
     log "  Aviso: backup do mirrorlist inválido/vazio; não restaurado: ${backup}"
     log "  Remediação: revise ${mirrorlist} ou regenere mirrors manualmente."
+    return 1
   fi
 }
 
@@ -601,29 +611,30 @@ refresh_mirrors() {
   case "$tool" in
     reflector)
       has reflector || { log "  reflector não instalado."; return 0; }
-      run_logged sudo cp -f "$mirrorlist" "$backup" 2>/dev/null || true
+      run_logged sudo cp -pf "$mirrorlist" "$backup" || return "$RC_WARN"
       log "  Backup do mirrorlist: ${backup}"
       # Flags rápidas: --age 24 descarta mirrors não-sincronizados há >24h (menos
       # candidatos mortos), timeouts curtos (3s) cortam a penalidade de mirror
       # lento (default é 5s), e --number 10 devolve só os 10 mais rápidos.
-      if run_logged sudo reflector --protocol https --age 24 --latest 20 --sort rate \
+      # O limite interno deixa tempo para rollback antes do timeout do step (120s).
+      if run_logged timeout 90 sudo reflector --protocol https --age 24 --latest 10 --sort rate \
            --connection-timeout 3 --download-timeout 3 --number 10 --save "$mirrorlist"; then
         log "  Mirrors atualizados via reflector (top 10 por rate)."
       else
         log "  Aviso: reflector falhou; restaurando backup válido se possível."
-        _restore_mirror_backup "$backup" "$mirrorlist"
+        _restore_mirror_backup "$backup" "$mirrorlist" || STEP_REASON="reflector falhou e backup não pôde ser restaurado"
         return "$RC_WARN"
       fi
       ;;
     rate-mirrors)
       has rate-mirrors || { log "  rate-mirrors não instalado."; return 0; }
-      run_logged sudo cp -f "$mirrorlist" "$backup" 2>/dev/null || true
+      run_logged sudo cp -pf "$mirrorlist" "$backup" || return "$RC_WARN"
       log "  Backup do mirrorlist: ${backup}"
       if rate-mirrors --save "$mirrorlist" arch 2>>"$LOG_FILE"; then
         log "  Mirrors atualizados via rate-mirrors."
       else
         log "  Aviso: rate-mirrors falhou; restaurando backup válido se possível."
-        _restore_mirror_backup "$backup" "$mirrorlist"
+        _restore_mirror_backup "$backup" "$mirrorlist" || STEP_REASON="rate-mirrors falhou e backup não pôde ser restaurado"
         return "$RC_WARN"
       fi
       ;;

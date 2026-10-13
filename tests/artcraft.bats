@@ -3,6 +3,7 @@
 setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
+  QUIET=0
   source "${FU_LIB}/config.sh"
   source "${FU_LIB}/steps/artcraft.sh"
   source "${FU_LIB}/steps/tools.sh"
@@ -39,6 +40,33 @@ SH
 
 fixture() {
   python3 "${FU_ROOT}/tests/artcraft_fixture.py" "$ARTCRAFT_DIR" "$ARTCRAFT_FIXTURES" "$@"
+}
+
+@test "Artcraft: tools/list acima de 64 KiB passa no update e doctor e fica no log" {
+  export ARTCRAFT_TOOL_BYTES=100000
+  fixture pdfcraft
+  LOG_FILE="$BATS_TEST_TMPDIR/artcraft.log"
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  grep -q '1 atualizado(s), 0 falha(s)' "$LOG_FILE"
+  run doctor_artcraft
+  [ "$status" -eq 0 ]
+}
+
+@test "Artcraft: quiet preserva diagnóstico de falha no log sem vazar no terminal" {
+  fixture pdfcraft
+  export ARTCRAFT_TOOL_BYTES=2000000
+  QUIET=1
+  LOG_FILE="$BATS_TEST_TMPDIR/artcraft.log"
+  run update_artcraft
+  [ "$status" -eq "$RC_WARN" ]
+  [ -z "$output" ]
+  grep -q 'chunk exceed the limit' "$LOG_FILE"
+  [ "$(readlink "$ARTCRAFT_DIR/pdfcraft/current")" = 'v0.1.0/pdfcraft-0.1.0-linux-x86_64' ]
+  unlink "$HOME/.local/bin/pdfcraft-cli"
+  run doctor_artcraft
+  [ "$status" -eq "$RC_TODO" ]
+  [ -z "$output" ]
 }
 
 release_field() {

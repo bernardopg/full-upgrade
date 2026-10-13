@@ -121,6 +121,17 @@ JSON
 
 # ── doctor_mcp_servers (agregador) ───────────────────────────────────────────
 
+@test "doctor: timeout do Hermes é verificação incompleta, não configuração inválida" {
+  mkdir -p "$HOME/.hermes"
+  printf 'mcp_servers:\n  local_tool:\n    command: node\n' > "$HOME/.hermes/config.yaml"
+  hermes() { :; }
+  timeout() { return 124; }
+  run doctor_mcp_servers
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *'disponibilidade não verificada'* ]]
+  [[ "$output" == *'não prova configuração'* ]]
+}
+
 @test "doctor: sem fontes => mensagem de nenhuma fonte (RC 0)" {
   run doctor_mcp_servers
   [ "$status" -eq 0 ]

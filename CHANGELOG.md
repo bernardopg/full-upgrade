@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- Artcraft: respostas MCP até 1 MiB, cobrindo o catálogo grande do PDFCraft;
+  stdout/stderr persistidos também em modo quiet, com rollback preservado.
+- Btrfs: doctor avalia erros e conclusão do scrub, além da idade; consulta
+  indisponível ou scrub incompleto não vira sucesso nem novo scrub automático.
+- Mirrors: backup e restauração preservam a data original; reflector tem limite
+  interno para permitir rollback antes do timeout da etapa.
+- Hermes: falhas de build TypeScript e carregamento de provider não viram OK
+  só porque a CLI retornou zero; timeout MCP não prova configuração inválida.
+- Keyring: lock do pacman é identificado sem removê-lo nem tentar fallback de rede.
+
 ## [3.48.13] - 2026-10-09
 ### Adicionado
 

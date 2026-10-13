@@ -197,56 +197,50 @@ doctor_btrfs_health() {
 
   if ! _doctor_sudo_ok; then
     log "  btrfs device stats/scrub requerem sudo sem prompt; checagem pulada."
-    return 0
+    STEP_REASON="btrfs: integridade não verificada (sudo indisponível)"
+    return "$RC_TODO"
   fi
 
   local status=0
 
   # 1) Erros de device acumulados (write/read/flush/corruption/generation).
   local stats errs
-  stats="$(sudo -n btrfs device stats / 2>/dev/null || true)"
+  stats="$(sudo -n btrfs device stats / 2>/dev/null)" || status="$RC_TODO"
   if [[ $stats == *[![:space:]]* ]]; then
     errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
     if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
-      log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — possível defeito físico.${C_RESET}"
+      log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — origem ainda não determinada.${C_RESET}"
       printf '%s\n' "$stats" | grep -E '_errs' | grep -vE '_errs[[:space:]]+0$' | log_stream
-      log "  Remediação: investigue o disco (smartctl) e zere após resolver: sudo btrfs device stats -z /"
+      log "  Remediação: preserve backup independente e investigue scrub, journal e SMART; não zere contadores antes de resolver."
       status="$RC_TODO"
     else
       log "  btrfs: sem erros de device em / (contadores zerados)."
     fi
+  else
+    log "  btrfs: não foi possível consultar os contadores de device."
+    status="$RC_TODO"
   fi
 
-  # 2) Idade do último scrub.
-  local scrub max_days last_epoch now_epoch age_days
+  # 2) Resultado e idade do último scrub; recente não significa íntegro.
+  local scrub max_days state
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
-  scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null || true)"
-  if grep -qiE 'no stats available|never' <<<"$scrub"; then
-    log "  ${C_YELLOW}btrfs: nenhum scrub registrado em / — recomendado rodar periodicamente.${C_RESET}"
-    log "  Remediação: sudo btrfs scrub start /"
-    (( status == 0 )) && status="$RC_TODO"
+  if scrub="$(LC_ALL=C sudo -n btrfs scrub status / 2>/dev/null)"; then
+    state="$(btrfs_scrub_state "$scrub" "$max_days")"
   else
-    # Extrai a data do início do último scrub (linhas variam por versão).
-    local started
-    started="$(printf '%s\n' "$scrub" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
-    if [[ -n "$started" ]]; then
-      last_epoch="$(LC_ALL=C date -d "$started" +%s 2>/dev/null || true)"
-      now_epoch="$(date +%s 2>/dev/null || true)"
-      if [[ "$last_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ ]]; then
-        age_days=$(( (now_epoch - last_epoch) / 86400 ))
-        if (( age_days > max_days )); then
-          log "  ${C_YELLOW}btrfs: último scrub há ${age_days} dia(s) (> ${max_days}).${C_RESET}"
-          log "  Remediação: sudo btrfs scrub start /"
-          (( status == 0 )) && status="$RC_TODO"
-        else
-          log "  btrfs: último scrub há ${age_days} dia(s) (limite ${max_days}) — OK."
-        fi
-      fi
-    fi
+    state=unknown
   fi
+  case "$state" in
+    ok:*) log "  btrfs: scrub concluído sem erros há ${state#ok:} dia(s) (limite ${max_days}) — OK." ;;
+    *)
+      log "  ${C_YELLOW}btrfs: scrub requer atenção em / (${state}).${C_RESET}"
+      printf '%s\n' "$scrub" | log_stream
+      log "  Remediação: investigue erros/incompletude; para scrub ausente ou vencido, sudo btrfs scrub start /."
+      status="$RC_TODO"
+      ;;
+  esac
 
   if (( status == RC_TODO )); then
-    STEP_REASON="btrfs: erros de device e/ou scrub vencido em /"
+    STEP_REASON="btrfs: contadores de device e/ou scrub requerem atenção (${state}) em /"
   fi
   return "$status"
 }
@@ -259,11 +253,26 @@ doctor_btrfs_health() {
 #   due:<dias>   — último scrub há <dias> > max_days (vencido)
 #   ok:<dias>    — último scrub há <dias> <= max_days
 #   unknown      — não foi possível extrair a data (formato inesperado)
+#   errors / incomplete / running — scrub não comprova integridade
 # Sem efeitos colaterais; testável com fixtures.
 btrfs_scrub_state() {
   local txt="$1" max_days="${2:-30}"
   if grep -qiE 'no stats available|never' <<<"$txt"; then
     printf 'never'; return 0
+  fi
+  if grep -qiE 'Uncorrectable:[[:space:]]*[1-9]' <<<"$txt" \
+      || grep -i 'Error summary:' <<<"$txt" | grep -ivE 'Error summary:[[:space:]]*no errors[[:space:]]*$' >/dev/null; then
+    printf 'errors'; return 0
+  fi
+  if grep -qiE 'Status:[[:space:]]*(running|started)' <<<"$txt"; then
+    printf 'running'; return 0
+  fi
+  if grep -qiE 'Status:[[:space:]]*(canceled|cancelled|interrupted|aborted|error)' <<<"$txt"; then
+    printf 'incomplete'; return 0
+  fi
+  if ! grep -qiE 'Status:[[:space:]]*(finished|done)' <<<"$txt" \
+      || ! grep -qiE 'Error summary:[[:space:]]*no errors' <<<"$txt"; then
+    printf 'unknown'; return 0
   fi
   local started last_epoch now_epoch age_days
   started="$(printf '%s\n' "$txt" | sed -nE 's/.*(started at|Scrub started:)[[:space:]]*//Ip' | head -1)"
@@ -273,6 +282,7 @@ btrfs_scrub_state() {
   last_epoch="$(LC_ALL=C date -d "$started" +%s 2>/dev/null || true)"
   now_epoch="$(date +%s 2>/dev/null || true)"
   [[ "$last_epoch" =~ ^[0-9]+$ && "$now_epoch" =~ ^[0-9]+$ ]] || { printf 'unknown'; return 0; }
+  (( last_epoch <= now_epoch )) || { printf 'unknown'; return 0; }
   age_days=$(( (now_epoch - last_epoch) / 86400 ))
   if (( age_days > max_days )); then
     printf 'due:%s' "$age_days"
@@ -334,7 +344,7 @@ autofix_btrfs_scrub() {
     return "$RC_TODO"
   fi
 
-  local max_days scrub state
+  local max_days scrub state pending=0
   max_days="${BTRFS_SCRUB_MAX_DAYS:-30}"
 
   # 1) Avalia cada mountpoint e coleta os que precisam de scrub.
@@ -348,8 +358,9 @@ autofix_btrfs_scrub() {
       ok:*)
         log "  btrfs: scrub recente em ${mp} (${state#ok:} dia(s), limite ${max_days})."
         ;;
-      unknown)
-        log "  btrfs: não foi possível determinar a idade do scrub em ${mp}; pulando."
+      unknown|errors|incomplete|running)
+        log "  btrfs: scrub em ${mp} requer investigação (${state}); não iniciando outro automaticamente."
+        pending=1
         ;;
       never)
         log "  btrfs: nenhum scrub registrado em ${mp}."
@@ -363,6 +374,10 @@ autofix_btrfs_scrub() {
   done <<< "$mounts"
 
   if (( ${#todo[@]} == 0 )); then
+    if (( pending )); then
+      STEP_REASON="btrfs: scrub com erros, incompleto, em andamento ou não verificável"
+      return "$RC_TODO"
+    fi
     log "  btrfs: todos os scrub estão em dia; nada a fazer."
     return 0
   fi
@@ -398,6 +413,10 @@ autofix_btrfs_scrub() {
 
   if (( failed == 0 )); then
     log "  ${C_GREEN}Scrub iniciado em ${started} mountpoint(s); acompanhe com 'sudo btrfs scrub status <mp>'.${C_RESET}"
+    if (( pending )); then
+      STEP_REASON="btrfs: scrub iniciado nos mountpoints vencidos; outros ainda requerem investigação"
+      return "$RC_TODO"
+    fi
     return 0
   fi
   log "  ${C_YELLOW}Scrub iniciado em ${started}, falhou em ${failed} mountpoint(s).${C_RESET}"

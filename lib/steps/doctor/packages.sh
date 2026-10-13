@@ -458,7 +458,7 @@ doctor_manual_apps() {
 
 doctor_artcraft() {
   local rc=0
-  artcraft_run doctor || rc=$?
+  run_logged artcraft_run doctor || rc=$?
   if (( rc != 0 )); then
     STEP_REASON="Artcraft: instalação local incompleta; confira o log"
     return "$RC_TODO"

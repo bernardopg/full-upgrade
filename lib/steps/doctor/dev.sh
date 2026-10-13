@@ -653,7 +653,9 @@ doctor_mcp_servers() {
     if has hermes; then
       timeout 15 hermes mcp list >/dev/null 2>&1
       hermes_rc=$?
-      if (( hermes_rc != 0 )); then
+      if (( hermes_rc == 124 )); then
+        issues["hermes"]="consulta MCP excedeu 15s; disponibilidade não verificada (não prova configuração inválida)"
+      elif (( hermes_rc != 0 )); then
         issues["hermes"]="'hermes mcp list' falhou (rc=${hermes_rc})"
       fi
     fi
@@ -665,7 +667,7 @@ doctor_mcp_servers() {
   fi
 
   local n="${#all[@]}"
-  if (( n == 0 )); then
+  if (( n == 0 && ${#issues[@]} == 0 )); then
     log "  Fontes MCP presentes, mas nenhum servidor configurado."
     return 0
   fi
@@ -708,7 +710,7 @@ doctor_mcp_servers() {
         log "    • ${_hint_line}"
       done < <(codex_toml_remediation_hints "$_backup_exists" "$_has_headroom")
     fi
-    STEP_REASON="${#issues[@]} problema(s) de configuração MCP"
+    STEP_REASON="${#issues[@]} problema(s) de configuração ou verificação MCP"
     return "$RC_WARN"
   fi
   if (( ${MCP_AUTO_UPDATE:-0} == 1 )); then

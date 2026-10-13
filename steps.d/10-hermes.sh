@@ -121,6 +121,11 @@ update_hermes() {
     | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \
     | tail -40 | log_out || true
   log "  Log Hermes: ${output_file}"
+  if (( rc == 0 )) && sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file" \
+      | grep -E 'Error: TypeScript build failed|Failed to load bundled provider plugin .*: No module named' >/dev/null; then
+    STEP_REASON="hermes update retornou sucesso, mas houve falha de build/plugin (detalhes: ${output_file})"
+    return "$RC_WARN"
+  fi
   if (( rc != 0 )); then
     if grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file"; then
       STEP_REASON="rede indisponível durante hermes update (detalhes: ${output_file})"

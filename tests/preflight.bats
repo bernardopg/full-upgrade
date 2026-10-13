@@ -11,6 +11,7 @@ setup() {
   # Série T4: snapshot migrou para backup.sh e mirrors para pacman.sh
   source "${FU_LIB}/steps/backup.sh"
   source "${FU_LIB}/steps/pacman.sh"
+  pacman_db_is_locked() { return 1; }
 }
 
 @test "mirror_is_fresh: mirrorlist recente (1 dia) é fresco com limite 7" {
@@ -69,6 +70,19 @@ setup() {
 }
 
 # ── update_archlinux_keyring ──────────────────────────────────────────────────
+
+@test "keyring: lock ativo não vira erro de rede nem dispara fallback" {
+  has() { return 0; }
+  SUDO_READY=1
+  QUIET=0
+  pacman_db_is_locked() { return 0; }
+  run_logged() { printf 'não deveria chamar pacman\n'; return 99; }
+  run update_archlinux_keyring
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *'Nenhum lock foi removido'* ]]
+  [[ "$output" != *'não deveria chamar pacman'* ]]
+  [[ "$output" != *'via DB em cache'* ]]
+}
 
 @test "keyring: pacman ausente => 0 sem chamar sudo" {
   has() { return 1; }

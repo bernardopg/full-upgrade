@@ -59,24 +59,62 @@ setup() {
 
 @test "state: scrub antigo => due:<dias>" {
   local old; old="$(LC_ALL=C date -d '90 days ago' '+%a %b %d %T %Y')"
-  run btrfs_scrub_state "Scrub started:    $old" 30
+  run btrfs_scrub_state "Scrub started:    $old"$'\nStatus: finished\nError summary: no errors' 30
   [[ "$output" == due:* ]]
   [ "${output#due:}" -ge 89 ]
 }
 
 @test "state: scrub recente => ok:<dias>" {
   local recent; recent="$(LC_ALL=C date -d '2 days ago' '+%a %b %d %T %Y')"
-  run btrfs_scrub_state "Scrub started:    $recent" 30
+  run btrfs_scrub_state "Scrub started:    $recent"$'\nStatus: finished\nError summary: no errors' 30
   [[ "$output" == ok:* ]]
   [ "${output#ok:}" -le 3 ]
 }
 
 @test "state: texto sem data => unknown" {
-  run btrfs_scrub_state "scrub status: running, 12% done" 30
+  run btrfs_scrub_state "Progress: 12% done" 30
   [ "$output" = "unknown" ]
 }
 
 # ── máquina de estados autofix_btrfs_scrub ────────────────────────────────────
+
+@test "state: scrub recente com erro, cancelado ou em andamento não vira ok" {
+  local recent; recent="$(LC_ALL=C date -d yesterday '+%a %b %d %T %Y')"
+  run btrfs_scrub_state "Scrub started: $recent"$'\nStatus: finished\nError summary: csum=1\nUncorrectable: 1' 30
+  [ "$output" = errors ]
+  run btrfs_scrub_state "Scrub started: $recent"$'\nStatus: canceled\nError summary: no errors' 30
+  [ "$output" = incomplete ]
+  run btrfs_scrub_state "Scrub started: $recent"$'\nStatus: running\nError summary: no errors' 30
+  [ "$output" = running ]
+  run btrfs_scrub_state "Scrub started: $recent" 30
+  [ "$output" = unknown ]
+}
+
+@test "doctor: contadores zerados não escondem último scrub com erro" {
+  findmnt() { printf 'btrfs\n'; }
+  sudo() {
+    if [[ "$*" == *'device stats'* ]]; then
+      printf '[dev].corruption_errs 0\n'
+    else
+      printf 'Scrub started: %s\nStatus: finished\nError summary: csum=1\nUncorrectable: 1\n' "$(LC_ALL=C date -d yesterday)"
+    fi
+  }
+  run doctor_btrfs_health
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *'Uncorrectable: 1'* ]]
+  [[ "$output" != *'— OK.'* ]]
+}
+
+@test "autofix: scrub com erro ou estado desconhecido não vira nada a fazer" {
+  SCRUB_FIXTURE=$'Status: finished\nError summary: csum=1\nUncorrectable: 1'
+  run_logged() { return 99; }
+  run autofix_btrfs_scrub
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" != *'todos os scrub estão em dia'* ]]
+  SCRUB_FIXTURE='unexpected output'
+  run autofix_btrfs_scrub
+  [ "$status" -eq "$RC_TODO" ]
+}
 
 @test "autofix: off-switch retorna 0 sem agir" {
   AUTO_BTRFS_SCRUB=0
@@ -101,7 +139,7 @@ setup() {
 
 @test "autofix: scrub recente não dispara nada (RC 0)" {
   local recent; recent="$(LC_ALL=C date -d '1 day ago' '+%a %b %d %T %Y')"
-  SCRUB_FIXTURE="Scrub started:    $recent"
+  SCRUB_FIXTURE="Scrub started:    $recent"$'\nStatus: finished\nError summary: no errors'
   run autofix_btrfs_scrub
   [ "$status" -eq 0 ]
   [[ "$output" == *"nada a fazer"* ]]
@@ -116,7 +154,7 @@ setup() {
 
 @test "autofix: scrub vencido + --yes inicia (RC 0)" {
   local old; old="$(LC_ALL=C date -d '120 days ago' '+%a %b %d %T %Y')"
-  SCRUB_FIXTURE="Scrub started:    $old"
+  SCRUB_FIXTURE="Scrub started:    $old"$'\nStatus: finished\nError summary: no errors'
   run autofix_btrfs_scrub
   [ "$status" -eq 0 ]
   [[ "$output" == *"Scrub iniciado"* ]]

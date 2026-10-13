@@ -102,10 +102,21 @@ update_archlinux_keyring() {
   fi
 
   # archlinux-keyring antes do upgrade grande (evita falhas de assinatura).
+  if pacman_db_is_locked; then
+    STEP_REASON="banco do pacman bloqueado; aguarde o gerenciador em execução"
+    log "  Aviso: ${STEP_REASON}. Nenhum lock foi removido."
+    return "$RC_WARN"
+  fi
   log "  Atualizando archlinux-keyring..."
   if run_logged sudo pacman -Sy --needed --noconfirm archlinux-keyring; then
     log "  archlinux-keyring atualizado."
     return 0
+  fi
+
+  if pacman_db_is_locked; then
+    STEP_REASON="banco do pacman bloqueado durante atualização do keyring"
+    log "  Aviso: ${STEP_REASON}; não tentando novamente via cache."
+    return "$RC_WARN"
   fi
 
   # Fallback: pacman -Sy é atômico — se um repo terceiro (warpdotdev, etc.)
@@ -113,7 +124,7 @@ update_archlinux_keyring() {
   # já tenham sido baixados com sucesso. Tentar sem -y reusa o DB local que
   # acabou de ser parcialmente atualizado; --needed pula se já está na versão
   # mais recente. Não atrapalha: o -Syu do step principal sincroniza depois.
-  log "  Sync do DB falhou (repo terceiro lento/indisponível?); tentando via DB em cache..."
+  log "  Sync do DB falhou; tentando instalar o keyring via DB em cache..."
   if run_logged sudo pacman -S --needed --noconfirm archlinux-keyring; then
     log "  archlinux-keyring OK (via DB em cache)."
     return 0

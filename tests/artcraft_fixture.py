@@ -13,11 +13,13 @@ home = Path.home()
 root.mkdir(parents=True)
 fixtures.mkdir(parents=True, exist_ok=True)
 cli = b'''#!/usr/bin/env python3
-import json, sys
+import json, os, sys
 for line in sys.stdin:
     q = json.loads(line)
     if 'id' not in q: continue
     result = {'protocolVersion': '2025-03-26', 'capabilities': {'tools': {}}} if q['method'] == 'initialize' else {'tools': [{'name': 'inspect'}]}
+    if q['method'] == 'tools/list':
+        result['tools'][0]['description'] = 'x' * int(os.environ.get('ARTCRAFT_TOOL_BYTES', '0'))
     print(json.dumps({'jsonrpc': '2.0', 'id': q['id'], 'result': result}), flush=True)
 '''
 records = []

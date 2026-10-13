@@ -50,6 +50,23 @@ setup() {
   grep -q 'Update complete' "${LOG_DIR}/hermes-update-${RUN_ID}.log"
 }
 
+@test "update_hermes: rc zero com build ou plugin falhado vira warn" {
+  set -o pipefail
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  RUN_ID="partial"
+  timeout() { return 124; }
+  hermes() {
+    printf 'Error: TypeScript build failed\n'
+    printf '%100000s\n' ''
+    printf '✓ Update complete!\n'
+  }
+  run update_hermes
+  [ "$status" -eq "$RC_WARN" ]
+  hermes() { printf "Failed to load bundled provider plugin solstice: No module named 'httpx'\n"; }
+  run update_hermes
+  [ "$status" -eq "$RC_WARN" ]
+}
+
 @test "update_hermes: falha de rede no update vira warn com log no motivo" {
   LOG_DIR="$BATS_TEST_TMPDIR"
   RUN_ID="network"
