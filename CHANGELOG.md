@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.49.1] - 2026-10-18
 ### Corrigido
 
 - Backup remoto Timeshift: descobre e valida snapshots com o mesmo privilégio
