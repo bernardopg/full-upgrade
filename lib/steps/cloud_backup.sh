@@ -14,13 +14,29 @@ timeshift_cloud_keep_count() {
 # recente. Os nomes ISO usados pelo Timeshift ordenam cronologicamente.
 timeshift_cloud_latest_name() {
   local top="$1" snapshots="${1}/timeshift-btrfs/snapshots"
-  [[ -d "$snapshots" ]] || return 1
-
-  local -a names=()
-  mapfile -t names < <(find "$snapshots" -mindepth 1 -maxdepth 1 -type d \
-    -name '????-??-??_??-??-??' -printf '%f\n' 2>/dev/null | sort)
+  local -a prefix=() names=()
+  case "${2:-}" in
+    '') ;;
+    sudo) prefix=(sudo -n) ;;
+    *) return 2 ;;
+  esac
+  "${prefix[@]}" test -d "$snapshots" || return 1
+  local listing
+  listing="$("${prefix[@]}" find "$snapshots" -mindepth 1 -maxdepth 1 -type d \
+    -name '????-??-??_??-??-??' -printf '%f\n' 2>/dev/null)" || return 2
+  [[ -n "$listing" ]] || return 1
+  mapfile -t names < <(printf '%s\n' "$listing" | LC_ALL=C sort)
   (( ${#names[@]} > 0 )) || return 1
   printf '%s' "${names[-1]}"
+}
+
+# Snapshots recentes podem ser root:root 0700 (inclusive sob umask 077).
+# Validar como o leitor efetivo do backup, sem abrir permissões dos dados.
+# rc=1: @ ausente/ilegível; rc=2: @home ausente/ilegível; rc=0: ambos presentes.
+timeshift_cloud_snapshot_state() {
+  sudo -n test -d "$1/@" || return 1
+  sudo -n test -d "$1/@home" || return 2
+  return 0
 }
 
 _timeshift_cloud_restic() {
@@ -316,16 +332,23 @@ backup_timeshift_cloud() {
   fi
   mounted=1
 
-  local snapshot snapshot_dir rc=0 keep
-  snapshot="$(timeshift_cloud_latest_name "$mount_dir" || true)"
+  local snapshot snapshot_dir rc=0 keep snapshot_rc=0 components_rc=1
+  snapshot="$(timeshift_cloud_latest_name "$mount_dir" sudo)" || snapshot_rc=$?
   snapshot_dir="${mount_dir}/timeshift-btrfs/snapshots/${snapshot}"
-  if [[ -z "$snapshot" || ! -d "${snapshot_dir}/@" ]]; then
-    STEP_REASON="nenhum snapshot Timeshift válido encontrado"
-    log "  Nenhum snapshot Timeshift válido foi encontrado para envio."
+  if (( snapshot_rc == 0 )) && [[ -n "$snapshot" ]]; then
+    timeshift_cloud_snapshot_state "$snapshot_dir" && components_rc=0 || components_rc=$?
+  fi
+  if (( snapshot_rc > 1 )); then
+    STEP_REASON="falha ao listar snapshots Timeshift com privilégio"
+    log "  Não foi possível concluir a descoberta dos snapshots; envio recusado."
+    rc="$RC_WARN"
+  elif [[ -z "$snapshot" ]] || (( components_rc == 1 )); then
+    STEP_REASON="snapshot Timeshift ausente ou componente @ ilegível mesmo com privilégio"
+    log "  Nenhum snapshot Timeshift completo e acessível foi encontrado para envio."
     rc="$RC_TODO"
-  elif [[ ! -d "${snapshot_dir}/@home" ]]; then
-    STEP_REASON="snapshot ${snapshot} não inclui @home"
-    log "  Snapshot ${snapshot} não contém @home; envio recusado para não produzir backup pessoal incompleto."
+  elif (( components_rc != 0 )); then
+    STEP_REASON="snapshot ${snapshot}: @home ausente ou ilegível com privilégio"
+    log "  Snapshot ${snapshot} sem @home acessível; envio recusado para não produzir backup pessoal incompleto."
     rc="$RC_TODO"
   else
     log "  Enviando snapshot Timeshift ${snapshot} (@ + @home) ao repositório criptografado..."

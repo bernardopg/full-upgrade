@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- Backup remoto Timeshift: descobre e valida snapshots com o mesmo privilégio
+  do leitor Restic. Snapshots root:root 0700, inclusive criados sob umask 077,
+  não são confundidos com snapshots inexistentes. Nenhuma permissão é aberta.
+  Listagem parcial com erro é recusada e @/@home continuam obrigatórios.
+
 ## [3.49.0] - 2026-10-18
 ### Adicionado
 

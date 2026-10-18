@@ -40,6 +40,44 @@ setup() {
   [ "$output" = "2026-08-31_13-00-00" ]
 }
 
+@test "timeshift cloud: descoberta privilegiada usa sudo sem abrir permissões" {
+  local root="${BATS_TEST_TMPDIR}/private-top" marker="${BATS_TEST_TMPDIR}/privileged"
+  mkdir -p "$root/timeshift-btrfs/snapshots/2026-10-17_23-57-06/@"
+  sudo() { [[ "$1" == -n ]] || return 90; shift; printf 'called\n' >> "$marker"; "$@"; }
+  run timeshift_cloud_latest_name "$root" sudo
+  [ "$status" -eq 0 ]
+  [ "$output" = '2026-10-17_23-57-06' ]
+  [ -s "$marker" ]
+}
+
+@test "timeshift cloud: falha de listagem privilegiada não vira seleção parcial" {
+  sudo() {
+    [[ "$*" == *'test -d'* ]] && return 0
+    printf '2026-10-17_23-57-06\n'; return 1
+  }
+  run timeshift_cloud_latest_name /private-top sudo
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+@test "timeshift cloud: valida @ e @home por leitura privilegiada" {
+  sudo() { [[ "$*" == '-n test -d /private/snapshot/@' || "$*" == '-n test -d /private/snapshot/@home' ]]; }
+  run timeshift_cloud_snapshot_state /private/snapshot
+  [ "$status" -eq 0 ]
+}
+
+@test "timeshift cloud: @home ausente continua recusando backup incompleto" {
+  sudo() { [[ "$*" == '-n test -d /private/snapshot/@' ]]; }
+  run timeshift_cloud_snapshot_state /private/snapshot
+  [ "$status" -eq 2 ]
+}
+
+@test "timeshift cloud: @ ausente ou acesso privilegiado negado não vira sucesso" {
+  sudo() { return 1; }
+  run timeshift_cloud_snapshot_state /private/snapshot
+  [ "$status" -eq 1 ]
+}
+
 @test "timeshift cloud: sem snapshots retorna falha limpa" {
   local root="${BATS_TEST_TMPDIR}/empty"
   mkdir -p "$root"

@@ -397,7 +397,13 @@ via rclone. `TIMESHIFT_CLOUD_KEEP` controla a retenção remota; falha da nuvem
 vira aviso e nunca remove a cópia local. O catálogo reserva até 48 horas
 (172800 segundos) para essa etapa, permitindo uma primeira réplica longa sem
 corte após quatro horas. A execução mantém o lock durante o envio e registra
-progresso; não inicie outro full-upgrade em paralelo.
+progresso; não inicie outro full-upgrade em paralelo. Descoberta e validação
+  usam privilégio administrativo para ler snapshots protegidos (root:root 0700),
+  sem abrir permissões. Um snapshot sem `@` ou `@home` acessível é recusado.
+  Ao executar via unidade systemd de usuário, preserve o PATH da sessão com
+  `--setenv="PATH=$PATH"` para não perder CLIs instaladas em prefixos pessoais.
+  Verifique previamente sudo não interativo e linger; linger não mantém um
+  processo vivo durante reboot.
 - **Btrfs histórico reconhecido:** `BTRFS_DEVICE_STATS_ACK_SHA256` é opt-in.
   O helper `btrfs_device_stats_fingerprint` em `lib/steps/doctor/storage.sh`
   calcula SHA-256 do UUID e dos cinco contadores por device normalizados.
