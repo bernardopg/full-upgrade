@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.49.0] - 2026-10-18
 ### Adicionado
 
 - Btrfs: reconhecimento opcional e explícito do histórico via fingerprint de
