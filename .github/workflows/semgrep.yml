@@ -14,6 +14,7 @@ on:
       - ".github/workflows/semgrep.yml"
       - ".github/requirements-semgrep.in"
       - ".github/requirements-semgrep.txt"
+      - ".github/requirements-semgrep-overrides.txt"
   pull_request:
     paths:
       - "**.sh"
@@ -21,6 +22,7 @@ on:
       - ".github/workflows/semgrep.yml"
       - ".github/requirements-semgrep.in"
       - ".github/requirements-semgrep.txt"
+      - ".github/requirements-semgrep-overrides.txt"
   schedule:
     - cron: "17 3 * * 1"   # segunda 03:17 UTC
   workflow_dispatch:
@@ -50,20 +52,27 @@ jobs:
       - name: Semgrep scan
         id: semgrep
         run: |
-          python3 -m pip install --user --require-hashes -r .github/requirements-semgrep.txt
+          # O lock completo incorpora o override documentado do pin MCP upstream.
+          # --no-deps impede re-resolver mcp==1.29.0 vulnerável; hashes e auditoria
+          # continuam obrigatórios para todos os pacotes efetivamente instalados.
+          python3 -m pip install --user --no-deps --require-hashes -r .github/requirements-semgrep.txt
+          python3 - <<'PY'
+          from importlib.metadata import version
+          import semgrep.mcp.server
+          from mcp.server.fastmcp import FastMCP
+          assert version('mcp') == '1.30.0'
+          FastMCP('semgrep-sdk-compatibility-check')
+          print('Semgrep MCP compatibility OK:', version('semgrep'), version('mcp'))
+          PY
           semgrep scan --config p/default --error --sarif --output semgrep.sarif
 
       # Bloqueante: o lock hash-pinned não pode introduzir CVE conhecida.
       # O próprio pip-audit vem do mesmo lock, sem instalação ad-hoc não fixada.
       - name: Audit locked Python dependencies
         run: |
-          # Semgrep 1.173.0 fixa mcp==1.29.0 e click==8.4.2, que já corrigem as
-          # CVEs de servidor MCP (CVE-2026-52869/52870/59950) e de click.edit()
-          # (PYSEC-2026-2132). O semgrep até o 1.178.0 travava pyjwt~=2.13.0 e
-          # forçava uma exceção aqui, porque o GitHub publicava advisories do
-          # 2.13 corrigidos só no 2.14.0; o 1.180.0 libera pyjwt~=2.15.0 e o
-          # lock inteiro passa limpo. Agora qualquer vulnerabilidade conhecida
-          # no lock bloqueia o workflow, sem exceção.
+          # MCP 1.30.0 corrige CVE-2026-59951. O override é do pin upstream
+          # do Semgrep, NÃO uma exceção de segurança: qualquer CVE no lock
+          # continua bloqueando. Compatibilidade do SDK é testada acima.
           python3 -m pip_audit --strict --require-hashes --disable-pip \
             -f json -o pip-audit.json -r .github/requirements-semgrep.txt || audit_rc=$?
           jq -e '.dependencies' pip-audit.json >/dev/null

@@ -13,6 +13,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Corrigido
 
+- CI: Semgrep 1.181.0 com SDK MCP 1.30.0 corrige CVE-2026-59951.
+  Override temporário e documentado do pin upstream, lock com hashes, teste
+  de compatibilidade do servidor MCP e auditoria estrita sem exceções de CVE.
 - Backup remoto Timeshift: orçamento finito de 48 horas no catálogo, evitando
   interromper réplicas longas após apenas quatro horas.
 - Kimchi: em HTTP 403 do updater, consulta a versão diretamente pela API via
