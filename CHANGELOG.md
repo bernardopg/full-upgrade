@@ -4,6 +4,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- Btrfs: reconhecimento opcional e explícito do histórico via fingerprint de
+  UUID e contadores completos por device. Não zera estatísticas; mudanças de
+  qualquer contador ou UUID voltam a alertar. Scrub e falhas de consulta seguem
+  auditados, com nota operacional mesmo quando o baseline é reconhecido.
+
+### Corrigido
+
+- Backup remoto Timeshift: orçamento finito de 48 horas no catálogo, evitando
+  interromper réplicas longas após apenas quatro horas.
+- Kimchi: em HTTP 403 do updater, consulta a versão diretamente pela API via
+  gh, sem copiar credenciais ao Kimchi. Só confirma sucesso quando a versão
+  instalada está atual; release nova ou consulta inconclusiva continua WARN.
+  Falhas de verificação/instalação passam a informar motivo no resumo.
+- Rust: `rustup check` com rc=100 e atualização reconhecida executa o update,
+  preservando erros de consulta e de instalação.
+- Docker: falha transitória de pull mantém WARN, com motivo acionável; falhas
+  definitivas não são mascaradas por outros resultados.
+- Docker: consulta containers por inspect, compara IDs completos e sinaliza a
+  necessidade de recriação (restart não troca imagem), sem ignorar erros de consulta.
+- Docker: inclui Caddy/Arch Linux no inventário remoto e distingue digests de
+  builds locais do image store containerd, incluindo imagens geradas por Compose.
+  Inventário ilegível não vira OK e containers locais continuam auditados mesmo
+  quando não há nenhuma imagem remota para puxar.
+
 ## [3.48.15] - 2026-10-13
 ### Corrigido
 

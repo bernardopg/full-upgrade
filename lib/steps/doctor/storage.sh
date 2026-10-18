@@ -179,6 +179,27 @@ doctor_smart_health() {
 
 
 
+# Fingerprint explícito do histórico reconhecido. Vincula UUID + cada contador,
+# não apenas a soma; qualquer alteração volta a alertar, sem zerar estatísticas.
+btrfs_device_stats_fingerprint() {
+  local uuid="$1" stats="$2" canonical
+  [[ "$uuid" =~ ^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$ ]] || return 1
+  canonical="$(LC_ALL=C awk '
+    NF != 2 || $1 !~ /^\[.+\]\.(write_io|read_io|flush_io|corruption|generation)_errs$/ || $2 !~ /^[0-9]+$/ { bad=1; exit }
+    {
+      if (seen[$1]++) { bad=1; exit }
+      device=$1; sub(/\.[a-z_]+_errs$/, "", device)
+      devices[device]++; print $1 " " $2
+    }
+    END {
+      if (bad || NR == 0) exit 1
+      for (device in devices) if (devices[device] != 5) exit 1
+    }
+  ' <<<"$stats")" || return 1
+  canonical="$(LC_ALL=C sort <<<"$canonical")" || return 1
+  printf '%s\n%s\n' "$uuid" "$canonical" | sha256sum | awk '{print $1}'
+}
+
 # F3 — saúde do btrfs: erros de I/O acumulados por device + idade do último
 # scrub. Em raiz não-btrfs, pula limpo. RC_TODO se scrub vencido (>
 # BTRFS_SCRUB_MAX_DAYS) ou se houver erros de device > 0.
@@ -209,10 +230,18 @@ doctor_btrfs_health() {
   if [[ $stats == *[![:space:]]* ]]; then
     errs="$(printf '%s\n' "$stats" | sum_btrfs_dev_errors)"
     if [[ "$errs" =~ ^[0-9]+$ ]] && (( errs > 0 )); then
-      log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — origem ainda não determinada.${C_RESET}"
+      local uuid fingerprint
+      uuid="$(findmnt -no UUID / 2>/dev/null || true)"
+      fingerprint="$(btrfs_device_stats_fingerprint "$uuid" "$stats" 2>/dev/null)" || fingerprint=''
+      if [[ -n "$fingerprint" && "$fingerprint" == "${BTRFS_DEVICE_STATS_ACK_SHA256:-}" ]]; then
+        STEP_REASON="btrfs: histórico reconhecido (${errs} erros, baseline exato); scrub verificado separadamente"
+        log "  ${STEP_REASON}. Contadores preservados; qualquer mudança volta a alertar."
+      else
+        log "  ${C_YELLOW}btrfs: ${errs} erro(s) de device acumulado(s) em / — origem ainda não determinada.${C_RESET}"
+        log "  Remediação: preserve backup independente e investigue scrub, journal e SMART; não zere contadores antes de resolver."
+        status="$RC_TODO"
+      fi
       printf '%s\n' "$stats" | grep -E '_errs' | grep -vE '_errs[[:space:]]+0$' | log_stream
-      log "  Remediação: preserve backup independente e investigue scrub, journal e SMART; não zere contadores antes de resolver."
-      status="$RC_TODO"
     else
       log "  btrfs: sem erros de device em / (contadores zerados)."
     fi

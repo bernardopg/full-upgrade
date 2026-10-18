@@ -394,7 +394,17 @@ snapshots manuais/de outras origens.
 - **Cópia off-site do Timeshift:** `TIMESHIFT_CLOUD_BACKUP=1` replica o snapshot
 Timeshift mais recente (`@` + `@home`) para um repositório Restic criptografado
 via rclone. `TIMESHIFT_CLOUD_KEEP` controla a retenção remota; falha da nuvem
-vira aviso e nunca remove a cópia local.
+vira aviso e nunca remove a cópia local. O catálogo reserva até 48 horas
+(172800 segundos) para essa etapa, permitindo uma primeira réplica longa sem
+corte após quatro horas. A execução mantém o lock durante o envio e registra
+progresso; não inicie outro full-upgrade em paralelo.
+- **Btrfs histórico reconhecido:** `BTRFS_DEVICE_STATS_ACK_SHA256` é opt-in.
+  O helper `btrfs_device_stats_fingerprint` em `lib/steps/doctor/storage.sh`
+  calcula SHA-256 do UUID e dos cinco contadores por device normalizados.
+  Só configure após revisar o histórico e guardar o baseline. O resumo mantém
+  uma nota de reconhecimento; qualquer alteração volta a gerar TODO, e scrub
+  incompleto/com erros ou falha de consulta nunca é dispensado pelo baseline.
+  Reconhecimento não prova reparo nem integridade do hardware.
 - **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
   restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
   comentado não sobrescreve a mirrorlist corrente.
@@ -595,12 +605,13 @@ Principais chaves:
 | `BACKUP_KEEP` | `5` | Quantos tarballs privados manter (rotação antes/depois da criação; mínimo 1 quando o backup está ativo). |
 | `BACKUP_PATHS` | lista de `/etc` | Paths a arquivar, separados por espaço (default cobre `pacman`/boot/`systemd`). |
 | `BTRFS_SCRUB_MAX_DAYS` | `30` | Alerta no doctor se o último scrub btrfs em `/` for mais antigo que isso. |
+| `BTRFS_DEVICE_STATS_ACK_SHA256` | vazio | Reconhecimento explícito do estado exato de UUID + contadores por device; não zera estatísticas nem dispensa scrub/SMART. Qualquer alteração volta a alertar. |
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
 | `FWUPD_HSI_MIN` | `2` | `Doctor: fwupd security` avisa se o nível HSI ficar abaixo disso. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
-| `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); o journal preserva os metadados. |
+| `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); metadados dependem também da retenção do journal. Ausência após vacuum não comprova resolução do crash. |
 | `CODEX_TMP_KEEP_DAYS` | `1` | Dias de retenção de temp dirs do Codex (`git-*` em `~/.codex/.tmp` e stagings de marketplace; 0/inválido = 1); os mais novos são preservados para não quebrar um refresh em andamento. |
 | `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
 | `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um `cargo install --force` cujo rebuild anterior não corrigiu a CVE (memo em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv`); versão nova do crate ou `0` reabrem a tentativa. |

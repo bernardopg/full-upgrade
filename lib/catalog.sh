@@ -24,7 +24,7 @@ Pré-flight: espaço em disco|core|disk,preflight|read|30||preflight_disk_space|
 Atualizar archlinux-keyring|core|keyring,sudo,preflight,network|mutating|120|pacman|update_archlinux_keyring|Atualiza archlinux-keyring antes do upgrade principal.
 Backup de configs críticas|backup|backup,config,sudo,preflight|mutating|300|tar|backup_critical_configs|Arquiva configs essenciais de /etc em tar.zst com rotação antes das mutações.
 Snapshot pré-upgrade|backup|snapshot,btrfs,sudo|mutating|300||preupgrade_snapshot|Cria snapshot btrfs (snapper/timeshift) antes do upgrade.
-Backup Timeshift em nuvem|backup|snapshot,backup,cloud,onedrive,network,slow,sudo|mutating|14400|restic,rclone,timeshift|backup_timeshift_cloud|Replica o snapshot Timeshift mais recente (@ e @home) para um repositório Restic criptografado via rclone e aplica retenção remota.
+Backup Timeshift em nuvem|backup|snapshot,backup,cloud,onedrive,network,slow,sudo|mutating|172800|restic,rclone,timeshift|backup_timeshift_cloud|Replica o snapshot Timeshift mais recente (@ e @home) para um repositório Restic criptografado via rclone e aplica retenção remota.
 Checar notícias do Arch Linux|packages|news,network,pacman|read|45|curl|check_arch_news|Baixa o feed de notícias do Arch e avisa (todo) se houver notícia nova com cara de intervenção manual antes do upgrade.
 Atualizar mirrors|packages|mirror,network,sudo,pacman|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
 Limpar lock stale do pacman|repair|pacman|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.

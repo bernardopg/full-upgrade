@@ -69,6 +69,9 @@ MIN_FREE_GIB=2          # em / (GiB)
 MIN_BOOT_FREE_MIB=200   # em /boot (MiB — ESP costuma ser pequeno)
 
 # ── Limiares, timeouts e limites / Thresholds, timeouts and limits ───────────────
+# Fingerprint opcional de UUID + contadores Btrfs históricos reconhecidos.
+# Não repara nem zera erros. Qualquer alteração volta a alertar; scrub é auditado.
+BTRFS_DEVICE_STATS_ACK_SHA256=""
 BTRFS_SCRUB_MAX_DAYS=30  # alerta se o último scrub btrfs em / for mais antigo
 BOOT_TIME_WARN_S=60      # alerta se o boot (systemd-analyze) exceder N segundos
 BOOT_LOADER_WARN_S=10    # alerta se o segmento loader (menu GRUB/sd-boot) exceder N segundos

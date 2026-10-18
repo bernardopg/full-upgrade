@@ -38,6 +38,12 @@ setup() {
   [[ "$output" == *"|start_sudo_keepalive|"* ]]
 }
 
+@test "backup remoto: orçamento finito de 48 horas permite primeira réplica longa" {
+  run catalog_info_for_step "Backup Timeshift em nuvem"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'|mutating|172800|'* ]]
+}
+
 @test "catalog_info_for_step: step inexistente retorna sentinela unknown" {
   run catalog_info_for_step "Step que não existe no catálogo"
   [ "$output" = "unknown||||||" ]

@@ -951,11 +951,30 @@ update_kimchi() {
   current="$(kimchi --version 2>/dev/null | awk 'NR==1{print $NF}' || true)"
   log "  kimchi versão atual: ${current:-desconhecida}"
 
-  local check check_rc
+  local check check_rc latest
   check="$(run_network_cmd kimchi update self --dry-run 2>&1)"
   check_rc=$?
+  # O updater nativo não autentica latestRelease com GITHUB_TOKEN. Consultar
+  # diretamente pelo gh já configurado; nunca copiar sua credencial ao Kimchi.
+  # Só declarar OK com versão estável válida e sem atualização disponível.
+  if (( check_rc != 0 )) && grep -qiE 'github API returned 403|API rate limit exceeded' <<<"$check" \
+      && has gh; then
+    latest="$(gh api repos/getkimchi/kimchi/releases/latest --jq .tag_name 2>/dev/null)" || latest=''
+    latest="${latest#v}"
+    if [[ "$latest" =~ ^[0-9]+(\.[0-9]+){1,3}$ && "$current" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
+      if ! version_is_outdated "$current" "$latest"; then
+        STEP_REASON="kimchi ${current}: versão confirmada pela API GitHub via gh (fallback HTTP 403)"
+        log "  ${STEP_REASON}"
+        return 0
+      fi
+      STEP_REASON="kimchi: ${latest} disponível (instalado ${current}); updater bloqueado por HTTP 403"
+      log "  ${STEP_REASON}"
+      return "$RC_WARN"
+    fi
+  fi
   if ((check_rc != 0)); then
-    log "  Não foi possível verificar atualização do kimchi (rede/upstream indisponível)."
+    STEP_REASON="kimchi: não foi possível verificar atualizações (rc=${check_rc}); consulte o log"
+    log "  ${STEP_REASON}"
     return "$RC_WARN"
   fi
   if grep -qiE 'up[- ]?to[- ]?date|already[^[:cntrl:]]*latest|no updates?|nenhuma atualiza' <<<"$check"; then
@@ -965,7 +984,8 @@ update_kimchi() {
 
   log "  Atualizando kimchi…"
   if ! run_network_cmd kimchi update self --force | log_out; then
-    log "  Falha ao atualizar o kimchi."
+    STEP_REASON="kimchi: falha ao instalar atualização; consulte o log"
+    log "  ${STEP_REASON}"
     return "$RC_WARN"
   fi
   hash -r 2>/dev/null || true

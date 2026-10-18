@@ -17,7 +17,7 @@ _docker_is_remote_image() {
   case "$repo" in
     redis|postgres|mongo|mysql|mariadb|nginx|apache|alpine|ubuntu|debian|\
     python|node|golang|rust|ruby|php|java|openjdk|eclipse-temurin|\
-    selenium|firefox|chrome|chromium) return 0 ;;
+    selenium|firefox|chrome|chromium|caddy|archlinux) return 0 ;;
   esac
   return 1
 }
@@ -41,6 +41,18 @@ docker_daemon_accessible() {
 }
 
 
+# O image store containerd também cria RepoDigests para builds LOCAIS.
+# Exigir nome remoto reconhecido e rejeitar builds Compose; digest sozinho
+# não comprova publicação no registry. Nomes curtos desconhecidos ficam locais.
+_docker_has_remote_digest() {
+  _docker_is_remote_image "$1" || return 1
+  local digests compose_project
+  compose_project="$(docker image inspect "$1" --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null)" || return 2
+  [[ -z "$compose_project" || "$compose_project" == '<no value>' ]] || return 1
+  digests="$(docker image inspect "$1" --format '{{range .RepoDigests}}{{println .}}{{end}}' 2>/dev/null)" || return 2
+  [[ "$digests" == *'@sha256:'* ]]
+}
+
 update_docker_images() {
   if ! has docker; then
     log "  docker não encontrado."
@@ -53,10 +65,13 @@ update_docker_images() {
   fi
 
   local -a images=()
+  local inventory
+  if ! inventory="$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null)"; then
+    STEP_REASON="Docker: inventário de imagens não verificado"
+    return "$RC_WARN"
+  fi
   mapfile -t images < <(
-    docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null \
-      | grep -v '<none>' \
-      | sort -u
+    printf '%s\n' "$inventory" | awk 'NF && !/<none>/' | LC_ALL=C sort -u
   )
 
   if (( ${#images[@]} == 0 )); then
@@ -64,12 +79,16 @@ update_docker_images() {
     return 0
   fi
 
-  local -a remote_images=() pulled=() failed=() skipped=()
-  local img
+  local -a remote_images=() pulled=() failed=() transient=() skipped=()
+  local img digest_rc
 
   for img in "${images[@]}"; do
-    if _docker_is_remote_image "$img"; then
+    _docker_has_remote_digest "$img" && digest_rc=0 || digest_rc=$?
+    if (( digest_rc == 0 )); then
       remote_images+=("$img")
+    elif (( digest_rc == 2 )); then
+      STEP_REASON="Docker: não foi possível verificar a origem de ${img}"
+      return "$RC_WARN"
     else
       skipped+=("$img")
     fi
@@ -77,10 +96,9 @@ update_docker_images() {
 
   if (( ${#remote_images[@]} == 0 )); then
     log "  Sem imagens Docker remotas para atualizar (${#skipped[@]} locais ignoradas)."
-    return 0
+  else
+    log "  Atualizando ${#remote_images[@]} imagem(ns) Docker remota(s)..."
   fi
-
-  log "  Atualizando ${#remote_images[@]} imagem(ns) Docker remota(s)..."
   (( ${#skipped[@]} > 0 )) && log "  Imagens locais (builds) ignoradas: ${skipped[*]}"
 
   local output rc
@@ -90,7 +108,7 @@ update_docker_images() {
     rc=$?
     if (( rc == RC_WARN )); then
       log "  docker pull ${img}: falha de rede transitória após 2 tentativas."
-      failed+=("$img")
+      transient+=("$img")
       continue
     fi
     if (( rc != 0 )); then
@@ -114,26 +132,56 @@ update_docker_images() {
     docker image prune -f 2>&1 | _strip_ansi >> "$LOG_FILE" || true
   fi
 
-  # Alertar containers usando imagem stale
-  local -a stale_containers=()
-  local container_name container_img container_imgid current_id
-  while IFS=$'\t' read -r container_name container_img container_imgid; do
-    current_id="$(docker image inspect "$container_img" --format '{{.Id}}' 2>/dev/null || true)"
-    [[ -n "$current_id" ]] || continue
-    if [[ "sha256:${container_imgid}" != "$current_id" ]]; then
-      stale_containers+=("${container_name}(${container_img})")
+  # docker ps não oferece .ImageID. O inspect retorna IDs completos e a
+  # referência usada na criação; restart não troca a imagem do container.
+  local -a stale_containers=() unverified=()
+  local container_name container_img container_imgid current_id ids cid metadata
+  if ! ids="$(docker ps -q 2>/dev/null)"; then
+    unverified+=("listagem de containers")
+  fi
+  while IFS= read -r cid; do
+    [[ -n "$cid" ]] || continue
+    if ! metadata="$(docker container inspect "$cid" --format $'{{.Name}}\t{{.Config.Image}}\t{{.Image}}' 2>/dev/null)"; then
+      unverified+=("$cid")
+      continue
     fi
-  done < <(docker ps --format $'{{.Names}}\t{{.Image}}\t{{.ImageID}}' 2>/dev/null)
+    IFS=$'\t' read -r container_name container_img container_imgid <<<"$metadata"
+    if [[ -z "$container_img" || -z "$container_imgid" ]] \
+        || ! current_id="$(docker image inspect "$container_img" --format '{{.Id}}' 2>/dev/null)" \
+        || [[ -z "$current_id" ]]; then
+      unverified+=("${container_name:-$cid}")
+      continue
+    fi
+    if [[ "${container_imgid#sha256:}" != "${current_id#sha256:}" ]]; then
+      stale_containers+=("${container_name#/}(${container_img})")
+    fi
+  done <<<"${ids:-}"
 
   if (( ${#stale_containers[@]} > 0 )); then
-    log "  ${C_YELLOW}Aviso: containers usando imagem desatualizada (restart necessário):${C_RESET}"
+    log "  ${C_YELLOW}Containers com imagem antiga: recriar pelo projeto/Compose, preservando volumes e configuração:${C_RESET}"
     local sc
     for sc in "${stale_containers[@]}"; do
       log "    ${sc}"
     done
   fi
 
-  (( ${#failed[@]} > 0 )) && { log "  Falha ao pull: ${failed[*]}"; return 1; }
+  if (( ${#failed[@]} > 0 )); then
+    STEP_REASON="Docker: falha ao pull: ${failed[*]}"
+    log "  ${STEP_REASON}"
+    return 1
+  fi
+  if (( ${#transient[@]} > 0 )); then
+    STEP_REASON="Docker: pull adiado por falha transitória: ${transient[*]}"
+    return "$RC_WARN"
+  fi
+  if (( ${#unverified[@]} > 0 )); then
+    STEP_REASON="Docker: imagem de container não verificada: ${unverified[*]}"
+    return "$RC_WARN"
+  fi
+  if (( ${#stale_containers[@]} > 0 )); then
+    STEP_REASON="Docker: recriar containers com imagem antiga: ${stale_containers[*]}"
+    return "$RC_TODO"
+  fi
   return 0
 }
 

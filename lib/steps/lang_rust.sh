@@ -10,8 +10,10 @@ update_rustup() {
   check_rc=$?
   printf '%s\n' "$check_out" | log_stream
 
-  if (( check_rc != 0 )); then
-    STEP_REASON="não foi possível verificar atualizações do rustup"
+  # rustup check usa 100 para sinalizar atualização disponível, não falha.
+  # Exigir também a saída reconhecida evita promover resposta inválida a sucesso.
+  if (( check_rc != 0 )) && ! { (( check_rc == 100 )) && rustup_check_has_update "$check_out"; }; then
+    STEP_REASON="não foi possível verificar atualizações do rustup (rc=${check_rc})"
     return "$RC_WARN"
   fi
 

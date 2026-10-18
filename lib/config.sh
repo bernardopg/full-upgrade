@@ -29,6 +29,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${TIMESHIFT_CLOUD_EXCLUDE_FILE:=${FU_CONFIG_DIR}/restic-timeshift-excludes}"
 : "${TIMESHIFT_CLOUD_PROGRESS_INTERVAL:=60}"  # segundos entre heartbeats do upload
 # Doctor: limiares de saúde
+: "${BTRFS_DEVICE_STATS_ACK_SHA256:=}" # fingerprint opcional do histórico Btrfs reconhecido
 : "${BTRFS_SCRUB_MAX_DAYS:=30}"     # alerta se o último scrub btrfs em / for mais antigo que isso
 : "${BOOT_TIME_WARN_S:=60}"         # alerta se o boot (systemd-analyze) exceder N segundos
 : "${BOOT_LOADER_WARN_S:=10}"       # alerta se o segmento loader (menu GRUB/sd-boot) exceder N segundos
@@ -127,6 +128,7 @@ BACKUP_CONFIGS
 BACKUP_KEEP
 BACKUP_PATHS
 BTRFS_SCRUB_MAX_DAYS
+BTRFS_DEVICE_STATS_ACK_SHA256
 BOOT_TIME_WARN_S
 BOOT_LOADER_WARN_S
 FWUPD_HSI_MIN
@@ -342,6 +344,7 @@ load_config() {
   export TIMESHIFT_CLOUD_REPOSITORY TIMESHIFT_CLOUD_PASSWORD_FILE TIMESHIFT_CLOUD_RCLONE_CONFIG
   export TIMESHIFT_CLOUD_EXCLUDE_FILE TIMESHIFT_CLOUD_PROGRESS_INTERVAL
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
+  export BTRFS_DEVICE_STATS_ACK_SHA256
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S FWUPD_HSI_MIN DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS CODEX_TMP_KEEP_DAYS
   export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE
@@ -438,6 +441,9 @@ MIN_BOOT_FREE_MIB=200
 
 # ── Limiares, timeouts e limites ──
 BTRFS_SCRUB_MAX_DAYS=30
+# Reconhecimento opcional do estado EXATO de device stats + UUID. Não é reparo.
+# Qualquer alteração dos contadores volta a alertar; scrub continua auditado.
+BTRFS_DEVICE_STATS_ACK_SHA256=""
 BOOT_TIME_WARN_S=60
 # HSI baixo costuma vir do hardware/UEFI e não ter correção local; use 1 ou 0
 # para parar o aviso recorrente numa máquina já avaliada.
@@ -622,6 +628,7 @@ show_config() {
   _cfg_kv "BACKUP_KEEP" "$BACKUP_KEEP"
   _cfg_kv "BACKUP_PATHS" "$BACKUP_PATHS"
   _cfg_kv "BTRFS_SCRUB_MAX_DAYS" "$BTRFS_SCRUB_MAX_DAYS"
+  _cfg_kv "BTRFS_DEVICE_STATS_ACK_SHA256" "$BTRFS_DEVICE_STATS_ACK_SHA256"
   _cfg_kv "BOOT_TIME_WARN_S" "$BOOT_TIME_WARN_S"
   _cfg_kv "FWUPD_HSI_MIN" "$FWUPD_HSI_MIN"
   _cfg_kv "NETWORK_GATE" "${NETWORK_GATE:-1}"

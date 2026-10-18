@@ -44,6 +44,29 @@ rustup - Up to date : 1.29.0'
   [ "$status" -eq 0 ]
 }
 
+@test "update_rustup: rc 100 com atualização disponível executa update" {
+  run_network_cmd() { printf '%s\n' 'stable-x86_64-unknown-linux-gnu - update available: 1.99.0 -> 1.99.1'; return 100; }
+  run_logged() { [ "$*" = 'rustup update' ]; printf 'update-executado\n'; }
+  run update_rustup
+  [ "$status" -eq 0 ]
+  [[ "$output" == *update-executado* ]]
+}
+
+@test "update_rustup: rc 100 sem atualização reconhecida não vira sucesso" {
+  run_network_cmd() { printf '%s\n' 'resposta inválida'; return 100; }
+  run_logged() { printf 'update-indevido\n'; }
+  run update_rustup
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" != *update-indevido* ]]
+}
+
+@test "update_rustup: falha do update não é mascarada pelo check rc 100" {
+  run_network_cmd() { printf '%s\n' 'stable - update available: 1 -> 2'; return 100; }
+  run_logged() { return 7; }
+  run update_rustup
+  [ "$status" -eq 7 ]
+}
+
 @test "K4: bin com memo nofix fresco => conhecido (rc 0)" {
   install_list='cargo-outdated v0.19.0:
     cargo-outdated
