@@ -6,4 +6,4 @@
 # Instalação consome o lock completo sem re-resolver o pin vulnerável upstream;
 # import do servidor MCP e scan SAST são verificados antes da auditoria estrita.
 # Remover quando Semgrep publicar uma versão que aceite mcp>=1.30.0.
-mcp==1.30.0
+mcp==2.3.0
