@@ -45,3 +45,11 @@ updates:
     labels:
       - dependencies
       - ci
+    ignore:
+      # mcp 2.x renomeou FastMCP para MCPServer e o Semgrep (que fixa
+      # mcp==1.29.0) ainda importa mcp.server.fastmcp: o bump para 2.3.0
+      # quebra o import do servidor MCP no job. Libere quando o Semgrep
+      # declarar suporte a mcp>=2.
+      - dependency-name: mcp
+        update-types:
+          - version-update:semver-major

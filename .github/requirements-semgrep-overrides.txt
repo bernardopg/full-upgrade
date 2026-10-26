@@ -1,4 +1,4 @@
-# Override temporário do pin upstream mcp==1.29.0 do Semgrep 1.181.0.
+# Override temporário do pin upstream mcp==1.29.0 do Semgrep 1.182.1.
 # SDK 1.30.0 corrige CVE-2026-59951. Não é exceção ao pip-audit.
 # Regenerar: uv pip compile .github/requirements-semgrep.in \
 #   --override .github/requirements-semgrep-overrides.txt --generate-hashes \
@@ -6,4 +6,4 @@
 # Instalação consome o lock completo sem re-resolver o pin vulnerável upstream;
 # import do servidor MCP e scan SAST são verificados antes da auditoria estrita.
 # Remover quando Semgrep publicar uma versão que aceite mcp>=1.30.0.
-mcp==2.3.0
+mcp==1.30.0
