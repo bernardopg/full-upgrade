@@ -79,6 +79,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - CI: `github/codeql-action` v4.39.1 e Semgrep 1.182.1. O override de `mcp`
   volta a `1.30.0` (último 1.x): o bump do Dependabot para 2.3.0 quebra o import
   `mcp.server.fastmcp` do Semgrep. O Dependabot passa a ignorar majors de `mcp`.
+- CI: o lock do Semgrep foi atualizado para o latest compatível. `filelock`
+  4.2.4 corrige três CVEs. Ganha também um override documentado da família
+  `opentelemetry-*` para 1.45.1/0.66b1, que corrige a CVE-2026-114603 do pin
+  upstream `~=1.37.0`. O job agora valida o import da telemetria do Semgrep
+  com essa família. O `pip-audit --strict`, que barrava o job no `main`,
+  passa limpo.
 - `.gitignore`: volta a versionar `.claude/agents`, `.claude/commands` e
   `.claude/skills` (a regra `.claude/` inteira contradizia o comentário),
   ignora backups de `settings.local.json` e `__pycache__/`, e para de

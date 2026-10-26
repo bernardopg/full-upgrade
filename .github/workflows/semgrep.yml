@@ -62,7 +62,12 @@ jobs:
           from mcp.server.fastmcp import FastMCP
           assert version('mcp') == '1.30.0'
           FastMCP('semgrep-sdk-compatibility-check')
-          print('Semgrep MCP compatibility OK:', version('semgrep'), version('mcp'))
+          # Override de opentelemetry-* (CVE-2026-114603): telemetria do
+          # Semgrep precisa importar com a família 1.45.x.
+          import semgrep.telemetry  # noqa: F401
+          assert version('opentelemetry-api') == version('opentelemetry-sdk')
+          print('Semgrep MCP compatibility OK:', version('semgrep'), version('mcp'),
+                'opentelemetry', version('opentelemetry-sdk'))
           PY
           semgrep scan --config p/default --error --sarif --output semgrep.sarif
 
@@ -70,7 +75,8 @@ jobs:
       # O próprio pip-audit vem do mesmo lock, sem instalação ad-hoc não fixada.
       - name: Audit locked Python dependencies
         run: |
-          # MCP 1.30.0 corrige CVE-2026-59951. O override é do pin upstream
+          # MCP 1.30.0 corrige CVE-2026-59951 e opentelemetry 1.45.1 corrige
+          # CVE-2026-114603. O override é do pin upstream
           # do Semgrep, NÃO uma exceção de segurança: qualquer CVE no lock
           # continua bloqueando. Compatibilidade do SDK é testada acima.
           python3 -m pip_audit --strict --require-hashes --disable-pip \
