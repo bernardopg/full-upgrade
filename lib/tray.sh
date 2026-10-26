@@ -913,6 +913,7 @@ tray_appindicator_main() {
   FU_TRAY_LOG_DIR="${LOG_DIR:-}" \
   FU_TRAY_BADGE="${TRAY_BADGE:-1}" \
   FU_TRAY_NOTIFICATIONS="${TRAY_NOTIFICATIONS:-1}" \
+  FU_TRAY_ICON_COLOR="${TRAY_ICON_COLOR:-auto}" \
     exec "$py" - 2> >(_tray_appindicator_stderr_filter) <<'PY'
 import atexit
 import datetime
@@ -939,7 +940,8 @@ except Exception:
     from gi.repository import AppIndicator3 as AppIndicator
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gio, GLib, Gtk
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf, Gio, GLib, Gtk
 
 
 SELF = os.environ.get("FU_TRAY_SELF", "full-upgrade")
@@ -951,14 +953,17 @@ BADGE_ENABLED = os.environ.get("FU_TRAY_BADGE", "1") == "1"
 NOTIFICATIONS_ENABLED = os.environ.get("FU_TRAY_NOTIFICATIONS", "1") == "1"
 INTERVAL = max(int(os.environ.get("FU_TRAY_INTERVAL", "1800") or "1800"), 60)
 
-# Glifo + rótulo curto por estado, usado no cabeçalho do menu.
-STATE_GLYPH = {
-    "running": "⟳",    # ⟳
-    "error": "✕",      # ✕
-    "attention": "⚠",  # ⚠
-    "updates": "↑",    # ↑
-    "idle": "●",       # ●
-}
+# Ícones monocromáticos (Material Symbols Rounded, scripts/gen-icons.py) saem
+# com esta cor neutra; o applet a troca pela cor de texto do tema GTK, que no
+# DMS é a mesma surfaceText gerada pelo matugen para a barra e os menus.
+ICON_PLACEHOLDER = "#bebebe"
+ICON_COLOR = os.environ.get("FU_TRAY_ICON_COLOR", "auto").strip().lower()
+ICON_CACHE_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache"),
+    "full-upgrade", "tray-icons")
+# Os ícones do menu vão como pixbuf (icon-data no dbusmenu): o host SNI não
+# conhece nomes próprios do full-upgrade. 32px fica nítido com escala 2x.
+MENU_ICON_PX = 32
 
 
 def plural(n, one, many):
@@ -992,7 +997,8 @@ def icon_name_for_state(state):
     }.get(state, "full-upgrade-tray-idle")
 
 
-def resolve_icon_name(name):
+def icon_source(name):
+    """Caminho do SVG de `name` (dev, instalação ou hicolor); "" se não houver."""
     home = os.path.expanduser("~")
     xdg_data = os.environ.get("XDG_DATA_HOME", os.path.join(home, ".local/share"))
     candidates = [
@@ -1002,17 +1008,90 @@ def resolve_icon_name(name):
         os.path.join(xdg_data, "full-upgrade/icons", f"{name}.svg"),
         os.path.join("/usr/share/icons/hicolor/scalable/apps", f"{name}.svg"),
     ]
-    for path in candidates:
-        if os.path.exists(path):
-            try:
-                indicator.set_icon_theme_path(os.path.dirname(path))
-            except Exception:
-                pass
-            # StatusNotifier hosts such as Quickshell do not inherit the
-            # AppIndicator-specific theme path. Publishing the absolute SVG
-            # keeps the icon resolvable in both GTK and Wayland SNI hosts.
-            return path
-    return name
+    return next((path for path in candidates if os.path.exists(path)), "")
+
+
+_icon_color_probe = None
+
+
+def icon_color():
+    """Cor dos ícones: TRAY_ICON_COLOR (#rrggbb) ou a cor de texto do tema GTK."""
+    global _icon_color_probe
+    if len(ICON_COLOR) == 7 and ICON_COLOR[0] == "#":
+        try:
+            int(ICON_COLOR[1:], 16)
+            return ICON_COLOR
+        except ValueError:
+            pass
+    try:
+        if _icon_color_probe is None:
+            _icon_color_probe = Gtk.Menu()
+        rgba = _icon_color_probe.get_style_context().get_color(Gtk.StateFlags.NORMAL)
+        return "#%02x%02x%02x" % tuple(round(c * 255) for c in (rgba.red, rgba.green, rgba.blue))
+    except Exception:
+        return ICON_PLACEHOLDER
+
+
+def tinted_icon(name):
+    """SVG de `name` na cor do tema; cai no original se não der para tingir."""
+    src = icon_source(name)
+    color = icon_color()
+    if not src or color == ICON_PLACEHOLDER:
+        return src
+    try:
+        with open(src, "r", encoding="utf-8") as f:
+            svg = f.read()
+        if ICON_PLACEHOLDER not in svg:
+            return src
+        svg = svg.replace(ICON_PLACEHOLDER, color)
+        # Um diretório por cor: o caminho muda quando o tema muda, e o host SNI
+        # não reaproveita um ícone em cache com a cor antiga.
+        dest_dir = os.path.join(ICON_CACHE_DIR, color[1:])
+        dest = os.path.join(dest_dir, os.path.basename(src))
+        try:
+            with open(dest, "r", encoding="utf-8") as f:
+                if f.read() == svg:
+                    return dest
+        except OSError:
+            pass
+        os.makedirs(dest_dir, exist_ok=True)
+        tmp = f"{dest}.{os.getpid()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(svg)
+        os.replace(tmp, dest)
+        return dest
+    except OSError:
+        return src
+
+
+def resolve_icon_name(name):
+    path = tinted_icon(name)
+    if not path:
+        return name
+    try:
+        indicator.set_icon_theme_path(os.path.dirname(path))
+    except Exception:
+        pass
+    # StatusNotifier hosts such as Quickshell do not inherit the
+    # AppIndicator-specific theme path. Publishing the absolute SVG
+    # keeps the icon resolvable in both GTK and Wayland SNI hosts.
+    return path
+
+
+def menu_icon(role):
+    return f"full-upgrade-menu-{role}"
+
+
+def menu_image(name):
+    """Gtk.Image com pixbuf: o serializer dbusmenu o publica como icon-data."""
+    path = tinted_icon(name) if name else ""
+    if not path:
+        return None
+    try:
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(path, MENU_ICON_PX, MENU_ICON_PX)
+    except GLib.Error:
+        return None
+    return Gtk.Image.new_from_pixbuf(pixbuf)
 
 
 def load_state():
@@ -1143,20 +1222,20 @@ def desktop_notify(title, body="", urgency="normal"):
 def state_headline(data):
     state, repo, aur, todo, fail, reboot = _ints(data)
     updates = _updates_total(data)
-    glyph = STATE_GLYPH.get(state, STATE_GLYPH["idle"])
+    # O estado aparece no ícone do item (o mesmo do painel), não num glifo de texto.
     if state == "unknown":
         return "Aguardando verificação"
     if state == "running":
-        return f"{glyph}  Executando full-upgrade…"
+        return "Executando full-upgrade…"
     if state == "error":
-        return f"{glyph}  Último run falhou ({fail})"
+        return f"Último run falhou ({fail})"
     if state == "updates":
-        return f"{glyph}  {plural(updates, 'atualização', 'atualizações')}"
+        return plural(updates, 'atualização', 'atualizações')
     if state == "attention":
         if todo > 0:
-            return f"{glyph}  {plural(todo, 'item para revisar', 'itens para revisar')}"
-        return f"{glyph}  Atenção necessária"
-    return f"{glyph}  Sistema atualizado"
+            return plural(todo, 'item para revisar', 'itens para revisar')
+        return "Atenção necessária"
+    return "Sistema atualizado"
 
 
 def launch_and_refresh(args):
@@ -1373,8 +1452,9 @@ def open_path(path):
 def menu_item(label, callback=None, enabled=True, icon=""):
     item = Gtk.ImageMenuItem.new_with_label(label)
     item.set_sensitive(enabled)
-    if icon:
-        item.set_image(Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.MENU))
+    image = menu_image(icon)
+    if image:
+        item.set_image(image)
         item.set_always_show_image(True)
     if enabled and callback:
         item.connect("activate", lambda *_: callback())
@@ -1458,9 +1538,9 @@ def rebuild_menu(data):
     menu = Gtk.Menu()
     menu.append(info_item(state_headline(data), icon_name_for_state(state)))
     if check_error:
-        menu.append(submenu_item("Verificação incompleta", [check_error], icon="dialog-warning"))
+        menu.append(submenu_item("Verificação incompleta", [check_error], icon=menu_icon("check-error")))
     if rel:
-        _relative_items["checked"] = info_item(f"Verificado {rel}", "appointment-soon")
+        _relative_items["checked"] = info_item(f"Verificado {rel}", menu_icon("checked"))
         menu.append(_relative_items["checked"])
     details = []
     if _updates_total(data):
@@ -1468,7 +1548,7 @@ def rebuild_menu(data):
     if reboot:
         details.append(f"Reinicialização pendente: {reboot}")
     if details or run_rel:
-        summary = submenu_item("Resumo da execução", details, empty_label="", icon="dialog-information")
+        summary = submenu_item("Resumo da execução", details, empty_label="", icon=menu_icon("summary"))
         if run_rel:
             _relative_items["run"] = info_item(f"Última execução: {run_rel}")
             summary.get_submenu().prepend(_relative_items["run"])
@@ -1476,32 +1556,32 @@ def rebuild_menu(data):
                 summary.get_submenu().insert(separator(), 1)
         menu.append(summary)
     for label, field, count, icon, formatter in (
-        ("Pacotes oficiais", "repo_updates", repo, "package-x-generic", package_lines),
-        ("Pacotes AUR", "aur_updates", aur, "package-x-generic", package_lines),
-        ("Aplicativos Flatpak", "flatpak_updates", flatpak, "application-x-executable", entry_lines),
-        ("Suíte Artcraft", "artcraft_updates", _int(data.get("artcraft")), "applications-graphics", entry_lines),
-        ("Avisos e pendências", "doctor_pending", todo, "dialog-warning", entry_lines),
+        ("Pacotes oficiais", "repo_updates", repo, menu_icon("repo"), package_lines),
+        ("Pacotes AUR", "aur_updates", aur, menu_icon("aur"), package_lines),
+        ("Aplicativos Flatpak", "flatpak_updates", flatpak, menu_icon("flatpak"), entry_lines),
+        ("Suíte Artcraft", "artcraft_updates", _int(data.get("artcraft")), menu_icon("artcraft"), entry_lines),
+        ("Avisos e pendências", "doctor_pending", todo, menu_icon("pending"), entry_lines),
     ):
         entries = as_list(data, field)
         if entries or count:
             menu.append(submenu_item(f"{label} ({count})", entries, icon=icon, formatter=formatter))
     menu.append(separator())
-    update_item = menu_item("Atualizar", enabled=can_run, icon="system-software-update")
+    update_item = menu_item("Atualizar", enabled=can_run, icon=menu_icon("update"))
     update_menu = Gtk.Menu()
     update_menu.append(menu_item("Sistema completo", lambda: launch_and_refresh([SELF, "--tray-launch"]),
-                                 enabled=can_run, icon="system-software-update"))
+                                 enabled=can_run, icon=menu_icon("update-system")))
     update_menu.append(menu_item("Somente pacotes", lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "update"]),
-                                 enabled=can_run, icon="package-x-generic"))
+                                 enabled=can_run, icon=menu_icon("update-packages")))
     update_item.set_submenu(update_menu)
     update_item.show_all()
     menu.append(update_item)
     menu.append(menu_item("Diagnosticar (Doctor)", lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "doctor"]),
-                          enabled=can_run, icon="utilities-system-monitor"))
+                          enabled=can_run, icon=menu_icon("doctor")))
     menu.append(menu_item("Executar reparos", lambda: launch_and_refresh([SELF, "--tray-launch", "--mode", "repair"]),
-                          enabled=can_run, icon="preferences-system"))
+                          enabled=can_run, icon=menu_icon("repair")))
     menu.append(separator())
     menu.append(menu_item("Verificando…" if checking else "Verificar agora", lambda: refresh(True, True),
-                          enabled=not checking, icon="view-refresh"))
+                          enabled=not checking, icon=menu_icon("refresh")))
     log_file = str(data.get("log_file") or "")
     report_md = log_file[:-4] + ".md" if log_file.endswith(".log") else ""
     logs_menu = Gtk.Menu()
@@ -1511,17 +1591,17 @@ def rebuild_menu(data):
         open_log = lambda: open_path(log_file)  # noqa: E731
     else:
         open_log = lambda: launch([SELF, "--tray-view-log"])  # noqa: E731
-    logs_menu.append(menu_item("Último log", open_log, icon="text-x-log"))
+    logs_menu.append(menu_item("Último log", open_log, icon=menu_icon("log")))
     if report_md and os.path.exists(report_md):
-        logs_menu.append(menu_item("Último relatório", lambda: open_path(report_md), icon="text-x-generic"))
+        logs_menu.append(menu_item("Último relatório", lambda: open_path(report_md), icon=menu_icon("report")))
     if LOG_DIR:
-        logs_menu.append(menu_item("Pasta de logs", lambda: open_path(LOG_DIR), icon="folder-open"))
-    logs_item = menu_item("Logs e relatórios", icon="document-open")
+        logs_menu.append(menu_item("Pasta de logs", lambda: open_path(LOG_DIR), icon=menu_icon("log-folder")))
+    logs_item = menu_item("Logs e relatórios", icon=menu_icon("logs"))
     logs_item.set_submenu(logs_menu)
     logs_item.show_all()
     menu.append(logs_item)
     menu.append(separator())
-    menu.append(menu_item("Sair do applet", Gtk.main_quit, icon="application-exit"))
+    menu.append(menu_item("Sair do applet", Gtk.main_quit, icon=menu_icon("quit")))
     menu.show_all()
     indicator.set_menu(menu)
     _previous_menus.append(menu)

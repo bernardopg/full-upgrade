@@ -83,6 +83,7 @@ NOTIFY_ON_FINISH|bool||Notificação desktop com o resumo ao fim do run
 TRAY_CHECK_INTERVAL_M|int||Intervalo de checagem do systray (minutos; mín. 1)
 TRAY_NOTIFICATIONS|bool||Systray emite notificações em transições de estado
 TRAY_BADGE|bool||AppIndicator mostra contador de updates/todo/falhas
+TRAY_ICON_COLOR|string||Cor dos ícones do AppIndicator (auto = texto do tema GTK; ou #rrggbb)
 MCP_AUTO_UPDATE|bool||Step MCP refresca o cache uv dos servers uvx
 OLLAMA_SELF_UPDATE|bool||Reexecuta o instalador oficial do Ollama
 FULL_UPGRADE_UPDATE_CHANNEL|enum|release,main|Canal de auto-atualização (release = última tag)

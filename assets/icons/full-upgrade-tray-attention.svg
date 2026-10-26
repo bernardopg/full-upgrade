@@ -1,17 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- full-upgrade tray — ATTENTION (doctor com pendência/todo). Âmbar. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f6b73c"/>
-      <stop offset="1" stop-color="#e5a50a"/>
-    </linearGradient>
-  </defs>
-  <circle cx="24" cy="24" r="20" fill="url(#g)"/>
-  <ellipse cx="24" cy="16" rx="14" ry="8" fill="#ffffff" fill-opacity="0.18"/>
-  <circle cx="24" cy="24" r="19.25" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="1.5"/>
-  <path d="M24 13l13.5 23.5h-27z" fill="none" stroke="#ffffff" stroke-width="4"
-        stroke-linejoin="round"/>
-  <path d="M24 21.5v6.5" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
-  <circle cx="24" cy="32.5" r="2.6" fill="#ffffff"/>
+<!-- full-upgrade tray — attention (deployed_code_alert) — Material Symbols Rounded (Apache-2.0). Gerado por scripts/gen-icons.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="24" height="24">
+  <path fill="#bebebe" d="M480 -800 243 -663 480 -526 717 -663 480 -800Q480 -800 480.0 -800.0Q480 -800 480 -800ZM120 -321V-639Q120 -661 130.5 -679.0Q141 -697 160 -708L440 -869Q450 -874 459.5 -877.0Q469 -880 480 -880Q491 -880 501.0 -877.0Q511 -874 520 -869L800 -708Q819 -697 829.5 -679.0Q840 -661 840 -639V-520Q840 -503 828.5 -491.5Q817 -480 800 -480Q783 -480 771.5 -491.5Q760 -503 760 -520V-596L519 -457Q500 -446 479.0 -446.0Q458 -446 439 -457L200 -596V-322Q200 -322 200.0 -322.0Q200 -322 200 -322L420 -194Q429 -189 434.5 -180.0Q440 -171 440 -160Q440 -137 420.0 -125.5Q400 -114 380 -125L160 -252Q141 -263 130.5 -281.0Q120 -299 120 -321ZM720 -80Q728 -80 734.0 -86.0Q740 -92 740 -100Q740 -108 734.0 -114.0Q728 -120 720 -120Q712 -120 706.0 -114.0Q700 -108 700 -100Q700 -92 706.0 -86.0Q712 -80 720 -80ZM720 -160Q728 -160 734.0 -166.0Q740 -172 740 -180V-300Q740 -308 734.0 -314.0Q728 -320 720 -320Q712 -320 706.0 -314.0Q700 -308 700 -300V-180Q700 -172 706.0 -166.0Q712 -160 720 -160ZM720 0Q637 0 578.5 -58.5Q520 -117 520 -200Q520 -283 578.5 -341.5Q637 -400 720 -400Q803 -400 861.5 -341.5Q920 -283 920 -200Q920 -117 861.5 -58.5Q803 0 720 0ZM480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Q480 -491 480.0 -491.0Q480 -491 480 -491Z"/>
 </svg>

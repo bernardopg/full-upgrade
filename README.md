@@ -207,6 +207,14 @@ AppIndicator via Python/GI quando disponível; em X11 mantém o backend
 | `updates` | 4 | Há updates de repositório/AUR disponíveis. |
 | `idle` | 5 | Sem updates nem pendências conhecidas. |
 
+Os ícones do painel e do menu são monocromáticos e vêm do Material Symbols
+Rounded, a mesma fonte do `DankIcon` do DankMaterialShell. Os estados formam
+uma família em torno do pacote (`deployed_code`): o ícone base no `idle`, com
+seta em `updates`, relógio em `running` e alerta em `attention`. O `error` usa
+o glifo `error`. No AppIndicator a cor acompanha o texto do tema GTK
+(`TRAY_ICON_COLOR=auto`). Os SVGs em `assets/icons/` são gerados por
+`scripts/gen-icons.py`.
+
 Uso:
 
 ```bash
@@ -224,19 +232,26 @@ informativo e reativo:
   falhas). Desligue com `TRAY_BADGE=0`.
 - **Realce de atenção** — estados `error`/`attention` entram em
   `IndicatorStatus.ATTENTION`, que barras compatíveis destacam.
-- **Menu dinâmico** (reconstruído a cada verificação) com um cabeçalho que
-  resume o estado: linha de estado com glifo, detalhamento `repo · AUR`, `todo`s
-  do Doctor, motivo de reboot pendente e quando foi a última verificação
-  (“Verificado há X”). Abaixo, as ações: **Atualizar tudo**, **Só pacotes**
-  (`--mode update`), **Doctor**, **Reparos**, **Verificar agora**, **Ver último
-  log**, **Abrir pasta de logs** e **Sair**. As ações de execução ficam
-  desabilitadas enquanto um run está em andamento.
-- **Atalhos** — clique esquerdo roda `full-upgrade` em um terminal; o scroll
-  sobre o ícone dispara “Verificar agora” sem abrir o menu.
+- **Menu dinâmico** (reconstruído quando o estado muda, sem perder a
+  navegação). No topo ficam o estado com o ícone correspondente e
+  “Verificado há X”, atualizado a cada minuto sem recriar o menu. Em seguida
+  vêm **Resumo da execução** (última execução, fontes com atualização e
+  motivo de reboot pendente) e um submenu por fonte com itens: **Pacotes
+  oficiais**, **Pacotes AUR**, **Aplicativos Flatpak**, **Suíte Artcraft** e
+  **Avisos e pendências**. Pacotes aparecem como nome e `versão → versão`;
+  pendências, como nome do step com o motivo recuado. Abaixo ficam as ações:
+  **Atualizar** (Sistema completo ou Somente pacotes, `--mode update`),
+  **Diagnosticar (Doctor)**, **Executar reparos**, **Verificar agora**,
+  **Logs e relatórios** (Último log do run resumido, Último relatório e Pasta
+  de logs) e **Sair do applet**. As ações de execução ficam desabilitadas
+  enquanto um run está em andamento.
+- **Atalhos** — o clique abre o menu; o scroll sobre o ícone dispara
+  “Verificar agora” sem abrir o menu.
 
 Se o terminal não for detectado, defina `TRAY_TERMINAL` no config;
 `xdg-terminal-exec` é a opção mais confiável quando disponível. (No backend X11
-`yad` o menu é equivalente, sem badge/realce/cabeçalho dinâmico.)
+`yad` o clique esquerdo roda `full-upgrade` em um terminal e o menu é
+equivalente, sem badge, realce, cabeçalho dinâmico nem ícones no menu.)
 
 Hyprland/DankMaterialShell usa StatusNotifier e exibe o backend AppIndicator.
 GNOME Shell não expõe systray/AppIndicator nativamente; use uma extensão como
@@ -629,6 +644,7 @@ Principais chaves:
 | `TRAY_CHECK_INTERVAL_M` | `30` | Intervalo, em minutos, entre checagens do systray daemon. O daemon impõe mínimo efetivo de 1 minuto. |
 | `TRAY_TERMINAL` | auto | Terminal usado pelo applet para abrir `full-upgrade`; vazio = auto-detecta (`xdg-terminal-exec`, kitty, alacritty, etc.). |
 | `TRAY_NOTIFICATIONS` | `1` | `1` = o systray notifica transições úteis (`updates`, `attention`, `error`, retorno a `idle`); `0` = só muda o ícone. |
+| `TRAY_ICON_COLOR` | `auto` | Cor dos ícones monocromáticos do AppIndicator (painel e menu). `auto` = cor de texto do tema GTK, que no DankMaterialShell é a mesma gerada pelo matugen; ou um `#rrggbb` fixo. |
 | `OLLAMA_SELF_UPDATE` | `0` | `1` = reexecuta o instalador oficial do Ollama (`curl \| sh`) no step; `0` = só reporta a versão. |
 | `CLAUDE_NATIVE_VERSIONS_DIR` | `~/.local/share/claude/versions` | Diretório de versões do instalador nativo do Claude Code. O step varre aí binários truncados (vazios ou sem bit de execução) deixados por um download interrompido antes e depois de `claude update`, senão o updater trata a versão parcial como "já baixada" e o CLI congela na versão antiga. Ajuste só se sua instalação usa outro caminho. |
 | `MCP_AUTO_UPDATE` | `0` | `1` = refresca o cache uv dos servidores MCP uvx (rebuild da última no próximo launch); `0` = só doctor read-only. |
@@ -726,7 +742,7 @@ libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
 
 ```text
 .
-├── assets/icons/             # ícones SVG do app e dos estados do systray
+├── assets/icons/             # ícones SVG do app, dos estados e do menu do systray (gerados por scripts/gen-icons.py)
 ├── res/                      # desktop entry e unit systemd user do systray
 ├── full-upgrade.sh          # entrypoint: resolve paths, carrega libs e inicia o fluxo
 ├── install.sh               # instalação em ~/.local/share + symlink no PATH

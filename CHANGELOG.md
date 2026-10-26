@@ -24,9 +24,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   - Notificações do modo AppIndicator passam a levar o ícone do estado.
   - Um run iniciado no instante exato em que o tray testava o lock desistia
     como "outra instância em execução". `acquire_run_lock` agora espera até 2s.
-- **Applet (aparência):** cabeçalho com plural correto e glifo em todos os
-  estados ("⚠  1 item para revisar"). Tooltip e notificações usam plurais
-  reais ("1 pendência · 1 atualização") em vez de "pendência(s)". Pacotes
+- **Applet (aparência):** cabeçalho com plural correto em todos os estados
+  ("1 item para revisar"), com o ícone do estado ao lado. Tooltip e
+  notificações usam plurais reais ("1 pendência · 1 atualização") em vez de
+  "pendência(s)". Pacotes
   aparecem como nome e "versão → versão" em linhas próprias. Cada pendência
   mostra o nome do step e o motivo recuado abaixo. O resumo lista só as fontes
   com atualização ("Atualizações: 1 AUR").
@@ -68,6 +69,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Alterado
 
+- **Identidade visual do applet:** os ícones do painel, do menu e do
+  aplicativo foram trocados por glifos monocromáticos do Material Symbols
+  Rounded. É a mesma fonte e o mesmo eixo (FILL 0, wght 400, opsz 24) do
+  `DankIcon` do DankMaterialShell e dos plugins DMS. Os estados formam uma
+  família em torno do pacote: `deployed_code` no `idle`, com seta em
+  `updates`, relógio em `running` e alerta em `attention`; `error` usa o
+  glifo `error`. Os itens do menu deixam de depender do tema de ícones, que
+  cada host resolvia de um jeito (alguns ficavam sem ícone). Agora vão como
+  pixbuf (`icon-data` no dbusmenu), com o mesmo estilo em qualquer barra SNI.
+  A cor acompanha o texto do tema GTK (no DMS, a cor gerada pelo matugen) e
+  pode ser fixada com `TRAY_ICON_COLOR=#rrggbb`. Os SVGs são gerados por
+  `scripts/gen-icons.py` a partir da fonte variável.
 - `Atualizar agent skills (skills CLI)`: o step não cita mais skills
   específicas no log, no catálogo nem no README. Ele trabalha com o que a
   máquina tiver instalado, detecta o lock global do skills CLI
@@ -76,6 +89,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Manutenção
 
+- Documentação alinhada ao estado atual: o README descreve o menu real do
+  applet (submenus por fonte, Resumo da execução, Logs e relatórios) e corrige
+  os atalhos do AppIndicator (o clique abre o menu; só o backend yad roda o
+  `full-upgrade` no clique esquerdo). O CLAUDE.md documenta o pipeline de
+  ícones, e o TO-DO registra o estado da v3.50.0 e o achado P11 (rate limit
+  do GitHub na consulta Artcraft abortando a verificação do tray).
 - CI: `github/codeql-action` v4.39.1 e Semgrep 1.182.1. O override de `mcp`
   volta a `1.30.0` (último 1.x): o bump do Dependabot para 2.3.0 quebra o import
   `mcp.server.fastmcp` do Semgrep. O Dependabot passa a ignorar majors de `mcp`.

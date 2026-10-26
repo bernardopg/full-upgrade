@@ -1,15 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- full-upgrade tray — ERROR (último run com falha). Vermelho. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f0383f"/>
-      <stop offset="1" stop-color="#c01c28"/>
-    </linearGradient>
-  </defs>
-  <circle cx="24" cy="24" r="20" fill="url(#g)"/>
-  <ellipse cx="24" cy="16" rx="14" ry="8" fill="#ffffff" fill-opacity="0.16"/>
-  <circle cx="24" cy="24" r="19.25" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="1.5"/>
-  <path d="M16.5 16.5l15 15M31.5 16.5l-15 15" fill="none" stroke="#ffffff" stroke-width="5"
-        stroke-linecap="round"/>
+<!-- full-upgrade tray — error (error) — Material Symbols Rounded (Apache-2.0). Gerado por scripts/gen-icons.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" width="24" height="24">
+  <path fill="#bebebe" d="M480 -280Q497 -280 508.5 -291.5Q520 -303 520 -320Q520 -337 508.5 -348.5Q497 -360 480 -360Q463 -360 451.5 -348.5Q440 -337 440 -320Q440 -303 451.5 -291.5Q463 -280 480 -280ZM480 -440Q497 -440 508.5 -451.5Q520 -463 520 -480V-640Q520 -657 508.5 -668.5Q497 -680 480 -680Q463 -680 451.5 -668.5Q440 -657 440 -640V-480Q440 -463 451.5 -451.5Q463 -440 480 -440ZM480 -80Q397 -80 324.0 -111.5Q251 -143 197.0 -197.0Q143 -251 111.5 -324.0Q80 -397 80 -480Q80 -563 111.5 -636.0Q143 -709 197.0 -763.0Q251 -817 324.0 -848.5Q397 -880 480 -880Q563 -880 636.0 -848.5Q709 -817 763.0 -763.0Q817 -709 848.5 -636.0Q880 -563 880 -480Q880 -397 848.5 -324.0Q817 -251 763.0 -197.0Q709 -143 636.0 -111.5Q563 -80 480 -80ZM480 -160Q614 -160 707.0 -253.0Q800 -346 800 -480Q800 -614 707.0 -707.0Q614 -800 480 -800Q346 -800 253.0 -707.0Q160 -614 160 -480Q160 -346 253.0 -253.0Q346 -160 480 -160ZM480 -480Q480 -480 480.0 -480.0Q480 -480 480 -480Q480 -480 480.0 -480.0Q480 -480 480 -480Q480 -480 480.0 -480.0Q480 -480 480 -480Q480 -480 480.0 -480.0Q480 -480 480 -480Z"/>
 </svg>
