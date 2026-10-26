@@ -5,6 +5,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 ### Corrigido
 
+- **Applet (systray):**
+  - `--tray --enable` gravava `ExecStart=full-upgrade --tray` com o nome sem
+    caminho. O systemd resolve esse nome por um PATH fixo, sem `~/.local/bin`,
+    e a unit de quem instalou via `install.sh` não subia. A unit agora usa o
+    caminho absoluto, e `Reparar unit stale do full-upgrade tray` corrige
+    units antigas com o nome puro.
+  - "Verificado há…" e "Última execução: há…" ficavam congelados até o
+    próximo probe (até 30 min mostrando "agora"). Agora atualizam a cada
+    minuto, no lugar, sem recriar o menu.
+  - O menu anterior era destruído logo após o `set_menu`, enquanto o
+    serializer dbusmenu ainda o usava (`Gtk-CRITICAL ...
+    gtk_widget_get_scale_factor` no journal). Agora fica referenciado.
+  - Na inicialização, ícone, badge e tooltip saíam genéricos até o primeiro
+    probe terminar. Agora usam o estado em cache.
+  - "Último log" abre o log do run resumido no menu, não `latest.log`, que
+    pode ser um dry-run mais novo.
+  - Notificações do modo AppIndicator passam a levar o ícone do estado.
+  - Um run iniciado no instante exato em que o tray testava o lock desistia
+    como "outra instância em execução". `acquire_run_lock` agora espera até 2s.
+- **Applet (aparência):** cabeçalho com plural correto e glifo em todos os
+  estados ("⚠  1 item para revisar"). Tooltip e notificações usam plurais
+  reais ("1 pendência · 1 atualização") em vez de "pendência(s)". Pacotes
+  aparecem como nome e "versão → versão" em linhas próprias. Cada pendência
+  mostra o nome do step e o motivo recuado abaixo. O resumo lista só as fontes
+  com atualização ("Atualizações: 1 AUR").
+
 - **Timeout do upgrade do sistema deixava o pacman travado:** o step matava o
   pacman no meio do download e o `db.lck` ficava para trás, derrubando
   `Remover pacotes órfãos` com `unable to lock database`. `run_step` agora

@@ -149,14 +149,16 @@ log "  Sem unit user local do full-upgrade tray para reparar."
 return 0
 fi
 
-if ! grep -Eq '^ExecStart=.*\.local/bin/full-upgrade[[:space:]]+--tray([[:space:]]|$)' "$unit"; then
-log "  Unit user do full-upgrade tray já não aponta para ~/.local/bin."
+# Nome puro (versões antigas de `--tray --enable`) também é stale: o systemd
+# resolve ExecStart sem barra por um PATH fixo, não pelo do usuário.
+if ! grep -Eq '^ExecStart=(full-upgrade|.*\.local/bin/full-upgrade)[[:space:]]+--tray([[:space:]]|$)' "$unit"; then
+log "  Unit user do full-upgrade tray já aponta para um caminho absoluto válido."
 return 0
 fi
 
 tmp="${unit}.tmp.$$"
 awk -v bin="$sysbin" '
-  /^ExecStart=.*\/\.local\/bin\/full-upgrade[[:space:]]+--tray([[:space:]]|$)/ {
+  /^ExecStart=(full-upgrade|.*\/\.local\/bin\/full-upgrade)[[:space:]]+--tray([[:space:]]|$)/ {
     print "ExecStart=" bin " --tray"
     next
   }

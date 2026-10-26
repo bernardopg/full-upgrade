@@ -395,6 +395,19 @@ EOF
 
   [ "$status" -eq 0 ]
   [ "$(cat "$unit")" = "$before" ]
-  [[ "$output" == *"já não aponta para ~/.local/bin"* ]]
+  [[ "$output" == *"já aponta para um caminho absoluto válido"* ]]
   rm -rf "$fake_home"
+}
+
+@test "repair_tray_unit: pacman-managed reescreve ExecStart com nome puro para caminho absoluto" {
+  QUIET=0 LOG_FILE=/dev/null
+  local fake_home="$BATS_TEST_TMPDIR/home-bare"
+  local unit="$fake_home/.config/systemd/user/full-upgrade-tray.service"
+  mkdir -p "$(dirname "$unit")"
+  printf '[Service]\nExecStart=full-upgrade --tray\n' > "$unit"
+  self_pacman_managed_bin() { printf '/usr/bin/full-upgrade'; }
+  has() { return 1; }
+  XDG_CONFIG_HOME="$fake_home/.config" HOME="$fake_home" run repair_full_upgrade_tray_unit
+  [ "$status" -eq 0 ]
+  grep -q '^ExecStart=/usr/bin/full-upgrade --tray$' "$unit"
 }

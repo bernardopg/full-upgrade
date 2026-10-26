@@ -20,17 +20,23 @@ class Item:
     def new_with_label(cls, label):
         return cls(label)
     def append(self, item): self.children.append(item)
+    def prepend(self, item): self.children.insert(0, item)
+    def insert(self, item, pos): self.children.insert(pos, item)
+    def get_label(self): return self.label
+    def set_label(self, value): self.label = value
+    def get_submenu(self): return self.submenu
     def set_sensitive(self, value): self.enabled = value
     def set_image(self, value): self.image = value
     def set_always_show_image(self, value): pass
     def connect(self, *args): pass
     def show_all(self): pass
     def show(self): pass
-    def set_submenu(self, menu): self.children = menu.children
+    def set_submenu(self, menu): self.submenu, self.children = menu, menu.children
 
 menus, notices = [], []
 ctx = dict(json=json, datetime=datetime, textwrap=textwrap,
            os=__import__('os'), checking=False, check_error='', _menu_key=None,
+           _relative_items={}, _previous_menus=[],
            STATE_GLYPH={'idle': '●'}, LOG_DIR='', SELF='full-upgrade',
            Gtk=SimpleNamespace(Menu=Item, ImageMenuItem=Item, SeparatorMenuItem=Item,
                                Image=SimpleNamespace(new_from_icon_name=lambda icon, size: icon),
@@ -75,6 +81,34 @@ assert not ctx['checking']
 assert ctx['check_error'] and notices[-1][0] == 'Verificação incompleta'
 assert not any(n[0] == 'Verificação concluída' for n in notices)
 print('Tray: complete details, icons, stable menus, action guards and timeout recovery OK')
+
+# Plural correto, glifo em todo cabeçalho e fontes zeradas fora do resumo.
+ctx['STATE_GLYPH'].update(attention='⚠', updates='↑')
+assert ctx['state_headline']({'state': 'attention', 'todo': 1}) == '⚠  1 item para revisar'
+assert ctx['state_headline']({'state': 'updates', 'aur': 1}) == '↑  1 atualização'
+assert ctx['state_headline']({'state': 'updates', 'repo': 3}) == '↑  3 atualizações'
+assert ctx['updates_breakdown']({'repo': 0, 'aur': 1, 'flatpak': 0}) == '1 AUR'
+# Pacote: nome e versões em linhas próprias; pendência: motivo recuado sob o item.
+assert ctx['package_lines']('ioruba-desktop-bin 1.10.1-1 -> 1.10.2-1') == ['ioruba-desktop-bin', '   1.10.1-1 → 1.10.2-1']
+pend = ctx['entry_lines']('→ Atualizar plugins DMS — trabalho local em andamento')
+assert pend[0] == '→ Atualizar plugins DMS' and all(l.startswith('   ') for l in pend[1:])
+
+# Textos relativos mudam no lugar, sem recriar o menu (o recriar quebrava a
+# navegação e soltava widgets ainda usados pelo serializer dbusmenu).
+now = datetime.datetime.now().astimezone()
+timed = {'state': 'idle', 'checked_at': now.isoformat(),
+         'last_run_at': (now - datetime.timedelta(minutes=5)).isoformat()}
+ctx['_menu_key'] = None
+menus.clear()
+ctx['rebuild_menu'](timed)
+summary = next(i for i in menus[-1].children if i.label == 'Resumo da execução')
+assert [c.label for c in summary.children] == ['Última execução: há 5 min'], 'sem "Nenhum item"'
+real_relative = ctx['relative_time']
+ctx['relative_time'] = lambda iso: 'há 7 min' if iso == timed['last_run_at'] else real_relative(iso)
+ctx['refresh_relative_labels'](timed)
+assert len(menus) == 1 and summary.children[0].label == 'Última execução: há 7 min'
+ctx['relative_time'] = real_relative
+print('Tray: plural, package lines, breakdown and in-place relative labels OK')
 
 # Atomic writes by an external runner update the menu without a network probe.
 applied = []

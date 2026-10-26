@@ -105,7 +105,7 @@ EOF
 }
 
 @test "tooltip: error mostra contagem" {
-  [ "$(tray_tooltip_for_state error 0 0 2)" = "full-upgrade: último run com 2 falha(s)" ]
+  [ "$(tray_tooltip_for_state error 0 0 2)" = "full-upgrade: último run com 2 falhas" ]
 }
 
 @test "tooltip: idle" {
@@ -115,13 +115,13 @@ EOF
 @test "tooltip: updates + todo + reboot combinados" {
   local t
   t=$(tray_tooltip_for_state attention 12 2 1 "Kernel atualizado")
-  echo "$t" | grep -q "Reboot pendente"
-  echo "$t" | grep -q "2 pendência(s)"
-  echo "$t" | grep -q "12 atualização"
+  [[ "$t" == *"Reboot pendente"* ]]
+  [[ "$t" == *"2 pendências"* ]]
+  [[ "$t" == *"12 atualizações"* ]]
 }
 
 @test "tooltip: updates apenas" {
-  [ "$(tray_tooltip_for_state updates 7 0 0)" = "full-upgrade: 7 atualização(ões)" ]
+  [ "$(tray_tooltip_for_state updates 7 0 0)" = "full-upgrade: 7 atualizações" ]
 }
 
 @test "wayland_session: detecta Wayland por tipo de sessão" {
@@ -414,10 +414,13 @@ EOF
 
 # ── tray_self_bin ──────────────────────────────────────────────────────────────
 
-@test "self_bin: retorna full-upgrade quando comando existe" {
+@test "self_bin: devolve o caminho absoluto do full-upgrade no PATH" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  printf '#!/bin/sh\n' > "$BATS_TEST_TMPDIR/bin/full-upgrade"
+  chmod +x "$BATS_TEST_TMPDIR/bin/full-upgrade"
   has() { [[ "$1" == "full-upgrade" ]]; }
-  run tray_self_bin
-  [ "$output" = "full-upgrade" ]
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH" run tray_self_bin
+  [ "$output" = "$BATS_TEST_TMPDIR/bin/full-upgrade" ]
 }
 
 @test "self_bin: retorna SCRIPT_PATH quando definido" {
@@ -802,4 +805,10 @@ EOF
   yay() { printf 'network unavailable\n' >&2; return 1; }
   run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
   [ "$status" -eq 1 ]
+}
+
+@test "tooltip: singular sem parênteses" {
+  [ "$(tray_tooltip_for_state updates 1 0 0)" = "full-upgrade: 1 atualização" ]
+  [ "$(tray_tooltip_for_state attention 0 1 0)" = "full-upgrade: 1 pendência" ]
+  [ "$(tray_tooltip_for_state error 0 0 1)" = "full-upgrade: último run com 1 falha" ]
 }

@@ -25,7 +25,10 @@ acquire_run_lock() {
     return 0
   }
   FU_LOCK_FD=9
-  if ! flock -n 9; then
+  # Espera curta, não -n: o probe do tray (tray_is_full_upgrade_running) toma
+  # este mesmo lock por instantes para testar se há run ativo, e um run que
+  # começasse nesse instante desistia como "outra instância em execução".
+  if ! flock -w 2 9; then
     local holder
     holder="$(cat "$FU_LOCK_FILE" 2>/dev/null || true)"
     holder="${holder//[^0-9]/}"

@@ -36,7 +36,7 @@ Reparar comandos locais conflitantes|repair|shadowing|mutating|30||repair_known_
 Limpar scopes transitórios de apps|repair|systemd,user,desktop|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes app-*.scope já encerrados; journal e coredump permanecem para auditoria.
 Reparar configuração de coredump|repair|systemd,coredump,config,sudo|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
 Reparar sombra local do full-upgrade|repair|shadowing,self,pacman|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
-Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga que ainda aponta para ~/.local/bin/full-upgrade quando a instalação ativa é pacman/AUR.
+Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga cujo ExecStart aponta para ~/.local/bin/full-upgrade ou usa o nome sem caminho, quando a instalação ativa é pacman/AUR.
 Reparar permissões de captura do Wireshark|repair|security,wireshark|mutating|30|wireshark|repair_wireshark_capture_permissions|Ajusta grupo, modo e capabilities do dumpcap.
 Reparar atalhos antigos do Burp|repair|desktop|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
 Atualizar Flatpak|packages|update,network,slow,flatpak|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.

@@ -113,21 +113,26 @@ tray_icon_name_for_state() {
   esac
 }
 
+# "1 pendência" / "2 pendências". Puro. Uso: tray_plural <n> <singular> <plural>
+tray_plural() {
+  if [[ "$1" == 1 ]]; then printf '%s %s' "$1" "$2"; else printf '%s %s' "$1" "$3"; fi
+}
+
 # Tooltip curto (PT-BR) por estado. Puro.
 # Uso: tray_tooltip_for_state <state> <updates> <todo> <fail> <reboot_reason>
 tray_tooltip_for_state() {
   local state="$1" updates="$2" todo="$3" fail="$4" reboot="${5:-}"
   case "$state" in
     running) printf 'full-upgrade: executando…' ; return 0 ;;
-    error)   printf 'full-upgrade: último run com %s falha(s)' "$fail"; return 0 ;;
+    error)   printf 'full-upgrade: último run com %s' "$(tray_plural "$fail" falha falhas)"; return 0 ;;
   esac
   local -a parts=()
   if [[ $reboot == *[![:space:]]* ]]; then parts+=("Reboot pendente"); fi
-  # "pendência(s)" e não "todo": tray_last_doctor_pending_items conta warn, todo
+  # "pendência" e não "todo": tray_last_doctor_pending_items conta warn, todo
   # e fail juntos, então rotular tudo de todo mente sobre o run (um run com
   # 0 todo e 2 warn aparecia como "2 doctor todo").
-  [[ "$todo" =~ ^[0-9]+$ ]] && (( todo > 0 )) && parts+=("$todo pendência(s)")
-  [[ "$updates" =~ ^[0-9]+$ ]] && (( updates > 0 )) && parts+=("$updates atualização(ões)")
+  [[ "$todo" =~ ^[0-9]+$ ]] && (( todo > 0 )) && parts+=("$(tray_plural "$todo" pendência pendências)")
+  [[ "$updates" =~ ^[0-9]+$ ]] && (( updates > 0 )) && parts+=("$(tray_plural "$updates" atualização atualizações)")
   if (( ${#parts[@]} == 0 )); then
     printf 'full-upgrade: sistema atualizado'
     return 0
@@ -324,8 +329,14 @@ PYARRAY
 }
 
 # Resolve o binário full-upgrade para uso em .desktop/comandos do yad.
+# Caminho absoluto: o systemd resolve ExecStart sem barra por um PATH fixo de
+# compilação (/usr/local/bin:/usr/bin…), sem ~/.local/bin, então a unit de quem
+# instalou via install.sh não subia com o nome puro.
 tray_self_bin() {
-  if has full-upgrade; then printf 'full-upgrade'; return 0; fi
+  local bin
+  if has full-upgrade && bin="$(command -v full-upgrade 2>/dev/null)" && [[ "$bin" == /* ]]; then
+    printf '%s' "$bin"; return 0
+  fi
   [[ -n "${SCRIPT_PATH:-}" ]] && { printf '%s' "$SCRIPT_PATH"; return 0; }
   printf '%s/full-upgrade.sh' "${FU_ROOT:-.}"
 }
@@ -452,7 +463,11 @@ _tray_notify_transition() {
   case "$state" in
     updates)
       urgency=normal
-      title="full-upgrade: ${updates} atualização(ões) disponível(is)"
+      if [[ "$updates" == 1 ]]; then
+        title="full-upgrade: 1 atualização disponível"
+      else
+        title="full-upgrade: ${updates} atualizações disponíveis"
+      fi
       body="Clique no ícone para executar o full-upgrade." ;;
     attention)
       urgency=normal
@@ -465,7 +480,8 @@ _tray_notify_transition() {
     error)
       urgency=critical
       title="full-upgrade: último run com falha"
-      body="${fail} step(s) falharam. Veja o log: ~/.cache/system-upgrade/latest.log" ;;
+      if [[ "$fail" == 1 ]]; then body="1 step falhou."; else body="${fail} steps falharam."; fi
+      body+=" Veja o log: ~/.cache/system-upgrade/latest.log" ;;
     idle)
       # Só notifica "tudo ok" se vinha de updates/attention (evita spam).
       [[ "$prev" == "updates" || "$prev" == "attention" ]] || return 0
@@ -945,6 +961,10 @@ STATE_GLYPH = {
 }
 
 
+def plural(n, one, many):
+    return f"{n} {one if n == 1 else many}"
+
+
 def write_pid():
     if PID_FILE:
         os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
@@ -1044,16 +1064,16 @@ def tooltip_for_state(data):
     if state == "unknown":
         return "full-upgrade: aguardando verificação"
     if state == "running":
-        return "full-upgrade: executando..."
+        return "full-upgrade: executando…"
     if state == "error":
-        return f"full-upgrade: último run com {fail} falha(s)"
+        return f"full-upgrade: último run com {plural(fail, 'falha', 'falhas')}"
     parts = []
     if reboot:
         parts.append("Reboot pendente")
     if todo > 0:
-        parts.append(f"{todo} pendência(s)")
+        parts.append(plural(todo, "pendência", "pendências"))
     if updates > 0:
-        parts.append(f"{updates} atualização(ões)")
+        parts.append(plural(updates, "atualização", "atualizações"))
     # Mesmo separador do tray_tooltip_for_state em Bash (caminho yad/X11), para
     # o tooltip não mudar de cara conforme o backend que atendeu.
     return "full-upgrade: " + (" · ".join(parts) if parts else "sistema atualizado")
@@ -1101,13 +1121,20 @@ def as_list(data, key):
     return []
 
 
+current_icon = ""
+
+
 def desktop_notify(title, body="", urgency="normal"):
     if not NOTIFICATIONS_ENABLED:
         return
     notify = shutil.which("notify-send")
     if not notify:
         return
-    args = [notify, "-a", "full-upgrade", "-u", urgency, title]
+    args = [notify, "-a", "full-upgrade", "-u", urgency]
+    # Mesmo ícone de estado do painel, como o caminho yad/X11 já fazia.
+    if current_icon:
+        args += ["-i", current_icon]
+    args.append(title)
     if body:
         args.append(body)
     subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -1124,10 +1151,10 @@ def state_headline(data):
     if state == "error":
         return f"{glyph}  Último run falhou ({fail})"
     if state == "updates":
-        return f"{glyph}  {updates} atualizações"
+        return f"{glyph}  {plural(updates, 'atualização', 'atualizações')}"
     if state == "attention":
         if todo > 0:
-            return f"{todo} itens para revisar"
+            return f"{glyph}  {plural(todo, 'item para revisar', 'itens para revisar')}"
         return f"{glyph}  Atenção necessária"
     return f"{glyph}  Sistema atualizado"
 
@@ -1166,13 +1193,20 @@ checking = False
 running_now = False
 check_error = ""
 _menu_key = None
+# Itens com texto relativo ("há N min"), atualizados no lugar a cada minuto.
+_relative_items = {}
+# O serializer dbusmenu ainda consulta widgets do menu anterior logo após o
+# set_menu; soltar a referência na hora destruía os ícones e gerava
+# "gtk_widget_get_scale_factor: assertion 'GTK_IS_WIDGET (widget)' failed".
+_previous_menus = []
 
 
 def apply_state(data):
-    global running_now
+    global running_now, current_icon
     state, repo, aur, todo, fail, reboot = _ints(data)
     running_now = state == "running"
     icon = resolve_icon_name(icon_name_for_state(state))
+    current_icon = icon
     tooltip = tooltip_for_state(data)
 
     # Ícone (com fallback) + título (lido pelos hosts SNI como tooltip).
@@ -1219,7 +1253,7 @@ def transition_notify(data):
     updates = _updates_total(data)
     if state == "updates" and updates > 0:
         desktop_notify(
-            f"full-upgrade: {updates} atualização(ões) disponível(is)",
+            f"full-upgrade: {plural(updates, 'atualização disponível', 'atualizações disponíveis')}",
             "Clique no ícone para executar o full-upgrade.",
         )
     elif state == "attention":
@@ -1228,7 +1262,7 @@ def transition_notify(data):
     elif state == "error":
         desktop_notify(
             "full-upgrade: último run com falha",
-            f"{fail} step(s) falharam. Veja o log: ~/.cache/system-upgrade/latest.log",
+            ("1 step falhou." if fail == 1 else f"{fail} steps falharam.") + " Veja o log: ~/.cache/system-upgrade/latest.log",
             "critical",
         )
     elif state == "idle" and prev in ("updates", "attention"):
@@ -1251,11 +1285,11 @@ def finish_refresh(data, user_initiated=False, probed=False, error=""):
         if state == "running":
             body = "full-upgrade está em execução. Mantendo o estado atual."
         elif fail > 0:
-            body = f"Último run com {fail} falha(s)."
+            body = f"Último run com {plural(fail, 'falha', 'falhas')}."
         elif todo > 0:
             body = f"{todo} avisos e pendências."
         elif updates > 0:
-            body = f"{updates} atualizações: {repo} oficiais, {aur} AUR, {_int(data.get('flatpak'))} Flatpak, {_int(data.get('artcraft'))} Artcraft."
+            body = f"{plural(updates, 'atualização', 'atualizações')}: {updates_breakdown(data)}."
         else:
             body = "Nenhuma atualização ou pendência detectada."
         desktop_notify("Verificação concluída", body, "normal")
@@ -1350,7 +1384,40 @@ def menu_item(label, callback=None, enabled=True, icon=""):
 def info_item(label, icon=""):
     return menu_item(label, enabled=False, icon=icon)
 
-def submenu_item(label, entries, empty_label="Nenhum item", icon=""):
+def entry_lines(entry, width=30):
+    """Quebra "<item> — <motivo>" em linhas: o item primeiro, o motivo recuado.
+
+    Sem separar, o nome do step e o motivo corriam juntos e a quebra caía no
+    meio do nome ("Atualizar plugins" / "DankMaterialShell — trabalho").
+    """
+    head, sep, tail = entry.partition(" — ")
+    lines = textwrap.wrap(head, width=width, break_on_hyphens=False) or [head]
+    if sep and tail.strip():
+        lines += textwrap.wrap(tail, width=width, break_on_hyphens=False,
+                               initial_indent="   ", subsequent_indent="   ")
+    return lines
+
+
+def package_lines(entry, width=30):
+    """"pkg 1.0-1 -> 1.1-1" vira o nome e, recuado, "1.0-1 → 1.1-1".
+
+    A quebra por largura cortava a linha no "->" e jogava a versão nova
+    sozinha na linha seguinte.
+    """
+    parts = entry.split()
+    if len(parts) == 4 and parts[2] == "->":
+        name, old, _, new = parts
+        return [name, f"   {old} → {new}"]
+    return entry_lines(entry, width)
+
+
+def updates_breakdown(data):
+    """"2 oficiais, 1 AUR": só as fontes com atualização."""
+    sources = (("repo", "oficiais"), ("aur", "AUR"), ("flatpak", "Flatpak"), ("artcraft", "Artcraft"))
+    return ", ".join(f"{_int(data.get(key))} {label}" for key, label in sources if _int(data.get(key)))
+
+
+def submenu_item(label, entries, empty_label="Nenhum item", icon="", formatter=None):
     item = menu_item(label, icon=icon)
     submenu = Gtk.Menu()
     for index, entry in enumerate(entries):
@@ -1358,9 +1425,9 @@ def submenu_item(label, entries, empty_label="Nenhum item", icon=""):
             submenu.append(separator())
         # Hosts SNI como DMS usam linhas de altura fixa: publicar cada linha
         # preserva o texto inteiro sem depender de wrapping no host.
-        for line in textwrap.wrap(entry, width=30, break_on_hyphens=False):
+        for line in (formatter or entry_lines)(entry):
             submenu.append(info_item(line))
-    if not entries:
+    if not entries and empty_label:
         submenu.append(info_item(empty_label))
     item.set_submenu(submenu)
     item.show_all()
@@ -1377,10 +1444,14 @@ def rebuild_menu(data):
     rel = relative_time(str(data.get("checked_at") or ""))
     run_rel = relative_time(str(data.get("last_run_at") or ""))
     menu_data = {key: value for key, value in data.items() if key not in ("checked_at", "prev_state")}
-    key = (json.dumps(menu_data, sort_keys=True), checking, check_error, rel, run_rel)
+    # Só a presença dos textos relativos entra na chave; o valor muda a cada
+    # minuto e é atualizado no lugar por refresh_relative_labels.
+    key = (json.dumps(menu_data, sort_keys=True), checking, check_error, bool(rel), bool(run_rel))
     if key == _menu_key:
+        refresh_relative_labels(data)
         return
     _menu_key = key
+    _relative_items.clear()
     state, repo, aur, todo, fail, reboot = _ints(data)
     flatpak = _int(data.get("flatpak"))
     can_run = state != "running"
@@ -1389,26 +1460,31 @@ def rebuild_menu(data):
     if check_error:
         menu.append(submenu_item("Verificação incompleta", [check_error], icon="dialog-warning"))
     if rel:
-        menu.append(info_item(f"Verificado {rel}", "appointment-soon"))
+        _relative_items["checked"] = info_item(f"Verificado {rel}", "appointment-soon")
+        menu.append(_relative_items["checked"])
     details = []
-    if run_rel:
-        details.append(f"Última execução: {run_rel}")
     if _updates_total(data):
-        details.append(f"Atualizações: {repo} oficiais, {aur} AUR, {flatpak} Flatpak, {_int(data.get('artcraft'))} Artcraft")
+        details.append(f"Atualizações: {updates_breakdown(data)}")
     if reboot:
         details.append(f"Reinicialização pendente: {reboot}")
-    if details:
-        menu.append(submenu_item("Resumo da execução", details, icon="dialog-information"))
-    for label, field, count, icon in (
-        ("Pacotes oficiais", "repo_updates", repo, "package-x-generic"),
-        ("Pacotes AUR", "aur_updates", aur, "package-x-generic"),
-        ("Aplicativos Flatpak", "flatpak_updates", flatpak, "application-x-executable"),
-        ("Suíte Artcraft", "artcraft_updates", _int(data.get("artcraft")), "applications-graphics"),
-        ("Avisos e pendências", "doctor_pending", todo, "dialog-warning"),
+    if details or run_rel:
+        summary = submenu_item("Resumo da execução", details, empty_label="", icon="dialog-information")
+        if run_rel:
+            _relative_items["run"] = info_item(f"Última execução: {run_rel}")
+            summary.get_submenu().prepend(_relative_items["run"])
+            if details:
+                summary.get_submenu().insert(separator(), 1)
+        menu.append(summary)
+    for label, field, count, icon, formatter in (
+        ("Pacotes oficiais", "repo_updates", repo, "package-x-generic", package_lines),
+        ("Pacotes AUR", "aur_updates", aur, "package-x-generic", package_lines),
+        ("Aplicativos Flatpak", "flatpak_updates", flatpak, "application-x-executable", entry_lines),
+        ("Suíte Artcraft", "artcraft_updates", _int(data.get("artcraft")), "applications-graphics", entry_lines),
+        ("Avisos e pendências", "doctor_pending", todo, "dialog-warning", entry_lines),
     ):
         entries = as_list(data, field)
         if entries or count:
-            menu.append(submenu_item(f"{label} ({count})", entries, icon=icon))
+            menu.append(submenu_item(f"{label} ({count})", entries, icon=icon, formatter=formatter))
     menu.append(separator())
     update_item = menu_item("Atualizar", enabled=can_run, icon="system-software-update")
     update_menu = Gtk.Menu()
@@ -1429,8 +1505,13 @@ def rebuild_menu(data):
     log_file = str(data.get("log_file") or "")
     report_md = log_file[:-4] + ".md" if log_file.endswith(".log") else ""
     logs_menu = Gtk.Menu()
-    logs_menu.append(menu_item("Último log", lambda: launch([SELF, "--tray-view-log"]),
-                               enabled=bool(log_file), icon="text-x-log"))
+    # O log do run que o menu descreve, não latest.log (que pode ser um dry-run
+    # mais novo que o último run real resumido acima).
+    if log_file and os.path.exists(log_file):
+        open_log = lambda: open_path(log_file)  # noqa: E731
+    else:
+        open_log = lambda: launch([SELF, "--tray-view-log"])  # noqa: E731
+    logs_menu.append(menu_item("Último log", open_log, icon="text-x-log"))
     if report_md and os.path.exists(report_md):
         logs_menu.append(menu_item("Último relatório", lambda: open_path(report_md), icon="text-x-generic"))
     if LOG_DIR:
@@ -1443,6 +1524,25 @@ def rebuild_menu(data):
     menu.append(menu_item("Sair do applet", Gtk.main_quit, icon="application-exit"))
     menu.show_all()
     indicator.set_menu(menu)
+    _previous_menus.append(menu)
+    del _previous_menus[:-2]
+
+
+def refresh_relative_labels(data=None):
+    """Atualiza "Verificado há…" e "Última execução: há…" sem recriar o menu."""
+    data = data if data is not None else load_state()
+    texts = {
+        "checked": relative_time(str(data.get("checked_at") or "")),
+        "run": relative_time(str(data.get("last_run_at") or "")),
+    }
+    for name, item in list(_relative_items.items()):
+        rel = texts.get(name, "")
+        if not rel:
+            continue
+        label = f"Verificado {rel}" if name == "checked" else f"Última execução: {rel}"
+        if item.get_label() != label:
+            item.set_label(label)
+    return True
 
 def handle_usr1(_signum, _frame):
     GLib.idle_add(refresh, True, True)
@@ -1482,8 +1582,10 @@ try:
     indicator.connect("scroll-event", on_scroll)
 except Exception:
     pass
-# Menu inicial a partir do estado em cache (rebuild_menu já faz set_menu).
-rebuild_menu(load_state())
+# Ícone, badge, tooltip e menu a partir do estado em cache: o primeiro probe
+# leva de segundos a minutos, e até lá o applet mostrava o ícone "idle" e o
+# título genérico mesmo com pendências conhecidas.
+apply_state(load_state())
 
 # Monitor the directory because writers atomically replace the state file.
 state_monitor = None
@@ -1497,6 +1599,10 @@ if STATE_FILE:
         GLib.timeout_add_seconds(2, lambda: (reload_cached_state(), True)[1])
 refresh(True)
 GLib.timeout_add_seconds(INTERVAL, every_interval)
+# "Verificado há N min" e "Última execução" são textos relativos: sem este
+# tique o menu congelava no valor do último refresh (ex.: "agora" por 30 min).
+# O texto é trocado no lugar, sem recriar o menu.
+GLib.timeout_add_seconds(60, refresh_relative_labels)
 Gtk.main()
 PY
 }
