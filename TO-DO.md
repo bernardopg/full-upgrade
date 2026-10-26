@@ -16,6 +16,10 @@ Base deste ciclo:
   para `pkg.pr.new`). Causa upstream, não acionável no full-upgrade.
 - Série O (run 2026-07-01): mesclada na `main` via PR #107.
 - Revisão estrutural de steps/categorias (2026-09-14): originou as Séries S e T.
+- Estado na v3.50.0 (2026-10-26): 145 steps no catálogo, 1622 testes Bats.
+  `--mode doctor` real fechou com 31 ok, 0 warn, 1 todo (pacote oficial
+  publicado após o sync) e 0 fail. O applet ganhou identidade visual própria
+  (ícones Material Symbols monocromáticos, gerados por `scripts/gen-icons.py`).
 
 Convenções obrigatórias em todos os itens:
 
@@ -430,6 +434,17 @@ Arquivos: `lib/steps/doctor.sh`, `tests/doctor*.bats`.
 `_obs_install_kind` já detecta Flatpak, mas `OBS_CONFIG_DIR` default só cobre o
 nativo; Flatpak usa `~/.var/app/com.obsproject.Studio/config/obs-studio`.
 Arquivos: `steps.d/85-obs.sh`, `tests/obs.bats`.
+
+#### P11 — 🟡 P ☐ Tray: falha da consulta Artcraft não pode abortar a verificação inteira
+
+Em `tray_check` (`lib/tray.sh`), se `artcraft_check_updates` falha, a função
+retorna 1 antes de gravar o estado. Com a API do GitHub em rate limit
+(`HTTP Error 403: rate limit exceeded`, 60 req/h sem token, 5 apps por
+checagem), o menu mostra "Verificação incompleta — código 1" e as contagens de
+repo/AUR/Flatpak/Doctor ficam congeladas no estado anterior. Visto em
+2026-10-26. Correção: tratar a falha do Artcraft como fonte indisponível
+(mantém a contagem anterior dela e grava o resto), não como falha do check.
+Arquivos: `lib/tray.sh`, `lib/steps/artcraft.sh`, `tests/tray.bats`.
 
 #### P10 — 🟢 P ☐ ZapZap upstream
 
