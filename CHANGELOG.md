@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.50.0] - 2026-10-26
 ### Corrigido
 
 - **Applet (systray):**
