@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Applet mostrava como pendentes os pacotes que o run acabou de
+  instalar:** ao soltar o lock, o run publica o estado do tray sem consultar
+  a rede (`tray_check_now cached`), mas reaproveitava as listas de
+  atualizações de antes do run. Num run real, `libraw` e `ioruba-desktop-bin`
+  seguiram no menu como "1 oficial, 1 AUR" depois de instalados, até o
+  próximo probe (até 30 min). A publicação agora descarta, sem rede, os itens
+  repo/AUR cuja versão instalada (`pacman -Q` + `vercmp`) já alcançou a
+  versão alvo.
+
+
 ## [3.50.1] - 2026-10-26
 ### Corrigido
 

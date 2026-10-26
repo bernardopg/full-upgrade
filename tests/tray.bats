@@ -338,6 +338,57 @@ EOF
   [ "$output" = "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg" ]
 }
 
+_stub_pacman_vercmp() {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  # pacman -Q: só "libraw" e "ioruba" estão instalados.
+  cat > "$BATS_TEST_TMPDIR/bin/pacman" <<'SH'
+#!/bin/sh
+shift
+for p in "$@"; do
+  case "$p" in
+    libraw) echo "libraw 0.22.3-1" ;;
+    ioruba) echo "ioruba 1.10.1-1" ;;
+    *) echo "error: package '$p' was not found" >&2 ;;
+  esac
+done
+SH
+  # vercmp suficiente para o teste: igual -> 0, senão compara lexicamente.
+  cat > "$BATS_TEST_TMPDIR/bin/vercmp" <<'SH'
+#!/bin/sh
+if [ "$1" = "$2" ]; then echo 0; elif [ "$1" \> "$2" ]; then echo 1; else echo -1; fi
+SH
+  chmod +x "$BATS_TEST_TMPDIR/bin/pacman" "$BATS_TEST_TMPDIR/bin/vercmp"
+}
+
+@test "prune_applied_updates: tira o que já foi instalado e mantém o resto" {
+  _stub_pacman_vercmp
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH" run tray_prune_applied_updates \
+    '["libraw 0.22.2-1 -> 0.22.3-1","ioruba 1.10.1-1 -> 1.10.2-1","ausente 1-1 -> 2-1","sem formato"]'
+  [ "$status" -eq 0 ]
+  [ "$output" = $'1\t["ioruba 1.10.1-1 -> 1.10.2-1", "ausente 1-1 -> 2-1", "sem formato"]' ]
+}
+
+@test "check_now cached: run que instalou os pacotes zera a lista anterior" {
+  _stub_pacman_vercmp
+  LOG_DIR="$BATS_TEST_TMPDIR/log" TRAY_STATE_FILE="$BATS_TEST_TMPDIR/state.json"
+  mkdir -p "$LOG_DIR"
+  printf '%s\n' '{"state":"updates","repo":1,"aur":1,"flatpak":0,"artcraft":0,"checked_at":"2026-10-26T20:30:14-03:00","repo_updates":["libraw 0.22.2-1 -> 0.22.3-1"],"aur_updates":["ioruba 1.10.0-1 -> 1.10.1-1"],"flatpak_updates":[],"artcraft_updates":[]}' > "$TRAY_STATE_FILE"
+  tray_is_full_upgrade_running() { return 1; }
+  tray_last_summary_counts() { printf '0 0 0'; }
+  tray_last_summary_line() { return 1; }
+  tray_last_doctor_pending_items() { :; }
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH" run tray_check_now cached
+  [ "$status" -eq 0 ]
+  [ "$output" = idle ]
+  python3 - "$TRAY_STATE_FILE" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["repo"] == 0 and d["aur"] == 0, d
+assert d["repo_updates"] == [] and d["aur_updates"] == [], d
+assert d["checked_at"] == "2026-10-26T20:30:14-03:00", d
+PY
+}
+
 @test "resolve_icon: SVG do pacote vence cópia órfã em ~/.local (install.sh antigo)" {
   FU_ROOT="${BATS_TEST_TMPDIR}/fu-root-vazio"
   XDG_DATA_HOME="${BATS_TEST_TMPDIR}/xdg"

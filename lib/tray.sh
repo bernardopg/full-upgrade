@@ -332,6 +332,47 @@ PYARRAY
   printf '%s' "$line"
 }
 
+# Remove de uma lista de updates (array JSON de "pkg velha -> nova") os pacotes
+# cuja versão instalada já alcançou a nova. Sem rede: só pacman -Q e vercmp.
+# A publicação ao fim de um run (tray_check_now cached) reaproveitava a lista
+# de antes do run, e o tray seguia mostrando como pendente o que o run acabou
+# de instalar até o próximo probe (até 30 min). Imprime "<removidos>\t<json>".
+# Sem pacman/vercmp, ou em entrada fora do formato, mantém o item.
+tray_prune_applied_updates() {
+  python3 - "${1:-[]}" <<'PYPRUNE'
+import json, shutil, subprocess, sys
+try:
+    items = json.loads(sys.argv[1])
+    items = [str(i) for i in items] if isinstance(items, list) else []
+except ValueError:
+    items = []
+pending = {}
+for item in items:
+    parts = item.split()
+    if len(parts) == 4 and parts[2] == "->":
+        pending[parts[0]] = parts[3]
+installed = {}
+if pending and shutil.which("pacman") and shutil.which("vercmp"):
+    out = subprocess.run(["pacman", "-Q", *pending], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        name, _, ver = line.partition(" ")
+        installed[name] = ver.strip()
+
+def applied(item):
+    parts = item.split()
+    if len(parts) != 4 or parts[0] not in installed:
+        return False
+    rc = subprocess.run(["vercmp", installed[parts[0]], parts[3]], capture_output=True, text=True).stdout.strip()
+    try:
+        return int(rc) >= 0
+    except ValueError:
+        return False
+
+kept = [i for i in items if not applied(i)]
+print(f"{len(items) - len(kept)}\t{json.dumps(kept, ensure_ascii=False)}")
+PYPRUNE
+}
+
 # Resolve o binário full-upgrade para uso em .desktop/comandos do yad.
 # Caminho absoluto: o systemd resolve ExecStart sem barra por um PATH fixo de
 # compilação (/usr/local/bin:/usr/bin…), sem ~/.local/bin, então a unit de quem
@@ -571,6 +612,15 @@ tray_check_now() {
     [[ "$repo_json" == \[* ]] || repo_json='[]'
     [[ "$aur_json" == \[* ]] || aur_json='[]'
     [[ "$flatpak_json" == \[* ]] || flatpak_json='[]'
+    # O run que acabou de soltar o lock pode ter instalado parte da lista.
+    local removed pruned
+    if IFS=$'\t' read -r removed pruned < <(tray_prune_applied_updates "$repo_json") && [[ "$removed" =~ ^[0-9]+$ ]]; then
+      repo_json="$pruned"; repo=$(( repo > removed ? repo - removed : 0 ))
+    fi
+    if IFS=$'\t' read -r removed pruned < <(tray_prune_applied_updates "$aur_json") && [[ "$removed" =~ ^[0-9]+$ ]]; then
+      aur_json="$pruned"; aur=$(( aur > removed ? aur - removed : 0 ))
+    fi
+    updates=$(tray_total_updates "$repo" "$aur" "$flatpak" "$artcraft")
   fi
 
   local state checked_at
