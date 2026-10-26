@@ -289,14 +289,18 @@ tray_is_full_upgrade_running() {
 }
 
 # Resolve o caminho do SVG do ícone lógico, ou devolve o nome (lookup de tema).
+# O diretório do pacote vem antes das cópias em ~/.local: quem migrou do
+# install.sh para o AUR fica com SVGs órfãos ali, e eles venciam o pacote,
+# mostrando os ícones de uma versão antiga. Uma instalação via install.sh
+# resolve antes, por ${FU_ROOT}/icons. TRAY_SYSTEM_ICON_DIR existe só para teste.
 tray_resolve_icon() {
   local name="$1" candidate
   for candidate in \
     "${FU_ROOT}/icons/${name}.svg" \
     "${FU_ROOT}/assets/icons/${name}.svg" \
+    "${TRAY_SYSTEM_ICON_DIR:-/usr/share/icons/hicolor/scalable/apps}/${name}.svg" \
     "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/${name}.svg" \
-    "${XDG_DATA_HOME:-$HOME/.local/share}/full-upgrade/icons/${name}.svg" \
-    "/usr/share/icons/hicolor/scalable/apps/${name}.svg"; do
+    "${XDG_DATA_HOME:-$HOME/.local/share}/full-upgrade/icons/${name}.svg"; do
     if [[ -r "$candidate" ]]; then
       printf '%s' "$candidate"
       return 0
@@ -914,6 +918,7 @@ tray_appindicator_main() {
   FU_TRAY_BADGE="${TRAY_BADGE:-1}" \
   FU_TRAY_NOTIFICATIONS="${TRAY_NOTIFICATIONS:-1}" \
   FU_TRAY_ICON_COLOR="${TRAY_ICON_COLOR:-auto}" \
+  FU_TRAY_SYSTEM_ICON_DIR="${TRAY_SYSTEM_ICON_DIR:-}" \
     exec "$py" - 2> >(_tray_appindicator_stderr_filter) <<'PY'
 import atexit
 import datetime
@@ -958,6 +963,7 @@ INTERVAL = max(int(os.environ.get("FU_TRAY_INTERVAL", "1800") or "1800"), 60)
 # DMS é a mesma surfaceText gerada pelo matugen para a barra e os menus.
 ICON_PLACEHOLDER = "#bebebe"
 ICON_COLOR = os.environ.get("FU_TRAY_ICON_COLOR", "auto").strip().lower()
+SYSTEM_ICON_DIR = os.environ.get("FU_TRAY_SYSTEM_ICON_DIR") or "/usr/share/icons/hicolor/scalable/apps"
 ICON_CACHE_DIR = os.path.join(
     os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache"),
     "full-upgrade", "tray-icons")
@@ -998,15 +1004,18 @@ def icon_name_for_state(state):
 
 
 def icon_source(name):
-    """Caminho do SVG de `name` (dev, instalação ou hicolor); "" se não houver."""
+    """Caminho do SVG de `name` (dev, instalação ou hicolor); "" se não houver.
+
+    Mesma ordem de tray_resolve_icon: o pacote vence cópias órfãs em ~/.local.
+    """
     home = os.path.expanduser("~")
     xdg_data = os.environ.get("XDG_DATA_HOME", os.path.join(home, ".local/share"))
     candidates = [
         os.path.join(FU_ROOT, "icons", f"{name}.svg"),
         os.path.join(FU_ROOT, "assets/icons", f"{name}.svg"),
+        os.path.join(SYSTEM_ICON_DIR, f"{name}.svg"),
         os.path.join(xdg_data, "icons/hicolor/scalable/apps", f"{name}.svg"),
         os.path.join(xdg_data, "full-upgrade/icons", f"{name}.svg"),
-        os.path.join("/usr/share/icons/hicolor/scalable/apps", f"{name}.svg"),
     ]
     return next((path for path in candidates if os.path.exists(path)), "")
 

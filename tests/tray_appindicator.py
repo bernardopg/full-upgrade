@@ -39,7 +39,7 @@ menus, notices = [], []
 ctx = dict(json=json, datetime=datetime, textwrap=textwrap,
            os=__import__('os'), checking=False, check_error='', _menu_key=None,
            _relative_items={}, _previous_menus=[],
-           LOG_DIR='', SELF='full-upgrade', FU_ROOT=str(ROOT),
+           LOG_DIR='', SELF='full-upgrade', FU_ROOT=str(ROOT), SYSTEM_ICON_DIR='/nonexistent',
            ICON_PLACEHOLDER='#bebebe', ICON_COLOR='#bebebe', MENU_ICON_PX=32,
            ICON_CACHE_DIR=tempfile.mkdtemp(), _icon_color_probe=None,
            # Pixbuf e Image devolvem o caminho do SVG para o teste conferir o arquivo.
@@ -163,3 +163,21 @@ ctx['ICON_COLOR'] = 'vermelho'
 ctx['Gtk'].Menu = lambda: (_ for _ in ()).throw(RuntimeError('sem display'))
 assert ctx['icon_color']() == '#bebebe'
 print('Tray: Material icons shipped, state icon in header and theme tint OK')
+
+# Cópia órfã em ~/.local (install.sh antigo) não pode vencer o pacote.
+tmp = Path(tempfile.mkdtemp())
+(tmp / 'sys').mkdir(); (tmp / 'xdg/icons/hicolor/scalable/apps').mkdir(parents=True)
+(tmp / 'sys/full-upgrade-tray-idle.svg').write_text('novo')
+(tmp / 'xdg/icons/hicolor/scalable/apps/full-upgrade-tray-idle.svg').write_text('velho')
+os_mod = ctx['os']
+old_env = os_mod.environ.get('XDG_DATA_HOME')
+os_mod.environ['XDG_DATA_HOME'] = str(tmp / 'xdg')
+ctx.update(FU_ROOT=str(tmp / 'sem-root'), SYSTEM_ICON_DIR=str(tmp / 'sys'))
+assert ctx['icon_source']('full-upgrade-tray-idle') == str(tmp / 'sys/full-upgrade-tray-idle.svg')
+(tmp / 'sys/full-upgrade-tray-idle.svg').unlink()
+assert ctx['icon_source']('full-upgrade-tray-idle').endswith('xdg/icons/hicolor/scalable/apps/full-upgrade-tray-idle.svg')
+if old_env is None:
+    os_mod.environ.pop('XDG_DATA_HOME')
+else:
+    os_mod.environ['XDG_DATA_HOME'] = old_env
+print('Tray: packaged icons win over orphaned user-local copies OK')

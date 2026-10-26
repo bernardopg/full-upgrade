@@ -4,6 +4,17 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Applet mostrava os ícones antigos após migrar do `install.sh` para o
+  AUR:** a resolução procurava `~/.local/share/icons/hicolor` antes de
+  `/usr/share/icons/hicolor`. Quem já tinha instalado via `install.sh` ficava
+  com SVGs órfãos ali, e eles venciam os do pacote. O painel mostrava o
+  ícone colorido da versão anterior, que não pode ser tingido, ao lado dos
+  ícones novos do menu. O diretório do pacote agora vem antes das cópias do
+  usuário; uma instalação via `install.sh` continua resolvendo antes, pelo
+  próprio `icons/`.
+
 ## [3.50.0] - 2026-10-26
 ### Corrigido
 

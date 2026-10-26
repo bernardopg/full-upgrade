@@ -338,6 +338,22 @@ EOF
   [ "$output" = "$FU_ROOT/assets/icons/full-upgrade-tray-error.svg" ]
 }
 
+@test "resolve_icon: SVG do pacote vence cópia órfã em ~/.local (install.sh antigo)" {
+  FU_ROOT="${BATS_TEST_TMPDIR}/fu-root-vazio"
+  XDG_DATA_HOME="${BATS_TEST_TMPDIR}/xdg"
+  TRAY_SYSTEM_ICON_DIR="${BATS_TEST_TMPDIR}/sys"
+  mkdir -p "$XDG_DATA_HOME/icons/hicolor/scalable/apps" "$TRAY_SYSTEM_ICON_DIR"
+  touch "$XDG_DATA_HOME/icons/hicolor/scalable/apps/full-upgrade-tray-idle.svg"
+  touch "$TRAY_SYSTEM_ICON_DIR/full-upgrade-tray-idle.svg"
+  run tray_resolve_icon "full-upgrade-tray-idle"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$TRAY_SYSTEM_ICON_DIR/full-upgrade-tray-idle.svg" ]
+  # Sem o pacote, a cópia do usuário ainda serve (standalone sem instalação).
+  rm "$TRAY_SYSTEM_ICON_DIR/full-upgrade-tray-idle.svg"
+  run tray_resolve_icon "full-upgrade-tray-idle"
+  [ "$output" = "$XDG_DATA_HOME/icons/hicolor/scalable/apps/full-upgrade-tray-idle.svg" ]
+}
+
 # ── tray_build_menu ────────────────────────────────────────────────────────────
 
 @test "build_menu: contém itens essenciais" {
