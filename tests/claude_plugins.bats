@@ -123,3 +123,31 @@ Warning: The following skills from x/y appear to have been deleted upstream:
 EOF2
   [ "$output" = "qa edit-article" ]
 }
+
+@test "agent_skills_lock_file: segue XDG_STATE_HOME" {
+  XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" run agent_skills_lock_file
+  [ "$output" = "$BATS_TEST_TMPDIR/state/skills/.skill-lock.json" ]
+}
+
+@test "agent_skills_tracked_count: conta as skills do lock, sem presumir nomes" {
+  has() { [[ "$1" == python3 ]]; }
+  printf '{"version":3,"skills":{"a":{},"b":{},"c":{}}}' >"$BATS_TEST_TMPDIR/lock.json"
+  run agent_skills_tracked_count "$BATS_TEST_TMPDIR/lock.json"
+  [ "$output" = 3 ]
+}
+
+@test "agent_skills_tracked_count: lock ausente ou inválido conta 0" {
+  has() { [[ "$1" == python3 ]]; }
+  run agent_skills_tracked_count "$BATS_TEST_TMPDIR/nao-existe.json"
+  [ "$output" = 0 ]
+  printf 'lixo' >"$BATS_TEST_TMPDIR/bad.json"
+  run agent_skills_tracked_count "$BATS_TEST_TMPDIR/bad.json"
+  [ "$output" = 0 ]
+}
+
+@test "update_agent_skills: sem diretório nem lock é no-op sem rede" {
+  has() { [[ "$1" == npx ]]; }
+  npx() { echo "npx não deveria rodar" >&2; return 9; }
+  HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" run update_agent_skills
+  [ "$status" -eq 0 ]
+}

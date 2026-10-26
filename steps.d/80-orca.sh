@@ -73,43 +73,43 @@ PY
 install_orca_ide_aur() {
   local helper="${AUR_HELPER:-}"
   if [[ -z "$helper" ]] || ! has "$helper"; then
-    log " Nenhum helper AUR disponível para instalar ${ORCA_IDE_PACKAGE}."
+    log "  Nenhum helper AUR disponível para instalar ${ORCA_IDE_PACKAGE}."
     return 1
   fi
 
-  log " Instalando/garantindo Orca IDE via AUR (${ORCA_IDE_PACKAGE})..."
+  log "  Instalando/garantindo Orca IDE via AUR (${ORCA_IDE_PACKAGE})..."
   run_logged "$helper" -S --needed --noconfirm "$ORCA_IDE_PACKAGE"
 }
 
 install_orca_ide_appimage() {
   if ! has curl; then
-    log " curl ausente; não é possível baixar o AppImage do Orca IDE."
+    log "  curl ausente; não é possível baixar o AppImage do Orca IDE."
     return 1
   fi
 
   local url target_dir target tmp sha256
   url="$(orca_ide_release_appimage_url "$(uname -m)")" || {
-    log " Arquitetura sem AppImage conhecido para Orca IDE: $(uname -m)"
+    log "  Arquitetura sem AppImage conhecido para Orca IDE: $(uname -m)"
     return 1
   }
   target_dir="${HOME}/.local/share/orca-ide"
   target="${target_dir}/stably-orca"
   tmp="$(mktemp "${TMPDIR:-/tmp}/orca-ide.XXXXXX")" || return 1
 
-  log " Baixando Orca IDE AppImage..."
+  log "  Baixando Orca IDE AppImage..."
   if ! run_network_cmd curl -fL "$url" -o "$tmp" >/dev/null; then
     rm -f "$tmp"
-    log " Falha ao baixar AppImage do Orca IDE."
+    log "  Falha ao baixar AppImage do Orca IDE."
     return "$RC_WARN"
   fi
   sha256="$(orca_ide_release_appimage_sha256 "$(uname -m)" 2>>"$LOG_FILE")" || {
     rm -f "$tmp"
-    log " Não foi possível obter checksum SHA-256 do release do Orca IDE; abortando fallback AppImage."
+    log "  Não foi possível obter checksum SHA-256 do release do Orca IDE; abortando fallback AppImage."
     return 1
   }
   if ! printf '%s  %s\n' "$sha256" "$tmp" | sha256sum -c - >>"$LOG_FILE" 2>&1; then
     rm -f "$tmp"
-    log " Checksum do AppImage do Orca IDE não confere; abortando."
+    log "  Checksum do AppImage do Orca IDE não confere; abortando."
     return 1
   fi
 
@@ -118,7 +118,7 @@ install_orca_ide_appimage() {
   mv -f "$tmp" "$target"
   ln -sfn "$target" "${HOME}/.local/bin/stably-orca"
   ORCA_IDE_BIN="$target"
-  log " Orca IDE instalado em ${target}."
+  log "  Orca IDE instalado em ${target}."
 }
 
 orca_ide_icon_source() {
@@ -150,11 +150,11 @@ ensure_orca_ide_icon() {
     cp -f -- "$icon_source" "$icon_target"
   elif [[ ! -f "$icon_target" ]]; then
     if ! has curl; then
-      log " Ícone do Orca não encontrado e curl ausente para baixar fallback."
+      log "  Ícone do Orca não encontrado e curl ausente para baixar fallback."
       return "$RC_WARN"
     fi
     if ! run_network_cmd curl -fsSL "$ORCA_IDE_ICON_URL" -o "$icon_target" >/dev/null; then
-      log " Falha ao baixar ícone fallback do Orca IDE."
+      log "  Falha ao baixar ícone fallback do Orca IDE."
       return "$RC_WARN"
     fi
   fi
@@ -205,8 +205,8 @@ repair_orca_ide_desktop() {
     update-desktop-database "${HOME}/.local/share/applications" >/dev/null 2>&1 || true
   fi
 
-  log " Orca IDE desktop: ${desktop_file}"
-  log " Orca IDE ícone: ${icon_path}"
+  log "  Orca IDE desktop: ${desktop_file}"
+  log "  Orca IDE ícone: ${icon_path}"
 }
 
 ensure_orca_ide() {
@@ -214,7 +214,7 @@ ensure_orca_ide() {
   if ! orca_ide_installed; then
     if (( ${ENABLE_CUSTOM_TOOLS:-0} == 0 )); then
       STEP_REASON="orca não instalado; habilite ENABLE_CUSTOM_TOOLS=1 para instalar"
-      log " Orca IDE não encontrado; instalação automática desligada."
+      log "  Orca IDE não encontrado; instalação automática desligada."
       return "$RC_TODO"
     fi
 
@@ -224,7 +224,7 @@ ensure_orca_ide() {
       return "$status"
     fi
   else
-    log " Orca IDE já instalado."
+    log "  Orca IDE já instalado."
   fi
 
   repair_orca_ide_desktop || status=$?

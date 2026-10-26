@@ -171,3 +171,16 @@ _fake_ssd_sysblock() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Nenhum SSD/NVMe detectado"* ]]
 }
+
+# Linhas de detalhe de um step usam 2 espaços: a coluna 0 é dos status
+# (▶/✔/⚠) e 1 espaço desalinha o texto em relação a todo o resto do TUI.
+# Três plugins de steps.d/ (Wireshark, Orca, Antigravity) saíam assim.
+@test "fonte: log de detalhe de step não usa indentação de 1 espaço" {
+  local hits
+  hits="$(grep -rnE '\blog(_always)? " [^ ]' "${FU_ROOT}/lib/steps" "${FU_ROOT}/steps.d" || true)"
+  if [[ -n "$hits" ]]; then
+    echo "use 2 espaços no início da mensagem de log:"
+    echo "$hits"
+  fi
+  [ -z "$hits" ]
+}

@@ -463,18 +463,25 @@ update_kimi() {
 
 # Atualiza as "agent skills" globais via o CLI `skills` (rodado por npx). As
 # skills ficam em ~/.agents/skills e são compartilhadas entre agentes (Claude
-# Code, Codex, Cline, Amp…); inclui caveman/cavecrew, 9router-*, last30days e
-# quaisquer outras adicionadas pelo usuário. Roda por presença de npx + do
-# diretório de skills; é idempotente (reporta "up to date" quando nada muda).
-# Cobre o pedido "atualizar o caveman" num único passo. Falha de rede => RC_WARN.
+# Code, Codex, Cline, Amp…); o conjunto é o que cada máquina instalou, então o
+# step não presume nenhuma skill específica: trabalha com o que o lock do CLI
+# rastreia. Roda por presença de npx + do diretório de skills ou do lock; é
+# idempotente (reporta "up to date" quando nada muda). Falha de rede => RC_WARN.
 update_agent_skills() {
   has npx || { log "  npx não encontrado; pulando update de agent skills."; return 0; }
-  if [[ ! -d "${HOME}/.agents/skills" ]]; then
-    log "  Nenhuma agent skill global instalada (~/.agents/skills ausente)."
+  local skills_dir="${HOME}/.agents/skills" lock tracked
+  lock="$(agent_skills_lock_file)"
+  if [[ ! -d "$skills_dir" && ! -f "$lock" ]]; then
+    log "  Nenhuma agent skill global instalada (sem ${skills_dir} nem lock do skills CLI)."
     return 0
   fi
 
-  log "  Atualizando agent skills globais (caveman, cavecrew, 9router-*…) via 'npx skills update --global'…"
+  tracked="$(agent_skills_tracked_count "$lock")"
+  if ((tracked > 0)); then
+    log "  Atualizando ${tracked} agent skill(s) globais rastreada(s) via 'npx skills update --global'…"
+  else
+    log "  Atualizando agent skills globais via 'npx skills update --global'…"
+  fi
   local output rc
   output="$(npx --yes skills update --global 2>&1)"
   rc=$?
@@ -500,7 +507,30 @@ update_agent_skills() {
     log "  Skills sem upstream (não recebem mais update, mantidas): ${orphans}."
     log "  Para removê-las: npx skills remove --global ${orphans}"
   fi
-  agent_skills_git_ff "${HOME}/.agents/skills"
+  agent_skills_git_ff "$skills_dir"
+}
+
+# Lock global do CLI `skills` (XDG state): registra cada skill instalada com
+# --global, de qualquer origem, independentemente do diretório de destino.
+agent_skills_lock_file() {
+  printf '%s/skills/.skill-lock.json\n' "${XDG_STATE_HOME:-${HOME}/.local/state}"
+}
+
+# Quantas skills o lock rastreia (0 se ausente, ilegível ou sem python3).
+agent_skills_tracked_count() {
+  local lock="$1" n=""
+  if [[ -r "$lock" ]] && has python3; then
+    n="$(python3 -c '
+import json, sys
+try:
+    skills = json.load(open(sys.argv[1])).get("skills")
+except Exception:
+    skills = None
+print(len(skills) if isinstance(skills, dict) else 0)
+' "$lock" 2>/dev/null)"
+  fi
+  [[ "$n" =~ ^[0-9]+$ ]] || n=0
+  printf '%s\n' "$n"
 }
 
 # Nomes únicos (espaço) das skills que o `skills update` diz terem sido
@@ -551,7 +581,7 @@ agent_skills_git_ff() {
 
 # ── Plugins do Claude Code ─────────────────────────────────────────────────────
 # O Claude Code só atualiza sozinho o marketplace oficial; marketplaces de
-# terceiros (caveman, ponytail, headroom, codex…) ficam sem autoUpdate e os
+# terceiros (qualquer um que o usuário tenha adicionado) ficam sem autoUpdate e os
 # plugins deles paravam na versão instalada (visto em 2026-09-25: 16 dias sem
 # refresh). Fluxo: `plugin marketplace update` (todos), depois `plugin update
 # <id> --scope user --json` para cada plugin de escopo user. Escopos

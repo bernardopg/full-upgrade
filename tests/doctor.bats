@@ -797,3 +797,18 @@ _cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M
   run service_restart_is_session_critical postgresql.service
   [ "$status" -ne 0 ]
 }
+
+# ── service_is_bus_activated: restart de service só-D-Bus vira stop ───────────
+
+@test "service_is_bus_activated: static + Type=dbus + BusName é ativado via D-Bus" {
+  service_is_bus_activated $'Type=dbus\nUnitFileState=static\nBusName=org.freedesktop.GeoClue2'
+}
+
+@test "service_is_bus_activated: unit habilitada ou sem BusName não é" {
+  run service_is_bus_activated $'Type=dbus\nUnitFileState=enabled\nBusName=org.x.Y'
+  [ "$status" -ne 0 ]
+  run service_is_bus_activated $'Type=dbus\nUnitFileState=static\nBusName='
+  [ "$status" -ne 0 ]
+  run service_is_bus_activated $'Type=simple\nUnitFileState=static\nBusName=org.x.Y'
+  [ "$status" -ne 0 ]
+}

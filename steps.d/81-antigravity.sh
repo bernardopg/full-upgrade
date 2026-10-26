@@ -92,7 +92,7 @@ install_antigravity_aur() {
     local -a cmd=()
 
     if [[ -z "$helper" ]] || ! has "$helper"; then
-        log " Nenhum helper AUR disponível para instalar/atualizar Antigravity."
+        log "  Nenhum helper AUR disponível para instalar/atualizar Antigravity."
         STEP_REASON="instale paru/yay/pikaur ou configure AUR_HELPER"
         return "$RC_TODO"
     fi
@@ -101,11 +101,13 @@ install_antigravity_aur() {
     [[ "$helper" == "paru" ]] && cmd+=(--skipreview)
     cmd+=("$@")
 
-    log " Instalando/atualizando via AUR: $*"
-    _retry 2 env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}"
-    local rc=$?
+    log "  Instalando/atualizando via AUR: $*"
+    # _retry ecoa a saída crua no stdout (e já a grava no log); log_out indenta e respeita --quiet
+    # (sem isso, as linhas ":: ..." do helper AUR saíam na coluna 0).
+    _retry 2 env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}" | log_out
+    local rc=${PIPESTATUS[0]}
     if (( rc != 0 )); then
-        log " Falha no helper AUR ao processar Antigravity."
+        log "  Falha no helper AUR ao processar Antigravity."
         if (( rc == RC_WARN )); then
             STEP_REASON="rede indisponível para atualizar Antigravity"
             return "$RC_WARN"
@@ -244,7 +246,7 @@ repair_antigravity_desktops() {
             antigravity_desktop_exec_differs "$ANTIGRAVITY_DESKTOP_ID" "$hub_bin" ||
             antigravity_desktop_exec_is_broken "$ANTIGRAVITY_DESKTOP_ID"; then
             desktop_file="$(write_antigravity_desktop "$hub_bin")" || status=$?
-            ((status == 0)) && log " Antigravity desktop: ${desktop_file}"
+            ((status == 0)) && log "  Antigravity desktop: ${desktop_file}"
         fi
     fi
 
@@ -254,13 +256,13 @@ repair_antigravity_desktops() {
             antigravity_desktop_exec_differs "$ANTIGRAVITY_IDE_DESKTOP_ID" "$ide_bin" ||
             antigravity_desktop_exec_is_broken "$ANTIGRAVITY_IDE_DESKTOP_ID"; then
             desktop_file="$(write_antigravity_ide_desktop "$ide_bin")" || status=$?
-            ((status == 0)) && log " Antigravity IDE desktop: ${desktop_file}"
+            ((status == 0)) && log "  Antigravity IDE desktop: ${desktop_file}"
         fi
         if ! antigravity_desktop_present "$ANTIGRAVITY_IDE_URL_DESKTOP_ID" ||
             antigravity_desktop_exec_differs "$ANTIGRAVITY_IDE_URL_DESKTOP_ID" "$ide_bin" ||
             antigravity_desktop_exec_is_broken "$ANTIGRAVITY_IDE_URL_DESKTOP_ID"; then
             desktop_file="$(write_antigravity_ide_url_desktop "$ide_bin")" || status=$?
-            ((status == 0)) && log " Antigravity IDE URL handler: ${desktop_file}"
+            ((status == 0)) && log "  Antigravity IDE URL handler: ${desktop_file}"
         fi
     fi
 
@@ -285,7 +287,7 @@ repair_antigravity_command_shadowing() {
             if has sudo && sudo -n true 2>/dev/null; then
                 pfx="sudo"
             else
-                log " ${local_bin} sombreia ${system_bin}, mas requer sudo para mover."
+                log "  ${local_bin} sombreia ${system_bin}, mas requer sudo para mover."
                 STEP_REASON="remova ${local_bin} ou rode com sudo pronto"
                 status="$RC_TODO"
                 continue
@@ -293,9 +295,9 @@ repair_antigravity_command_shadowing() {
         fi
 
         if ${pfx:+$pfx} mv -f -- "$local_bin" "$backup" 2>>"$LOG_FILE"; then
-            log " Shadowing removido: ${local_bin} -> ${backup}"
+            log "  Shadowing removido: ${local_bin} -> ${backup}"
         else
-            log " Falha ao mover ${local_bin}; ele continua sombreando ${system_bin}."
+            log "  Falha ao mover ${local_bin}; ele continua sombreando ${system_bin}."
             STEP_REASON="falha ao remover shadowing de ${local_bin}"
             status="$RC_TODO"
         fi
@@ -317,14 +319,14 @@ repair_antigravity_legacy_opt_dir() {
         if has sudo && sudo -n true 2>/dev/null; then
             pfx="sudo"
         else
-            log " ${legacy_dir} é legado manual sem dono, mas requer sudo para mover."
+            log "  ${legacy_dir} é legado manual sem dono, mas requer sudo para mover."
             STEP_REASON="mova ${legacy_dir} com sudo ou rode com sudo pronto"
             return "$RC_TODO"
         fi
     fi
 
     if ! ${pfx:+$pfx} mv -f -- "$legacy_dir" "$backup_dir" 2>>"$LOG_FILE"; then
-        log " Falha ao mover ${legacy_dir}; diretório manual legado permanece."
+        log "  Falha ao mover ${legacy_dir}; diretório manual legado permanece."
         STEP_REASON="falha ao mover ${legacy_dir}"
         return "$RC_TODO"
     fi
@@ -336,7 +338,7 @@ repair_antigravity_legacy_opt_dir() {
         ${pfx:+$pfx} ln -sfn "${backup_dir}/antigravity" "$link" 2>>"$LOG_FILE" || true
     done
 
-    log " Diretório legado movido: ${legacy_dir} -> ${backup_dir}"
+    log "  Diretório legado movido: ${legacy_dir} -> ${backup_dir}"
 }
 
 check_antigravity_release_status() {
@@ -349,18 +351,18 @@ check_antigravity_release_status() {
     latest="$(antigravity_latest_version "$releases_url")"
     rc=$?
     if ((rc != 0)) || [[ -z "$latest" ]]; then
-        log " ${label}: não foi possível consultar o manifest oficial."
+        log "  ${label}: não foi possível consultar o manifest oficial."
         STEP_REASON="manifest oficial do Antigravity indisponível"
         return "$RC_WARN"
     fi
 
-    log " ${label}: pacote ${current}; upstream ${latest}."
+    log "  ${label}: pacote ${current}; upstream ${latest}."
     # Este check roda DEPOIS de install_antigravity_aur, ou seja, o pacote já
     # está na versão mais nova que o AUR oferece. Se ainda assim está atrás do
     # upstream, quem está atrasado é o PKGBUILD — não há ação do usuário, e
     # marcar todo só gera ruído recorrente em todo run. Fica informativo.
     if version_is_outdated "$current" "$latest"; then
-        log " ${label}: AUR ainda não empacotou ${latest}; nada a fazer neste run."
+        log "  ${label}: AUR ainda não empacotou ${latest}; nada a fazer neste run."
     fi
 }
 
@@ -370,7 +372,7 @@ ensure_antigravity() {
 
     if ! has pacman; then
         STEP_REASON="Antigravity no Arch requer pacman/AUR"
-        log " pacman não encontrado; este step é específico para Arch Linux."
+        log "  pacman não encontrado; este step é específico para Arch Linux."
         return "$RC_TODO"
     fi
 
@@ -383,7 +385,7 @@ ensure_antigravity() {
 
     if ((${#packages[@]} == 0)); then
         STEP_REASON="antigravity não instalado; habilite ENABLE_CUSTOM_TOOLS=1 para instalar"
-        log " Antigravity não encontrado; instalação automática desligada."
+        log "  Antigravity não encontrado; instalação automática desligada."
         return "$RC_TODO"
     fi
 
@@ -408,10 +410,10 @@ ensure_antigravity() {
     ((rc == 0 || status != 0)) || status=$rc
 
     if [[ -n "${ANTIGRAVITY_BIN:-}" ]]; then
-        log " Antigravity binário: ${ANTIGRAVITY_BIN}"
+        log "  Antigravity binário: ${ANTIGRAVITY_BIN}"
     fi
     if [[ -n "${ANTIGRAVITY_IDE_BIN:-}" ]]; then
-        log " Antigravity IDE binário: ${ANTIGRAVITY_IDE_BIN}"
+        log "  Antigravity IDE binário: ${ANTIGRAVITY_IDE_BIN}"
     fi
 
     return "$status"

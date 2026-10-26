@@ -12,10 +12,10 @@ wireshark_install_arch_package() {
     if [[ -n "$installed_ver" ]]; then
         available_ver="$(pacman -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
         if [[ -n "$available_ver" && "$installed_ver" == "$available_ver" ]]; then
-            log " ${pkg} ${installed_ver} já na versão mais recente."
+            log "  ${pkg} ${installed_ver} já na versão mais recente."
             return 0
         fi
-        [[ -n "$available_ver" ]] && log " ${pkg}: ${installed_ver} → ${available_ver}"
+        [[ -n "$available_ver" ]] && log "  ${pkg}: ${installed_ver} → ${available_ver}"
     fi
 
     run_logged sudo pacman -S --needed --noconfirm "$pkg"
@@ -24,7 +24,7 @@ wireshark_install_arch_package() {
 # Garante/atualiza apenas o Wireshark (pacote oficial wireshark-qt).
 ensure_wireshark() {
     if ! wireshark_install_arch_package wireshark-qt; then
-        log " Falha ao garantir wireshark-qt."
+        log "  Falha ao garantir wireshark-qt."
         return 1
     fi
     return 0
@@ -36,11 +36,11 @@ repair_wireshark_capture_permissions() {
     fi
 
     if [[ ! -e /usr/bin/dumpcap ]]; then
-        log " dumpcap não encontrado."
+        log "  dumpcap não encontrado."
         return 1
     fi
     if ! getent group wireshark >/dev/null 2>&1; then
-        log " Grupo wireshark não encontrado."
+        log "  Grupo wireshark não encontrado."
         return 1
     fi
 
@@ -49,7 +49,7 @@ repair_wireshark_capture_permissions() {
     if has setcap; then
         run_logged sudo setcap cap_net_raw,cap_net_admin,cap_dac_override+eip /usr/bin/dumpcap
     else
-        log " setcap não instalado; não foi possivel configurar capabilities."
+        log "  setcap não instalado; não foi possivel configurar capabilities."
         return 1
     fi
 }

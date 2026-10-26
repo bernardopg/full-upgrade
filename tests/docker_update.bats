@@ -13,6 +13,8 @@ setup() {
   MOCK_INSPECT_FAIL=0
   MOCK_DIGESTS=1
   MOCK_COMPOSE_PROJECT=''
+  MOCK_COMPOSE_DIR=''
+  MOCK_COMPOSE_SVC=''
   STEP_REASON=''
   _retry() { printf 'mock pull\n'; return "$MOCK_PULL_RC"; }
   docker() {
@@ -30,7 +32,7 @@ setup() {
       'container inspect '*)
         (( MOCK_INSPECT_FAIL )) && return 1
         if (( MOCK_STALE )); then
-          printf '/web\tcaddy:2.11-alpine\tsha256:old\n'
+          printf '/web\tcaddy:2.11-alpine\tsha256:old\t%s\t%s\n' "$MOCK_COMPOSE_DIR" "$MOCK_COMPOSE_SVC"
         else
           printf '/web\tcaddy:2.11-alpine\tsha256:new\n'
         fi ;;
@@ -120,4 +122,24 @@ setup() {
   MOCK_STALE=1
   run update_docker_images
   [ "$status" -eq 1 ]
+}
+
+@test "Docker: container de Compose com imagem antiga recebe comando exato de recriação" {
+  MOCK_STALE=1
+  MOCK_COMPOSE_DIR='/srv/app'
+  MOCK_COMPOSE_SVC='web'
+  REMEDIATIONS=()
+  remediation() { REMEDIATIONS+=("$*"); }
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [ "${REMEDIATIONS[0]}" = "docker compose --project-directory /srv/app up -d --no-deps --force-recreate web" ]
+}
+
+@test "Docker: container fora do Compose continua TODO sem comando de Compose" {
+  MOCK_STALE=1
+  REMEDIATIONS=()
+  remediation() { REMEDIATIONS+=("$*"); }
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [ "${#REMEDIATIONS[@]}" -eq 0 ]
 }

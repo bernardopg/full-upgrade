@@ -509,11 +509,25 @@ git_tracking_ref() {
 #   conflict — o pop conflitou; árvore restaurada ao upstream (funcional) e as
 #             mudanças do usuário seguem intactas no stash (o git preserva a
 #             entrada quando o pop conflita)
-# Retorna 0 nos três casos; 1 apenas em falha operacional (stash/reset falhou).
+# Retorna 0 nos quatro casos; 1 apenas em falha operacional (stash/reset falhou).
+#
+# Arquivos não rastreados sozinhos não contam como trabalho em andamento: o
+# stash --include-untracked os devolve intactos (status restored).
+#   local    — trabalho em andamento (arquivos rastreados modificados ou commits
+#             que não existem em nenhum remote): NADA foi alterado. Um clone
+#             que o usuário está desenvolvendo não pode ser realinhado: o
+#             reset --hard movia a branch de trabalho para o upstream e tirava
+#             as edições da árvore no meio da sessão (visto num plugin DMS em
+#             desenvolvimento, numa branch de feature com 11 arquivos editados).
 git_recover_plugin_repo() {
   local dir="$1" label="$2" remote_ref stash_before stash_after status
   remote_ref="$(git -C "$dir" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || echo "origin/HEAD")"
   remote_ref="${remote_ref#refs/remotes/}"
+
+  if git_has_local_work "$dir"; then
+    printf 'local %s\n' "$remote_ref"
+    return 0
+  fi
 
   stash_before="$(git -C "$dir" rev-parse -q --verify refs/stash 2>/dev/null || true)"
   if ! git -C "$dir" stash push --quiet --include-untracked \
@@ -546,6 +560,17 @@ git_recover_plugin_repo() {
   fi
   printf '%s %s\n' "$status" "$remote_ref"
   return 0
+}
+
+# Verdadeiro se o clone tem trabalho do usuário que um realinhamento ao upstream
+# destruiria ou esconderia: arquivos rastreados modificados (staged ou não) ou
+# commits do HEAD que não estão em nenhum ref remoto. Branch de PR já mergeada
+# upstream tem os commits em origin/* e continua recuperável.
+git_has_local_work() {
+  local dir="$1" ahead
+  [[ -n "$(git -C "$dir" status --porcelain --untracked-files=no 2>/dev/null)" ]] && return 0
+  ahead="$(git -C "$dir" rev-list --count HEAD --not --remotes 2>/dev/null || echo 0)"
+  ((ahead > 0))
 }
 
 # Caminho do sidecar com os pacotes AUR que falharam build()/download NESTE run.
@@ -1213,6 +1238,10 @@ run_step() {
       _kill_tree "$_bg_pid" KILL
       wait "$_bg_pid" 2>/dev/null
       rc=124
+      # pacman morto deixa db.lck e derrubaria os próximos steps de pacote.
+      if [[ ",${_cat_tags}," == *",pacman,"* ]] && declare -F pacman_release_stale_lock >/dev/null; then
+        pacman_release_stale_lock
+      fi
     else
       wait "$_bg_pid" 2>/dev/null
       rc=$?

@@ -29,7 +29,7 @@ Checar notícias do Arch Linux|packages|news,network,pacman|read|45|curl|check_a
 Atualizar mirrors|packages|mirror,network,sudo,pacman|mutating|120||refresh_mirrors|Atualiza mirrorlist via reflector/rate-mirrors com backup.
 Limpar lock stale do pacman|repair|pacman|mutating|30||ensure_pacman_lock_is_clean|Remove lock obsoleto do pacman quando nenhum gerenciador está rodando.
 Reparar ambiente GnuPG/AUR|repair|aur,gnupg|mutating|60||repair_gnupg_runtime|Corrige permissões de GnuPG e reinicia dirmngr para evitar falhas no AUR.
-Atualizar pacotes do sistema e AUR|packages|update,network,slow,system,aur,pacman|mutating|600||update_system_aur|Atualiza pacotes oficiais e AUR com AUR_HELPER (paru/yay/pikaur detectados) ou pacman.
+Atualizar pacotes do sistema e AUR|packages|update,network,slow,system,aur,pacman|mutating|1800||update_system_aur|Atualiza pacotes oficiais e AUR com AUR_HELPER (paru/yay/pikaur detectados) ou pacman.
 Garantir Wireshark|security|security,wireshark,network|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
 Garantir Burp Suite|security|security,burp,aur,network|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
 Reparar comandos locais conflitantes|repair|shadowing|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
@@ -76,12 +76,12 @@ Atualizar OpenClaw|ai|openclaw,update,network|mutating|120|openclaw|update_openc
 Atualizar Claude Code CLI|ai|claude,update,network,slow|mutating|600|claude|update_claude_code|Atualiza Claude Code CLI (o instalador nativo baixa ~300 MB por release).
 Atualizar opencode|ai|opencode,update,network|mutating|180|opencode|update_opencode|Atualiza opencode (instalador próprio) via opencode upgrade.
 Atualizar kilo (Kilo Code CLI)|ai|ai,opencode,update,network|mutating|180|kilo|update_kilo|Atualiza a CLI kilo (fork do opencode, instalador próprio em ~/.kilo) via kilo upgrade; 'Upgrade failed' com rc 0 vira aviso.
-Atualizar mimo (MiMo Code)|ai|ai,opencode,update,network|mutating|180|mimo|update_mimo|Atualiza a CLI mimo (fork do opencode, instalador próprio em ~/.mimocode) via mimo upgrade.
+Atualizar mimo (MiMo Code)|ai|ai,opencode,update,network|mutating|600|mimo|update_mimo|Atualiza a CLI mimo (fork do opencode, instalador próprio em ~/.mimocode) via mimo upgrade.
 Atualizar Ollama|ai|ollama,update,network|mutating|600|ollama|update_ollama|Sob OLLAMA_SELF_UPDATE=1 reexecuta o instalador oficial do Ollama; senão só reporta a versão.
 Atualizar GitHub Copilot CLI|ai|copilot,update,network|mutating|120||update_copilot_cli|Atualiza GitHub Copilot CLI local.
 Atualizar plugins do Claude Code|ai|ai,claude,plugins,update,network|mutating|600|claude,python3|update_claude_plugins|Atualiza os marketplaces de plugins do Claude Code e cada plugin de escopo user (plugin update --json); comando de instalação alterado vira TODO, nunca é aceito sozinho.
 Atualizar plugins do Codex|ai|ai,codex,plugins,update,network|mutating|300|codex|update_codex_plugins|Renova os snapshots git dos marketplaces de plugins do Codex (codex plugin marketplace upgrade); inconsistência do upstream é registrada sem aviso.
-Atualizar agent skills (skills CLI)|ai|skills,caveman,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza agent skills globais em ~/.agents/skills via 'npx skills update --global' (caveman, cavecrew, 9router-*, etc).
+Atualizar agent skills (skills CLI)|ai|skills,npm,update,network|mutating|300|npx|update_agent_skills|Atualiza as agent skills globais instaladas nesta máquina (lock do skills CLI / ~/.agents/skills) via 'npx skills update --global'.
 Atualizar servidores MCP|ai|mcp,update,network|mutating|180||mcp_update_servers|Sob MCP_AUTO_UPDATE=1 refresca o cache uv dos servers MCP uvx (rebuild da última no próximo launch); versão fixada atrás da última release vira TODO; npx/externo/remoto são reportados.
 Atualizar suíte Artcraft|tools|artcraft,desktop,manual,update,network|mutating|1200|python3,git,desktop-file-validate,update-mime-database,update-desktop-database|update_artcraft|Atualiza as releases oficiais dos sete apps Artcraft com SHA-256, teste MCP, fontes, atalhos, MIME e rollback por aplicativo.
 Garantir Orca IDE|ide|orca,ide,desktop,aur,network,ai|mutating|300||ensure_orca_ide|Instala/garante Orca IDE e repara .desktop com ícone hicolor de usuário.

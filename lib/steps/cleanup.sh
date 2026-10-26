@@ -429,6 +429,13 @@ cleanup_orphans() {
       fi
     fi
 
+    # Base bloqueada por outro pacman (ou lock stale) não é defeito do step:
+    # a remoção fica para o próximo run em vez de marcar o run como falho.
+    if pacman_db_is_locked; then
+      log "  Base do pacman bloqueada (db.lck); remoção de órfãos adiada."
+      STEP_REASON="base do pacman bloqueada (db.lck); órfãos não removidos"
+      return "$RC_WARN"
+    fi
     run_logged sudo pacman -Rns --noconfirm -- "${orphans[@]}" || return $?
     removed_any=1
     (( round++ ))

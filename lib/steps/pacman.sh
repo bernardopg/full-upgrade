@@ -32,6 +32,32 @@ ensure_pacman_lock_is_clean() {
   run_logged sudo rm -f -- "${lock}"
 }
 
+# Chamado por run_step depois de matar por timeout um step com tag `pacman`.
+# pacman morto no meio do download deixa db.lck para trás, e todo step
+# seguinte que usa pacman falhava com "unable to lock database" (visto num run
+# real: o timeout do upgrade derrubou `Remover pacotes órfãos` 12 min depois).
+# Espera o gerenciador encerrar e só remove o lock se nenhum estiver rodando;
+# usa sudo -n para nunca pedir senha fora de um step.
+pacman_release_stale_lock() {
+  local lock dbpath waited=0
+  dbpath="$(pacman-conf DBPath 2>/dev/null)" || dbpath=/var/lib/pacman/
+  lock="${dbpath%/}/db.lck"
+  [[ -e "$lock" ]] || return 0
+  while pgrep -x 'pacman|paru|yay|pikaur' >/dev/null 2>&1; do
+    ((waited >= 15)) && {
+      log "  Lock do pacman mantido: gerenciador de pacotes ainda em execução."
+      return 0
+    }
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if sudo -n rm -f -- "$lock" 2>/dev/null; then
+    log "  Lock stale do pacman removido após timeout: ${lock}"
+  else
+    log "  Lock stale do pacman em ${lock}; remova com: sudo rm ${lock}"
+  fi
+}
+
 
 
 
@@ -252,9 +278,16 @@ update_system_aur() {
         _purge_aur_partial_sources
         sleep $(( 5 * (_paru_attempt - 1) ))
       }
-      _paru_out="$(env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}" 2>&1)"
-      _paru_rc=$?
-      printf '%s\n' "$_paru_out" | log_stream
+      # Mostra a saída enquanto o paru roda: capturar tudo antes de imprimir
+      # deixava o terminal mudo por até 10 min num download grande, sem como
+      # distinguir progresso lento de travamento. O arquivo guarda a cópia
+      # que as classificações abaixo leem.
+      local _paru_tmp
+      _paru_tmp="$(mktemp)"
+      env GRADLE_USER_HOME="$AUR_GRADLE_USER_HOME" "${cmd[@]}" 2>&1 | tee "$_paru_tmp" | log_stream
+      _paru_rc=${PIPESTATUS[0]}
+      _paru_out="$(<"$_paru_tmp")"
+      rm -f "$_paru_tmp"
       if [[ -n "${RUN_ID:-}" ]]; then
         local _aur_ood_file="${LOG_DIR}/full-upgrade-${RUN_ID}.aur-out-of-date"
         printf '%s\n' "$_paru_out" | aur_out_of_date_pkgs > "$_aur_ood_file"

@@ -14,6 +14,8 @@ setup() {
   export ORPHAN_CALLS_FILE RUN_LOGGED_FILE
   eval 'run_logged() { printf "%s\n" "$*" >>"$RUN_LOGGED_FILE"; return 0; }'
   eval 'log() { :; }'
+  # Isola do host: um pacman rodando de verdade não pode mudar o resultado.
+  eval 'pacman_db_is_locked() { return 1; }'
 }
 
 pacman() {
@@ -47,4 +49,37 @@ log() { :; }
   [ "$calls" -eq 3 ]
   [[ "$logged" == *"sudo pacman -Rns --noconfirm -- pkg-a"* ]]
   [[ "$logged" == *"sudo pacman -Rns --noconfirm -- pkg-b"* ]]
+}
+
+@test "cleanup_orphans: base bloqueada vira RC_WARN sem chamar pacman -Rns" {
+  pacman_db_is_locked() { return 0; }
+  STEP_REASON=""
+  cleanup_orphans || status=$?
+
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *db.lck* ]]
+  [ ! -s "$RUN_LOGGED_FILE" ]
+}
+
+@test "pacman_release_stale_lock: sem gerenciador rodando remove o lock via sudo -n" {
+  local db="$BATS_TEST_TMPDIR/db"
+  mkdir -p "$db"; : >"$db/db.lck"
+  pacman-conf() { printf '%s/\n' "$db"; }
+  pgrep() { return 1; }
+  sudo() { [[ "$1" == -n ]] && shift; "$@"; }
+  pacman_release_stale_lock
+
+  [ ! -e "$db/db.lck" ]
+}
+
+@test "pacman_release_stale_lock: gerenciador ainda rodando mantém o lock" {
+  local db="$BATS_TEST_TMPDIR/db"
+  mkdir -p "$db"; : >"$db/db.lck"
+  pacman-conf() { printf '%s/\n' "$db"; }
+  pgrep() { return 0; }
+  sleep() { :; }
+  sudo() { echo "sudo não deveria rodar" >&2; return 9; }
+  pacman_release_stale_lock
+
+  [ -e "$db/db.lck" ]
 }

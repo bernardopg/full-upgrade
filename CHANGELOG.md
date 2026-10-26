@@ -3,6 +3,60 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Timeout do upgrade do sistema deixava o pacman travado:** o step matava o
+  pacman no meio do download e o `db.lck` ficava para trás, derrubando
+  `Remover pacotes órfãos` com `unable to lock database`. `run_step` agora
+  libera o lock stale (só sem gerenciador de pacotes rodando, via `sudo -n`)
+  após o timeout de qualquer step com tag `pacman`, e a remoção de órfãos vira
+  `warn` com a base bloqueada. O limite de `Atualizar pacotes do sistema e AUR`
+  subiu de 600s para 1800s, porque downloads grandes (blender/usd) passavam de
+  10 minutos.
+- **Saída do paru ao vivo:** o upgrade via paru capturava tudo antes de
+  imprimir, deixando o terminal mudo durante o step inteiro.
+- `Atualizar mimo (MiMo Code)`: limite de 180s para 600s; o binário (~135 MB)
+  vem de um CDN lento e o upgrade estourava o timeout.
+- `Reiniciar serviços com libs antigas`: a falha ao reiniciar uma unit agora
+  aparece no resumo com o nome da unit e a remediação. Services ativados só
+  por D-Bus (estáticos, `Type=dbus` com `BusName`, como o `geoclue`) são
+  parados em vez de reiniciados: o restart explícito esperava 90s e falhava,
+  e a próxima chamada D-Bus já os reativa com as bibliotecas novas.
+- `Atualizar imagens Docker`: containers de Compose com imagem antiga recebem
+  o comando exato de recriação por projeto
+  (`docker compose --project-directory <dir> up -d --no-deps --force-recreate <serviços>`).
+  O `up -d` simples não recriava um container após o repull da mesma tag.
+- **Plugins DMS em desenvolvimento não são mais realinhados:** com
+  divergência, a recuperação fazia stash + `reset --hard` para o upstream
+  mesmo num clone com trabalho em andamento. Num caso real, isso moveu uma
+  branch de feature para `origin/main` e tirou 11 arquivos editados da árvore
+  no meio da sessão. `git_recover_plugin_repo` agora recusa e não altera nada
+  quando há arquivos rastreados modificados ou commits que não estão em nenhum
+  remote (novo status `local`). O step vira `todo` com o comando para
+  atualizar à mão. Arquivos só não rastreados continuam preservados via stash.
+- `Atualizar plugins DankMaterialShell`: não diz mais "todos já atualizados"
+  quando algum plugin ficou pendente.
+- Wireshark, Orca IDE e Antigravity: as linhas de detalhe usavam 1 espaço de
+  indentação, e a saída do helper AUR do Antigravity saía na coluna 0.
+  `tests/shell_hygiene.bats` agora barra a indentação de 1 espaço.
+
+### Alterado
+
+- `Atualizar agent skills (skills CLI)`: o step não cita mais skills
+  específicas no log, no catálogo nem no README. Ele trabalha com o que a
+  máquina tiver instalado, detecta o lock global do skills CLI
+  (`$XDG_STATE_HOME/skills/.skill-lock.json`) além de `~/.agents/skills` e
+  informa quantas skills estão rastreadas.
+
+### Manutenção
+
+- CI: `github/codeql-action` v4.39.1 e Semgrep 1.182.1. O override de `mcp`
+  volta a `1.30.0` (último 1.x): o bump do Dependabot para 2.3.0 quebra o import
+  `mcp.server.fastmcp` do Semgrep. O Dependabot passa a ignorar majors de `mcp`.
+- `.gitignore`: volta a versionar `.claude/agents`, `.claude/commands` e
+  `.claude/skills` (a regra `.claude/` inteira contradizia o comentário),
+  ignora backups de `settings.local.json` e `__pycache__/`, e para de
+  versionar o lock vazio `.claude/.headroom_wrap_settings.lock`.
 
 ## [3.49.1] - 2026-10-18
 ### Corrigido

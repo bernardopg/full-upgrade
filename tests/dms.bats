@@ -189,8 +189,63 @@ create_repo_with_remote() {
   # árvore limpa (sem unmerged) e sem marcadores no arquivo
   [ -z "$(git -C "$DMS_PLUGINS_DIR/myplugin" ls-files --unmerged)" ]
   ! grep -q '^<<<<<<<' "$DMS_PLUGINS_DIR/myplugin/file.txt"
-  # as mudanças locais continuam recuperáveis no stash
-  [[ "$(git -C "$DMS_PLUGINS_DIR/myplugin" stash list)" == *"auto-stash myplugin"* ]]
+  # edição rastreada é trabalho em andamento: fica na árvore, sem stash/reset
+  grep -q 'local-variant' "$DMS_PLUGINS_DIR/myplugin/file.txt"
+  [ -z "$(git -C "$DMS_PLUGINS_DIR/myplugin" stash list)" ]
+}
+
+@test "update_dms_plugins: branch de trabalho com edições não é movida para o upstream" {
+  # Regressão: o reset --hard levava uma branch de feature para origin/main e
+  # tirava as edições da árvore no meio de uma sessão de desenvolvimento.
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" p="$MOCKDIR/plugins/devplugin"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$p"
+  git -C "$p" remote add origin "$bare"
+  git -C "$p" push -u origin main --quiet
+  git -C "$p" remote set-head origin main
+  git -C "$p" switch -c feature --quiet
+  git -C "$p" branch --set-upstream-to=origin/main --quiet
+  echo "wip" > "$p/file.txt"
+
+  local clone="$MOCKDIR/remote-work"
+  git clone --quiet "$bare" "$clone"
+  configure_test_git_repo "$clone"
+  echo "upstream" > "$clone/file.txt"
+  git -C "$clone" commit -qam "upstream"
+  git -C "$clone" push -q origin main
+
+  local before
+  before="$(git -C "$p" rev-parse HEAD)"
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  [ "$(git -C "$p" rev-parse HEAD)" = "$before" ]
+  [ "$(git -C "$p" branch --show-current)" = feature ]
+  grep -q wip "$p/file.txt"
+}
+
+@test "update_dms_plugins: commit local não publicado bloqueia o realinhamento" {
+  DMS_PLUGINS_DIR="$MOCKDIR/plugins"
+  local bare="$MOCKDIR/bare.git" p="$MOCKDIR/plugins/devplugin"
+  git init --bare -b main "$bare" --quiet
+  create_dummy_repo "$p"
+  git -C "$p" remote add origin "$bare"
+  git -C "$p" push -u origin main --quiet
+  git -C "$p" remote set-head origin main
+  echo "meu" > "$p/mine.txt"
+  git -C "$p" add mine.txt
+  git -C "$p" commit -qm "local"
+
+  local clone="$MOCKDIR/remote-work"
+  git clone --quiet "$bare" "$clone"
+  configure_test_git_repo "$clone"
+  echo "upstream" > "$clone/file.txt"
+  git -C "$clone" commit -qam "upstream"
+  git -C "$clone" push -q origin main
+
+  run update_dms_plugins
+  [ "$status" -eq "$RC_TODO" ]
+  [ "$(git -C "$p" log -1 --format=%s)" = local ]
 }
 
 @test "update_dms_plugins: pull.rebase+autostash não pode reportar sucesso com conflito" {

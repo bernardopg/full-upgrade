@@ -33,7 +33,7 @@ update_dms_plugins() {
     return 0
   fi
 
-  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=() gone=() pinned=()
+  local -a updated=() failed=() skipped=() stash_conflicts=() repo_managed=() conflicted=() gone=() pinned=() local_work=()
   local plugin dir behind fetch_err net_fail=0 track_ref recovery rec_status rec_ref
 
   for dir in "$plugins_dir"/*/; do
@@ -121,6 +121,11 @@ update_dms_plugins() {
         log "  ${plugin}: reset para ${rec_ref} + mudanças locais restauradas."
         updated+=("$plugin")
         ;;
+      local)
+        log "  ${plugin}: ${behind} commit(s) atrás, mas há trabalho local em andamento (edições ou commits não publicados) — clone intocado."
+        log "  Atualize quando terminar: git -C ${dir} pull --rebase"
+        local_work+=("$plugin")
+        ;;
       conflict)
         log "  ${plugin}: resetado para ${rec_ref}; o stash pop conflitou."
         log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
@@ -198,6 +203,11 @@ update_dms_plugins() {
           log "  monorepo ${repo_name}: reset para ${m_ref} + mudanças locais restauradas."
           updated+=(".repos/${repo_name}")
           ;;
+        local)
+          log "  monorepo ${repo_name}: trabalho local em andamento (edições ou commits não publicados) — clone intocado."
+          log "  Atualize quando terminar: git -C ${repo_dir} pull --rebase"
+          local_work+=(".repos/${repo_name}")
+          ;;
         conflict)
           log "  monorepo ${repo_name}: resetado para ${m_ref}; o stash pop conflitou."
           log "  Árvore restaurada para o upstream (plugin funcional); suas mudanças seguem intactas no stash."
@@ -210,7 +220,7 @@ update_dms_plugins() {
 
   if (( ${#updated[@]} > 0 )); then
     log "  DMS plugins atualizados: ${updated[*]}"
-  else
+  elif (( ${#failed[@]} + ${#stash_conflicts[@]} + ${#conflicted[@]} + ${#gone[@]} + ${#local_work[@]} == 0 )); then
     log "  DMS plugins: todos já atualizados."
   fi
   if (( ${#pinned[@]} > 0 )); then
@@ -235,7 +245,7 @@ update_dms_plugins() {
     fi
     return 1
   fi
-  if (( ${#stash_conflicts[@]} > 0 || ${#conflicted[@]} > 0 || ${#gone[@]} > 0 )); then
+  if (( ${#stash_conflicts[@]} > 0 || ${#conflicted[@]} > 0 || ${#gone[@]} > 0 || ${#local_work[@]} > 0 )); then
     # Mudanças preservadas no stash mas exigem merge manual, repo já travado por
     # conflito anterior, ou upstream que deixou de existir: ação do usuário, não
     # falha operacional — todo, não fail. Fail aqui seria permanente e inútil.
@@ -243,6 +253,7 @@ update_dms_plugins() {
     (( ${#stash_conflicts[@]} > 0 )) && pend+=("stash pop com conflito em: ${stash_conflicts[*]}")
     (( ${#conflicted[@]} > 0 )) && pend+=("conflito pendente em: ${conflicted[*]}")
     (( ${#gone[@]} > 0 )) && pend+=("upstream removido/inacessível em: ${gone[*]}")
+    (( ${#local_work[@]} > 0 )) && pend+=("trabalho local em andamento, update adiado: ${local_work[*]}")
     STEP_REASON="$(printf '%s; ' "${pend[@]}")"
     STEP_REASON="${STEP_REASON%; }"
     return "$RC_TODO"

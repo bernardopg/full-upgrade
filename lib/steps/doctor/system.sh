@@ -1003,6 +1003,18 @@ doctor_stale_services() {
 }
 
 
+# Service estático com Type=dbus e BusName só existe por ativação D-Bus. Um
+# `systemctl restart` explícito pode esperar o TimeoutStartSec inteiro sem o
+# nome ser reivindicado (geoclue: 90s e falha), enquanto `stop` basta: a
+# próxima chamada D-Bus reativa a unit já com as bibliotecas novas. Recebe a
+# saída de `systemctl show -p Type,UnitFileState,BusName`. Puro.
+service_is_bus_activated() {
+  local props="$1"
+  [[ $'\n'"$props" == *$'\nType=dbus'* \
+    && $'\n'"$props" == *$'\nUnitFileState=static'* \
+    && $'\n'"$props" =~ $'\n'BusName=[^[:space:]] ]]
+}
+
 restart_stale_services() {
   if (( ! RESTART_SERVICES )); then
     log "  --restart-services não informado; reinício de serviços pulado."
@@ -1085,12 +1097,25 @@ restart_stale_services() {
   fi
 
   local all_ok=1
+  local -a restart_failed=()
   for svc in "${restart_cmds[@]}"; do
+    if service_is_bus_activated "$(systemctl show "$svc" -p Type,UnitFileState,BusName 2>/dev/null)"; then
+      log "  Parando ${svc} (ativado sob demanda via D-Bus; volta com as libs novas no próximo uso)..."
+      if run_logged sudo -n systemctl stop "$svc"; then
+        log "  ${svc}: parado."
+      else
+        log "  Aviso: falha ao parar ${svc}."
+        restart_failed+=("$svc")
+        all_ok=0
+      fi
+      continue
+    fi
     log "  Reiniciando ${svc}..."
     if run_logged sudo -n systemctl restart "$svc"; then
       log "  ${svc}: reiniciado."
     else
       log "  Aviso: falha ao reiniciar ${svc}."
+      restart_failed+=("$svc")
       all_ok=0
     fi
   done
@@ -1099,6 +1124,9 @@ restart_stale_services() {
     (( all_ok )) && return "$RC_TODO"
   fi
   (( all_ok )) && return 0
+  # Sem motivo, o resumo mostrava só "⚠" sem dizer qual unit falhou.
+  remediation "systemctl status ${restart_failed[*]}"
+  STEP_REASON="falha ao reiniciar: ${restart_failed[*]}${STEP_REASON:+; ${STEP_REASON}}"
   return "$RC_WARN"
 }
 

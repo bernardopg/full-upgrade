@@ -135,17 +135,21 @@ update_docker_images() {
   # docker ps não oferece .ImageID. O inspect retorna IDs completos e a
   # referência usada na criação; restart não troca a imagem do container.
   local -a stale_containers=() unverified=()
-  local container_name container_img container_imgid current_id ids cid metadata
+  local -A stale_compose=()
+  local container_name container_img container_imgid compose_dir compose_svc current_id ids cid metadata
   if ! ids="$(docker ps -q 2>/dev/null)"; then
     unverified+=("listagem de containers")
   fi
   while IFS= read -r cid; do
     [[ -n "$cid" ]] || continue
-    if ! metadata="$(docker container inspect "$cid" --format $'{{.Name}}\t{{.Config.Image}}\t{{.Image}}' 2>/dev/null)"; then
+    # Os rótulos do Compose ficam no fim: tab é espaço para o `read`, e campos
+    # vazios no meio (container sem Compose) deslocariam os seguintes.
+    if ! metadata="$(docker container inspect "$cid" --format $'{{.Name}}\t{{.Config.Image}}\t{{.Image}}\t{{index .Config.Labels "com.docker.compose.project.working_dir"}}\t{{index .Config.Labels "com.docker.compose.service"}}' 2>/dev/null)"; then
       unverified+=("$cid")
       continue
     fi
-    IFS=$'\t' read -r container_name container_img container_imgid <<<"$metadata"
+    compose_dir="" compose_svc=""
+    IFS=$'\t' read -r container_name container_img container_imgid compose_dir compose_svc <<<"$metadata"
     if [[ -z "$container_img" || -z "$container_imgid" ]] \
         || ! current_id="$(docker image inspect "$container_img" --format '{{.Id}}' 2>/dev/null)" \
         || [[ -z "$current_id" ]]; then
@@ -154,6 +158,9 @@ update_docker_images() {
     fi
     if [[ "${container_imgid#sha256:}" != "${current_id#sha256:}" ]]; then
       stale_containers+=("${container_name#/}(${container_img})")
+      if [[ -n "$compose_dir" && -n "$compose_svc" ]]; then
+        stale_compose["$compose_dir"]+="${stale_compose[$compose_dir]:+ }${compose_svc}"
+      fi
     fi
   done <<<"${ids:-}"
 
@@ -162,6 +169,12 @@ update_docker_images() {
     local sc
     for sc in "${stale_containers[@]}"; do
       log "    ${sc}"
+    done
+    # `up -d` sozinho nem sempre recria: o Compose compara a configuração, e um
+    # repull da mesma tag não a altera (visto com postgres:18-alpine).
+    local dir
+    for dir in "${!stale_compose[@]}"; do
+      remediation "docker compose --project-directory ${dir} up -d --no-deps --force-recreate ${stale_compose[$dir]}"
     done
   fi
 
