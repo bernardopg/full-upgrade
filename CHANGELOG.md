@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.50.1] - 2026-10-26
 ### Corrigido
 
 - **Applet mostrava os ícones antigos após migrar do `install.sh` para o
