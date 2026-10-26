@@ -22,6 +22,7 @@ AGENTS.md
 # (config compartilhada do projeto) — não ignorar o diretório inteiro.
 .claude/settings.local.json
 .claude/worktrees/
+.claude/settings.local.json.bak-*
 
 # Notas de trabalho temporárias (ex.: rascunho de PR já mergeado)
 COMMIT_NOTES.md
@@ -32,3 +33,7 @@ COMMIT_NOTES.md
 *.bak
 *.tmp
 Thumbs.db
+reports/
+
+# Bytecode Python gerado pelas fixtures dos testes
+__pycache__/
