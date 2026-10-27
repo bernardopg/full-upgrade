@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.50.2] - 2026-10-27
 ### Corrigido
 
 - **Applet mostrava como pendentes os pacotes que o run acabou de
