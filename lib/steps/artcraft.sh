@@ -8,7 +8,11 @@ artcraft_installed() {
 }
 
 artcraft_run() {
-  python3 - "${ARTCRAFT_DIR:-$HOME/development/artcraft}" "$1" <<'PY'
+  # São 7 consultas à API do GitHub por run; anônimo (60/h por IP) o limite
+  # estourava e 2 apps ficavam sem update. O token vai por env, nunca por argv.
+  local gh_token=''
+  gh_token="$(github_api_token 2>/dev/null)" || gh_token=''
+  GH_TOKEN="${GH_TOKEN:-$gh_token}" python3 - "${ARTCRAFT_DIR:-$HOME/development/artcraft}" "$1" <<'PY'
 import asyncio
 import configparser
 import contextlib
@@ -25,6 +29,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
@@ -46,7 +51,12 @@ def fetch(url):
     headers = {'User-Agent': 'full-upgrade-artcraft', 'Accept': 'application/vnd.github+json'}
     token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
     if token and url.startswith('https://api.github.com/'):
-        headers['Authorization'] = 'Bearer ' + token
+        try:
+            return urllib.request.urlopen(urllib.request.Request(
+                url, headers={**headers, 'Authorization': 'Bearer ' + token}), timeout=30)
+        except urllib.error.HTTPError as error:
+            if error.code != 401:  # token expirado/revogado: refaz anônimo
+                raise
     return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30)
 
 def latest(app):

@@ -4,6 +4,8 @@
 setup() {
   load "${BATS_TEST_DIRNAME}/test_helper"
   load_libs
+  # Hermético: nunca ler o token dedicado real do usuário.
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/nao-existe"
 }
 
 # ── elapsed ───────────────────────────────────────────────────────────────────
@@ -857,4 +859,133 @@ setup() {
   [ "$output" = "0.19.0" ]
   run cargo_crate_version rg "$list"
   [ "$output" = "" ]
+}
+
+# ── github_api_token / github_api_get ─────────────────────────────────────────
+# Sem token a REST API limita a 60 req/h por IP; um run real estourou o limite
+# (ZAP e Artcraft com HTTP 403). O token nunca pode ir para argv (visível em ps).
+
+@test "github_api_token: prefere GITHUB_TOKEN, depois GH_TOKEN, depois gh auth token" {
+  gh() { printf 'from-gh'; }
+  has() { [[ "$1" == gh ]]; }
+  GITHUB_TOKEN=a GH_TOKEN=b run github_api_token
+  [ "$output" = "a" ]
+  GITHUB_TOKEN='' GH_TOKEN=b run github_api_token
+  [ "$output" = "b" ]
+  unset GITHUB_TOKEN GH_TOKEN
+  timeout() { shift; "$@"; }
+  run github_api_token
+  [ "$output" = "from-gh" ]
+}
+
+@test "github_api_token: sem token e sem gh => rc 1" {
+  unset GITHUB_TOKEN GH_TOKEN
+  has() { return 1; }
+  run github_api_token
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "github_api_get: token vai por stdin (-K -), nunca em argv" {
+  GITHUB_TOKEN=s3cr3t
+  curl() {
+    printf 'ARGS:%s\n' "$*"
+    if [[ " $* " == *" -K - "* ]]; then printf 'STDIN:'; cat; fi
+  }
+  run github_api_get https://api.github.com/repos/o/r/releases/latest
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STDIN:header = \"Authorization: Bearer s3cr3t\""* ]]
+  local args
+  args="$(grep 'ARGS:' <<<"$output")"
+  [[ -n "$args" && "$args" != *s3cr3t* ]]
+}
+
+@test "github_api_get: token rejeitado refaz a consulta anônima" {
+  GITHUB_TOKEN=expirado
+  curl() {
+    if [[ " $* " == *" -K - "* ]]; then cat >/dev/null; return 22; fi
+    printf '{"tag_name":"v1.0.0"}\n'
+  }
+  run github_api_get https://api.github.com/repos/o/r/releases/latest
+  [ "$status" -eq 0 ]
+  [ "$output" = '{"tag_name":"v1.0.0"}' ]
+}
+
+@test "github_api_get: recusa URL fora da API (token não vaza para outro host)" {
+  GITHUB_TOKEN=s3cr3t
+  curl() { printf 'chamado'; }
+  run github_api_get https://example.com/x
+  [ "$status" -eq 2 ]
+  [ -z "$output" ]
+}
+
+# ── token dedicado e token para updaters de terceiros ─────────────────────────
+
+@test "github_token_from_file: lê arquivo 600 e descarta espaços/quebra de linha" {
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/tok"
+  printf 'github_pat_abc  \n' > "$GITHUB_TOKEN_FILE"; chmod 600 "$GITHUB_TOKEN_FILE"
+  run github_token_from_file
+  [ "$status" -eq 0 ]
+  [ "$output" = "github_pat_abc" ]
+}
+
+@test "github_token_from_file: arquivo legível por grupo/outros é recusado (rc 2)" {
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/tok"
+  printf 'github_pat_abc\n' > "$GITHUB_TOKEN_FILE"; chmod 644 "$GITHUB_TOKEN_FILE"
+  run github_token_from_file
+  [ "$status" -eq 2 ]
+  [ -z "$output" ]
+}
+
+@test "github_api_token: arquivo dedicado vem antes do gh auth token" {
+  unset GITHUB_TOKEN GH_TOKEN
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/tok"
+  printf 'dedicado\n' > "$GITHUB_TOKEN_FILE"; chmod 600 "$GITHUB_TOKEN_FILE"
+  has() { [[ "$1" == gh ]]; }
+  gh() { printf 'do-gh'; }
+  timeout() { shift; "$@"; }
+  run github_api_token
+  [ "$output" = "dedicado" ]
+}
+
+@test "github_updater_token: não entrega o token do gh sem opt-in explícito" {
+  unset GITHUB_TOKEN GH_TOKEN
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/nao-existe"
+  has() { [[ "$1" == gh ]]; }
+  gh() { printf 'do-gh'; }
+  timeout() { shift; "$@"; }
+  GITHUB_UPDATER_TOKEN_FROM_GH=0
+  run github_updater_token
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+  GITHUB_UPDATER_TOKEN_FROM_GH=1
+  run github_updater_token
+  [ "$output" = "do-gh" ]
+}
+
+@test "with_updater_github_token: token só no ambiente do processo, nunca no run" {
+  unset GITHUB_TOKEN GH_TOKEN GITHUB_ACCESS_TOKEN
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/tok"
+  printf 'dedicado\n' > "$GITHUB_TOKEN_FILE"; chmod 600 "$GITHUB_TOKEN_FILE"
+  run with_updater_github_token sh -c 'printf "%s|%s" "$GITHUB_TOKEN" "$GITHUB_ACCESS_TOKEN"'
+  [ "$output" = "dedicado|dedicado" ]
+  [ -z "${GITHUB_TOKEN:-}" ]
+}
+
+@test "with_updater_github_token: sem token roda o comando anônimo" {
+  unset GITHUB_TOKEN GH_TOKEN
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/nao-existe"
+  GITHUB_UPDATER_TOKEN_FROM_GH=0
+  run with_updater_github_token sh -c 'printf "[%s]" "${GITHUB_TOKEN:-}"'
+  [ "$status" -eq 0 ]
+  [ "$output" = "[]" ]
+}
+
+# Caso real: token colado no nano veio com NBSP (c2 a0) na frente.
+@test "github_token_from_file: remove NBSP/BOM e outros bytes fora do alfabeto do token" {
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/tok"
+  printf '\xc2\xa0\xef\xbb\xbfgithub_pat_AbC123\r\n' > "$GITHUB_TOKEN_FILE"; chmod 600 "$GITHUB_TOKEN_FILE"
+  run github_token_from_file
+  [ "$status" -eq 0 ]
+  [ "$output" = "github_pat_AbC123" ]
 }

@@ -59,6 +59,21 @@ update_hermes() {
 
   log "  Hermes em: ${hermes_bin}"
 
+  # O canal stable resolve a release pela API do GitHub anonimamente; com o
+  # limite de 60/h por IP esgotado o check e o update caíam em 403 ("rede
+  # indisponível") mesmo já atualizado. Pré-checagem pela API autenticada, só
+  # no canal stable (outros canais seguem commits, não releases).
+  local version_line installed latest
+  version_line="$(timeout 15 hermes --version 2>/dev/null | head -1 || true)"
+  if [[ "$version_line" == *"· stable ·"* && "$version_line" =~ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+    installed="${BASH_REMATCH[1]}"
+    latest="$(github_latest_release_version NousResearch/hermes-agent 2>/dev/null || true)"
+    if [[ -n "$latest" ]] && ! version_is_outdated "$installed" "$latest"; then
+      log "  Hermes ${installed} já na versão mais recente (release stable ${latest}); pulando update."
+      return 0
+    fi
+  fi
+
   # Otimização: o `hermes update --check` (só fetch + comparação) decide se o
   # update completo é necessário. O smart-HTTP do GitHub pode ficar pendurado
   # transitoriamente; o probe tem limite próprio para ainda sobrar tempo para a
@@ -67,7 +82,7 @@ update_hermes() {
   # catálogo é deliberadamente maior.
   local check_out check_rc
   local -x GIT_TERMINAL_PROMPT=0 GIT_HTTP_LOW_SPEED_LIMIT=1 GIT_HTTP_LOW_SPEED_TIME="$HERMES_GIT_STALL_S"
-  if check_out="$(timeout 30 env CI=1 NO_COLOR=1 TERM=dumb hermes update --check 2>&1)"; then
+  if check_out="$(with_updater_github_token timeout 30 env CI=1 NO_COLOR=1 TERM=dumb hermes update --check 2>&1)"; then
     check_rc=0
   else
     check_rc=$?
@@ -100,7 +115,9 @@ update_hermes() {
   for (( attempt = 1; attempt <= HERMES_UPDATE_ATTEMPTS; attempt++ )); do
     GIT_HTTP_LOW_SPEED_TIME=$(( HERMES_GIT_STALL_S * attempt ))
     [[ -n "$HERMES_GIT_WRAPPER" ]] && : > "$HERMES_GIT_STDERR"
-    PATH="$capture_path" CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 hermes update --yes >"$output_file" 2>&1
+    # Token só para este processo (ver with_updater_github_token em core.sh).
+    PATH="$capture_path" CI=1 NO_COLOR=1 TERM=dumb HERMES_ACCEPT_HOOKS=1 \
+      with_updater_github_token hermes update --yes >"$output_file" 2>&1
     rc=$?
     if [[ -n "$HERMES_GIT_WRAPPER" && -s "$HERMES_GIT_STDERR" ]]; then
       printf '\n--- Git stderr completo ---\n' >> "$output_file"
@@ -110,7 +127,9 @@ update_hermes() {
       printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)"
       sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
     } >> "$LOG_FILE"
-    (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file" || break
+    # Limite da API não volta em 10s: repetir só gastaria tempo.
+    (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file" \
+      && ! is_github_rate_limited "$(cat -- "$output_file" 2>/dev/null)" || break
     log "  Tentativa ${attempt}/${HERMES_UPDATE_ATTEMPTS} do hermes update falhou por rede; repetindo em 10s."
     sleep 10
   done
@@ -127,6 +146,10 @@ update_hermes() {
     return "$RC_WARN"
   fi
   if (( rc != 0 )); then
+    if is_github_rate_limited "$(cat -- "$output_file" 2>/dev/null)"; then
+      STEP_REASON="hermes update: limite da API anônima do GitHub (HTTP 403); some em até 1h (detalhes: ${output_file})"
+      return "$RC_WARN"
+    fi
     if grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file"; then
       STEP_REASON="rede indisponível durante hermes update (detalhes: ${output_file})"
       return "$RC_WARN"

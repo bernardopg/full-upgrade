@@ -132,6 +132,8 @@ Chaves mais usadas:
   AUTO_FIX_RUST_CVES=1           auto-remediação de CVEs Rust (0 = só reporta)
   AUTO_BTRFS_SCRUB=1             inicia scrub btrfs vencido (0 = só reporta)
   AUTO_MERGE_PACNEW=1            mescla .pacnew seguros (0 = só reporta)
+  AUTO_RECREATE_STALE_CONTAINERS=1 recria containers Compose com imagem antiga
+  GITHUB_TOKEN_FILE=<arquivo>     token GitHub dedicado (modo 600; tira o limite de 60/h)
   REPORT_ON_FINISH=1             relatório .md automático ao fim do run
   NOTIFY_ON_FINISH=1             notificação desktop ao fim do run
   FULL_UPGRADE_SKIP=...          steps pulados (CSV com nomes do catálogo)

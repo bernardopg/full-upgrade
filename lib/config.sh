@@ -45,6 +45,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AUTO_FIX_PIP_DEPS:=0}"          # 1 = instala com 'pip install --user' as deps AUSENTES de pacotes pip --user apontadas pelo pip check; 0 = só reporta
 : "${AUTO_FIX_CODEX_MCP:=1}"        # 1 = remove tabela duplicada IDÊNTICA do ~/.codex/config.toml (com backup/rollback); 0 = só reporta
 : "${AUTO_MERGE_PACNEW:=0}"        # 1 = mescla sozinho os .pacnew cujo merge preserva 100% das linhas ativas do arquivo atual (com backup); 0 = só reporta
+: "${AUTO_RECREATE_STALE_CONTAINERS:=0}" # 1 = recria via Compose (--force-recreate, volumes preservados) containers rodando com imagem antiga após o pull; 0 = só reporta
 : "${SECURE_BOOT_STRICT:=0}"        # 1 = --audit classifica Secure Boot desabilitado como média severidade; 0 = postura informativa
 : "${REPORT_ON_FINISH:=0}"          # 1 = grava relatório Markdown do run em ~/.cache/system-upgrade/full-upgrade-<run_id>.md ao final; 0 = desliga
 
@@ -54,6 +55,9 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${TRAY_NOTIFICATIONS:=1}"        # 1 = systray emite notificações desktop em transições de estado; 0 = desliga
 : "${TRAY_BADGE:=1}"                # 1 = AppIndicator mostra contador (updates/todo/falhas) ao lado do ícone; 0 = desliga
 : "${TRAY_ICON_COLOR:=auto}"        # cor dos ícones monocromáticos do AppIndicator: auto = texto do tema GTK; ou #rrggbb
+: "${GITHUB_TOKEN_FILE:=${XDG_CONFIG_HOME:-$HOME/.config}/full-upgrade/github-token}" # token GitHub dedicado (modo 600): tira o limite anônimo de 60 req/h e é entregue aos updaters nativos (bun, hermes)
+: "${GITHUB_UPDATER_TOKEN_FROM_GH:=0}" # 1 = sem token dedicado, entrega o token do `gh` (escopos amplos) aos updaters nativos; 0 = updaters seguem anônimos
+: "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento do `npx skills update`; versão do CLI que o excede é marcada lenta e o step usa a última boa
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
@@ -147,6 +151,9 @@ AUTO_FIX_FINAL_PENDING
 AUTO_FIX_PIP_DEPS
 AUTO_FIX_CODEX_MCP
 AUTO_MERGE_PACNEW
+AUTO_RECREATE_STALE_CONTAINERS
+GITHUB_TOKEN_FILE
+GITHUB_UPDATER_TOKEN_FROM_GH
 SECURE_BOOT_STRICT
 REPORT_ON_FINISH
 NOTIFY_ON_FINISH
@@ -155,6 +162,7 @@ TRAY_TERMINAL
 TRAY_NOTIFICATIONS
 TRAY_BADGE
 TRAY_ICON_COLOR
+AGENT_SKILLS_TIMEOUT_S
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
 IDE_EXT_CLIS
@@ -359,7 +367,7 @@ load_config() {
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_DEVICE_STATS_ACK_SHA256
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S FWUPD_HSI_MIN DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS CODEX_TMP_KEEP_DAYS
-  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW AUTO_RECREATE_STALE_CONTAINERS SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE TRAY_ICON_COLOR
   export AUR_HELPER PRIV_CMD
   export ARTCRAFT_DIR
@@ -516,6 +524,30 @@ AUTO_FIX_CODEX_MCP=1
 # Nunca roda sob --mode doctor/--dry-run/--no-repair.
 AUTO_MERGE_PACNEW=0
 
+# Containers rodando com imagem antiga depois do pull (o restart não troca a
+# imagem). 1 = recria só os serviços de Compose afetados com
+# `docker compose ... up -d --no-deps --force-recreate`, usando projeto e
+# arquivos gravados nos rótulos do container (volumes e configuração
+# preservados) e reverifica a imagem; reinicia o serviço, então um job em
+# andamento (ex.: gitlab-runner) é interrompido. Containers fora do Compose
+# seguem como TODO. 0 = só reporta o comando.
+AUTO_RECREATE_STALE_CONTAINERS=0
+
+# API do GitHub. Anônima, ela limita a 60 requisições/hora por IP: num run
+# completo o limite esgota e updaters nativos (bun, hermes, tokensave) caem em
+# HTTP 403. O full-upgrade consulta a API com token de, nesta ordem:
+# GITHUB_TOKEN/GH_TOKEN, este arquivo, `gh auth token`. Aos updaters de
+# terceiros (bun, hermes) só vai o token deste arquivo (ou do ambiente).
+# Recomendado: token fine-grained com "Public repositories (read-only)" e
+# nenhuma permissão (github.com/settings/personal-access-tokens/new), gravado
+# com: install -m600 /dev/stdin ~/.config/full-upgrade/github-token
+# Arquivo legível por grupo/outros é ignorado.
+GITHUB_TOKEN_FILE="$HOME/.config/full-upgrade/github-token"
+# 1 = sem token dedicado, entrega o token do `gh` aos updaters de terceiros.
+# Ele costuma ter escopos repo/workflow/delete_repo: um updater comprometido
+# poderia usá-lo contra os seus repositórios. Prefira o token dedicado.
+GITHUB_UPDATER_TOKEN_FROM_GH=0
+
 # ── Política de Secure Boot no --audit ──
 # 0 = Secure Boot desabilitado é postura informativa (default; nem toda máquina
 # usa Secure Boot). 1 = classifica como severidade média em ambientes estritos.
@@ -658,6 +690,19 @@ show_config() {
   _cfg_kv "AUTO_FIX_PIP_DEPS" "$AUTO_FIX_PIP_DEPS"
   _cfg_kv "AUTO_FIX_CODEX_MCP" "$AUTO_FIX_CODEX_MCP"
   _cfg_kv "AUTO_MERGE_PACNEW" "$AUTO_MERGE_PACNEW"
+  _cfg_kv "AUTO_RECREATE_STALE_CONTAINERS" "$AUTO_RECREATE_STALE_CONTAINERS"
+  # Nunca imprime o token: só de onde ele viria.
+  local _gh_tok_state="ausente"
+  if [[ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]]; then
+    _gh_tok_state="via ambiente (GITHUB_TOKEN/GH_TOKEN)"
+  else
+    github_token_from_file >/dev/null 2>&1; case $? in
+      0) _gh_tok_state="presente" ;;
+      2) _gh_tok_state="IGNORADO: permissão aberta demais (use chmod 600)" ;;
+    esac
+  fi
+  _cfg_kv "GITHUB_TOKEN_FILE" "${GITHUB_TOKEN_FILE} [${_gh_tok_state}]"
+  _cfg_kv "GITHUB_UPDATER_TOKEN_FROM_GH" "$GITHUB_UPDATER_TOKEN_FROM_GH"
   _cfg_kv "SECURE_BOOT_STRICT" "$SECURE_BOOT_STRICT"
   _cfg_kv "REPORT_ON_FINISH" "$REPORT_ON_FINISH"
   _cfg_kv "NOTIFY_ON_FINISH" "$NOTIFY_ON_FINISH"
@@ -666,6 +711,7 @@ show_config() {
   _cfg_kv "TRAY_NOTIFICATIONS" "$TRAY_NOTIFICATIONS"
   _cfg_kv "TRAY_BADGE" "$TRAY_BADGE"
   _cfg_kv "TRAY_ICON_COLOR" "$TRAY_ICON_COLOR"
+  _cfg_kv "AGENT_SKILLS_TIMEOUT_S" "$AGENT_SKILLS_TIMEOUT_S"
   _cfg_kv "MCP_AUTO_UPDATE" "$MCP_AUTO_UPDATE"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
   _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"

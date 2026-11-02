@@ -202,7 +202,7 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
     fi
   }
   run_network_cmd() {
-    if [[ "$1" == curl ]]; then
+    if [[ "$1" == github_api_get ]]; then
       printf '{"tag_name":"v1.2.4"}\n'
     else
       "$@"
@@ -408,4 +408,50 @@ _fake_github_release() {
   run_network_cmd() { [[ "${MUSE_LAUNCHER_INSTALL:-}" == 1 ]] || return 1; }
   run update_muse
   [ "$status" -eq 0 ]
+}
+
+@test "_github_release_bin_update: release sem binário publicado (404) => 0, mantém versão" {
+  _ma_silence
+  local logf="$BATS_TEST_TMPDIR/log"
+  log() { printf '%s\n' "$*" >> "$logf"; }
+  has() { return 0; }
+  trufflehog() { printf 'trufflehog 3.99.7\n'; }
+  _manual_write_prefix() { return 0; }
+  run_network_cmd() { return 22; }
+  curl() {
+    if [[ " $* " == *" -w %{url_effective} "* ]]; then
+      printf 'https://github.com/o/trufflehog/releases/tag/v3.99.8'
+    elif [[ " $* " == *" -w %{http_code} "* ]]; then
+      printf '404'
+    fi
+  }
+  run _github_release_bin_update trufflehog trufflehog o/trufflehog amd64 arm64
+  [ "$status" -eq 0 ]
+  grep -q 'ainda sem o binário' "$logf"
+}
+
+@test "_github_release_bin_update: download falha com asset existente => RC_WARN" {
+  _ma_silence
+  has() { return 0; }
+  trufflehog() { printf 'trufflehog 3.99.7\n'; }
+  _manual_write_prefix() { return 0; }
+  run_network_cmd() { return 22; }
+  curl() {
+    if [[ " $* " == *" -w %{url_effective} "* ]]; then
+      printf 'https://github.com/o/trufflehog/releases/tag/v3.99.8'
+    elif [[ " $* " == *" -w %{http_code} "* ]]; then
+      printf '000'
+    fi
+  }
+  run _github_release_bin_update trufflehog trufflehog o/trufflehog amd64 arm64
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "zap_update_core: metadados indisponíveis => RC_WARN com STEP_REASON" {
+  _ma_silence
+  github_api_get() { return 22; }
+  STEP_REASON=''
+  zap_update_core /opt/zaproxy 2.17.0 || rc=$?
+  [ "${rc:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"ZAP core"*"2.17.0 mantido"* ]]
 }

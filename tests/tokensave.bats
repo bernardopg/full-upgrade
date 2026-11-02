@@ -13,6 +13,7 @@ setup() {
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
   _retry() { shift; printf '%s\n' "$*" >> "$calls"; return 0; }
+  _tokensave_latest_version() { echo 7.7.0; }
   export TOKENSAVE_BIN calls
 
   run update_tokensave
@@ -27,7 +28,7 @@ setup() {
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
   _retry() { return "$RC_WARN"; }
-  curl() { return 1; }
+  _tokensave_latest_version() { return 1; }
   export TOKENSAVE_BIN
 
   run update_tokensave
@@ -35,18 +36,35 @@ setup() {
   [ -x "$fake" ]
 }
 
-@test "update_tokensave: updater offline mas API confirma versão atual retorna 0" {
-  local fake="${BATS_TEST_TMPDIR}/tokensave"
+# Caso real: o updater Rust consulta o GitHub anonimamente e caía em 403
+# (limite de 60/h por IP) mesmo sem update; a pré-checagem autenticada evita
+# chamar o updater quando a release instalada já é a última.
+@test "update_tokensave: API confirma versão atual => não chama o updater" {
+  local fake="${BATS_TEST_TMPDIR}/tokensave" calls="${BATS_TEST_TMPDIR}/calls"
   printf '#!/usr/bin/env bash\necho "tokensave 7.6.0"\n' > "$fake"
   chmod +x "$fake"
   TOKENSAVE_BIN="$fake"
-  _retry() { return "$RC_WARN"; }
-  curl() { printf '%s\n' '{"tag_name":"v7.6.0"}'; }
+  _retry() { printf 'chamado\n' >> "$calls"; return 0; }
+  github_api_get() { printf '%s\n' '{"tag_name":"v7.6.0"}'; }
   export TOKENSAVE_BIN
 
   run update_tokensave
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"API oficial confirma"* ]]
-  [[ "$output" == *"7.6.0 já é a versão"* ]]
+  [[ "$output" == *"já na versão mais recente (release 7.6.0)"* ]]
+  [ ! -e "$calls" ]
+}
+
+@test "update_tokensave: 403 por limite da API vira RC_WARN com motivo próprio" {
+  local fake="${BATS_TEST_TMPDIR}/tokensave"
+  printf '#!/usr/bin/env bash\necho "tokensave 7.6.0"\n' > "$fake"
+  chmod +x "$fake"
+  TOKENSAVE_BIN="$fake"
+  _retry() { echo 'Error: update error: failed to check for updates — could not reach GitHub (http status: 403)'; return "$RC_WARN"; }
+  _tokensave_latest_version() { return 1; }
+  export TOKENSAVE_BIN
+
+  update_tokensave >/dev/null && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"limite da API"* ]]
 }

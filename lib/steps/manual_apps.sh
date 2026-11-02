@@ -102,6 +102,17 @@ _github_release_bin_update() {
   if ! run_network_cmd curl -fsSL "${base}/${asset}" -o "${tmp}/${asset}" >/dev/null \
      || ! run_network_cmd curl -fsSL "${base}/${sums}" -o "${tmp}/${sums}" >/dev/null; then
     rm -rf "$tmp"
+    # O redirect de /releases/latest muda assim que a release é publicada, mas
+    # o CI do projeto anexa os binários depois: o trufflehog 3.99.8 ficou com 0
+    # assets e o run viu `curl: (22) ... 404` como "falha de rede". Asset 404
+    # com o GitHub respondendo não é rede nem defeito: mantém a versão atual.
+    local code
+    code="$(curl -sIL --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code}' \
+              "${base}/${asset}" 2>/dev/null || true)"
+    if [[ "$code" == 404 ]]; then
+      log "  Release ${tag} do ${label} ainda sem o binário ${asset}; mantendo ${current:-versão atual}."
+      return 0
+    fi
     log "  Falha de rede ao baixar o release do ${label}."
     STEP_REASON="download do ${label} ${latest} falhou"
     return "$RC_WARN"

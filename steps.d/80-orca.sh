@@ -50,16 +50,18 @@ orca_ide_release_appimage_sha256() {
   local asset
   asset="$(orca_ide_release_appimage_name "${1:-$(uname -m)}")" || return 1
   has python || return 1
-  python - "$asset" <<'PY'
+  # Metadados via github_api_get (autenticado quando há token; ver lib/core.sh):
+  # anônimo, o limite de 60/h por IP esgotava no meio do run.
+  github_api_get "https://api.github.com/repos/stablyai/orca/releases/latest" 2>/dev/null \
+    | python -c '
 import json
 import sys
-import urllib.request
 
 asset_name = sys.argv[1]
-with urllib.request.urlopen(
-    "https://api.github.com/repos/stablyai/orca/releases/latest", timeout=30
-) as response:
-    release = json.load(response)
+try:
+    release = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
 for asset in release.get("assets", []):
     if asset.get("name") == asset_name:
         digest = asset.get("digest", "")
@@ -67,7 +69,7 @@ for asset in release.get("assets", []):
             print(digest.split(":", 1)[1])
             raise SystemExit(0)
 raise SystemExit(1)
-PY
+' "$asset"
 }
 
 install_orca_ide_aur() {

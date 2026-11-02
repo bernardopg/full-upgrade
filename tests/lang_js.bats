@@ -270,3 +270,25 @@ setup() {
   [ "$status" -eq 0 ]
   grep -q '^install -g pnpm@11.12.0$' "$cppf"
 }
+
+# Caso real: `bun upgrade` consulta a API anônima do GitHub e saía com
+# `HTTPForbidden` (fail) com o limite de 60/h por IP esgotado, já atualizado.
+@test "update_bun: release igual à instalada => não chama bun upgrade" {
+  local bin="$BATS_TEST_TMPDIR/bun"; : > "$bin"; chmod +x "$bin"
+  command() { [[ "$1 $2" == "-v bun" ]] && { printf '%s\n' "$bin"; return 0; }; builtin command "$@"; }
+  bun() { [[ "$1" == --version ]] && { echo 1.4.4; return 0; }; echo chamado >> "$BATS_TEST_TMPDIR/calls"; }
+  github_api_get() { printf '{"tag_name":"bun-v1.4.4"}\n'; }
+  run update_bun
+  [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+}
+
+@test "update_bun: HTTPForbidden do upgrade vira RC_WARN, não fail" {
+  local bin="$BATS_TEST_TMPDIR/bun"; : > "$bin"; chmod +x "$bin"
+  command() { [[ "$1 $2" == "-v bun" ]] && { printf '%s\n' "$bin"; return 0; }; builtin command "$@"; }
+  bun() { [[ "$1" == --version ]] && { echo 1.4.3; return 0; }; echo 'Bun upgrade failed with error: HTTPForbidden'; return 1; }
+  github_api_get() { return 22; }
+  update_bun >/dev/null && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"limite da API"* ]]
+}

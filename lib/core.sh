@@ -263,6 +263,108 @@ run_network_cmd() {
   return "$_rc"
 }
 
+# Token para a REST API do GitHub. Sem token o limite é 60 requisições/hora por
+# IP, e um run completo consulta várias releases: num run real o ZAP e a suíte
+# Artcraft caíram em `HTTP 403: rate limit exceeded` (remaining 0) enquanto o
+# `gh` autenticado tinha 4950 de 5000 livres. Ordem: GITHUB_TOKEN, GH_TOKEN,
+# arquivo GITHUB_TOKEN_FILE, `gh auth token`. Falha (rc 1) quando não há token —
+# o chamador segue anônimo.
+github_api_token() {
+  local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  [[ -n "$token" ]] || token="$(github_token_from_file 2>/dev/null || true)"
+  if [[ -z "$token" ]] && has gh; then
+    token="$(timeout 5 gh auth token 2>/dev/null || true)"
+  fi
+  [[ -n "$token" ]] || return 1
+  printf '%s' "$token"
+}
+
+# Token dedicado em arquivo (GITHUB_TOKEN_FILE, padrão
+# ~/.config/full-upgrade/github-token). O recomendado é um token fine-grained
+# só com acesso de leitura a repositórios públicos e nenhuma permissão: tira o
+# limite de 60/h e, vazado, não dá acesso a nada. Arquivo legível por grupo ou
+# outros é recusado (rc 2), como o ssh faz com chave privada.
+github_token_from_file() {
+  local file="${GITHUB_TOKEN_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/full-upgrade/github-token}"
+  [[ -f "$file" && -r "$file" ]] || return 1
+  local mode
+  mode="$(stat -c '%a' -- "$file" 2>/dev/null)" || return 1
+  [[ "$mode" =~ ^[0-7]*[0-7]00$ ]] || return 2
+  local token
+  token="$(head -n1 -- "$file" 2>/dev/null)"
+  # Tokens do GitHub são só [A-Za-z0-9_]. Filtrar pelo alfabeto (em LC_ALL=C,
+  # byte a byte) e não por [[:space:]]: colado num editor, o token veio com um
+  # NBSP (c2 a0) na frente, que [[:space:]] não pega em locale UTF-8.
+  token="$(LC_ALL=C; printf '%s' "${token//[^A-Za-z0-9_]/}")"
+  [[ -n "$token" ]] || return 1
+  printf '%s' "$token"
+}
+
+# Token entregue a updaters nativos de TERCEIROS (bun upgrade, hermes update),
+# que consultam o GitHub sozinhos e só autenticam por variável de ambiente.
+# Diferente de github_api_token, NÃO usa o `gh auth token` por padrão: o token
+# do gh costuma ter escopos `repo`/`workflow`/`delete_repo`, e um updater
+# comprometido poderia usá-lo contra os seus repositórios. Fontes: GITHUB_TOKEN/
+# GH_TOKEN já exportados pelo usuário, o arquivo dedicado e, só com
+# GITHUB_UPDATER_TOKEN_FROM_GH=1 (decisão explícita), o token do gh.
+github_updater_token() {
+  local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  [[ -n "$token" ]] || token="$(github_token_from_file 2>/dev/null || true)"
+  if [[ -z "$token" ]] && (( ${GITHUB_UPDATER_TOKEN_FROM_GH:-0} )) && has gh; then
+    token="$(timeout 5 gh auth token 2>/dev/null || true)"
+  fi
+  [[ -n "$token" ]] || return 1
+  printf '%s' "$token"
+}
+
+# Roda um updater nativo com GITHUB_TOKEN/GITHUB_ACCESS_TOKEN no ambiente SÓ
+# desse processo (nunca exportado para o run inteiro: builds do AUR e scripts
+# de install do npm rodam código de terceiros). Sem token, roda anônimo.
+# Uso: with_updater_github_token bun upgrade
+with_updater_github_token() {
+  local token
+  if token="$(github_updater_token)"; then
+    GITHUB_TOKEN="$token" GITHUB_ACCESS_TOKEN="$token" "$@"
+  else
+    "$@"
+  fi
+}
+
+# GET na REST API do GitHub, autenticado quando há token; corpo no stdout.
+# O header vai por `curl -K -` (stdin) para o token nunca aparecer em argv/`ps`.
+# Token inválido/expirado (401) não pode derrubar a consulta: refaz anônimo.
+# Uso: github_api_get https://api.github.com/repos/<owner>/<repo>/releases/latest
+github_api_get() {
+  local url="$1" token
+  [[ "$url" == https://api.github.com/* ]] || return 2
+  local -a opts=(-fsSL --connect-timeout 15 --max-time 30 -H 'Accept: application/vnd.github+json')
+  if token="$(github_api_token)"; then
+    printf 'header = "Authorization: Bearer %s"\n' "$token" \
+      | curl "${opts[@]}" -K - "$url" && return 0
+  fi
+  curl "${opts[@]}" "$url"
+}
+
+# Versão x.y.z da última release estável de <owner/repo> (tag `v1.2.3`,
+# `bun-v1.2.3`…), consultada pela API autenticada acima. Serve de pré-checagem
+# para updaters nativos que consultam o GitHub anonimamente (bun, hermes,
+# tokensave): com o limite de 60/h por IP esgotado eles falhavam com 403 mesmo
+# sem haver update. Já atualizado = nem chama o updater. Não entrega o token a
+# esses updaters (mesma regra do Kimchi em ai.sh). rc 1 = indisponível.
+github_latest_release_version() {
+  local body
+  body="$(github_api_get "https://api.github.com/repos/$1/releases/latest" 2>/dev/null)" || return 1
+  [[ "$body" =~ \"tag_name\"[[:space:]]*:[[:space:]]*\"[^\"0-9]*([0-9]+\.[0-9]+\.[0-9]+)\" ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# Saída de updater nativo que bateu no limite anônimo da API do GitHub. Não é
+# rede caída nem defeito: some sozinho em até 1h (ou com GITHUB_TOKEN).
+GITHUB_RATE_LIMIT_RE='rate limit|HTTPForbidden|http status: 403|HTTP 403|returned 403|403 Forbidden'
+is_github_rate_limited() {
+  grep -qiE "$GITHUB_RATE_LIMIT_RE" <<<"$1"
+}
+
 # Executa uma CLI Node/Electron em rede. Node 24 pode selecionar IPv6 mesmo
 # quando a interface ativa não tem rota IPv6; em ETIMEDOUT, repete uma vez sem
 # a auto-seleção de família. O primeiro comando preserva o comportamento normal

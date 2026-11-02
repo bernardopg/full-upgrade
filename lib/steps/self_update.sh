@@ -45,7 +45,7 @@ self_latest_version() {
 
   local api="https://api.github.com/repos/${repo}/releases/latest"
   local body tag effective latest_url
-  body="$(curl -fsSL --max-time 10 "$api" 2>/dev/null || true)"
+  body="$(github_api_get "$api" 2>/dev/null || true)"
   tag="$(printf '%s' "$body" | self_extract_tag_from_release_json)"
 
   # Fallback: api.github.com pode retornar 5xx/rate-limit mesmo quando o GitHub
