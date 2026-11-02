@@ -20,6 +20,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   imagem anterior após o pull são recriados com `docker compose ... up -d
   --no-deps --force-recreate`, a partir dos rótulos do container (volumes e
   configuração preservados), e a imagem é reverificada.
+- **`AI_PLUGIN_BLOCKLIST`:** plugins ou marketplaces listados são
+  desinstalados do Codex e do Claude Code antes de os steps renovarem os
+  marketplaces. Desligar a skill por caminho no `config.toml` do Codex não
+  bastava: o caminho inclui a versão, e o upgrade seguinte instalava a nova
+  num caminho que a regra não cobria. O plugin voltava a carregar.
 
 ### Corrigido
 
