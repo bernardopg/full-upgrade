@@ -54,6 +54,24 @@ EOF
   [ "$status" -ne 0 ]
 }
 
+# Caso real (paru 2.2.0): o pacote passou a enviar `Devel` ativo, o arquivo
+# atual tem `#Devel` (o Doctor exige Devel desligado) e o merge caía em manual
+# a cada update do paru.
+@test "pacnew_safe_merge: diretiva que o pacote ativa e o usuário comentou segue comentada" {
+  printf '[options]\nPgpFetch\n#Devel\nProvides\n' >"$CUR"
+  printf '[options]\nPgpFetch\nDevel\nProvides\n#MinimumReleaseAge = 3d\n' >"$NEW"
+  run pacnew_safe_merge "$CUR" "$NEW"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'[options]\nPgpFetch\n#Devel\nProvides\n#MinimumReleaseAge = 3d' ]
+}
+
+@test "pacnew_safe_merge: diretiva comentada só casa uma vez (repetida no pacnew recusa)" {
+  printf '#Devel\n' >"$CUR"
+  printf 'Devel\nDevel\n' >"$NEW"
+  run pacnew_safe_merge "$CUR" "$NEW"
+  [ "$status" -ne 0 ]
+}
+
 @test "pacnew_safe_merge: recusa quando uma diretiva ativa sumiu do pacnew" {
   printf 'IgnorePkg = linux\n' >"$CUR"
   printf '# nada aqui\n' >"$NEW"
