@@ -140,7 +140,7 @@ COREDUMP_IGNORE_EXE=""
 # ── Overrides de path (vazio = auto-detecta) / Path overrides (empty = auto) ─────
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
-# DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
+# DMS_PLUGINS_DIR="$HOME/.config/dms/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ARTCRAFT_DIR="$HOME/development/artcraft"
 # ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"

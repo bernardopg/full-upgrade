@@ -175,13 +175,15 @@ hc_terminal_info() {
 hc_dms_active() {
   pgrep -x quickshell >/dev/null 2>&1 && return 0
   pgrep -f DankMaterialShell >/dev/null 2>&1 && return 0
+  # Dux Shell 2.0: o shell roda como `dms run` e o UI como `qs -p …/dms-shell/…`.
+  pgrep -x dms >/dev/null 2>&1 && return 0
   [[ -n "${DMS_PLUGINS_DIR:-}" && -d "$DMS_PLUGINS_DIR" ]] && return 0
   return 1
 }
 
 # Plugins do DMS: uma linha "nome|branch|estado|nota" por plugin (vazio = nada).
 hc_dms_plugins() {
-  local dir="${DMS_PLUGINS_DIR:-$HOME/.config/DankMaterialShell/plugins}"
+  local dir="${DMS_PLUGINS_DIR:-$HOME/.config/dms/plugins}"
   [[ -d "$dir" ]] || return 0
   local d name branch state note
   for d in "$dir"/*/; do

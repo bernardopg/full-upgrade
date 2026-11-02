@@ -301,6 +301,17 @@ config_file_value() {
   printf '%s' "$value"
 }
 
+# Dux Shell 2.0 moveu ~/.config/DankMaterialShell para ~/.config/dms; o
+# diretório legado só vale quando o novo ainda não existe (DMS < 2.0).
+default_dms_plugins_dir() {
+  local base="${XDG_CONFIG_HOME:-$HOME/.config}"
+  if [[ ! -d "$base/dms/plugins" && -d "$base/DankMaterialShell/plugins" ]]; then
+    printf '%s\n' "$base/DankMaterialShell/plugins"
+  else
+    printf '%s\n' "$base/dms/plugins"
+  fi
+}
+
 load_config() {
   # O config é bash sourceado *depois* do ambiente, então uma atribuição direta
   # (FULL_UPGRADE_SKIP="a,b" no arquivo) apagava a lista vinda do ambiente — e a
@@ -326,7 +337,7 @@ load_config() {
   [[ -z "$ORCA_IDE_BIN" ]] && ORCA_IDE_BIN="$(command -v stably-orca 2>/dev/null || true)"
   [[ -z "$ANTIGRAVITY_BIN" ]] && ANTIGRAVITY_BIN="$(command -v antigravity 2>/dev/null || true)"
   [[ -z "$ANTIGRAVITY_IDE_BIN" ]] && ANTIGRAVITY_IDE_BIN="$(command -v antigravity-ide 2>/dev/null || true)"
-  [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="${HOME}/.config/DankMaterialShell/plugins"
+  [[ -z "$DMS_PLUGINS_DIR" ]] && DMS_PLUGINS_DIR="$(default_dms_plugins_dir)"
 
   # I3 — auto-detecção de helper AUR e elevador de privilégio (depois do config
   # do usuário, que pode sobrescrever). Default final de PRIV_CMD é sempre sudo.
@@ -557,7 +568,7 @@ COREDUMP_IGNORE_EXE=""
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
-# DMS_PLUGINS_DIR="$HOME/.config/DankMaterialShell/plugins"
+# DMS_PLUGINS_DIR="$HOME/.config/dms/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ARTCRAFT_DIR="$HOME/development/artcraft"
 # ORCA_IDE_BIN="$HOME/.local/bin/stably-orca"

@@ -661,7 +661,7 @@ Principais chaves:
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
 | `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
-| `DMS_PLUGINS_DIR` | `~/.config/DankMaterialShell/plugins` | Diretório dos plugins DankMaterialShell. |
+| `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` (cai para `~/.config/DankMaterialShell/plugins` se só o legado existir) | Diretório dos plugins DankMaterialShell. |
 | `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |
 | `ORCA_IDE_BIN` | auto | Override do binário `stably-orca` (Orca IDE). |
 | `BURPSUITE_JAVA_BIN` | auto | Java usado pelo fallback de instalação do Burp. |

@@ -26,7 +26,7 @@ dms_plugin_is_pinned() {
 }
 
 update_dms_plugins() {
-  local plugins_dir="${DMS_PLUGINS_DIR:-${HOME}/.config/DankMaterialShell/plugins}"
+  local plugins_dir="${DMS_PLUGINS_DIR:-${HOME}/.config/dms/plugins}"
 
   if [[ ! -d "$plugins_dir" ]]; then
     log "  DankMaterialShell plugins não encontrado: ${plugins_dir}"

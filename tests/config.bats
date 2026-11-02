@@ -109,3 +109,25 @@ EOF
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
+
+# ── default_dms_plugins_dir ───────────────────────────────────────────────────
+
+@test "default_dms_plugins_dir: usa ~/.config/dms/plugins (Dux Shell 2.0)" {
+  XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}/cfg"
+  mkdir -p "$XDG_CONFIG_HOME/dms/plugins" "$XDG_CONFIG_HOME/DankMaterialShell/plugins"
+  run default_dms_plugins_dir
+  [ "$output" = "$XDG_CONFIG_HOME/dms/plugins" ]
+}
+
+@test "default_dms_plugins_dir: cai para o diretório legado só se o novo não existir" {
+  XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}/cfg"
+  mkdir -p "$XDG_CONFIG_HOME/DankMaterialShell/plugins"
+  run default_dms_plugins_dir
+  [ "$output" = "$XDG_CONFIG_HOME/DankMaterialShell/plugins" ]
+}
+
+@test "default_dms_plugins_dir: sem nenhum dos dois => caminho novo" {
+  XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}/vazio"
+  run default_dms_plugins_dir
+  [ "$output" = "$XDG_CONFIG_HOME/dms/plugins" ]
+}

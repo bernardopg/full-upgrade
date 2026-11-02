@@ -589,7 +589,7 @@ run_all_steps() {
         step_skip "Atualizar plugins customizados do Zsh" "oh-my-zsh não encontrado"
     fi
     
-    if [[ -d "${DMS_PLUGINS_DIR:-$HOME/.config/DankMaterialShell/plugins}" ]]; then
+    if [[ -d "${DMS_PLUGINS_DIR:-$HOME/.config/dms/plugins}" ]]; then
         run_step "Atualizar plugins DankMaterialShell" update_dms_plugins
     else
         step_skip "Atualizar plugins DankMaterialShell" "DankMaterialShell não encontrado"
