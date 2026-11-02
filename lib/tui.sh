@@ -80,6 +80,7 @@ AUTO_MERGE_PACNEW|bool||Mescla sozinho .pacnew com merge 100% seguro
 AUTO_RECREATE_STALE_CONTAINERS|bool||Recria via Compose containers com imagem antiga
 GITHUB_TOKEN_FILE|path||Token GitHub dedicado (modo 600) contra o limite anônimo de 60 req/h
 GITHUB_UPDATER_TOKEN_FROM_GH|bool||Entrega o token do gh (escopos amplos) aos updaters nativos
+AI_PLUGIN_BLOCKLIST|string||Plugins do Codex/Claude Code a desinstalar sempre (espaço ou vírgula)
 SECURE_BOOT_STRICT|bool||--audit classifica Secure Boot off como severidade média
 REPORT_ON_FINISH|bool||Grava relatório Markdown do run ao final
 NOTIFY_ON_FINISH|bool||Notificação desktop com o resumo ao fim do run

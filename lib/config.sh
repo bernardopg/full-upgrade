@@ -57,6 +57,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${TRAY_ICON_COLOR:=auto}"        # cor dos ícones monocromáticos do AppIndicator: auto = texto do tema GTK; ou #rrggbb
 : "${GITHUB_TOKEN_FILE:=${XDG_CONFIG_HOME:-$HOME/.config}/full-upgrade/github-token}" # token GitHub dedicado (modo 600): tira o limite anônimo de 60 req/h e é entregue aos updaters nativos (bun, hermes)
 : "${GITHUB_UPDATER_TOKEN_FROM_GH:=0}" # 1 = sem token dedicado, entrega o token do `gh` (escopos amplos) aos updaters nativos; 0 = updaters seguem anônimos
+: "${AI_PLUGIN_BLOCKLIST:=}"       # plugins/marketplaces (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar
 : "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento do `npx skills update`; versão do CLI que o excede é marcada lenta e o step usa a última boa
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
@@ -162,6 +163,7 @@ TRAY_TERMINAL
 TRAY_NOTIFICATIONS
 TRAY_BADGE
 TRAY_ICON_COLOR
+AI_PLUGIN_BLOCKLIST
 AGENT_SKILLS_TIMEOUT_S
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
@@ -548,6 +550,13 @@ GITHUB_TOKEN_FILE="$HOME/.config/full-upgrade/github-token"
 # poderia usá-lo contra os seus repositórios. Prefira o token dedicado.
 GITHUB_UPDATER_TOKEN_FROM_GH=0
 
+# Plugins de agentes que nunca devem ficar instalados (nome do plugin ou do
+# marketplace, separados por espaço ou vírgula). Os steps de plugins do Codex
+# e do Claude Code os desinstalam antes de renovar os marketplaces. Desligar
+# a skill por caminho no config.toml do Codex não basta: o caminho inclui a
+# versão, e o upgrade seguinte instala outra. Ex.: AI_PLUGIN_BLOCKLIST="meu-plugin"
+AI_PLUGIN_BLOCKLIST=""
+
 # ── Política de Secure Boot no --audit ──
 # 0 = Secure Boot desabilitado é postura informativa (default; nem toda máquina
 # usa Secure Boot). 1 = classifica como severidade média em ambientes estritos.
@@ -711,6 +720,7 @@ show_config() {
   _cfg_kv "TRAY_NOTIFICATIONS" "$TRAY_NOTIFICATIONS"
   _cfg_kv "TRAY_BADGE" "$TRAY_BADGE"
   _cfg_kv "TRAY_ICON_COLOR" "$TRAY_ICON_COLOR"
+  _cfg_kv "AI_PLUGIN_BLOCKLIST" "${AI_PLUGIN_BLOCKLIST:-(vazia)}"
   _cfg_kv "AGENT_SKILLS_TIMEOUT_S" "$AGENT_SKILLS_TIMEOUT_S"
   _cfg_kv "MCP_AUTO_UPDATE" "$MCP_AUTO_UPDATE"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"

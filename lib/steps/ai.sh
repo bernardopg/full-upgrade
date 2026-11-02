@@ -730,8 +730,103 @@ for line in sys.stdin:
 '
 }
 
+# ── Blocklist de plugins de agentes ────────────────────────────────────────────
+# AI_PLUGIN_BLOCKLIST lista nomes de plugin ou de marketplace (espaço ou
+# vírgula) que nunca devem ficar instalados no Codex nem no Claude Code.
+# Desligar a skill por caminho em ~/.codex/config.toml não basta: o caminho
+# inclui a versão (…/cache/<mkt>/<plugin>/<versão>/skills/…), e o próximo
+# `codex plugin marketplace upgrade` instala a versão nova num caminho que a
+# regra não cobre. Num caso real, um plugin desligado assim voltou a carregar
+# as skills numa sessão do Codex após o upgrade. Por isso os steps de plugins
+# desinstalam o que estiver bloqueado ANTES de renovar os marketplaces.
+
+# Lê o JSON de um `plugin list --json`/`plugin marketplace list --json` no
+# stdin e imprime os ids a remover. Modos: codex-plugins, codex-marketplaces,
+# claude-plugins (só escopo user), claude-marketplaces. Os nomes vêm em argv.
+ai_plugin_blocked() {
+  local mode="$1"
+  shift
+  (($# > 0)) || return 0
+  python3 -c '
+import json, sys
+mode, blocked = sys.argv[1], {b.lower() for b in sys.argv[2:] if b}
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+def hit(*names):
+    return any((n or "").lower() in blocked for n in names)
+out = []
+if mode == "codex-plugins":
+    for p in (data.get("installed") or []) if isinstance(data, dict) else []:
+        if hit(p.get("name"), p.get("marketplaceName")) and p.get("pluginId"):
+            out.append(p["pluginId"])
+elif mode == "codex-marketplaces":
+    for m in (data.get("marketplaces") or []) if isinstance(data, dict) else []:
+        if hit(m.get("name")):
+            out.append(m["name"])
+elif mode == "claude-plugins":
+    for p in data if isinstance(data, list) else []:
+        pid = p.get("id") or ""
+        name, _, mkt = pid.partition("@")
+        if p.get("scope") == "user" and pid and hit(name, mkt):
+            out.append(pid)
+elif mode == "claude-marketplaces":
+    for m in data if isinstance(data, list) else []:
+        if hit(m.get("name")):
+            out.append(m["name"])
+for x in dict.fromkeys(out):
+    print(x)
+' "$mode" "$@"
+}
+
+# Desinstala do CLI ($1 = codex|claude) os plugins e marketplaces bloqueados.
+# Nunca falha o step: o que não sair fica registrado no log e é tentado de novo
+# no próximo run.
+ai_plugin_purge_blocked() {
+  local cli="$1" id
+  local -a names=() removed=()
+  read -ra names <<<"${AI_PLUGIN_BLOCKLIST//,/ }"
+  ((${#names[@]} > 0)) || return 0
+  local -a list_p list_m rm_p rm_m
+  case "$cli" in
+    codex)
+      list_p=(codex plugin list --json) list_m=(codex plugin marketplace list --json)
+      rm_p=(codex plugin remove) rm_m=(codex plugin marketplace remove)
+      ;;
+    claude)
+      list_p=(claude plugin list --json) list_m=(claude plugin marketplace list --json)
+      rm_p=(claude plugin uninstall --scope user) rm_m=(claude plugin marketplace remove)
+      ;;
+    *) return 0 ;;
+  esac
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    if timeout 60 "${rm_p[@]}" "$id" </dev/null >>"$LOG_FILE" 2>&1; then
+      removed+=("plugin ${id}")
+    else
+      log "  Falha ao remover o plugin bloqueado ${id} (${cli}); nova tentativa no próximo run."
+    fi
+  done < <(timeout 30 "${list_p[@]}" </dev/null 2>/dev/null | ai_plugin_blocked "${cli}-plugins" "${names[@]}")
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    if timeout 60 "${rm_m[@]}" "$id" </dev/null >>"$LOG_FILE" 2>&1; then
+      removed+=("marketplace ${id}")
+    else
+      log "  Falha ao remover o marketplace bloqueado ${id} (${cli}); nova tentativa no próximo run."
+    fi
+  done < <(timeout 30 "${list_m[@]}" </dev/null 2>/dev/null | ai_plugin_blocked "${cli}-marketplaces" "${names[@]}")
+  if ((${#removed[@]} > 0)); then
+    local msg
+    printf -v msg '%s, ' "${removed[@]}"
+    log "  AI_PLUGIN_BLOCKLIST: removido(s) do ${cli}: ${msg%, }."
+  fi
+  return 0
+}
+
 update_claude_plugins() {
   has claude || { log "  claude não encontrado."; return 0; }
+  ai_plugin_purge_blocked claude
   local mk_out mk_rc
   mk_out="$(run_network_cmd claude plugin marketplace update </dev/null)"
   mk_rc=$?
@@ -791,6 +886,7 @@ update_claude_plugins() {
 # até o autor corrigir. Preserve o snapshot, mas registre a atualização parcial.
 update_codex_plugins() {
   has codex || { log "  codex não encontrado."; return 0; }
+  ai_plugin_purge_blocked codex
   local out rc line upstream=() failed=()
   out="$(run_network_cmd codex plugin marketplace upgrade </dev/null)"
   rc=$?
