@@ -912,7 +912,7 @@ update_jcode() {
   [[ -n "$current" ]] || current="$(jcode --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+){2}' | head -1 || true)"
   log "  jcode versão atual: ${current:-desconhecida}"
 
-  meta="$(run_network_cmd curl -fsSL https://api.github.com/repos/1jehuang/jcode/releases/latest 2>/dev/null)"
+  meta="$(run_network_cmd github_api_get https://api.github.com/repos/1jehuang/jcode/releases/latest 2>/dev/null)"
   if [[ -z "$meta" ]]; then
     log "  Não foi possível consultar a última release do jcode (rede/GitHub indisponível)."
     return "$RC_WARN"

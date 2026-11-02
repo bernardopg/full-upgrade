@@ -135,10 +135,11 @@ zap_update_core() {
   local zap_home="$1" current="$2"
   local meta info latest url expected tmp archive extracted actual backup write_prefix
 
-  meta="$(curl -fsSL --connect-timeout 15 https://api.github.com/repos/zaproxy/zaproxy/releases/latest 2>/dev/null || true)"
+  meta="$(github_api_get https://api.github.com/repos/zaproxy/zaproxy/releases/latest 2>/dev/null || true)"
   info="$(printf '%s\n' "$meta" | zap_release_asset_info 2>/dev/null || true)"
   if [[ -z "$info" ]]; then
     log "  ZAP core: não foi possível obter release Linux com sha256 verificável."
+    STEP_REASON="ZAP core: release oficial indisponível (API GitHub/rede); core ${current:-?} mantido"
     return "$RC_WARN"
   fi
   IFS=$'\t' read -r latest url expected <<< "$info"
@@ -149,6 +150,7 @@ zap_update_core() {
 
   if ! write_prefix="$(_manual_write_prefix "$zap_home/zap.sh")"; then
     log "  ZAP core ${current:-?} → ${latest}, mas ${zap_home} exige sudo indisponível."
+    STEP_REASON="ZAP core ${latest} disponível; ${zap_home} exige sudo indisponível"
     return "$RC_WARN"
   fi
 
@@ -157,22 +159,26 @@ zap_update_core() {
   log "  Atualizando ZAP core: ${current:-?} → ${latest} (asset oficial verificado)..."
   if ! run_logged curl -fL --retry 2 --connect-timeout 15 -o "$archive" "$url"; then
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core: download do ${latest} falhou; core ${current:-?} mantido"
     return "$RC_WARN"
   fi
   actual="$(sha256sum "$archive" 2>/dev/null | awk '{print tolower($1)}')"
   if [[ "$actual" != "$expected" ]]; then
     log "  ZAP core: sha256 inválido; instalação abortada (${actual:-ausente} != ${expected})."
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core ${latest}: sha256 inválido; instalação abortada"
     return "$RC_WARN"
   fi
   if ! tar -xzf "$archive" -C "$tmp"; then
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core ${latest}: extração falhou; core ${current:-?} mantido"
     return "$RC_WARN"
   fi
   extracted="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d -name "ZAP_${latest}" -print -quit)"
   if [[ -z "$extracted" || ! -x "$extracted/zap.sh" || ! -f "$extracted/zap-${latest}.jar" ]]; then
     log "  ZAP core: conteúdo extraído não possui zap.sh/jar esperados."
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core ${latest}: pacote sem zap.sh/jar esperados"
     return "$RC_WARN"
   fi
 
@@ -181,11 +187,13 @@ zap_update_core() {
   [[ -n "$write_prefix" ]] && priv=("$write_prefix")
   if ! "${priv[@]}" mv -- "$zap_home" "$backup"; then
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core: não foi possível mover ${zap_home} para backup"
     return "$RC_WARN"
   fi
   if ! "${priv[@]}" mv -- "$extracted" "$zap_home"; then
     "${priv[@]}" mv -- "$backup" "$zap_home" 2>/dev/null || true
     rm -rf -- "$tmp"
+    STEP_REASON="ZAP core ${latest}: troca de diretório falhou; versão anterior restaurada"
     return "$RC_WARN"
   fi
   "${priv[@]}" chown -R root:root "$zap_home" 2>/dev/null || true
@@ -194,6 +202,7 @@ zap_update_core() {
     "${priv[@]}" mv -- "$backup" "$zap_home" 2>/dev/null || true
     rm -rf -- "$tmp"
     log "  ZAP core: validação pós-instalação falhou; versão anterior restaurada."
+    STEP_REASON="ZAP core ${latest}: validação pós-instalação falhou; versão anterior restaurada"
     return "$RC_WARN"
   fi
   "${priv[@]}" rm -rf -- "$backup" 2>/dev/null || true
@@ -238,6 +247,7 @@ update_zap() {
   fi
   if (( rc != 0 )); then
     log "  Falha ao atualizar add-ons do ZAP."
+    STEP_REASON="ZAP: atualização de add-ons falhou (rc=${rc})"
     return "$RC_WARN"
   fi
   log "  Add-ons do ZAP atualizados (core ${core:-?})."

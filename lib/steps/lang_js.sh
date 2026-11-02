@@ -629,8 +629,22 @@ update_bun() {
     return 0
   fi
 
-  log "  bun atual: $(bun --version 2>/dev/null || echo '?')"
-  output="$(bun upgrade 2>&1)"
+  local current latest
+  current="$(bun --version 2>/dev/null || true)"
+  log "  bun atual: ${current:-?}"
+  # `bun upgrade` consulta a API do GitHub anonimamente; com o limite de 60/h
+  # por IP esgotado ele saía com `HTTPForbidden` (fail) mesmo já atualizado.
+  # Pré-checagem pela API autenticada: sem release nova, nem chama o updater.
+  # Só para versão estável x.y.z (canary tem outro canal de release).
+  if [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    latest="$(github_latest_release_version oven-sh/bun 2>/dev/null || true)"
+    if [[ -n "$latest" ]] && ! version_is_outdated "$current" "$latest"; then
+      log "  bun já na versão mais recente (release ${latest})."
+      return 0
+    fi
+  fi
+  # Token só para este processo (ver with_updater_github_token em core.sh).
+  output="$(with_updater_github_token bun upgrade 2>&1)"
   rc=$?
   log_raw "$output"
   if grep -qiE "already on the latest|congrats|you're on the latest" <<<"$output"; then
@@ -638,6 +652,10 @@ update_bun() {
     return 0
   fi
   printf '%s\n' "$output" | grep -v '^$' | tail -5 | log_out || true
+  if (( rc != 0 )) && is_github_rate_limited "$output"; then
+    STEP_REASON="bun upgrade: limite da API anônima do GitHub (HTTP 403); some em até 1h"
+    return "$RC_WARN"
+  fi
   return "$rc"
 }
 

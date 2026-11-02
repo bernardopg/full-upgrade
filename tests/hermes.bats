@@ -218,3 +218,35 @@ EOF
   grep -q 'fatal: Operation too slow' "$LOG_FILE"
   [ -z "$(find "$LOG_DIR" -maxdepth 1 -type d -name 'hermes-git.*')" ]
 }
+
+# Caso real: o canal stable resolve a release pela API anônima do GitHub, e
+# com o limite de 60/h por IP esgotado check e update caíam em 403 mesmo com o
+# Hermes já atualizado.
+@test "update_hermes: release stable igual à instalada => pula sem chamar update" {
+  LOG_DIR="$BATS_TEST_TMPDIR"; RUN_ID="pre"; LOG_FILE=/dev/null
+  timeout() { shift; "$@"; }
+  hermes() {
+    [[ "$1" == --version ]] && { printf 'Hermes Agent v0.22.6 (2026.9.24) · stable · local f0d94882e89a\n'; return 0; }
+    printf 'update chamado\n' >> "$BATS_TEST_TMPDIR/calls"
+  }
+  github_api_get() { printf '{"tag_name":"v0.22.6"}\n'; }
+  log() { printf '%s\n' "$*" >> "$BATS_TEST_TMPDIR/log"; }
+  run update_hermes
+  [ "$status" -eq 0 ]
+  grep -q 'já na versão mais recente (release stable 0.22.6)' "$BATS_TEST_TMPDIR/log"
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+}
+
+@test "update_hermes: 403 por limite da API vira warn próprio, sem repetir" {
+  LOG_DIR="$BATS_TEST_TMPDIR"; RUN_ID="rl"; LOG_FILE=/dev/null
+  timeout() { return 124; }
+  sleep() { printf 'sleep\n' >> "$BATS_TEST_TMPDIR/sleeps"; }
+  hermes() {
+    printf '✗ Could not resolve the stable source channel: GitHub API rate limit reached (HTTP 403): anonymous requests are limited to 60 per hour\n'
+    return 1
+  }
+  update_hermes >/dev/null && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"limite da API"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/sleeps" ]
+}
