@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.51.0] - 2026-11-02
 ### Adicionado
 
 - **API do GitHub autenticada:** a API anônima limita a 60 requisições/hora
