@@ -333,6 +333,30 @@ final_check_managers() {
 # `pacman -Syu` para pendências oficiais acionáveis (e um retry de `paru -Syu`
 # para AUR, se houver). Step separado com efeito=mutating para preservar a
 # garantia read-only do --mode doctor — final_check_pending continua read.
+# Pacotes npm globais desatualizados que a autorremediação pode subir: nomes
+# (um por linha) de `npm outdated -g --parseable`, menos os linkados (esses
+# o step 'Atualizar npm global' já reporta como manuais). O formato parseable é
+# `caminho:nome@wanted:nome@current:nome@latest:dependente`.
+# Só roda com as funções de lang_js.sh carregadas (runtime e testes que as
+# sourcem): sem elas, nenhum npm real é chamado.
+_autofix_npm_global_names() {
+  has npm || return 0
+  declare -F npm_global_writable >/dev/null && declare -F npm_get_linked_packages >/dev/null || return 0
+  npm_global_writable || return 0
+  local out wanted name
+  local -a linked=()
+  out="$(npm outdated -g --depth=0 --parseable 2>/dev/null || true)"
+  [[ $out == *[![:space:]]* ]] || return 0
+  mapfile -t linked < <(npm_get_linked_packages)
+  while IFS=: read -r _ wanted _; do
+    [[ -n "$wanted" ]] || continue
+    name="${wanted%@*}"
+    [[ -n "$name" ]] || continue
+    array_contains "$name" "${linked[@]}" && continue
+    printf '%s\n' "$name"
+  done <<<"$out"
+}
+
 autofix_final_pending() {
   if (( ${AUTO_FIX_FINAL_PENDING:-0} == 0 )); then
     log "  AUTO_FIX_FINAL_PENDING desligado; nada a remediar."
@@ -366,8 +390,32 @@ autofix_final_pending() {
     aur_pending="$(yay -Qua 2>/dev/null || true)"
   fi
 
-  if (( ${#actionable[@]} == 0 )) && [[ $aur_pending != *[![:space:]]* ]]; then
+  # npm global: o step de update roda no início do run; um pacote publicado
+  # depois disso (qwen-code 0.26.6 saiu 2 min após o step) ficava como TODO na
+  # verificação final, embora esta remediação rodasse 4 min depois da publicação.
+  local -a npm_pending=()
+  mapfile -t npm_pending < <(_autofix_npm_global_names)
+
+  if (( ${#actionable[@]} == 0 )) && [[ $aur_pending != *[![:space:]]* ]] \
+      && (( ${#npm_pending[@]} == 0 )); then
     log "  Nenhuma pendência acionável para remediar."
+    return 0
+  fi
+
+  local npm_rc=0
+  if (( ${#npm_pending[@]} > 0 )); then
+    log "  Remediando ${#npm_pending[@]} pacote(s) npm global publicado(s) durante o run: ${npm_pending[*]}"
+    update_npm_globals || npm_rc=$?
+    if (( npm_rc != 0 && npm_rc != RC_TODO && npm_rc != RC_WARN )); then
+      log "  Update npm global de remediação falhou; fica para o próximo run."
+    fi
+  fi
+  if (( ${#actionable[@]} == 0 )) && [[ $aur_pending != *[![:space:]]* ]]; then
+    if (( npm_rc != 0 && npm_rc != RC_TODO && npm_rc != RC_WARN )); then
+      STEP_REASON="update npm global de remediação falhou"
+      return "$RC_WARN"
+    fi
+    log "  Pendências remediadas."
     return 0
   fi
 
