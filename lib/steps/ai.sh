@@ -483,9 +483,49 @@ update_agent_skills() {
     log "  Atualizando agent skills globais via 'npx skills update --global'…"
   fi
   local output rc
-  output="$(npx --yes skills update --global 2>&1)"
-  rc=$?
-  printf '%s\n' "$output" | _strip_ansi >> "$LOG_FILE"
+  # Versão do CLI: a mais nova, salvo se ela já foi marcada como lenta (ver
+  # agent_skills_cli_pick). O skills 1.7.5 passou a varrer os diretórios de
+  # todos os agentes de forma quadrática: 5s na 1.7.4 contra 71s na 1.7.5, e um
+  # run real estourou os 300s do catálogo.
+  local latest spec version budget="${AGENT_SKILLS_TIMEOUT_S:-60}"
+  latest="$(timeout 20 npm view skills version 2>/dev/null || true)"
+  [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || latest=""
+  spec="$(agent_skills_cli_pick "$latest")"
+  version="${spec#skills@}"
+  [[ "$version" == "$spec" ]] && version=""
+  if [[ -n "$latest" && "$version" != "$latest" ]]; then
+    log "  skills@${latest} já excedeu ${budget}s antes (regressão de desempenho); usando ${spec}."
+  fi
+
+  _agent_skills_run() {
+    # O CLI lista cada fonte pela API do GitHub e só autentica com GITHUB_TOKEN.
+    # Anônimo, o limite de 60/h por IP esgotava e ele caía em "GitHub API
+    # unavailable; checking via Git clone", clonando os 7 repositórios de origem.
+    output="$(with_updater_github_token timeout "$budget" npx --yes "$1" update --global 2>&1)"
+    rc=$?
+    printf '%s\n' "$output" | _strip_ansi >> "$LOG_FILE"
+  }
+  _agent_skills_run "$spec"
+
+  if (( rc == 124 )); then
+    agent_skills_cli_state_set slow "${version:-$latest}"
+    local good
+    good="$(agent_skills_cli_state_get good)"
+    # Primeira vez sem versão boa registrada: a release anterior à lenta.
+    [[ -n "$good" && "$good" != "${version:-$latest}" ]] \
+      || good="$(agent_skills_cli_previous_version "${version:-$latest}")"
+    if [[ -n "$good" && "$good" != "${version:-$latest}" ]]; then
+      log "  ${spec} excedeu ${budget}s; repetindo com a última versão boa (skills@${good})."
+      spec="skills@${good}" version="$good"
+      _agent_skills_run "$spec"
+    fi
+  fi
+  if (( rc == 124 )); then
+    log "  ${spec} excedeu ${budget}s sem versão anterior conhecida para fallback."
+    STEP_REASON="skills CLI excedeu ${budget}s (${spec}); skills mantidas na versão atual"
+    return "$RC_WARN"
+  fi
+  (( rc == 0 )) && [[ -n "${version:-$latest}" ]] && agent_skills_cli_state_set good "${version:-$latest}"
 
   # Resumo limpo no terminal: descarta ruído ("Checking…") e linhas vazias.
   local clean
@@ -508,6 +548,68 @@ update_agent_skills() {
     log "  Para removê-las: npx skills remove --global ${orphans}"
   fi
   agent_skills_git_ff "$skills_dir"
+}
+
+# Estado do CLI `skills` entre runs: `good=<versão>` (último update que coube
+# no orçamento) e `slow=<versão>` (versão que o excedeu). Arquivo de estado,
+# não config: é aprendido sozinho e volta a testar a mais nova assim que o
+# upstream publica outra versão.
+agent_skills_cli_state_file() {
+  printf '%s/full-upgrade/agent-skills-cli\n' "${XDG_STATE_HOME:-${HOME}/.local/state}"
+}
+
+agent_skills_cli_state_get() {
+  local file
+  file="$(agent_skills_cli_state_file)"
+  [[ -r "$file" ]] || return 0
+  sed -n "s/^$1=//p" "$file" | tail -1
+}
+
+agent_skills_cli_state_set() {
+  local key="$1" value="$2" file tmp
+  [[ "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0
+  file="$(agent_skills_cli_state_file)"
+  mkdir -p "$(dirname "$file")" 2>/dev/null || return 0
+  tmp="$(mktemp "${file}.XXXXXX" 2>/dev/null)" || return 0
+  { [[ -r "$file" ]] && grep -v "^${key}=" "$file"; printf '%s=%s\n' "$key" "$value"; } > "$tmp" 2>/dev/null
+  mv -f -- "$tmp" "$file" 2>/dev/null || rm -f -- "$tmp"
+}
+
+# Release estável imediatamente anterior a <versão> no registro npm (vazio se
+# indisponível). Fallback quando a versão nova é lenta e nenhuma boa foi vista.
+agent_skills_cli_previous_version() {
+  local target="$1"
+  [[ -n "$target" ]] || return 0
+  timeout 20 npm view skills versions --json 2>/dev/null | python3 -c '
+import json, re, sys
+target = sys.argv[1]
+try:
+    versions = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+if isinstance(versions, str):
+    versions = [versions]
+stable = [v for v in versions if re.fullmatch(r"\d+\.\d+\.\d+", v)]
+key = lambda v: tuple(map(int, v.split(".")))
+older = sorted((v for v in stable if key(v) < key(target)), key=key)
+if older:
+    print(older[-1])
+' "$target" 2>/dev/null || true
+}
+
+# Spec do npx a usar: `skills@<latest>`; se a latest é a versão marcada como
+# lenta e há uma boa conhecida, `skills@<good>`. Sem latest conhecida (registro
+# fora do ar), `skills` puro, como antes.
+agent_skills_cli_pick() {
+  local latest="$1" slow good
+  [[ -n "$latest" ]] || { printf 'skills\n'; return 0; }
+  slow="$(agent_skills_cli_state_get slow)"
+  good="$(agent_skills_cli_state_get good)"
+  if [[ "$latest" == "$slow" && -n "$good" && "$good" != "$slow" ]]; then
+    printf 'skills@%s\n' "$good"
+  else
+    printf 'skills@%s\n' "$latest"
+  fi
 }
 
 # Lock global do CLI `skills` (XDG state): registra cada skill instalada com
