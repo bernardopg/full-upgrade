@@ -397,7 +397,9 @@ update_system_aur() {
 # a mesma configuração ativa do arquivo atual — nenhuma diretiva do usuário some
 # e nenhum default novo do pacote entra em vigor sozinho; muda só comentário.
 # Se o usuário alterou o VALOR de uma linha, ou o pacote passou a ativar algo
-# que o arquivo atual não tem, rc 1 e o arquivo segue como decisão manual.
+# que o arquivo atual não tem nem comentado, rc 1 e o arquivo segue como
+# decisão manual. Diretiva que o pacote ativa e o arquivo atual tem comentada
+# continua comentada (desligada pelo usuário).
 # Regex de arquivos que NUNCA devem ser auto-mesclados (trancam a máquina).
 PACNEW_NEVER_AUTO_RE='^/etc/(sudoers|passwd|shadow|group|gshadow|fstab|crypttab)$'
 
@@ -409,7 +411,12 @@ pacnew_safe_merge() {
     function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
     FNR == NR {
       t = trim($0)
-      if (t == "" || substr(t, 1, 1) == "#") next
+      if (t == "") next
+      if (substr(t, 1, 1) == "#") {
+        u = trim(substr(t, 2))
+        if (u != "") { ccnt[u]++; cverb[u SUBSEP ccnt[u]] = $0 }
+        next
+      }
       cnt[t]++; total++
       verb[t SUBSEP cnt[t]] = $0
       next
@@ -426,9 +433,16 @@ pacnew_safe_merge() {
           }
         } else {
           # Linha ativa no .pacnew sem contrapartida ativa no arquivo atual:
-          # aceitar mudaria a configuração em vigor. Recusa o merge.
+          # aceitar mudaria a configuração em vigor. Se o arquivo atual tem a
+          # MESMA linha comentada, o usuário a desligou de propósito: mantém o
+          # comentário dele (a configuração ativa segue idêntica). Caso real: o
+          # paru 2.2 passou a enviar `Devel` ativo, o Doctor exige `#Devel`, e
+          # todo update do paru deixava um .pacnew que caía em merge manual.
+          # Sem nenhuma das duas contrapartidas, recusa o merge.
           if ((t in cnt) && used[t] < cnt[t]) {
             used[t]++; got++; repl[i] = verb[t SUBSEP used[t]]
+          } else if ((t in ccnt) && cused[t] < ccnt[t]) {
+            cused[t]++; repl[i] = cverb[t SUBSEP cused[t]]
           } else {
             exit 1
           }
