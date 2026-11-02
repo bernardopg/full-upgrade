@@ -3,6 +3,44 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **API do GitHub autenticada:** a API anônima limita a 60 requisições/hora
+  por IP, e num run completo o limite esgotava: ZAP, Artcraft, jcode, Bun,
+  Hermes e TokenSave caíam em HTTP 403. O full-upgrade agora consulta a API
+  com token de `GITHUB_TOKEN`/`GH_TOKEN`, do arquivo dedicado
+  `~/.config/full-upgrade/github-token` (`GITHUB_TOKEN_FILE`, exige modo
+  `600`) ou do `gh auth token`. O token vai ao `curl` por stdin, nunca em
+  argv. Aos updaters de terceiros (Bun, Hermes, skills CLI) só vai o token
+  dedicado; o do `gh`, de escopos amplos, exige
+  `GITHUB_UPDATER_TOKEN_FROM_GH=1`. `--config` mostra só se o token está
+  presente.
+- **Recriação de containers Compose com imagem antiga:** com
+  `AUTO_RECREATE_STALE_CONTAINERS=1`, os serviços que seguem rodando com a
+  imagem anterior após o pull são recriados com `docker compose ... up -d
+  --no-deps --force-recreate`, a partir dos rótulos do container (volumes e
+  configuração preservados), e a imagem é reverificada.
+
+### Corrigido
+
+- **Agent skills estourava o timeout:** o `skills` 1.7.5 varre os diretórios
+  dos agentes de forma quadrática (5s na 1.7.4 contra 71s na 1.7.5). O step
+  agora tem orçamento próprio (`AGENT_SKILLS_TIMEOUT_S`, 60s); a versão que o
+  excede é marcada como lenta e o step repete com a última versão boa. Uma
+  versão nova do upstream volta a ser testada sozinha.
+- **Bun, Hermes e TokenSave rodavam o updater sem necessidade:** a última
+  release é consultada antes pela API autenticada; 403 vira `warn` com
+  motivo legível.
+- **Release publicada sem o binário virava `warn`:** um asset que ainda
+  responde 404 (ex.: release do trufflehog sem anexos) mantém a versão atual.
+- **Merge de `.pacnew` ativava opção comentada pelo usuário:** o paru 2.2
+  traz `Devel` ativo; o merge seguro agora preserva o comentário da config
+  atual, e o Doctor deixa de acusar o `paru.conf.pacnew` a cada run.
+- **Pacote npm global publicado durante o run virava TODO:** a
+  autorremediação final agora o atualiza.
+- **Metadados do Docker com campo vazio caíam na coluna errada:** o separador
+  passou de tab para `\x1f`.
+- **ZAP:** todo caminho de `warn` agora registra o motivo.
 
 ## [3.50.2] - 2026-10-27
 ### Corrigido
