@@ -128,7 +128,7 @@ Limpar coredumps antigos|cleanup|coredump,systemd,sudo|mutating|120|coredumpctl|
 Limpar logs/relatórios antigos|cleanup|logs,reports|mutating|30||cleanup_old_reports|Remove logs/jsonl/relatórios .md além de MAX_LOGS em ~/.cache/system-upgrade.
 Verificação final de pendências|final|pacman,aur,network|read|60||final_check_pending|Confere se ainda há updates pendentes em pacman/AUR.
 Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,network|read|180||final_check_managers|Confere se sobrou update pendente nos gerenciadores de linguagem (npm/pnpm global, cargo, gem, flatpak) depois dos steps de update.
-Auto-remediar pendências finais|autofix|pacman,aur,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) para pendências acionáveis detectadas na verificação final.
+Auto-remediar pendências finais|autofix|pacman,aur,npm,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) e sobe pacotes npm globais publicados durante o run, para pendências acionáveis detectadas na verificação final.
 Checar atualização do full-upgrade|final|self-update,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
 Doctor: reboot pendente|doctor|kernel|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
 Doctor: units systemd falhadas|doctor|systemd|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
