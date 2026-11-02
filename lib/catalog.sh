@@ -41,7 +41,7 @@ Reparar permissões de captura do Wireshark|repair|security,wireshark|mutating|3
 Reparar atalhos antigos do Burp|repair|desktop|mutating|30||repair_broken_burpsuite_desktop_entries|Move atalhos locais do Burp que apontam para executáveis inexistentes.
 Atualizar Flatpak|packages|update,network,slow,flatpak|mutating|600|flatpak|update_flatpak|Atualiza metadados e aplicações Flatpak.
 Atualizar pacotes Snap|packages|snap,update,network,slow|mutating|600|snap|update_snap|Atualiza pacotes Snap instalados.
-Atualizar imagens Docker|packages|update,network,slow,docker|mutating|600|docker|update_docker_images|Puxa imagens remotas locais e alerta containers usando imagem antiga.
+Atualizar imagens Docker|packages|update,network,slow,docker|mutating|600|docker|update_docker_images|Puxa imagens remotas locais e alerta containers usando imagem antiga (com AUTO_RECREATE_STALE_CONTAINERS=1, recria os de Compose).
 Atualizar Arduino (cores/libs)|lang-other|arduino,update,network,lang|mutating|300|arduino-cli|update_arduino|Atualiza índices, cores e bibliotecas do arduino-cli.
 Atualizar firmware (fwupd)|firmware|update,network,slow,sudo|mutating|300|fwupdmgr|update_fwupd|Atualiza metadados e firmware via fwupd.
 Atualizar systemd-boot (bootctl)|firmware|boot,sudo|mutating|60|bootctl|update_bootctl|Atualiza systemd-boot quando instalado no ESP.

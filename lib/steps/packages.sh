@@ -53,6 +53,101 @@ _docker_has_remote_digest() {
   [[ "$digests" == *'@sha256:'* ]]
 }
 
+# Lista os containers em execução cuja imagem não é mais a da tag local (após
+# um pull). Preenche DOCKER_STALE_CONTAINERS ("nome(imagem)"), DOCKER_UNVERIFIED
+# e DOCKER_STALE_COMPOSE: chave "dir<US>projeto<US>arquivos" → serviços.
+# docker ps não oferece .ImageID. O inspect retorna IDs completos e a
+# referência usada na criação; restart não troca a imagem do container.
+_docker_scan_stale_containers() {
+  DOCKER_STALE_CONTAINERS=() DOCKER_UNVERIFIED=()
+  unset DOCKER_STALE_COMPOSE
+  declare -gA DOCKER_STALE_COMPOSE=()
+  local name img imgid dir svc project files current_id ids cid metadata key
+  if ! ids="$(docker ps -q 2>/dev/null)"; then
+    DOCKER_UNVERIFIED+=("listagem de containers")
+  fi
+  while IFS= read -r cid; do
+    [[ -n "$cid" ]] || continue
+    # Separador \x1f (US), não tab: tab é espaço para o `read`, e um rótulo
+    # vazio no meio deslocaria os campos seguintes (arquivos virando projeto).
+    if ! metadata="$(docker container inspect "$cid" --format $'{{.Name}}\x1f{{.Config.Image}}\x1f{{.Image}}\x1f{{index .Config.Labels "com.docker.compose.project.working_dir"}}\x1f{{index .Config.Labels "com.docker.compose.service"}}\x1f{{index .Config.Labels "com.docker.compose.project"}}\x1f{{index .Config.Labels "com.docker.compose.project.config_files"}}' 2>/dev/null)"; then
+      DOCKER_UNVERIFIED+=("$cid")
+      continue
+    fi
+    dir="" svc="" project="" files=""
+    IFS=$'\x1f' read -r name img imgid dir svc project files <<<"$metadata"
+    if [[ -z "$img" || -z "$imgid" ]] \
+        || ! current_id="$(docker image inspect "$img" --format '{{.Id}}' 2>/dev/null)" \
+        || [[ -z "$current_id" ]]; then
+      DOCKER_UNVERIFIED+=("${name:-$cid}")
+      continue
+    fi
+    [[ "${imgid#sha256:}" != "${current_id#sha256:}" ]] || continue
+    DOCKER_STALE_CONTAINERS+=("${name#/}(${img})")
+    if [[ -n "$dir" && -n "$svc" ]]; then
+      key="${dir}"$'\x1f'"${project}"$'\x1f'"${files}"
+      DOCKER_STALE_COMPOSE["$key"]+="${DOCKER_STALE_COMPOSE[$key]:+ }${svc}"
+    fi
+  done <<<"${ids:-}"
+}
+
+# Comando (texto) que recria os serviços de um grupo do Compose. Usa o nome de
+# projeto e os arquivos gravados nos rótulos do container: `--project-directory`
+# sozinho erra quando o projeto subiu com `-p` ou `-f` fora do padrão.
+# `up -d` sozinho nem sempre recria: o Compose compara a configuração, e um
+# repull da mesma tag não a altera (visto com postgres:18-alpine e redis:8-alpine).
+_docker_compose_recreate_args() {
+  local key="$1" svcs="$2" dir project files f
+  IFS=$'\x1f' read -r dir project files <<<"$key"
+  DOCKER_COMPOSE_ARGS=(compose --project-directory "$dir")
+  [[ -n "$project" ]] && DOCKER_COMPOSE_ARGS+=(-p "$project")
+  if [[ -n "$files" ]]; then
+    local -a file_list=()
+    IFS=',' read -r -a file_list <<<"$files"
+    for f in "${file_list[@]}"; do
+      [[ -n "$f" ]] && DOCKER_COMPOSE_ARGS+=(-f "$f")
+    done
+  fi
+  local -a svc_list=()
+  read -r -a svc_list <<<"$svcs"
+  DOCKER_COMPOSE_ARGS+=(up -d --no-deps --force-recreate "${svc_list[@]}")
+}
+
+_docker_compose_recreate_cmd() {
+  _docker_compose_recreate_args "$1" "$2"
+  printf 'docker %s' "${DOCKER_COMPOSE_ARGS[*]}"
+}
+
+# AUTO_RECREATE_STALE_CONTAINERS=1: recria os serviços de Compose com imagem
+# antiga (volumes e configuração preservados). Containers fora do Compose não
+# têm receita de recriação e seguem como TODO. Arquivo de Compose ausente = o
+# projeto mudou de lugar; não adivinha, segue TODO.
+_docker_recreate_stale_compose() {
+  local key dir project files f missing
+  for key in "${!DOCKER_STALE_COMPOSE[@]}"; do
+    IFS=$'\x1f' read -r dir project files <<<"$key"
+    missing=""
+    if [[ ! -d "$dir" ]]; then
+      missing="$dir"
+    elif [[ -n "$files" ]]; then
+      local -a file_list=()
+      IFS=',' read -r -a file_list <<<"$files"
+      for f in "${file_list[@]}"; do
+        [[ -z "$f" || -r "$f" ]] || { missing="$f"; break; }
+      done
+    fi
+    if [[ -n "$missing" ]]; then
+      log "  Compose de ${project:-$dir} não encontrado (${missing}); recriação manual."
+      continue
+    fi
+    _docker_compose_recreate_args "$key" "${DOCKER_STALE_COMPOSE[$key]}"
+    log "  Recriando ${DOCKER_STALE_COMPOSE[$key]} (${project:-$dir}) na imagem atual..."
+    if ! run_logged docker "${DOCKER_COMPOSE_ARGS[@]}"; then
+      log "  ${C_YELLOW}Recriação de ${DOCKER_STALE_COMPOSE[$key]} falhou; segue pendente.${C_RESET}"
+    fi
+  done
+}
+
 update_docker_images() {
   if ! has docker; then
     log "  docker não encontrado."
@@ -132,50 +227,26 @@ update_docker_images() {
     docker image prune -f 2>&1 | _strip_ansi >> "$LOG_FILE" || true
   fi
 
-  # docker ps não oferece .ImageID. O inspect retorna IDs completos e a
-  # referência usada na criação; restart não troca a imagem do container.
-  local -a stale_containers=() unverified=()
-  local -A stale_compose=()
-  local container_name container_img container_imgid compose_dir compose_svc current_id ids cid metadata
-  if ! ids="$(docker ps -q 2>/dev/null)"; then
-    unverified+=("listagem de containers")
-  fi
-  while IFS= read -r cid; do
-    [[ -n "$cid" ]] || continue
-    # Os rótulos do Compose ficam no fim: tab é espaço para o `read`, e campos
-    # vazios no meio (container sem Compose) deslocariam os seguintes.
-    if ! metadata="$(docker container inspect "$cid" --format $'{{.Name}}\t{{.Config.Image}}\t{{.Image}}\t{{index .Config.Labels "com.docker.compose.project.working_dir"}}\t{{index .Config.Labels "com.docker.compose.service"}}' 2>/dev/null)"; then
-      unverified+=("$cid")
-      continue
-    fi
-    compose_dir="" compose_svc=""
-    IFS=$'\t' read -r container_name container_img container_imgid compose_dir compose_svc <<<"$metadata"
-    if [[ -z "$container_img" || -z "$container_imgid" ]] \
-        || ! current_id="$(docker image inspect "$container_img" --format '{{.Id}}' 2>/dev/null)" \
-        || [[ -z "$current_id" ]]; then
-      unverified+=("${container_name:-$cid}")
-      continue
-    fi
-    if [[ "${container_imgid#sha256:}" != "${current_id#sha256:}" ]]; then
-      stale_containers+=("${container_name#/}(${container_img})")
-      if [[ -n "$compose_dir" && -n "$compose_svc" ]]; then
-        stale_compose["$compose_dir"]+="${stale_compose[$compose_dir]:+ }${compose_svc}"
-      fi
-    fi
-  done <<<"${ids:-}"
+  _docker_scan_stale_containers
 
-  if (( ${#stale_containers[@]} > 0 )); then
+  if (( ${#DOCKER_STALE_CONTAINERS[@]} > 0 )) && (( ${AUTO_RECREATE_STALE_CONTAINERS:-0} )) \
+      && (( ${#DOCKER_STALE_COMPOSE[@]} > 0 )); then
+    _docker_recreate_stale_compose
+    # Reverifica: só sai do TODO o que o inspect confirma na imagem atual.
+    _docker_scan_stale_containers
+  fi
+
+  if (( ${#DOCKER_STALE_CONTAINERS[@]} > 0 )); then
     log "  ${C_YELLOW}Containers com imagem antiga: recriar pelo projeto/Compose, preservando volumes e configuração:${C_RESET}"
-    local sc
-    for sc in "${stale_containers[@]}"; do
+    local sc key
+    for sc in "${DOCKER_STALE_CONTAINERS[@]}"; do
       log "    ${sc}"
     done
-    # `up -d` sozinho nem sempre recria: o Compose compara a configuração, e um
-    # repull da mesma tag não a altera (visto com postgres:18-alpine).
-    local dir
-    for dir in "${!stale_compose[@]}"; do
-      remediation "docker compose --project-directory ${dir} up -d --no-deps --force-recreate ${stale_compose[$dir]}"
+    for key in "${!DOCKER_STALE_COMPOSE[@]}"; do
+      remediation "$(_docker_compose_recreate_cmd "$key" "${DOCKER_STALE_COMPOSE[$key]}")"
     done
+    (( ${AUTO_RECREATE_STALE_CONTAINERS:-0} )) \
+      || log "  Dica: AUTO_RECREATE_STALE_CONTAINERS=1 recria sozinho os containers de Compose."
   fi
 
   if (( ${#failed[@]} > 0 )); then
@@ -187,12 +258,12 @@ update_docker_images() {
     STEP_REASON="Docker: pull adiado por falha transitória: ${transient[*]}"
     return "$RC_WARN"
   fi
-  if (( ${#unverified[@]} > 0 )); then
-    STEP_REASON="Docker: imagem de container não verificada: ${unverified[*]}"
+  if (( ${#DOCKER_UNVERIFIED[@]} > 0 )); then
+    STEP_REASON="Docker: imagem de container não verificada: ${DOCKER_UNVERIFIED[*]}"
     return "$RC_WARN"
   fi
-  if (( ${#stale_containers[@]} > 0 )); then
-    STEP_REASON="Docker: recriar containers com imagem antiga: ${stale_containers[*]}"
+  if (( ${#DOCKER_STALE_CONTAINERS[@]} > 0 )); then
+    STEP_REASON="Docker: recriar containers com imagem antiga: ${DOCKER_STALE_CONTAINERS[*]}"
     return "$RC_TODO"
   fi
   return 0
