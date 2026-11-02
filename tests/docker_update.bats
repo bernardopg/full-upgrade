@@ -15,6 +15,10 @@ setup() {
   MOCK_COMPOSE_PROJECT=''
   MOCK_COMPOSE_DIR=''
   MOCK_COMPOSE_SVC=''
+  MOCK_COMPOSE_NAME=''
+  MOCK_COMPOSE_FILES=''
+  MOCK_RECREATED="${BATS_TEST_TMPDIR}/recreated"
+  MOCK_COMPOSE_RC=0
   STEP_REASON=''
   _retry() { printf 'mock pull\n'; return "$MOCK_PULL_RC"; }
   docker() {
@@ -29,12 +33,16 @@ setup() {
         (( MOCK_INSPECT_FAIL )) && return 1
         printf 'sha256:new\n' ;;
       'ps -q') printf 'container123\n' ;;
+      'compose '*)
+        printf '%s\n' "$*" >>"${MOCK_RECREATED}.args"
+        (( MOCK_COMPOSE_RC == 0 )) && : >"$MOCK_RECREATED"
+        return "$MOCK_COMPOSE_RC" ;;
       'container inspect '*)
         (( MOCK_INSPECT_FAIL )) && return 1
-        if (( MOCK_STALE )); then
-          printf '/web\tcaddy:2.11-alpine\tsha256:old\t%s\t%s\n' "$MOCK_COMPOSE_DIR" "$MOCK_COMPOSE_SVC"
+        if (( MOCK_STALE )) && [[ ! -e "$MOCK_RECREATED" ]]; then
+          printf '/web\x1fcaddy:2.11-alpine\x1fsha256:old\x1f%s\x1f%s\x1f%s\x1f%s\n' "$MOCK_COMPOSE_DIR" "$MOCK_COMPOSE_SVC" "$MOCK_COMPOSE_NAME" "$MOCK_COMPOSE_FILES"
         else
-          printf '/web\tcaddy:2.11-alpine\tsha256:new\n'
+          printf '/web\x1fcaddy:2.11-alpine\x1fsha256:new\n'
         fi ;;
       *) printf 'Docker não mockado: %s\n' "$*" >&2; return 90 ;;
     esac
@@ -142,4 +150,61 @@ setup() {
   update_docker_images && rc=0 || rc=$?
   [ "$rc" -eq "$RC_TODO" ]
   [ "${#REMEDIATIONS[@]}" -eq 0 ]
+}
+
+@test "Docker: comando de recriação usa projeto e arquivos dos rótulos do Compose" {
+  MOCK_STALE=1
+  MOCK_COMPOSE_DIR='/srv/app'
+  MOCK_COMPOSE_SVC='web'
+  MOCK_COMPOSE_NAME='loja'
+  MOCK_COMPOSE_FILES='/srv/app/compose.yml,/srv/app/compose.prod.yml'
+  REMEDIATIONS=()
+  remediation() { REMEDIATIONS+=("$*"); }
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [ "${REMEDIATIONS[0]}" = "docker compose --project-directory /srv/app -p loja -f /srv/app/compose.yml -f /srv/app/compose.prod.yml up -d --no-deps --force-recreate web" ]
+}
+
+@test "Docker: AUTO_RECREATE_STALE_CONTAINERS=1 recria o serviço e fecha OK após reverificar" {
+  MOCK_STALE=1
+  MOCK_COMPOSE_DIR="$BATS_TEST_TMPDIR"
+  MOCK_COMPOSE_SVC='web'
+  MOCK_COMPOSE_NAME='loja'
+  MOCK_COMPOSE_FILES="$BATS_TEST_TMPDIR/compose.yml"
+  : >"$MOCK_COMPOSE_FILES"
+  AUTO_RECREATE_STALE_CONTAINERS=1
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq 0 ]
+  [ -e "$MOCK_RECREATED" ]
+  grep -q -- "-p loja -f $BATS_TEST_TMPDIR/compose.yml up -d --no-deps --force-recreate web" "${MOCK_RECREATED}.args"
+}
+
+@test "Docker: recriação automática que falha mantém TODO" {
+  MOCK_STALE=1
+  MOCK_COMPOSE_DIR="$BATS_TEST_TMPDIR"
+  MOCK_COMPOSE_SVC='web'
+  MOCK_COMPOSE_RC=1
+  AUTO_RECREATE_STALE_CONTAINERS=1
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *recriar* ]]
+}
+
+@test "Docker: arquivo de Compose sumiu => não recria às cegas, segue TODO" {
+  MOCK_STALE=1
+  MOCK_COMPOSE_DIR="$BATS_TEST_TMPDIR"
+  MOCK_COMPOSE_SVC='web'
+  MOCK_COMPOSE_FILES="$BATS_TEST_TMPDIR/nao-existe.yml"
+  AUTO_RECREATE_STALE_CONTAINERS=1
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [ ! -e "${MOCK_RECREATED}.args" ]
+}
+
+@test "Docker: container fora do Compose não é recriado nem com AUTO_RECREATE" {
+  MOCK_STALE=1
+  AUTO_RECREATE_STALE_CONTAINERS=1
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [ ! -e "${MOCK_RECREATED}.args" ]
 }
