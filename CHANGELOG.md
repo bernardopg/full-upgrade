@@ -46,6 +46,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - **Metadados do Docker com campo vazio caíam na coluna errada:** o separador
   passou de tab para `\x1f`.
 - **ZAP:** todo caminho de `warn` agora registra o motivo.
+- **Plugins DMS pulados no Dux Shell 2.0:** o shell moveu
+  `~/.config/DankMaterialShell` para `~/.config/dms` e deixa o caminho antigo
+  só como symlink de compatibilidade. Sem o link, `DMS_PLUGINS_DIR` apontava
+  para um diretório inexistente. O default agora é `~/.config/dms/plugins`,
+  com o legado só quando o novo não existe; o healthcheck reconhece o
+  processo `dms`.
 
 ## [3.50.2] - 2026-10-27
 ### Corrigido
