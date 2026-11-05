@@ -212,6 +212,20 @@ zap_update_core() {
 }
 
 
+# Mensagem cfu.cmdline.nocfu do ZAP, em inglês e na tradução pt_BR que o ZAP
+# usa quando o locale é PT. Puro.
+zap_cfu_failed() {
+  grep -qiE 'check for updates call failed|chamada de verifica[çc][ãa]o de atualiza[çc][õo]es falhou' <<<"$1"
+}
+
+# Há rota IPv6 global? Sem ela, insistir em IPv6 só gastaria mais um timeout.
+zap_has_ipv6_route() {
+  has ip || return 1
+  local route
+  route="$(ip -6 route get 2606:4700:4700::1111 2>/dev/null)" || return 1
+  [[ -n "$route" && "$route" != *unreachable* ]]
+}
+
 update_zap() {
   local zap_cmd
   zap_cmd="$(command -v zap 2>/dev/null || command -v zap.sh 2>/dev/null || true)"
@@ -239,7 +253,24 @@ update_zap() {
   local out rc port
   port="$(zap_free_port 2>/dev/null || true)"
   [[ "$port" =~ ^[0-9]+$ ]] || port=49152
-  out="$(run_network_cmd "$zap_cmd" -cmd -port "$port" -addonupdate 2>&1)"; rc=$?
+  # O Java tenta IPv4 primeiro. Caso real: o IPv4 do provedor não alcançava
+  # cfu.zaproxy.org (Cloudflare) enquanto o IPv6 respondia em 0,5s, e o
+  # Marketplace falhava em todo run havia meses. Com rota IPv6, preferi-la é
+  # seguro: o HttpClient do ZAP tenta os demais endereços resolvidos se o
+  # primeiro falhar, então um IPv6 quebrado ainda cai para IPv4.
+  local -a jto=()
+  if zap_has_ipv6_route; then
+    jto=(env "JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Djava.net.preferIPv6Addresses=true")
+  fi
+  out="$(run_network_cmd "${jto[@]}" "$zap_cmd" -cmd -port "$port" -addonupdate 2>&1)"; rc=$?
+
+  # "Check for updates call failed" sai com rc 0: sem esta checagem o step
+  # fechava OK sem ter falado com o Marketplace.
+  if zap_cfu_failed "$out"; then
+    log "  ZAP: o Marketplace (cfu.zaproxy.org) não respondeu; add-ons não verificados."
+    STEP_REASON="ZAP: Marketplace inacessível (Check for updates call failed); add-ons não verificados"
+    return "$RC_WARN"
+  fi
 
   if grep -qiE 'add-?on.*(compl|finish)|atualiza.*add-on.*compl|add-on (baixado|downloaded)|no (add-?on )?updates|nenhuma atualiza' <<<"$out"; then
     log "  Add-ons do ZAP atualizados (core ${core:-?})."
