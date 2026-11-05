@@ -3,6 +3,33 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Docker falhava em builds locais:** imagens `local/*` (e `localhost/*`)
+  recebem digest do image store containerd e eram tratadas como remotas; o
+  pull recusado pelo registry derrubava o step como `fail` em todo run. Esses
+  namespaces agora contam como build local, e `pull access denied ...
+  repository does not exist` é ignorado com registro no log. `httpd` entrou na
+  lista de imagens oficiais (antes nunca era atualizada).
+- **ZAP reportava OK sem falar com o Marketplace:** `Check for updates call
+  failed` sai com rc 0 e passava despercebido. Agora vira `warn`. Causa real:
+  o IPv4 do provedor não alcançava `cfu.zaproxy.org`, e o Java tenta IPv4
+  primeiro; com rota IPv6 o step passa `-Djava.net.preferIPv6Addresses=true`.
+- **Instaladores baixados iam inteiros para o log:** o script do Ollama era
+  gravado no log a cada run e o stderr do `curl` se misturava ao conteúdo
+  executado por `sh`. Novo `fetch_network_text` separa corpo, stderr e log
+  (Ollama, kilo, Antigravity); timeouts do curl viram `warn`.
+- **Journal abria `warn` com ruído conhecido:** `dbus-broker` repetindo
+  `Ignoring duplicate name` (dois pacotes declarando o mesmo nome D-Bus) e o
+  `steam-remote` antes do cliente Steam subir agora são ruído filtrado. O
+  `warn` passa a listar as assinaturas que surgiram durante o run.
+- **Módulos `lib/steps/doctor/*.sh` fora do lint:** preflight, CI e release
+  não passavam `bash -n`/ShellCheck nesses arquivos; um SC1011 em
+  `service_is_bus_activated` ficou escondido. Escopo corrigido.
+- **Testes de instaladores podiam baixar de verdade:** `curl` é bloqueado nos
+  testes de Ollama/opencode/kilo; um mock esquecido não executa mais um
+  instalador real.
+
 
 ## [3.51.0] - 2026-11-02
 ### Adicionado

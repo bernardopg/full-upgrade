@@ -432,7 +432,14 @@ progresso; não inicie outro full-upgrade em paralelo. Descoberta e validação
 - **Docker:** a checagem inicial usa timeout curto configurável
   (`DOCKER_INFO_TIMEOUT_S`, default `5`) antes de decidir que o daemon está
   inacessível. Isso evita runs presos por dezenas de segundos em máquinas com
-  Docker instalado, mas parado ou sem permissão.
+  Docker instalado, mas parado ou sem permissão. Imagens nos namespaces
+  `local/` e `localhost/` são tratadas como builds locais, e um pull que o
+  registry recusa com `repository does not exist` é ignorado em vez de falhar
+  o step: com o image store containerd, builds locais também ganham digest.
+- **OWASP ZAP:** a mensagem `Check for updates call failed` (que o ZAP emite
+  com rc 0) vira `warn` em vez de OK falso. Com rota IPv6 disponível, o Java
+  do ZAP prefere IPv6 — redes cujo IPv4 não alcança o Marketplace deixam de
+  falhar em todo run.
 - **Node/Electron e TokenSave:** quando um updater Node/Electron falha com
   `ETIMEDOUT`, a tentativa original é preservada e há apenas um retry com a
   auto-seleção IPv6/IPv4 desativada — útil em interfaces sem rota IPv6, sem
