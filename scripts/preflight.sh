@@ -22,7 +22,7 @@ shopt -s nullglob
 FAST=0
 [[ "${1:-}" == "--fast" ]] && FAST=1
 
-FILES=(full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh)
+FILES=(full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh)
 
 # Defesa em profundidade: o commit-msg dá feedback ao criar o commit, mas pode
 # ter sido pulado com --no-verify ou o commit pode ter vindo de cherry-pick. No
