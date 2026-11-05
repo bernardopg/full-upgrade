@@ -163,12 +163,12 @@ jobs:
       - name: Validate before release
         run: |
           shopt -s nullglob
-          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
             bash -n "$f"
           done
           shellcheck --version
           shellcheck -S warning -x \
-            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+            full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
           bats --jobs "$(nproc)" tests/
 
       - name: Build standalone

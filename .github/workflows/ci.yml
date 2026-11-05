@@ -31,7 +31,7 @@ jobs:
       - name: Syntax check (bash -n)
         run: |
           shopt -s nullglob
-          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
+          for f in full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
@@ -58,7 +58,7 @@ jobs:
         run: |
           shellcheck --version
           shellcheck -S warning -x \
-            full-upgrade.sh lib/*.sh lib/steps/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
+            full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
 
       - name: Install bats
         run: |
