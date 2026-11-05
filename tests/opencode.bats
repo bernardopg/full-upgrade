@@ -9,6 +9,8 @@ setup() {
   source "${FU_LIB}/steps/ai.sh"
   QUIET=0
   STEP_REASON=""
+  # Hermético: um mock esquecido nunca pode baixar e executar um instalador real.
+  curl() { printf 'curl real bloqueado no teste: %s\n' "$*" >&2; return 7; }
 }
 
 @test "opencode: ausente retorna 0" {
@@ -65,10 +67,8 @@ setup() {
 @test "kilo: upgrade nativo quebrado cai para o instalador oficial" {
   has() { [[ "$1" == kilo ]]; }
   kilo() { [[ "$1" == --version ]] && printf '7.8.1\n'; }
-  run_network_cmd() {
-    if [[ "$1" == kilo ]]; then printf '■  Upgrade failed\n'; return 0; fi
-    printf '#!/usr/bin/env bash\necho instalado\n'
-  }
+  run_network_cmd() { printf '■  Upgrade failed\n'; return 0; }
+  fetch_network_text() { printf '#!/usr/bin/env bash\necho instalado\n'; }
   run update_kilo
   [ "$status" -eq 0 ]
   [[ "$output" == *"instalado"* ]]
