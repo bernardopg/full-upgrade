@@ -781,6 +781,30 @@ _cd_line() { printf 'Qui %s -03  123  1000 1000 SIGABRT present /opt/app/%s 3.6M
   [ "$hit" -eq 1 ]
 }
 
+@test "journal_noise_patterns: nome D-Bus duplicado do dbus-broker é ruído" {
+  local line="2026-11-04T22:07:22-03:00 archlinux dbus-broker-launch[831]: Ignoring duplicate name 'org.freedesktop.FileManager1' in service file '/usr/share//dbus-1/services/org.kde.dolphin.FileManager1.service'" p hit=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
+  done < <(journal_noise_patterns)
+  [ "$hit" -eq 1 ]
+}
+
+@test "journal_noise_patterns: dbus-broker sem nome duplicado não é ruído" {
+  local line="archlinux dbus-broker-launch[831]: Service file '/usr/share/dbus-1/services/x.service' could not be parsed" p hit=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
+  done < <(journal_noise_patterns)
+  [ "$hit" -eq 0 ]
+}
+
+@test "journal_noise_patterns: steam-remote antes do cliente Steam é ruído" {
+  local line='archlinux steam-runtime-steam-remote[8023]: E: Steam is not running: No such device or address' p hit=0
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && grep -qE "$p" <<<"$line" && hit=1
+  done < <(journal_noise_patterns)
+  [ "$hit" -eq 1 ]
+}
+
 @test "fwupd: runtime inseguro avisa mesmo acima do piso" {
   has() { [[ "$1" == fwupdmgr ]]; }
   fwupdmgr() { printf 'Host Security ID: HSI:3!\n'; }
