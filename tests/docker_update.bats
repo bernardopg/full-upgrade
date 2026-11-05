@@ -20,7 +20,8 @@ setup() {
   MOCK_RECREATED="${BATS_TEST_TMPDIR}/recreated"
   MOCK_COMPOSE_RC=0
   STEP_REASON=''
-  _retry() { printf 'mock pull\n'; return "$MOCK_PULL_RC"; }
+  MOCK_PULL_OUTPUT='mock pull'
+  _retry() { printf '%s\n' "$MOCK_PULL_OUTPUT"; return "$MOCK_PULL_RC"; }
   docker() {
     case "$*" in
       'images '*) (( MOCK_IMAGES_FAIL )) && return 1; printf '%s\n' "$MOCK_IMAGES" ;;
@@ -83,6 +84,36 @@ setup() {
   MOCK_COMPOSE_PROJECT='meu-projeto'
   run _docker_has_remote_digest empresa/build:dev
   [ "$status" -eq 1 ]
+}
+
+@test "Docker: namespaces local/ e localhost/ são builds locais, registry com porta não" {
+  run _docker_is_remote_image local/doctoralia-api:fix
+  [ "$status" -eq 1 ]
+  run _docker_is_remote_image localhost/app:1
+  [ "$status" -eq 1 ]
+  run _docker_is_remote_image localhost:5000/app:1
+  [ "$status" -eq 0 ]
+}
+
+@test "Docker: httpd oficial do Docker Hub é remota" {
+  run _docker_is_remote_image httpd:2.4
+  [ "$status" -eq 0 ]
+}
+
+@test "Docker: build local com RepoDigest do containerd não vira fail no pull" {
+  MOCK_IMAGES='empresa/build:dev'
+  MOCK_PULL_RC=1
+  MOCK_PULL_OUTPUT="Error response from daemon: pull access denied for empresa/build, repository does not exist or may require 'docker login'"
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq 0 ]
+  [ -z "$STEP_REASON" ]
+}
+
+@test "Docker: erro de pull fora do padrão sem-upstream continua fail" {
+  MOCK_PULL_RC=1
+  MOCK_PULL_OUTPUT='Error response from daemon: failed to register layer: no space left on device'
+  update_docker_images && rc=0 || rc=$?
+  [ "$rc" -eq 1 ]
 }
 
 @test "Docker: archlinux oficial com digest é atualizada" {

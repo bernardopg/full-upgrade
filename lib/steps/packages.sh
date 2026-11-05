@@ -5,19 +5,29 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2034  # STEP_REASON é global cross-module (lida em core.sh)
 
+# Resposta do registry para repositório inexistente (Docker Hub não distingue
+# de privado sem login). Não é falha de rede nem defeito: não há upstream.
+DOCKER_NO_UPSTREAM_RE="pull access denied for .*repository does not exist|repository does not exist or may require 'docker login'"
+
 _docker_is_remote_image() {
   local img="$1"
   # Corta APENAS a tag (último ':'), preservando registries com porta como
   # `localhost:5000/app`. Usar '%%' (guloso) cortaria no primeiro ':' e
   # classificaria errado imagens de registry com porta como locais.
   local repo="${img%:*}"
+  # `local/` e `localhost/` (sem porta) são namespaces convencionais de build
+  # local: nenhum registry os serve. Com o image store containerd, esses builds
+  # ganham RepoDigest, então só o nome os separa de uma imagem do Docker Hub.
+  case "$repo" in
+    local/*|localhost/*) return 1 ;;
+  esac
   # Remota = contém / (ghcr.io/..., n8nio/n8n) OU é imagem oficial sem prefixo de usuário
   [[ "$repo" == *"/"* ]] && return 0
   # Imagens oficiais Docker Hub conhecidas (single-name sem usuário)
   case "$repo" in
     redis|postgres|mongo|mysql|mariadb|nginx|apache|alpine|ubuntu|debian|\
     python|node|golang|rust|ruby|php|java|openjdk|eclipse-temurin|\
-    selenium|firefox|chrome|chromium|caddy|archlinux) return 0 ;;
+    selenium|firefox|chrome|chromium|caddy|archlinux|httpd) return 0 ;;
   esac
   return 1
 }
@@ -204,6 +214,13 @@ update_docker_images() {
     if (( rc == RC_WARN )); then
       log "  docker pull ${img}: falha de rede transitória após 2 tentativas."
       transient+=("$img")
+      continue
+    fi
+    if (( rc != 0 )) && grep -qE "$DOCKER_NO_UPSTREAM_RE" <<<"$output"; then
+      # Build local com nome de usuário (empresa/app:dev) que o heurístico de
+      # nome não separa: o registry responde que o repositório não existe.
+      # Não há o que atualizar; falhar aqui quebraria o step em todo run.
+      log "  ${img}: sem repositório no registry (build local ou imagem privada sem docker login); ignorada."
       continue
     fi
     if (( rc != 0 )); then
