@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.52.0] - 2026-11-05
 ### Corrigido
 
 - **Docker falhava em builds locais:** imagens `local/*` (e `localhost/*`)
