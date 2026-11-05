@@ -48,7 +48,7 @@ update_ollama() {
 
   log "  Baixando e executando o instalador oficial do Ollama..."
   local script rc
-  script="$(run_network_cmd curl -fsSL https://ollama.com/install.sh)"
+  script="$(fetch_network_text https://ollama.com/install.sh)"
   rc=$?
   if (( rc == RC_WARN )); then
     log "  Ollama: falha de rede ao baixar o instalador."
@@ -122,7 +122,7 @@ update_kilo() {
   ((rc == RC_WARN)) && [[ "$STEP_REASON" == "kilo upgrade falhou" ]] || return "$rc"
 
   log "  Tentando o instalador oficial (${KILO_INSTALLER_URL})…"
-  script="$(run_network_cmd curl -fsSL "$KILO_INSTALLER_URL")" || return "$RC_WARN"
+  script="$(fetch_network_text "$KILO_INSTALLER_URL")" || return "$RC_WARN"
   if [[ "$script" != '#!'*bash* ]]; then
     log "  ${KILO_INSTALLER_URL} não devolveu um script bash; mantendo o kilo atual."
     return "$RC_WARN"

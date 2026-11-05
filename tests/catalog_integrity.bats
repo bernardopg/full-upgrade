@@ -203,7 +203,7 @@ setup() {
   # O portão de conectividade do run_step decide pela tag `network`. Se um step
   # faz I/O de rede sem a tag, ele volta a pendurar até o timeout quando a rede
   # cai — que é exatamente o bug que o portão existe para impedir.
-  # `run_network_cmd`/`_retry` são o sinal mecânico de "este step fala com a
+  # `run_network_cmd`/`fetch_network_text`/`_retry` são o sinal mecânico de "este step fala com a
   # rede": quem os chama tem de estar marcado.
   local -A netfn=()
   local f
@@ -211,7 +211,7 @@ setup() {
     [[ -n "$f" ]] && netfn["$f"]=1
   done < <(
     awk '/^[a-zA-Z_][a-zA-Z0-9_]*\(\)/ { fn=$1; sub(/\(\)/, "", fn) }
-         /run_network_cmd|_retry / { if (fn != "") print fn }' \
+         /run_network_cmd|fetch_network_text|_retry / { if (fn != "") print fn }' \
       "${FU_ROOT}"/lib/steps/*.sh "${FU_ROOT}"/steps.d/*.sh | sort -u
   )
 

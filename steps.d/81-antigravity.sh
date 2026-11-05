@@ -73,7 +73,7 @@ antigravity_parse_latest_release() {
 antigravity_latest_version() {
     local url="$1" payload rc
     has curl || return "$RC_WARN"
-    payload="$(run_network_cmd curl -fsSL "$url")"
+    payload="$(fetch_network_text "$url")"
     rc=$?
     ((rc == 0)) || return "$rc"
     printf '%s\n' "$payload" | antigravity_parse_latest_release

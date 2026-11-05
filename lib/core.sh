@@ -246,6 +246,34 @@ pacfiles_todo_already_reported() {
   [[ -n "$marker" && -e "$marker" ]]
 }
 
+# Baixa um corpo de texto (instalador, JSON de versão) com curl, mantendo o
+# stderr FORA do conteúdo e o corpo FORA do log. run_network_cmd junta 2>&1 e
+# grava tudo via log_raw: o instalador inteiro do Ollama ia parar no log a cada
+# run, e um aviso do curl em stderr viraria parte do script executado por `sh`.
+# Só o stderr de uma falha vai ao log. Falha de rede → RC_WARN, como no helper
+# irmão. Uso: body="$(fetch_network_text https://exemplo/install.sh)"
+fetch_network_text() {
+  local _err _body _rc
+  _err="$(mktemp)" || return 1
+  _body="$(curl -fsSL "$@" 2>"$_err")"
+  _rc=$?
+  if (( _rc != 0 )); then
+    log_raw "$(<"$_err")"
+    # 6/7/28/35/52/56: DNS, conexão, timeout, TLS, resposta vazia, recv.
+    local _transient=0
+    [[ " 6 7 28 35 52 56 " == *" $_rc "* ]] && _transient=1
+    grep -qiE "$NETWORK_TRANSIENT_RE" "$_err" && _transient=1
+    if (( _transient )); then
+      rm -f -- "$_err"
+      log "  Falha de rede transitória detectada (DNS/conectividade). Marcando como aviso."
+      return "$RC_WARN"
+    fi
+  fi
+  rm -f -- "$_err"
+  printf '%s\n' "$_body"
+  return "$_rc"
+}
+
 # Executa comando de rede; se falhar por DNS/conectividade retorna RC_WARN.
 # Uso: run_network_cmd curl -sf https://example.com
 run_network_cmd() {

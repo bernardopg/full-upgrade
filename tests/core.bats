@@ -989,3 +989,28 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "github_pat_AbC123" ]
 }
+
+# ── fetch_network_text ────────────────────────────────────────────────────────
+
+@test "fetch_network_text: corpo vai ao stdout, não ao log, e stderr não se mistura" {
+  curl() { printf '#!/bin/sh\necho ok\n'; printf 'curl: aviso qualquer\n' >&2; }
+  local logged=""
+  log_raw() { logged+="$*"; }
+  body="$(fetch_network_text https://exemplo/install.sh)"
+  [ "$body" = $'#!/bin/sh\necho ok' ]
+  [ -z "$logged" ]
+}
+
+@test "fetch_network_text: timeout do curl (rc 28) vira RC_WARN" {
+  curl() { printf 'curl: (28) Operation timed out\n' >&2; return 28; }
+  log() { :; }; log_raw() { :; }
+  fetch_network_text https://exemplo/x && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+}
+
+@test "fetch_network_text: HTTP 404 (rc 22) não vira aviso de rede" {
+  curl() { printf 'curl: (22) The requested URL returned error: 404\n' >&2; return 22; }
+  log() { :; }; log_raw() { :; }
+  fetch_network_text https://exemplo/x && rc=0 || rc=$?
+  [ "$rc" -eq 22 ]
+}
