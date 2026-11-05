@@ -292,6 +292,62 @@ _ma_silence() { log() { :; }; log_raw() { :; }; }
   [ "$status" -ne 0 ]
 }
 
+@test "zap_cfu_failed: reconhece a mensagem nocfu em inglês e pt_BR" {
+  run zap_cfu_failed 'ERROR CommandLine - Check for updates call failed'
+  [ "$status" -eq 0 ]
+  run zap_cfu_failed 'Chamada de verificação de atualizações falhou'
+  [ "$status" -eq 0 ]
+  run zap_cfu_failed 'Verificação de atualização de add-on completa'
+  [ "$status" -ne 0 ]
+}
+
+# Monta um ZAP falso em tmpdir: o launcher grava JAVA_TOOL_OPTIONS e imprime
+# a saída escolhida pelo teste, sempre com rc 0 (como o ZAP real).
+_fake_zap() {
+  # Global, não local: command() abaixo lê a variável depois do return.
+  FAKE_ZAP_HOME="${BATS_TEST_TMPDIR}/zap"
+  local home="$FAKE_ZAP_HOME"
+  mkdir -p "$home"
+  : >"$home/zap-2.17.0.jar"
+  cat >"$home/zap.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\${JAVA_TOOL_OPTIONS:-}" >"${BATS_TEST_TMPDIR}/jto"
+printf '%s\n' "$1"
+EOF
+  chmod +x "$home/zap.sh"
+  command() { if [[ "$1" == -v && "$2" == zap ]]; then printf '%s\n' "$FAKE_ZAP_HOME/zap.sh"; else builtin command "$@"; fi; }
+  zap_update_core() { return 0; }
+  zap_free_port() { printf '49999\n'; }
+}
+
+@test "update_zap: Marketplace inacessível com rc 0 vira RC_WARN, não OK falso" {
+  _ma_silence
+  _fake_zap 'Chamada de verificação de atualizações falhou'
+  zap_has_ipv6_route() { return 1; }
+  STEP_REASON=''
+  update_zap && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *Marketplace* ]]
+}
+
+@test "update_zap: com rota IPv6 o Java prefere IPv6" {
+  _ma_silence
+  _fake_zap 'Verificação de atualização de add-on completa'
+  zap_has_ipv6_route() { return 0; }
+  update_zap && rc=0 || rc=$?
+  [ "$rc" -eq 0 ]
+  grep -q 'preferIPv6Addresses=true' "${BATS_TEST_TMPDIR}/jto"
+}
+
+@test "update_zap: sem rota IPv6 não força IPv6" {
+  _ma_silence
+  _fake_zap 'Verificação de atualização de add-on completa'
+  zap_has_ipv6_route() { return 1; }
+  update_zap && rc=0 || rc=$?
+  [ "$rc" -eq 0 ]
+  ! grep -q 'preferIPv6' "${BATS_TEST_TMPDIR}/jto"
+}
+
 @test "zap_free_port: retorna porta TCP válida" {
   run zap_free_port
   [ "$status" -eq 0 ]
