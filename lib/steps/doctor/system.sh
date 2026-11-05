@@ -410,6 +410,13 @@ journal_noise_patterns() {
     'gkr-pam: couldn.t unlock the login keyring'
     # ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
     'Original source was unlinked while parsing service file'
+    # ── dbus-broker: dois pacotes declaram o mesmo nome D-Bus (ex.: Dolphin e
+    #    outro gerenciador de arquivos em org.freedesktop.FileManager1). Ele usa
+    #    o primeiro e repete o aviso a cada reload; o hook do pacman recarrega o
+    #    dbus em todo upgrade, então isso reabria warn em quase todo run. ──
+    "dbus-broker-launch.*Ignoring duplicate name '[^']+' in service file"
+    # ── steam-runtime: steam-remote sonda o cliente antes de ele subir ──
+    'steam-runtime-steam-remote.*Steam is not running'
     # ── systemd: o processo morreu antes do registro do pidref. Corrida
     #    interna do systemd com processo de vida curta; nada a fazer. ──
     'Failed to initialize pidref: No such process'
@@ -554,7 +561,10 @@ doctor_journal_errors() {
       severity_grouped="$recent_grouped"
       severity_count="$(printf '%s\n' "$recent_filtered" | grep -c '[^[:space:]]' || true)"
       severity_unique="$(printf '%s\n' "$recent_grouped" | grep -c '[^[:space:]]' || true)"
-      log "  Journal durante o run (desde o início): ${severity_count} ocorrência(s), ${severity_unique} assinatura(s)."
+      log "  Journal durante o run (desde o início): ${severity_count} ocorrência(s), ${severity_unique} assinatura(s):"
+      # Sem isto o warn citava "1 assinatura(s)" sem dizer qual: a lista acima
+      # cobre o boot inteiro e não separa o que surgiu durante o run.
+      printf '%s\n' "$recent_grouped" | log_stream
     fi
   fi
 
@@ -1009,10 +1019,12 @@ doctor_stale_services() {
 # próxima chamada D-Bus reativa a unit já com as bibliotecas novas. Recebe a
 # saída de `systemctl show -p Type,UnitFileState,BusName`. Puro.
 service_is_bus_activated() {
-  local props="$1"
-  [[ $'\n'"$props" == *$'\nType=dbus'* \
-    && $'\n'"$props" == *$'\nUnitFileState=static'* \
-    && $'\n'"$props" =~ $'\n'BusName=[^[:space:]] ]]
+  local props="$1" nl=$'\n'
+  # Regex com `$'\n'` literal confunde o parser do ShellCheck (SC1011); a
+  # quebra de linha vai por variável, com o mesmo significado.
+  [[ ${nl}${props} == *"${nl}Type=dbus"* \
+    && ${nl}${props} == *"${nl}UnitFileState=static"* \
+    && ${nl}${props} =~ ${nl}BusName=[^[:space:]] ]]
 }
 
 restart_stale_services() {
