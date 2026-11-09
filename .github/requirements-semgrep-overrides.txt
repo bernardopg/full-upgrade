@@ -13,7 +13,7 @@ mcp==1.30.0
 # valida o import e o scan antes da auditoria. Remover quando o Semgrep aceitar
 # opentelemetry>=1.45.1.
 opentelemetry-api==1.45.1
-opentelemetry-sdk==1.45.1
+opentelemetry-sdk==1.45.2
 opentelemetry-exporter-otlp-proto-http==1.45.1
 opentelemetry-instrumentation-requests==0.66b1
 opentelemetry-instrumentation-threading==0.66b1
