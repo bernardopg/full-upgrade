@@ -37,7 +37,9 @@ from concurrent.futures import ThreadPoolExecutor
 APPS = ('photocraft', 'vectorcraft', 'filmcraft', 'lightcraft', 'pdfcraft', 'effectcraft', 'designcraft')
 NATIVE = {'photocraft': ['pcraft'], 'vectorcraft': ['vectorcraft', 'drawcraft', 'vctemplate'],
           'filmcraft': ['fcproj'], 'effectcraft': ['ecproj'], 'designcraft': ['designcraft']}
-root, mode = Path(sys.argv[1]).expanduser().absolute(), sys.argv[2]
+# Caminho canônico: com ARTCRAFT_DIR atrás de um symlink, os caminhos resolvidos
+# (binários extraídos, `current`) precisam ser comparáveis com os da pasta.
+root, mode = Path(sys.argv[1]).expanduser().resolve(), sys.argv[2]
 home = Path.home()
 data = Path(os.environ.get('XDG_DATA_HOME') or home / '.local/share')
 config = Path(os.environ.get('XDG_CONFIG_HOME') or home / '.config')
