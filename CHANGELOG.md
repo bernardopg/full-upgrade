@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.53.0] - 2026-11-11
 ### Adicionado
 
 - **Hub MCP do claude-env sincronizado a cada run:** updates de CLIs de IA,
