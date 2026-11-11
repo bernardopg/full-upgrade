@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.54.0] - 2026-11-11
 ### Alterado
 
 - **Artcraft guarda só a versão em uso:** cada update deixava a release
