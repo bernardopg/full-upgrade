@@ -3,6 +3,20 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Alterado
+
+- **Artcraft guarda só a versão em uso:** cada update deixava a release
+  anterior, com pacote e clone, em `releases/`; com sete apps e releases
+  frequentes, a suíte passou de 30 GB. Depois dos updates, o step apaga as
+  releases e pacotes que não são o alvo de `current`, os tarballs da instalação
+  original e os backups dessas versões, e informa o espaço liberado. Só apaga o
+  que tem o nome e o layout de um pacote do próprio app
+  (`<app>-X.Y.Z-linux-<arch>/bin/<app>`); outros arquivos da pasta ficam. O
+  clone original na raiz do app e clones de release com alterações locais,
+  inclusive arquivos ignorados pelo `.gitignore`, ficam, com aviso. A poda
+  também roda quando o update de um app falha, sempre mantendo a versão em uso.
+  `previous_package` sai dos inventários, porque a versão anterior não existe
+  mais. `check` e `doctor` continuam só de leitura.
 
 ## [3.53.0] - 2026-11-11
 ### Adicionado
