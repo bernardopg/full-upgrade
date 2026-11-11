@@ -3,6 +3,23 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Hub MCP do claude-env sincronizado a cada run:** updates de CLIs de IA,
+  `headroom init` e `tokensave install` reescrevem as configs MCP dos
+  harnesses e as desalinhavam do hub único (`~/claude-env/mcp/servers.json`).
+  O novo step `Sincronizar hub MCP (claude-env)` roda `scripts/mcp_render.py`
+  depois de todos os updates de IA e antes do autofix e do Doctor de MCP. A
+  renderização é idempotente, faz backup e grava só referências `${VAR}`,
+  nunca segredos. Knobs: `MCP_HUB_RENDER` (padrão `1`) e `CLAUDE_ENV_DIR`
+  (padrão `~/claude-env`).
+- **Doctor aponta drift do hub:** `mcp_render.py --check` entra no Doctor de
+  IA, e `GITHUB_PERSONAL_ACCESS_TOKEN` passa a vir do `gh auth token`.
+
+### Removido
+
+- **Hub legado `~/.config/mcp-central`:** referências e o fallback de token
+  do z.ai saíram do planner de updates MCP e do Doctor.
 
 ## [3.52.0] - 2026-11-05
 ### Corrigido
