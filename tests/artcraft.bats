@@ -465,6 +465,18 @@ PY
   [ ! -e "$clean" ]
 }
 
+@test "Artcraft: poda funciona com ARTCRAFT_DIR atrás de symlink" {
+  fixture vectorcraft
+  mv "$ARTCRAFT_DIR" "$HOME/development/artcraft-real"
+  ln -s artcraft-real "$ARTCRAFT_DIR"
+  old_release "$ARTCRAFT_DIR/vectorcraft/releases/v1.0.0-old" 1.0.0
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 falha(s)"* ]]
+  [ ! -e "$ARTCRAFT_DIR/vectorcraft/releases/v1.0.0-old" ]
+  [ ! -e "$ARTCRAFT_DIR/vectorcraft/v0.1.0" ]
+}
+
 @test "Artcraft: falha no update ainda poda versões que não são a atual" {
   fixture vectorcraft
   old_release "$ARTCRAFT_DIR/vectorcraft/releases/v0.0.1-old" 0.0.1
