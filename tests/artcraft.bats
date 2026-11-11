@@ -21,6 +21,9 @@ setup() {
 #!/usr/bin/env bash
 if [[ "$1" == clone ]]; then
   mkdir -p "${@: -1}/.git"
+elif [[ "$1" == -C && "$3" == status ]]; then
+  [[ -e "$2/DIRTY" ]] && printf '?? DIRTY\n'
+  exit 0
 else
   printf '%040d\n' 1
 fi
@@ -78,7 +81,7 @@ d[sys.argv[2]] = json.loads(sys.argv[3]); p.write_text(json.dumps(d))
 PY
 }
 
-@test "Artcraft: atualiza os sete apps, preserva clones, MIME e comandos MCP" {
+@test "Artcraft: atualiza os sete apps, preserva clone original, MIME e comandos MCP" {
   fixture photocraft vectorcraft filmcraft lightcraft pdfcraft effectcraft designcraft
   run update_artcraft
   [ "$status" -eq 0 ]
@@ -91,8 +94,11 @@ records = json.loads((root/'installation.json').read_text())
 assert len(records) == 7 and all(r['version'] == 'v2.0.0' for r in records)
 for record in records:
     app = record['app']; p = root/app
-    assert (p/'v0.1.0').exists() and (p/'source/user-work.txt').read_text() == 'local changes must survive'
+    assert not (p/'v0.1.0').exists(), 'pacote anterior deveria ser podado'
+    assert (p/'source/user-work.txt').read_text() == 'local changes must survive'
     assert (p/'source-current/.git').exists()
+    assert [d.name for d in (p/'releases').iterdir()] == [(p/'current').resolve().parent.name]
+    assert 'previous_package' not in record
     assert (home/'.local/bin'/app).resolve() == (p/'current/bin'/app).resolve()
     assert (p/'mcp-command.json').exists() and list((p/'backups').glob('*/rollback.json'))
     desktop = configparser.ConfigParser(interpolation=None); desktop.read(home/'.local/share/applications'/f'ai.storyteller.{app}.desktop')
@@ -369,4 +375,113 @@ events=[json.loads(line) for line in open(sys.argv[1])]
 step=next(e for e in events if e.get('step')=='Atualizar suíte Artcraft')
 assert step['status']=='skip' and step['reason']=='dry-run' and step['effect']=='mutating'
 PY
+}
+
+# Release antiga com o layout que o Artcraft cria: pacote <app>-X.Y.Z-linux-<arch>/bin/<app>.
+old_release() {
+  local dir="$1" version="$2"
+  mkdir -p "$dir/vectorcraft-$version-linux-x86_64/bin" "$dir/source/.git"
+  printf '#!/bin/sh\n' > "$dir/vectorcraft-$version-linux-x86_64/bin/vectorcraft"
+}
+
+@test "Artcraft: poda mantém só a versão atual e clones com alterações locais" {
+  fixture vectorcraft
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  local app="$ARTCRAFT_DIR/vectorcraft"
+  local kept
+  kept="$(basename "$(dirname "$(readlink -f "$app/current")")")"
+  # Versões antigas de execuções anteriores: uma limpa, outra com trabalho local.
+  old_release "$app/releases/v1.0.0-old" 1.0.0
+  old_release "$app/releases/v1.5.0-dirty" 1.5.0
+  old_release "$app/v0.0.5" 0.0.5
+  rm -r "$app/v0.0.5/source"
+  mkdir -p "$app/backups/v1.0.0-old" "$app/backups/v0.9.0-stray"
+  touch "$app/releases/v1.5.0-dirty/source/DIRTY" "$app/vectorcraft-0.0.5-linux-x86_64.tar.gz"
+  printf '[]' > "$app/backups/v1.0.0-old/rollback.json"
+  # Conteúdo que não foi o Artcraft que criou: fica.
+  mkdir -p "$app/v9.9.9/notes" "$app/releases/v3.0.0-mine"
+  touch "$app/notes.tar.gz" "$app/photocraft-1.0.0-linux-x86_64.tar.gz"
+  python3 - "$ARTCRAFT_DIR" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+for path in [root/'vectorcraft/installation.json', root/'installation.json']:
+    value = json.loads(path.read_text())
+    for item in value if isinstance(value, list) else [value]:
+        item['previous_package'] = str(root/'vectorcraft/releases/v1.0.0-old/pkg')
+    path.write_text(json.dumps(value))
+PY
+  local requests="$(grep -c '/releases/download/' "$ARTCRAFT_FIXTURES/requests")"
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"vectorcraft: 3 versão(ões) antiga(s) removida(s)"* ]]
+  [[ "$output" == *"v1.5.0-dirty mantido"* ]]
+  [ ! -e "$app/releases/v1.0.0-old" ]
+  [ ! -e "$app/backups/v1.0.0-old" ]
+  [ ! -e "$app/backups/v0.9.0-stray" ]
+  [ ! -e "$app/v0.0.5" ]
+  [ ! -e "$app/vectorcraft-0.0.5-linux-x86_64.tar.gz" ]
+  [ -e "$app/releases/v1.5.0-dirty/source/DIRTY" ]
+  [ -d "$app/releases/$kept" ]
+  [ -d "$app/backups/$kept" ]
+  [ -d "$app/v9.9.9/notes" ]
+  [ -d "$app/releases/v3.0.0-mine" ]
+  [ -e "$app/notes.tar.gz" ]
+  [ -e "$app/photocraft-1.0.0-linux-x86_64.tar.gz" ]
+  [ "$(cat "$app/source/user-work.txt")" = 'local changes must survive' ]
+  [ "$(grep -c '/releases/download/' "$ARTCRAFT_FIXTURES/requests")" = "$requests" ]
+  ! grep -q previous_package "$app/installation.json" "$ARTCRAFT_DIR/installation.json"
+  run doctor_artcraft
+  [ "$status" -eq 0 ]
+}
+
+@test "Artcraft: poda não apaga clone com arquivo ignorado pelo git" {
+  fixture vectorcraft
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  # Esta checagem usa o git de verdade, não o falso do setup.
+  rm "${BATS_TEST_TMPDIR}/bin/git"
+  export GIT_CONFIG_GLOBAL="${BATS_TEST_TMPDIR}/gitconfig" GIT_CONFIG_NOSYSTEM=1
+  git config --global user.email t@example.com
+  git config --global user.name t
+  local old="$ARTCRAFT_DIR/vectorcraft/releases/v1.0.0-old"
+  old_release "$old" 1.0.0
+  rm -r "$old/source"
+  git init -q "$old/source"
+  printf 'build/\n' > "$old/source/.gitignore"
+  git -C "$old/source" add .gitignore
+  git -C "$old/source" commit -qm init
+  local clean="$ARTCRAFT_DIR/vectorcraft/releases/v1.1.0-clean"
+  old_release "$clean" 1.1.0
+  rm -r "$clean/source"
+  git clone -q "$old/source" "$clean/source"
+  mkdir -p "$old/source/build"
+  printf 'trabalho do usuário' > "$old/source/build/output.bin"
+  run update_artcraft
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"v1.0.0-old mantido"* ]]
+  [ -e "$old/source/build/output.bin" ]
+  [ ! -e "$clean" ]
+}
+
+@test "Artcraft: falha no update ainda poda versões que não são a atual" {
+  fixture vectorcraft
+  old_release "$ARTCRAFT_DIR/vectorcraft/releases/v0.0.1-old" 0.0.1
+  printf 'corruption' >> "$ARTCRAFT_FIXTURES/vectorcraft.tar.gz"
+  run update_artcraft
+  [ "$status" -eq "$RC_WARN" ]
+  [ ! -e "$ARTCRAFT_DIR/vectorcraft/releases/v0.0.1-old" ]
+  [ "$(readlink "$ARTCRAFT_DIR/vectorcraft/current")" = 'v0.1.0/vectorcraft-0.1.0-linux-x86_64' ]
+  [ -x "$ARTCRAFT_DIR/vectorcraft/current/bin/vectorcraft-cli" ]
+}
+
+@test "Artcraft: consulta e doctor nunca podam" {
+  fixture vectorcraft
+  old_release "$ARTCRAFT_DIR/vectorcraft/releases/v0.0.1-old" 0.0.1
+  run artcraft_check_updates
+  [ "$status" -eq 0 ]
+  run doctor_artcraft
+  [ "$status" -eq 0 ]
+  [ -d "$ARTCRAFT_DIR/vectorcraft/releases/v0.0.1-old" ]
 }

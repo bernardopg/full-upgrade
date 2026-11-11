@@ -203,7 +203,7 @@ def install(app, old, release, records):
             ET.SubElement(item, '{' + namespace + '}sub-class-of', {'type': 'application/zip' if app == 'photocraft' else 'application/json'})
             for extension in NATIVE[app]:
                 ET.SubElement(item, '{' + namespace + '}glob', {'pattern': '*.' + extension})
-        # O clone original e suas alterações locais nunca são substituídos.
+        # O clone original e suas alterações locais nunca são substituídos nem podados.
         releases = appdir / 'releases'
         releases.mkdir(exist_ok=True)
         destination = releases / (tag + '-' + stage.name.removeprefix('.artcraft-'))
@@ -240,9 +240,10 @@ def install(app, old, release, records):
                 changes.append((path, previous))
             finally:
                 temporary_path.unlink(missing_ok=True)
-        record = {**old, 'version': tag, 'sha256': checksum.hexdigest(), 'archive': str(destination / name),
-                  'release_url': release['html_url'], 'source': str(destination / 'source'), 'commit': commit,
-                  'previous_package': str((appdir / 'current').resolve())}
+        # A versão anterior é podada depois da instalação; não há pacote anterior a registrar.
+        record = {**{k: v for k, v in old.items() if k != 'previous_package'}, 'version': tag,
+                  'sha256': checksum.hexdigest(), 'archive': str(destination / name),
+                  'release_url': release['html_url'], 'source': str(destination / 'source'), 'commit': commit}
         def encoded(value):
             return (json.dumps(value, indent=2, ensure_ascii=False) + '\n').encode()
         try:
@@ -276,6 +277,118 @@ def install(app, old, release, records):
                 cache_refresh()
             raise
         return record
+
+def tree_size(path):
+    if path.is_symlink() or not path.is_dir():
+        return path.lstat().st_size
+    total = 0
+    for directory, _, files in os.walk(path):
+        for file in files:
+            with contextlib.suppress(OSError):
+                total += os.lstat(os.path.join(directory, file)).st_size
+    return total
+
+def has_local_changes(source):
+    """Clone com alterações locais (ou que o git não consegue ler) nunca é apagado.
+
+    `--ignored` entra porque trabalho do usuário em arquivos que o .gitignore
+    cobre (builds, configs locais) não aparece no status normal.
+    """
+    if not (source / '.git').exists():
+        return source.is_dir() and any(source.iterdir())
+    status = subprocess.run(['git', '-C', str(source), 'status', '--porcelain', '--ignored',
+                             '--untracked-files=all'], capture_output=True, text=True, timeout=60,
+                            env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
+    return status.returncode != 0 or bool(status.stdout.strip())
+
+def write_json(path, value):
+    descriptor, temporary = tempfile.mkstemp(prefix='.artcraft-', dir=path.parent)
+    with os.fdopen(descriptor, 'w') as output:
+        output.write(json.dumps(value, indent=2, ensure_ascii=False) + '\n')
+    os.chmod(temporary, stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644)
+    os.replace(temporary, path)
+
+def owned_package(app, path, release_version=None):
+    """Pasta com o layout que o Artcraft cria: `<app>-X.Y.Z-linux-<arch>/bin/<app>`."""
+    if not path.is_dir() or path.is_symlink():
+        return False
+    pattern = re.escape(app) + r'-(\d+\.\d+\.\d+)-linux-[a-z0-9_]+'
+    for child in path.iterdir():
+        match = re.fullmatch(pattern, child.name)
+        if match and (release_version is None or match.group(1) == release_version) \
+                and (child / 'bin' / app).is_file():
+            return True
+    return False
+
+def prune(app, records):
+    """Mantém só a versão para a qual `current` aponta.
+
+    Remove releases e pacotes antigos, os tarballs da instalação original e os
+    backups de versões removidas. Só apaga o que tem o nome e o layout que o
+    Artcraft cria; qualquer outro conteúdo da pasta do app fica. O clone
+    original na raiz do app e clones de release com alterações locais também
+    ficam, com aviso.
+    """
+    appdir = (root / app).resolve(strict=True)
+    current = (appdir / 'current').resolve(strict=True)
+    if not current.is_relative_to(appdir):
+        raise ValueError('current aponta para fora do app')
+    kept = appdir / current.relative_to(appdir).parts[0]
+    if kept == appdir / 'releases':
+        kept = appdir / 'releases' / current.relative_to(appdir / 'releases').parts[0]
+    archive = next((r.get('archive') for r in records if r['app'] == app), None)
+    archive = Path(archive).resolve() if archive else None
+    tarball = re.escape(app) + r'-\d+\.\d+\.\d+-linux-[a-z0-9_]+\.tar\.gz'
+    candidates = []
+    releases = appdir / 'releases'
+    if releases.is_dir():
+        for path in releases.iterdir():
+            match = re.fullmatch(r'v(\d+\.\d+\.\d+)-[A-Za-z0-9_]+', path.name)
+            if path != kept and match and owned_package(app, path, match.group(1)):
+                candidates.append(path)
+    for path in appdir.iterdir():
+        if path == kept or path.is_symlink():
+            continue
+        match = re.fullmatch(r'v(\d+\.\d+\.\d+)', path.name)
+        if (match and owned_package(app, path, match.group(1))) or (
+                path.is_file() and re.fullmatch(tarball, path.name) and path != archive):
+            candidates.append(path)
+    removed, freed, retained = 0, 0, {kept.name}
+    for path in candidates:
+        source = path / 'source'
+        if path.is_dir() and source.exists() and has_local_changes(source):
+            print(f'  {app}: {path.relative_to(appdir.parent)} mantido; o clone tem alterações locais.',
+                  file=sys.stderr, flush=True)
+            retained.add(path.name)
+            continue
+        freed += tree_size(path)
+        shutil.rmtree(path) if path.is_dir() else path.unlink()
+        removed += 1
+    # Backups são varridos à parte: um que sobrou de uma poda interrompida
+    # também sai, e só ficam os da versão atual e de releases retidas.
+    backups = appdir / 'backups'
+    if backups.is_dir():
+        for backup in backups.iterdir():
+            if backup.name not in retained and backup.is_dir() and not backup.is_symlink() \
+                    and re.fullmatch(r'v\d+\.\d+\.\d+-[A-Za-z0-9_]+', backup.name) \
+                    and not (releases / backup.name).exists():
+                freed += tree_size(backup)
+                shutil.rmtree(backup)
+    for path in [appdir / 'installation.json', root / 'installation.json']:
+        if not path.exists():
+            continue
+        value = json.loads(path.read_text())
+        changed = False
+        for item in value if isinstance(value, list) else [value]:
+            previous = item.get('previous_package') if item.get('app') == app else None
+            if previous is not None and not Path(previous).exists():
+                del item['previous_package']
+                changed = True
+        if changed:
+            write_json(path, value)
+    if removed:
+        print(f'  {app}: {removed} versão(ões) antiga(s) removida(s), {freed / 1e9:.1f} GB liberados.', flush=True)
+    return freed
 
 def main():
     records = json.loads((root / 'installation.json').read_text())
@@ -324,13 +437,21 @@ def main():
             new = install(app, old, release, records)
             records = [new if r['app'] == app else r for r in records]
             updated += 1
-            print(f'  {app}: instalado; versão anterior e clone original preservados.', flush=True)
+            print(f'  {app}: instalado; clone original preservado.', flush=True)
         except Exception as error:
             failed += 1
             print(f'  {app}: atualização recusada; versão anterior preservada ({error}).', file=sys.stderr, flush=True)
             if isinstance(error, subprocess.CalledProcessError) and error.stderr:
                 print(error.stderr.decode(errors='replace'), file=sys.stderr)
     if mode != 'check':
+        # Poda depois dos updates: só a versão em `current` fica, inclusive a de
+        # apps cujo update falhou nesta execução.
+        for app, _ in installed:
+            try:
+                prune(app, records)
+            except Exception as error:
+                failed += 1
+                print(f'  {app}: limpeza de versões antigas falhou ({error}).', file=sys.stderr, flush=True)
         print(f'  Artcraft: {len(installed)} instalado(s), {updated} atualizado(s), {failed} falha(s).', flush=True)
     return 1 if failed else 0
 
