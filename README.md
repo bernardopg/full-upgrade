@@ -659,6 +659,8 @@ Principais chaves:
 | `TRAY_ICON_COLOR` | `auto` | Cor dos ícones monocromáticos do AppIndicator (painel e menu). `auto` = cor de texto do tema GTK, que no DankMaterialShell é a mesma gerada pelo matugen; ou um `#rrggbb` fixo. |
 | `OLLAMA_SELF_UPDATE` | `0` | `1` = reexecuta o instalador oficial do Ollama (`curl \| sh`) no step; `0` = só reporta a versão. |
 | `CLAUDE_NATIVE_VERSIONS_DIR` | `~/.local/share/claude/versions` | Diretório de versões do instalador nativo do Claude Code. O step varre aí binários truncados (vazios ou sem bit de execução) deixados por um download interrompido antes e depois de `claude update`, senão o updater trata a versão parcial como "já baixada" e o CLI congela na versão antiga. Ajuste só se sua instalação usa outro caminho. |
+| `MCP_HUB_RENDER` | `1` | `1` = após os updates de IA, roda `scripts/mcp_render.py` do claude-env e realinha as configs MCP de todos os harnesses (Claude, Codex, opencode, Cursor, Gemini, pi, Droid, Grok…) ao hub `mcp/servers.json`; `0` = só o Doctor aponta divergência. |
+| `CLAUDE_ENV_DIR` | `~/claude-env` | Repositório claude-env (hub MCP + renderer). |
 | `MCP_AUTO_UPDATE` | `0` | `1` = refresca o cache uv dos servidores MCP uvx (rebuild da última no próximo launch); `0` = só doctor read-only. |
 | `IDE_EXT_CLIS` | auto | Lista (espaço) de CLIs VSCode-family para atualizar extensões; vazio = autodetect (`code cursor codium …`). |
 | `AUR_HELPER` | auto | Helper AUR a usar (`paru`/`yay`/`pikaur`); vazio = autodetecta na ordem `paru > yay > pikaur`. |

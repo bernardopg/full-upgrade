@@ -579,12 +579,18 @@ doctor_mcp_servers() {
   local claude_json="${HOME}/.claude.json"
   local codex_toml="${HOME}/.codex/config.toml"
   local opencode_json="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
-  local hub_json="${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json"
+  local hub_json
+  hub_json="$(mcp_hub_json)"
   local hermes_yaml="${HOME}/.hermes/config.yaml"
   local has_source=0
 
   local -x CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="${CODEX_GITHUB_PERSONAL_ACCESS_TOKEN:-}"
-  local -x Z_AI_API_KEY="${Z_AI_API_KEY:-${ZAI_API_KEY:-}}"
+  # Configs geradas pelo hub usam GITHUB_PERSONAL_ACCESS_TOKEN vindo do `gh`
+  # (keyring). Fora de um shell de login (systray), resolve igual ao zshenv.
+  local -x GITHUB_PERSONAL_ACCESS_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-}"
+  if [[ -z "$GITHUB_PERSONAL_ACCESS_TOKEN" ]] && has gh; then
+    GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token 2>/dev/null || true)"
+  fi
 
   local -A all=()        # name -> "detalhe"
   local -A src_claude=() # name -> 1
@@ -661,8 +667,14 @@ doctor_mcp_servers() {
     fi
   fi
 
+  # Configs dos harnesses x hub claude-env (o step de sync corrige; aqui só aponta).
+  mcp_hub_drift
+  case $? in
+    1) issues["hub"]="configs MCP divergentes do hub claude-env; rode: python3 $(mcp_hub_renderer)" ;;
+  esac
+
   if (( has_source == 0 )); then
-    log "  Nenhuma fonte MCP configurada (Claude/Codex/OpenCode/mcp-central)."
+    log "  Nenhuma fonte MCP configurada (Claude/Codex/OpenCode/hub claude-env)."
     return 0
   fi
 

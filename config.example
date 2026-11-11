@@ -96,12 +96,18 @@ COREDUMP_KEEP_DAYS=7  # dias de retenção de dumps em /var/lib/systemd/coredump
 #                         'headroom init codex' a cada update do headroom, o que
 #                         invalida o TOML e zera TODOS os mcp_servers do Codex).
 #                         Grava backup e faz rollback; divergente vira todo.
+# MCP_HUB_RENDER          1 = LIGADO por padrão. Após os updates de IA, roda
+#                         $CLAUDE_ENV_DIR/scripts/mcp_render.py e realinha as
+#                         configs MCP de todos os harnesses ao hub (sem segredos).
+# CLAUDE_ENV_DIR          repositório claude-env (default ~/claude-env)
 AUTO_FIX_RUST_CVES=0
 RUST_CVE_REBUILD_TTL_D=7
 AUTO_BTRFS_SCRUB=0
 AUTO_FIX_FINAL_PENDING=0
 AUTO_FIX_PIP_DEPS=0
 AUTO_FIX_CODEX_MCP=1
+MCP_HUB_RENDER=1
+#CLAUDE_ENV_DIR="$HOME/claude-env"
 
 # ── Política de segurança / Security policy ───────────────────────────────────
 # 0 = Secure Boot desabilitado no --audit é informativo (default; postura/política)

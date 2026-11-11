@@ -414,7 +414,7 @@ run_all_steps() {
        && { [[ -r "${HOME}/.claude.json" ]] \
          || [[ -r "${HOME}/.codex/config.toml" ]] \
          || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
-         || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]] \
+         || [[ -r "$(mcp_hub_json)" ]] \
          || [[ -r "${HOME}/.pi/agent/mcp.json" ]] \
          || [[ -r "${HOME}/.cursor/mcp.json" ]]; }; then
         run_step "Atualizar servidores MCP" mcp_update_servers
@@ -814,6 +814,18 @@ run_all_steps() {
         step_skip "Doctor: módulos OBS" "OBS Studio não instalado"
     fi
     run_step "Doctor: AI CLIs" doctor_ai_clis
+    # Depois de TODOS os updates de IA (CLIs, plugins, uv tools/headroom,
+    # tokensave): eles reescrevem configs de MCP dos harnesses, e o hub do
+    # claude-env as realinha. Antes do autofix/Doctor, que veem o estado final.
+    if (( ${MCP_HUB_RENDER:-1} == 0 )); then
+        step_skip "Sincronizar hub MCP (claude-env)" "MCP_HUB_RENDER=0"
+    elif [[ ! -r "$(mcp_hub_json)" ]]; then
+        step_skip "Sincronizar hub MCP (claude-env)" "hub ausente: $(mcp_hub_json)"
+    elif (( NO_REPAIR )); then
+        step_skip "Sincronizar hub MCP (claude-env)" "--no-repair"
+    else
+        run_step "Sincronizar hub MCP (claude-env)" mcp_render_hub
+    fi
     # Roda ANTES do Doctor de MCP: `headroom init codex` (disparado pelos steps
     # de IA logo acima) reanexa [mcp_servers.headroom_memory] e invalida o TOML,
     # zerando os mcp_servers do Codex no mesmo run. Remediar aqui faz o Doctor
@@ -829,7 +841,7 @@ run_all_steps() {
     fi
     if [[ -r "${HOME}/.claude.json" ]] || [[ -r "${HOME}/.codex/config.toml" ]] \
        || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json" ]] \
-       || [[ -r "${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json" ]] \
+       || [[ -r "$(mcp_hub_json)" ]] \
        || has claude || has codex || has opencode; then
         run_step "Doctor: servidores MCP" doctor_mcp_servers
     else

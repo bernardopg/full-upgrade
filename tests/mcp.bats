@@ -490,3 +490,74 @@ _stub_npm_version() {
   run mcp_pin_outdated "pypi:markitdown-mcp==0.0.1a4" "markitdown"
   [ -z "$output" ]
 }
+
+# ── hub MCP do claude-env ───────────────────────────────────────────────────
+
+_write_hub_stub() { # _write_hub_stub <saída> <rc>
+  mkdir -p "$HOME/claude-env/mcp" "$HOME/claude-env/scripts"
+  printf '{"servers":{}}\n' > "$HOME/claude-env/mcp/servers.json"
+  cat > "$HOME/claude-env/scripts/mcp_render.py" <<PY
+import sys
+if "--check" in sys.argv:
+    sys.exit($2)
+print("""$1""")
+sys.exit($2)
+PY
+}
+
+@test "hub: caminhos seguem CLAUDE_ENV_DIR" {
+  CLAUDE_ENV_DIR=/x/env
+  [[ "$(mcp_hub_json)" == "/x/env/mcp/servers.json" ]]
+  [[ "$(mcp_hub_renderer)" == "/x/env/scripts/mcp_render.py" ]]
+  unset CLAUDE_ENV_DIR
+  [[ "$(mcp_hub_dir)" == "$HOME/claude-env" ]]
+}
+
+@test "hub: resumo conta atualizados, pulados e erros" {
+  local out
+  out=$'[mcp-render] atualizado codex:/a (3 servidores)\n[mcp-render]   codex: pulado kcaa (kcaa-mcp não instalado)\n[mcp-render] atualizado pi:/b (3 servidores)\n[mcp-render] ERRO grok:/c: ValueError: x'
+  [[ "$(mcp_render_summary "$out")" == $'2\t1\t1' ]]
+  [[ "$(mcp_render_summary "")" == $'0\t0\t0' ]]
+}
+
+@test "hub: sem hub o step é ok e não roda nada" {
+  run mcp_render_hub
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Hub MCP do claude-env ausente"* ]]
+}
+
+@test "hub: render alinhado devolve ok" {
+  _write_hub_stub "" 0
+  run mcp_render_hub
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"já estavam alinhadas"* ]]
+}
+
+@test "hub: render que realinha configs devolve ok e conta" {
+  _write_hub_stub "[mcp-render] atualizado codex:/x (2 servidores)" 0
+  run mcp_render_hub
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 config(s) MCP realinhada(s)"* ]]
+}
+
+@test "hub: erro em target vira warn, não fail" {
+  _write_hub_stub "[mcp-render] ERRO grok:/x: boom" 0
+  run mcp_render_hub
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "hub: drift detectado pelo --check" {
+  _write_hub_stub "" 1
+  run mcp_hub_drift
+  [ "$status" -eq 1 ]
+  _write_hub_stub "" 0
+  run mcp_hub_drift
+  [ "$status" -eq 0 ]
+}
+
+@test "hub: placeholder @ não é reportado como comando ausente" {
+  mkdir -p "$HOME/x"
+  printf '{"servers":{"mem":{"command":"@headroom_python","args":[]}}}\n' > "$HOME/x/hub.json"
+  out="$(parse_mcp_json_entries "$HOME/x/hub.json")"
+  [[ "$out" == "mem"$'\t'"stdio:@headroom_python"$'\t' ]]
+}

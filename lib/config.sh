@@ -59,6 +59,8 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${GITHUB_UPDATER_TOKEN_FROM_GH:=0}" # 1 = sem token dedicado, entrega o token do `gh` (escopos amplos) aos updaters nativos; 0 = updaters seguem anônimos
 : "${AI_PLUGIN_BLOCKLIST:=}"       # plugins/marketplaces (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar
 : "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento do `npx skills update`; versão do CLI que o excede é marcada lenta e o step usa a última boa
+: "${MCP_HUB_RENDER:=1}"            # 1 = step 'Sincronizar hub MCP (claude-env)' re-renderiza o hub nas configs de todos os harnesses após os updates; 0 = só doctor (drift)
+: "${CLAUDE_ENV_DIR:=${HOME}/claude-env}" # repositório claude-env (hub MCP em mcp/servers.json, renderer em scripts/mcp_render.py)
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
@@ -165,6 +167,8 @@ TRAY_BADGE
 TRAY_ICON_COLOR
 AI_PLUGIN_BLOCKLIST
 AGENT_SKILLS_TIMEOUT_S
+MCP_HUB_RENDER
+CLAUDE_ENV_DIR
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
 IDE_EXT_CLIS
@@ -369,7 +373,7 @@ load_config() {
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_DEVICE_STATS_ACK_SHA256
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S FWUPD_HSI_MIN DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS CODEX_TMP_KEEP_DAYS
-  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW AUTO_RECREATE_STALE_CONTAINERS SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE
+  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW AUTO_RECREATE_STALE_CONTAINERS SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE MCP_HUB_RENDER CLAUDE_ENV_DIR
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE TRAY_ICON_COLOR
   export AUR_HELPER PRIV_CMD
   export ARTCRAFT_DIR
@@ -577,6 +581,15 @@ NOTIFY_ON_FINISH=0
 # automática de MCP servers npm/uvx; ainda não muta nesta versão.
 MCP_AUTO_UPDATE=0
 
+# ── Hub MCP do claude-env ──
+# 1 = ligado (default). O step 'Sincronizar hub MCP (claude-env)' roda
+# scripts/mcp_render.py depois dos updates de IA: updates de CLIs, 'headroom init',
+# 'tokensave install' etc. reescrevem configs de MCP e o render as realinha ao hub
+# (CLAUDE_ENV_DIR/mcp/servers.json), sem segredos (só referências ${VAR}).
+# Idempotente: só grava quando algo divergiu, sempre com backup.
+MCP_HUB_RENDER=1
+CLAUDE_ENV_DIR="${HOME}/claude-env"
+
 # ── Auto-update do Ollama (H2) ──
 # 0 = só reporta a versão (default). 1 = reexecuta o instalador oficial
 # (curl -fsSL https://ollama.com/install.sh | sh) no step "Atualizar Ollama".
@@ -723,6 +736,8 @@ show_config() {
   _cfg_kv "AI_PLUGIN_BLOCKLIST" "${AI_PLUGIN_BLOCKLIST:-(vazia)}"
   _cfg_kv "AGENT_SKILLS_TIMEOUT_S" "$AGENT_SKILLS_TIMEOUT_S"
   _cfg_kv "MCP_AUTO_UPDATE" "$MCP_AUTO_UPDATE"
+  _cfg_kv "MCP_HUB_RENDER" "$MCP_HUB_RENDER"
+  _cfg_kv "CLAUDE_ENV_DIR" "$CLAUDE_ENV_DIR"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
   _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"
   _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"

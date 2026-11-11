@@ -262,7 +262,8 @@ for name in sorted(servers):
         binary = ""
     detail = "stdio:" + binary if binary else ("remote" if cfg.get("url") or cfg.get("endpoint") else "?")
     issues = []
-    if binary:
+    # "@nome" é placeholder do hub claude-env, resolvido pelo mcp_render.py.
+    if binary and not binary.startswith("@"):
         found = os.access(binary, os.X_OK) if os.path.isabs(binary) else shutil.which(binary) is not None
         if not found:
             issues.append("comando ausente: " + binary)
@@ -492,7 +493,8 @@ mcp_update_servers() {
   local claude_json="${HOME}/.claude.json"
   local codex_toml="${HOME}/.codex/config.toml"
   local opencode_json="${XDG_CONFIG_HOME:-${HOME}/.config}/opencode/opencode.json"
-  local hub_json="${XDG_CONFIG_HOME:-${HOME}/.config}/mcp-central/mcp-hub.json"
+  local hub_json
+  hub_json="$(mcp_hub_json)"
   # pi e Cursor usam o mesmo formato JSON (mcpServers); o pi chegou a ter o
   # único server playwright da máquina, invisível para este step.
   local pi_json="${HOME}/.pi/agent/mcp.json" cursor_json="${HOME}/.cursor/mcp.json"
@@ -704,4 +706,84 @@ autofix_codex_mcp_toml() {
   log "  ${C_GREEN}config.toml do Codex válido novamente${C_RESET} — ${nservers} mcp_server(s) visível(is)."
   log "  Backup do estado anterior: ${backup}"
   return 0
+}
+
+
+# Hub MCP do claude-env: fonte única dos servidores MCP de todos os harnesses
+# (Claude, Codex, opencode, Cursor, Gemini, pi, Droid, Grok…). Puro/testável.
+mcp_hub_dir() {
+  printf '%s\n' "${CLAUDE_ENV_DIR:-${HOME}/claude-env}"
+}
+
+mcp_hub_json() {
+  printf '%s/mcp/servers.json\n' "$(mcp_hub_dir)"
+}
+
+mcp_hub_renderer() {
+  printf '%s/scripts/mcp_render.py\n' "$(mcp_hub_dir)"
+}
+
+# Puro/testável: resume a saída do mcp_render.py ($1) em
+# "atualizados<TAB>pulados<TAB>erros" (contagens de linhas).
+mcp_render_summary() {
+  local out="$1" upd=0 skp=0 err=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      "[mcp-render] atualizado "*) ((upd++)) ;;
+      "[mcp-render]   "*": pulado "*) ((skp++)) ;;
+      "[mcp-render] ERRO "*) ((err++)) ;;
+    esac
+  done <<<"$out"
+  printf '%s\t%s\t%s\n' "$upd" "$skp" "$err"
+}
+
+# Step mutating (gated MCP_HUB_RENDER=1): realinha as configs MCP de todos os
+# harnesses ao hub do claude-env. Roda DEPOIS dos updates de IA porque eles
+# reescrevem essas configs — `claude`/`codex mcp add`, `headroom init`,
+# `tokensave install/reinstall`, updates de opencode/pi — e ANTES do autofix e
+# do Doctor de MCP, que então enxergam o estado já alinhado. O renderer é
+# idempotente (só grava quando diverge, com backup) e nunca escreve segredo:
+# só referências ${VAR}. Servidor cujo comando não existe na máquina é pulado.
+mcp_render_hub() {
+  local script hub out rc upd skp err
+  script="$(mcp_hub_renderer)"
+  hub="$(mcp_hub_json)"
+  if [[ ! -r "$script" || ! -r "$hub" ]]; then
+    log "  Hub MCP do claude-env ausente (${hub}); nada a sincronizar."
+    return 0
+  fi
+  if ! has python3; then
+    STEP_REASON="python3 ausente; hub MCP não renderizado"
+    return "$RC_TODO"
+  fi
+
+  out="$(CLAUDE_ENV_DIR="$(mcp_hub_dir)" timeout 120 python3 "$script" 2>&1)"
+  rc=$?
+  [[ $out == *[![:space:]]* ]] && printf '%s\n' "$out" | log_stream
+  IFS=$'\t' read -r upd skp err <<<"$(mcp_render_summary "$out")"
+
+  if (( rc != 0 || err > 0 )); then
+    STEP_REASON="mcp_render.py: rc=${rc}, ${err} target(s) com erro"
+    return "$RC_WARN"
+  fi
+  if (( upd > 0 )); then
+    log "  ${C_GREEN}${upd} config(s) MCP realinhada(s) ao hub${C_RESET} (algum update tinha reescrito a config do harness)."
+  else
+    log "  Todas as configs MCP já estavam alinhadas ao hub."
+  fi
+  (( skp > 0 )) && log "  ${skp} servidor(es) pulado(s) por comando ausente nesta máquina (ver acima)."
+  return 0
+}
+
+# Read-only: 0 = configs alinhadas ao hub; 1 = divergência; 2 = hub/renderer
+# indisponível. Usado pelo Doctor de MCP (em --mode doctor o step mutating acima
+# não roda, então a divergência só aparece aqui).
+mcp_hub_drift() {
+  local script hub
+  script="$(mcp_hub_renderer)"
+  hub="$(mcp_hub_json)"
+  [[ -r "$script" && -r "$hub" ]] && has python3 || return 2
+  CLAUDE_ENV_DIR="$(mcp_hub_dir)" timeout 60 python3 "$script" --check >/dev/null 2>&1
+  (( $? == 0 )) && return 0
+  return 1
 }
