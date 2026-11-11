@@ -18,6 +18,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   `previous_package` sai dos inventários, porque a versão anterior não existe
   mais. `check` e `doctor` continuam só de leitura.
 
+### Corrigido
+
+- **Artcraft recusava todo update com `ARTCRAFT_DIR` atrás de symlink:** o
+  binário extraído era resolvido e comparado com a pasta temporária sem
+  resolver, e o pacote caía como "fora do pacote". O step passa a usar o
+  caminho canônico da pasta.
+
 ## [3.53.0] - 2026-11-11
 ### Adicionado
 
