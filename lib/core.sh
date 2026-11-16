@@ -452,15 +452,35 @@ network_probe() {
 # esperas em série. "up" vale mais tempo por ser o caso normal; "down" vale
 # pouco, para a volta da rede ser percebida já no step seguinte.
 #
+# O veredito "down" recente dispensa só a ESPERA, nunca a sonda: cada step ainda
+# sonda uma vez (custa no máximo NETWORK_GATE_PROBE_TIMEOUT_S). Um run real
+# perdeu 11 steps de linguagens seguidos por um soluço de DNS de segundos (o
+# systemd-resolved saturado, "Failed to generate query object: Device or
+# resource busy"): como cada step fechava em <1s, todos caíram dentro dos 10s
+# do cache "down" sem testar a rede, que já tinha voltado.
+#
 # Roda no processo PAI (antes do subshell de timeout do run_step), que é o que
 # permite o cache sobreviver de um step para o outro.
 network_gate_ready() {
   (( ${NETWORK_GATE:-1} == 1 )) || return 0
 
+  # Segundos esperados NESTA chamada; o motivo do warn no run_step o lê. Sem
+  # zerar, um step barrado pelo cache herdava o "aguardou 20s" do anterior.
+  NETWORK_GATE_WAITED=0
+
   local now=$SECONDS
   case "$NETWORK_GATE_CACHE_STATE" in
     up)   (( now - NETWORK_GATE_CACHE_AT < ${NETWORK_GATE_UP_TTL_S:-30} ))   && return 0 ;;
-    down) (( now - NETWORK_GATE_CACHE_AT < ${NETWORK_GATE_DOWN_TTL_S:-10} )) && return 1 ;;
+    down)
+      if (( now - NETWORK_GATE_CACHE_AT < ${NETWORK_GATE_DOWN_TTL_S:-10} )); then
+        if network_probe; then
+          log "  Conectividade restabelecida."
+          NETWORK_GATE_CACHE_STATE="up"; NETWORK_GATE_CACHE_AT=$SECONDS
+          return 0
+        fi
+        return 1
+      fi
+      ;;
   esac
 
   if network_probe; then
@@ -486,6 +506,16 @@ network_gate_ready() {
   NETWORK_GATE_CACHE_STATE="down"; NETWORK_GATE_CACHE_AT=$SECONDS
   NETWORK_GATE_WAITED=$waited
   return 1
+}
+
+# Segundos que ainda restam até o limite do catálogo do step em execução, ou
+# vazio quando o step roda sem limite. $SECONDS é herdado pelo subshell do
+# run_step, então a conta vale de dentro da função do step.
+step_time_left() {
+  (( ${STEP_DEADLINE:-0} > 0 )) || return 0
+  local left=$(( STEP_DEADLINE - SECONDS ))
+  (( left < 0 )) && left=0
+  printf '%d\n' "$left"
 }
 
 # Tenta comando N vezes com delay de 5s entre tentativas.
@@ -1321,7 +1351,11 @@ run_step() {
   # com a tag `network` não falharia — ele penduraria até queimar o timeout do
   # catálogo. Aqui ele vira um aviso imediato e legível, em segundos.
   if [[ ",${_cat_tags}," == *,network,* ]] && ! network_gate_ready; then
-    STEP_REASON="sem conectividade (aguardou ${NETWORK_GATE_WAITED:-0}s)"
+    if (( ${NETWORK_GATE_WAITED:-0} > 0 )); then
+      STEP_REASON="sem conectividade (aguardou ${NETWORK_GATE_WAITED}s)"
+    else
+      STEP_REASON="sem conectividade (rede ainda fora; espera já feita em step anterior)"
+    fi
     STEP_LAST_RC="$RC_WARN"
     step_warn
     return 0
@@ -1333,6 +1367,9 @@ run_step() {
 
   local rc
   local _to="${_cat_timeout:-0}"
+  # Prazo do step visível para a função (ver step_time_left): um step que
+  # tenta duas vezes precisa saber quanto do limite do catálogo ainda sobra.
+  STEP_DEADLINE=0
   if [[ "$_to" == "0" || -z "$_to" ]]; then
     "$@"
     rc=$?
@@ -1345,9 +1382,10 @@ run_step() {
     # que mutam estado do processo (flock, keepalive) usam timeout=0.
     local _reason_file
     _reason_file="$(mktemp 2>/dev/null || printf '')"
+    STEP_DEADLINE=$(( SECONDS + _to ))
     ( "$@"; _rc=$?; [[ -n "$_reason_file" && -n "$STEP_REASON" ]] && printf '%s' "$STEP_REASON" > "$_reason_file"; exit "$_rc" ) &
     local _bg_pid=$!
-    local _deadline=$(( SECONDS + _to ))
+    local _deadline=$STEP_DEADLINE
     local _timed_out=0
     while kill -0 "$_bg_pid" 2>/dev/null; do
       if (( SECONDS >= _deadline )); then

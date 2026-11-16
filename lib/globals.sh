@@ -181,6 +181,7 @@ STEP_START=0
 STEP_START_ISO=""
 STEP_LAST_RC=0
 STEP_REASON=""                  # motivo opcional p/ warn/todo/fail (gravado no JSONL)
+STEP_DEADLINE=0                  # $SECONDS-limite do step em execução (0 = sem limite); ver step_time_left
 TOTAL_START=$SECONDS
 TOTAL_STEPS=0                    # NOVO: total efetivo (p/ barra de progresso)
 REBOOT_RECOMMENDATION=""         # rodapé de resumo quando Doctor detectar reboot
@@ -197,10 +198,10 @@ NETWORK_GATE_WAIT_S="${NETWORK_GATE_WAIT_S:-20}"   # espera máx. pela volta da 
 NETWORK_GATE_PROBE_TIMEOUT_S="${NETWORK_GATE_PROBE_TIMEOUT_S:-2}"  # teto de cada sonda
 NETWORK_GATE_UP_TTL_S="${NETWORK_GATE_UP_TTL_S:-30}"     # validade do veredito "up"
 AI_CLI_VERSION_TIMEOUT_S="${AI_CLI_VERSION_TIMEOUT_S:-5}" # teto individual do --version no Doctor
-NETWORK_GATE_DOWN_TTL_S="${NETWORK_GATE_DOWN_TTL_S:-10}" # validade do veredito "down"
+NETWORK_GATE_DOWN_TTL_S="${NETWORK_GATE_DOWN_TTL_S:-10}" # "down" recente dispensa a espera (a sonda ainda roda)
 NETWORK_GATE_CACHE_STATE=""      # up|down|"" (sem veredito ainda)
 NETWORK_GATE_CACHE_AT=0          # $SECONDS do último veredito
-NETWORK_GATE_WAITED=0            # segundos esperados no último veredito "down"
+NETWORK_GATE_WAITED=0            # segundos esperados na última chamada do portão
 LAST_SECTION_GROUP=""            # último cabeçalho de seção impresso ao vivo (output agrupado)
 # Tipo do último bloco impresso no terminal: "" (nada), "section" (cabeçalho de
 # grupo), "step" (step executado, com header + resultado) ou "skip". Serve só

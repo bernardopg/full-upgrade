@@ -693,9 +693,27 @@ setup() {
   NETWORK_GATE_CACHE_STATE=down
   NETWORK_GATE_CACHE_AT=$SECONDS
   NETWORK_GATE_DOWN_TTL_S=10
-  network_probe() { return 0; }   # nem chega a ser consultada
-  run network_gate_ready
-  [ "$status" -eq 1 ]
+  NETWORK_GATE_WAIT_S=20
+  NETWORK_GATE_WAITED=20          # sobra do step anterior
+  network_probe() { return 1; }
+  sleep() { echo "esperou" >&2; return 1; }   # falharia se esperasse
+  network_gate_ready && rc=0 || rc=$?
+  [ "$rc" -eq 1 ]
+  # O step barrado pelo cache não esperou: o motivo não pode herdar os 20s.
+  [ "$NETWORK_GATE_WAITED" -eq 0 ]
+}
+
+@test "network_gate_ready: 'down' recente ainda sonda e libera se a rede voltou" {
+  # Caso real: 11 steps seguidos caíram no cache "down" por um soluço de DNS
+  # de segundos, com a rede já de volta.
+  NETWORK_GATE=1
+  NETWORK_GATE_CACHE_STATE=down
+  NETWORK_GATE_CACHE_AT=$SECONDS
+  NETWORK_GATE_DOWN_TTL_S=10
+  network_probe() { return 0; }
+  network_gate_ready && rc=0 || rc=$?
+  [ "$rc" -eq 0 ]
+  [ "$NETWORK_GATE_CACHE_STATE" = up ]
 }
 
 @test "network_gate_ready: cache 'up' vencido volta a sondar" {
