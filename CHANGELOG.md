@@ -3,6 +3,25 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **Um soluço de DNS derrubava todos os steps de rede seguintes:** com o
+  veredito "sem rede" em cache por 10s, os steps que fechavam em menos de 1s
+  viravam warn sem testar a rede de novo. Num run real, o `systemd-resolved`
+  ficou saturado por segundos e 11 steps de linguagens foram pulados com a
+  rede já de volta. O cache agora dispensa só a espera: cada step ainda sonda
+  uma vez (no máximo `NETWORK_GATE_PROBE_TIMEOUT_S`) e roda se a rede voltou.
+- **Motivo "aguardou 20s" em step que não esperou:** o contador da espera não
+  era zerado e o step barrado pelo cache herdava o valor do anterior. Agora o
+  motivo diz que a espera já foi feita num step anterior.
+- **Fallback do skills CLI nunca rodava:** com `AGENT_SKILLS_TIMEOUT_S=300` e o
+  limite de 360s do catálogo, a repetição com a última versão boa era morta no
+  meio. Cada tentativa agora fica limitada ao que sobra do limite do step
+  (novo `step_time_left`), não repete com menos de 30s, e o limite do catálogo
+  passou para 660s.
+- **Versão do skills CLI marcada como lenta por máquina sobrecarregada:** a
+  versão nova só é registrada como lenta se a anterior couber no orçamento. Se
+  as duas estouram, a lentidão é da máquina ou da rede e nada é marcado.
 
 ## [3.54.0] - 2026-11-11
 ### Alterado
