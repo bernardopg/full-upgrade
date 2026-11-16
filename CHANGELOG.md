@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [3.54.1] - 2026-11-16
 ### Corrigido
 
 - **Um soluço de DNS derrubava todos os steps de rede seguintes:** com o
