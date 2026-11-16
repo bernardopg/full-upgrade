@@ -497,33 +497,70 @@ update_agent_skills() {
     log "  skills@${latest} já excedeu ${budget}s antes (regressão de desempenho); usando ${spec}."
   fi
 
+  # Orçamento de uma tentativa: AGENT_SKILLS_TIMEOUT_S, mas nunca além do que
+  # sobra do limite do catálogo (com folga para fechar o step). Sem esse teto,
+  # um orçamento de 300s num catálogo de 360s fazia o fallback abaixo nascer
+  # morto: o run_step matava o step no meio da segunda tentativa.
+  _agent_skills_budget() {
+    local left b="$budget"
+    left="$(step_time_left)"
+    if [[ -n "$left" ]]; then
+      left=$(( left - 15 ))
+      (( left < b )) && b=$left
+    fi
+    (( b < 0 )) && b=0
+    printf '%d\n' "$b"
+  }
+
   _agent_skills_run() {
     # O CLI lista cada fonte pela API do GitHub e só autentica com GITHUB_TOKEN.
     # Anônimo, o limite de 60/h por IP esgotava e ele caía em "GitHub API
     # unavailable; checking via Git clone", clonando os 7 repositórios de origem.
-    output="$(with_updater_github_token timeout "$budget" npx --yes "$1" update --global 2>&1)"
+    output="$(with_updater_github_token timeout "$2" npx --yes "$1" update --global 2>&1)"
     rc=$?
     printf '%s\n' "$output" | _strip_ansi >> "$LOG_FILE"
   }
-  _agent_skills_run "$spec"
+  local run_budget
+  run_budget="$(_agent_skills_budget)"
+  # `timeout 0` desligaria o teto; sem tempo nenhum, nem tenta.
+  if (( run_budget <= 0 )); then
+    STEP_REASON="sem tempo no limite do catálogo para rodar o skills CLI"
+    return "$RC_WARN"
+  fi
+  _agent_skills_run "$spec" "$run_budget"
 
   if (( rc == 124 )); then
-    agent_skills_cli_state_set slow "${version:-$latest}"
-    local good
+    local slow_version="${version:-$latest}" slow_spec="$spec" good
     good="$(agent_skills_cli_state_get good)"
     # Primeira vez sem versão boa registrada: a release anterior à lenta.
-    [[ -n "$good" && "$good" != "${version:-$latest}" ]] \
-      || good="$(agent_skills_cli_previous_version "${version:-$latest}")"
-    if [[ -n "$good" && "$good" != "${version:-$latest}" ]]; then
-      log "  ${spec} excedeu ${budget}s; repetindo com a última versão boa (skills@${good})."
-      spec="skills@${good}" version="$good"
-      _agent_skills_run "$spec"
+    [[ -n "$good" && "$good" != "$slow_version" ]] \
+      || good="$(agent_skills_cli_previous_version "$slow_version")"
+    if [[ -z "$good" || "$good" == "$slow_version" ]]; then
+      log "  ${slow_spec} excedeu ${run_budget}s sem versão anterior conhecida para fallback."
+      STEP_REASON="skills CLI excedeu ${run_budget}s (${slow_spec}); skills mantidas na versão atual"
+      return "$RC_WARN"
     fi
-  fi
-  if (( rc == 124 )); then
-    log "  ${spec} excedeu ${budget}s sem versão anterior conhecida para fallback."
-    STEP_REASON="skills CLI excedeu ${budget}s (${spec}); skills mantidas na versão atual"
-    return "$RC_WARN"
+    run_budget="$(_agent_skills_budget)"
+    # Menos de 30s não basta nem para o npx baixar o CLI: tentar só gastaria o
+    # resto do limite e terminaria morto pelo run_step.
+    if (( run_budget < 30 )); then
+      log "  ${slow_spec} excedeu o orçamento; sem tempo no limite do catálogo para repetir com skills@${good}."
+      STEP_REASON="skills CLI excedeu o orçamento (${slow_spec}); sem tempo para repetir com skills@${good}"
+      return "$RC_WARN"
+    fi
+    log "  ${slow_spec} excedeu o orçamento; repetindo com a última versão boa (skills@${good})."
+    spec="skills@${good}" version="$good"
+    _agent_skills_run "$spec" "$run_budget"
+    if (( rc == 124 )); then
+      # As duas versões estouraram: a lentidão é da máquina ou da rede, não
+      # regressão do CLI. Marcar a nova como lenta aqui a congelaria numa versão
+      # antiga por causa de um run com a máquina sobrecarregada.
+      log "  skills@${good} também excedeu ${run_budget}s: lentidão da máquina/rede, não do CLI; nenhuma versão marcada como lenta."
+      STEP_REASON="skills CLI excedeu ${budget}s com ${slow_spec} e skills@${good} (máquina/rede lenta); skills mantidas na versão atual"
+      return "$RC_WARN"
+    fi
+    # Só agora há prova de regressão: a anterior coube onde a nova não coube.
+    (( rc == 0 )) && agent_skills_cli_state_set slow "$slow_version"
   fi
   (( rc == 0 )) && [[ -n "${version:-$latest}" ]] && agent_skills_cli_state_set good "${version:-$latest}"
 

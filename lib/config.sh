@@ -58,7 +58,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${GITHUB_TOKEN_FILE:=${XDG_CONFIG_HOME:-$HOME/.config}/full-upgrade/github-token}" # token GitHub dedicado (modo 600): tira o limite anônimo de 60 req/h e é entregue aos updaters nativos (bun, hermes)
 : "${GITHUB_UPDATER_TOKEN_FROM_GH:=0}" # 1 = sem token dedicado, entrega o token do `gh` (escopos amplos) aos updaters nativos; 0 = updaters seguem anônimos
 : "${AI_PLUGIN_BLOCKLIST:=}"       # plugins/marketplaces (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar
-: "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento do `npx skills update`; versão do CLI que o excede é marcada lenta e o step usa a última boa
+: "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento de cada tentativa do `npx skills update`; estourou e a versão anterior coube => a nova é marcada lenta
 : "${MCP_HUB_RENDER:=1}"            # 1 = step 'Sincronizar hub MCP (claude-env)' re-renderiza o hub nas configs de todos os harnesses após os updates; 0 = só doctor (drift)
 : "${CLAUDE_ENV_DIR:=${HOME}/claude-env}" # repositório claude-env (hub MCP em mcp/servers.json, renderer em scripts/mcp_render.py)
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only

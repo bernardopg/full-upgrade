@@ -95,3 +95,33 @@ setup() {
   [ "$rc" -eq "$RC_WARN" ]
   [[ "$STEP_REASON" == *"excedeu 60s"* ]]
 }
+
+@test "update_agent_skills: as duas versões estouram => nada é marcado como lento" {
+  # Caso real: com a máquina sobrecarregada (load 20+ em 12 núcleos) a 1.8.1
+  # estourou e ficou marcada lenta, congelando o CLI numa versão antiga.
+  MOCK_SLOW="1.7.5 1.7.4"
+  update_agent_skills >/dev/null && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [ -z "$(agent_skills_cli_state_get slow)" ]
+  [[ "$STEP_REASON" == *"máquina/rede lenta"* ]]
+}
+
+@test "update_agent_skills: fallback só roda se couber no que sobra do catálogo" {
+  # Caso real: orçamento 300s num catálogo de 360s; o run_step matava o step
+  # no meio da segunda tentativa.
+  MOCK_SLOW=1.7.5
+  step_time_left() { printf '40\n'; }   # 40 - 15 de folga = 25s < 30s
+  update_agent_skills >/dev/null && rc=0 || rc=$?
+  [ "$rc" -eq "$RC_WARN" ]
+  [ "$(cat "$CALLS")" = "skills@1.7.5" ]
+  [ -z "$(agent_skills_cli_state_get slow)" ]
+  [[ "$STEP_REASON" == *"sem tempo para repetir"* ]]
+}
+
+@test "update_agent_skills: orçamento de cada tentativa respeita o limite do catálogo" {
+  step_time_left() { printf '45\n'; }
+  timeout() { printf '%s\n' "$1" >> "$BATS_TEST_TMPDIR/budgets"; shift; "$@"; }
+  AGENT_SKILLS_TIMEOUT_S=300
+  update_agent_skills >/dev/null
+  [ "$(cat "$BATS_TEST_TMPDIR/budgets" | tail -1)" = "30" ]
+}
