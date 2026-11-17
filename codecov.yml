@@ -38,4 +38,3 @@ comment:
   layout: "reach,diff,flags,files,tree"
   behavior: default
   require_changes: false   # posta comentário de cobertura em todo PR
-  show_critical_files: true

@@ -17,7 +17,9 @@ jobs:
   lint:
     name: Lint & Test
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    # A suíte sob kcov leva ~9-10 min no push (instalar + compilar o kcov, mais
+    # ~1 min); com 15 min o job ficava a 3 min de ser cortado.
+    timeout-minutes: 25
     env:
       # Coverage (kcov) roda só fora de PR: PRs ganham feedback rápido e a
       # suíte roda uma vez só (sob kcov ela roda de novo inteira); o Codecov
@@ -46,8 +48,6 @@ jobs:
           scripts/install-shellcheck.sh
           echo "$PWD/.ci/shellcheck/bin" >> "$GITHUB_PATH"
           if [ "$RUN_COVERAGE" = "true" ]; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends python3-tomli
             scripts/install-kcov.sh
             echo "$PWD/.ci/kcov/bin" >> "$GITHUB_PATH"
           fi
