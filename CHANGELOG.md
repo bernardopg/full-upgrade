@@ -22,6 +22,26 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   step:** passa a seguir symlinks (gdu baixado à mão, herdr-app), varrer
   `~/.local/opt` (Tor Browser, handy, recordly) e reconhecer os scripts do
   `pip --user` pelo `RECORD` (o ruff aparecia como candidato).
+- **`--history` desalinhado:** o `printf` do Bash conta bytes, então `VERSÃO`
+  e `DURAÇÃO` deslocavam as colunas do cabeçalho. A tabela agora alinha por
+  caractere.
+- **Tray: rate limit do GitHub na consulta Artcraft congelava o menu:** a
+  verificação inteira falhava ("Verificação incompleta") e as contagens de
+  repo/AUR/Flatpak/Doctor paravam. A fonte Artcraft agora vira indisponível e
+  mantém a contagem anterior. A lista Artcraft também sumia do menu ao fim de
+  cada run (o estado `cached` não lia `artcraft_updates` como lista).
+- **Doctor tratava scope de `systemd-run` como unit quebrada:** um
+  `t3code-claude-*.scope` encerrado por timeout virava todo. Todo `*.scope` é
+  transitório; o Doctor o trata como informativo e o reparo de scopes limpa
+  qualquer um, não só `app-*.scope`.
+- **`Doctor: Flatpak repair dry-run` estourava o limite de 60s** com runtimes
+  do Flathub instalados no usuário (o repair confere cada objeto, 40–70s).
+  Agora roda com prioridade de I/O ociosa, limite de 180s, e só repete a
+  verificação completa quando os refs mudaram ou a última verificação limpa
+  tem mais de `FLATPAK_REPAIR_MAX_AGE_DAYS` (7) dias.
+- **TUI de configuração:** valor truncado colava na descrição, o rótulo do
+  menu colava na dica em terminais estreitos, o rodapé cortava um atalho no
+  meio e o caminho do config quebrava a linha. Caminhos aparecem com `~`.
 
 ### Adicionado
 
@@ -37,6 +57,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ### Melhorado
 
+- Histórico e relatórios distinguem runs parciais: o `run_start` grava o
+  escopo (`completo`, `doctor`, `filtrado`, `resume`, `dry-run`…) e os
+  argumentos. O `--history` ganha a coluna ESCOPO e não compara a duração de
+  runs de escopos diferentes; o `--report` mostra escopo, comando, reboot
+  recomendado, os 3 steps mais lentos e o caminho do JSONL.
+- O resumo do terminal mostra o motivo de cada step pulado.
 - Run ~3 min mais rápido sem novidades:
   - Ferramentas Go: só reinstala quando `go list -m mod@latest` ou a toolchain
     mudaram (antes, `go install` nas 9 ferramentas em todo run).

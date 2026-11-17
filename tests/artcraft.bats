@@ -264,16 +264,23 @@ PY
   [ "$(wc -l < "$ARTCRAFT_FIXTURES/requests")" = "$requests" ]
 }
 
-@test "Artcraft: erro na consulta da bandeja mantém estado anterior" {
+# P11: a falha da consulta Artcraft não derruba a verificação da bandeja; a
+# contagem Artcraft anterior é mantida e o resto do estado é gravado.
+@test "Artcraft: erro na consulta da bandeja mantém a contagem Artcraft anterior" {
   fixture vectorcraft
   rm "$ARTCRAFT_FIXTURES/vectorcraft.json"
   LOG_DIR="$BATS_TEST_TMPDIR/log" TRAY_STATE_FILE="$BATS_TEST_TMPDIR/state.json"
+  mkdir -p "$LOG_DIR"
   printf '%s\n' '{"state":"updates","artcraft":5}' > "$TRAY_STATE_FILE"
   tray_is_full_upgrade_running() { return 1; }
   tray_gather_updates_detail() { printf '0 0 0'; }
+  tray_last_summary_counts() { printf '0 0 0'; }
+  tray_last_summary_line() { return 1; }
+  tray_last_doctor_pending_items() { :; }
   run tray_check_now no_notify
-  [ "$status" -eq 1 ]
-  [ "$(cat "$TRAY_STATE_FILE")" = '{"state":"updates","artcraft":5}' ]
+  [ "$status" -eq 0 ]
+  [ "$(tray_read_state_field "$TRAY_STATE_FILE" artcraft)" = 5 ]
+  [ "$(tray_read_state_field "$TRAY_STATE_FILE" state)" = updates ]
 }
 
 @test "Artcraft: integração desabilitada não consulta a API na bandeja" {

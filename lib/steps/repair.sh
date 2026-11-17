@@ -40,8 +40,10 @@ repair_known_command_shadowing() {
     repair_command_shadowing dumpcap /usr/bin/dumpcap
 }
 
-# Units app-*.scope são scopes transitórios criados pelo desktop para apps. Se
-# o app é morto por OOM/crash, o registro pode permanecer em "failed" por dias
+# Units *.scope são sempre transitórias: o desktop cria app-*.scope para apps e
+# `systemd-run --scope` cria as de terminais/agentes (ex.: t3code-claude-*.scope,
+# que ficou "failed" quando um processo filho não parou no prazo). Se o processo
+# é morto por OOM/crash/timeout, o registro pode permanecer em "failed" por dias
 # e contaminar `systemctl --user --failed`, embora não exista serviço para
 # reiniciar. O journal/coredump preserva a causa; reset-failed limpa somente o
 # estado administrativo obsoleto.
@@ -57,17 +59,17 @@ repair_stale_user_app_scopes() {
     local -a scopes=()
     while IFS= read -r line; do
         unit="${line%%[[:space:]]*}"
-        [[ "$unit" == app-*.scope ]] && scopes+=("$unit")
+        [[ "$unit" == *.scope ]] && scopes+=("$unit")
     done <<< "$failed"
 
     if (( ${#scopes[@]} == 0 )); then
-        log "  Nenhum scope transitório de app em estado failed."
+        log "  Nenhum scope transitório em estado failed."
         return 0
     fi
 
-    log "  Limpando ${#scopes[@]} scope(s) transitório(s) de app já encerrado(s): ${scopes[*]}"
+    log "  Limpando ${#scopes[@]} scope(s) transitório(s) já encerrado(s): ${scopes[*]}"
     if ! systemctl --user reset-failed "${scopes[@]}" 2>>"$LOG_FILE"; then
-        STEP_REASON="não foi possível limpar scopes transitórios de app"
+        STEP_REASON="não foi possível limpar scopes transitórios"
         return "$RC_WARN"
     fi
     return 0

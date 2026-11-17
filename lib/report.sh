@@ -60,6 +60,35 @@ report_markdown_from_jsonl() {
     }
     # Extrai o valor string da chave <key> de uma linha JSON plana, decodificando
     # os escapes que json_escape() produz (\\ \" \n \r \t). Vazio se ausente.
+    # argv gravado no run_start ("args":["-y","--only","ai"]) como linha de
+    # comando legível; argumento com espaço volta entre aspas.
+    function args_cmd(line,   kk, p, c, a, out, inq) {
+      kk = "\"args\":["; p = index(line, kk); if (!p) return ""
+      p += length(kk); out = "full-upgrade"; a = ""; inq = 0
+      while (p <= length(line)) {
+        c = substr(line, p, 1)
+        if (!inq && c == "]") break
+        if (!inq && c == "\"") { inq = 1; a = ""; p++; continue }
+        if (inq && c == "\\") { p++; a = a substr(line, p, 1); p++; continue }
+        if (inq && c == "\"") { inq = 0; out = out " " (a ~ / / ? "\"" a "\"" : a); p++; continue }
+        if (inq) a = a c
+        p++
+      }
+      return out
+    }
+    # Os k steps executados mais demorados: "Nome (5m 44s), ...".
+    function slowest_steps(k,   i, j, used, best, bi, out) {
+      out = ""
+      for (j = 1; j <= k; j++) {
+        best = -1; bi = 0
+        for (i = 1; i <= n; i++)
+          if (!(i in used) && st_status[i] != "skip" && st_dur[i] + 0 > best) { best = st_dur[i] + 0; bi = i }
+        if (bi == 0 || best < 1) break
+        used[bi] = 1
+        out = out (out == "" ? "" : ", ") st_name[bi] " (" fmt_dur(best) ")"
+      }
+      return out
+    }
     function json_str(line, key,   p, c, out, esc, kk) {
       kk = "\"" key "\":\""
       p = index(line, kk)
@@ -174,6 +203,9 @@ report_markdown_from_jsonl() {
       run_id   = json_str($0, "run_id")
       start_ts = json_str($0, "timestamp")
       log_file = json_str($0, "log_file")
+      jsonl_file = json_str($0, "jsonl_file")
+      scope    = json_str($0, "scope")
+      run_cmd  = args_cmd($0)
       dry_run  = ($0 ~ /"dry_run":true/)
       next
     }
@@ -206,6 +238,7 @@ report_markdown_from_jsonl() {
       s_ok = json_num($0, "ok"); s_warn = json_num($0, "warn")
       s_todo = json_num($0, "todo"); s_fail = json_num($0, "fail")
       s_skip = json_num($0, "skip"); s_dur = json_num($0, "duration_seconds")
+      reboot = json_str($0, "reboot_recommendation")
       has_summary = 1
       next
     }
@@ -240,7 +273,13 @@ report_markdown_from_jsonl() {
       if (end_ts != "")   print "- **Fim:** " end_ts
       if (has_summary)    print "- **Duração:** " fmt_dur(s_dur)
       print "- **Resultado:** " s_ok " ok · " s_warn " warn · " s_todo " todo · " s_fail " fail · " s_skip " skip"
+      if (scope != "")    print "- **Escopo:** " scope
+      if (run_cmd != "")  print "- **Comando:** `" run_cmd "`"
+      if (reboot != "")   print "- **Reboot recomendado:** " reboot
+      slow = slowest_steps(3)
+      if (slow != "")     print "- **Mais lentos:** " slow
       if (log_file != "") print "- **Log:** `" log_file "`"
+      if (jsonl_file != "") print "- **JSONL:** `" jsonl_file "`"
       print ""
 
       # Q3: notícias novas do Arch exibidas no run — contexto pré-upgrade que
@@ -435,6 +474,7 @@ report_json_from_jsonl() {
       version  = json_str($0, "script_version")
       run_id   = json_str($0, "run_id")
       start_ts = json_str($0, "timestamp")
+      scope    = json_str($0, "scope")
       next
     }
     /"event":"run_end"/   { end_ts = json_str($0, "timestamp"); next }
@@ -471,6 +511,7 @@ report_json_from_jsonl() {
       printf ",\"script_version\":\"%s\"", je(version)
       if (start_ts != "") printf ",\"start\":\"%s\"", je(start_ts)
       if (end_ts != "")   printf ",\"end\":\"%s\"", je(end_ts)
+      if (scope != "")    printf ",\"scope\":\"%s\"", je(scope)
       if (has_summary)    printf ",\"duration_seconds\":%d", s_dur + 0
       printf ",\"summary\":{\"ok\":%d,\"warn\":%d,\"todo\":%d,\"fail\":%d,\"skip\":%d}", \
         s_ok + 0, s_warn + 0, s_todo + 0, s_fail + 0, s_skip + 0

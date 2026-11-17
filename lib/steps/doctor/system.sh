@@ -207,7 +207,7 @@ doctor_failed_systemd_units() {
     while IFS= read -r _line; do
       [[ $_line != *[![:space:]]* ]] && continue
       if [[ "$_line" =~ ^[[:space:]]*app-.*@autostart\.service[[:space:]] ]] ||
-         [[ "$_line" =~ ^[[:space:]]*app-.*\.scope[[:space:]] ]]; then
+         [[ "$_line" =~ ^[[:space:]]*[^[:space:]]+\.scope[[:space:]] ]]; then
         _usr_autostart+="${_line}"$'\n'
       else
         _usr_real+="${_line}"$'\n'

@@ -44,6 +44,62 @@ verdes). Restam T4/T5 (documentação de regra e guard-rail opcional).
 
 ---
 
+## Série V — Relatórios, histórico e TUI legíveis e depuráveis (2026-11-17)
+
+Revisão de todas as saídas: resumo do terminal, `--report` (Markdown e JSON),
+`--history`, `--config-tui` e menu do tray. Todos os itens ☑.
+
+#### V1 — 🔴 P ☑ `run_start` grava escopo e argv do run
+
+`scope` (`completo`, `doctor`, `update`, `repair`, `filtrado`, `resume`,
+`dry-run`) e `args` entram no `run_start`. Sem isso, um `--only` de 48s e um
+run completo de 8 min apareciam iguais no histórico e no relatório.
+
+#### V2 — 🔴 P ☑ `--history` desalinhado e sem escopo
+
+O `printf %-Ns` do Bash conta bytes: `VERSÃO` e `DURAÇÃO` deslocavam o
+cabeçalho em 1 e 2 colunas. A tabela usa `ui_pad` (caracteres), ganhou a
+coluna ESCOPO, e a tendência de duração não compara runs de escopos
+diferentes. `--history --json` inclui `scope`.
+
+#### V3 — 🟡 P ☑ Cabeçalho do relatório completo para depuração
+
+`--report` passa a mostrar escopo, linha de comando, reboot recomendado, os 3
+steps mais lentos e o JSONL; `--report --json` inclui `scope`.
+
+#### V4 — 🟡 P ☑ Pulados sem motivo no resumo do terminal
+
+O resumo listava só o nome dos steps pulados. Agora mostra o motivo alinhado
+("não instalado", "FULL_UPGRADE_SKIP", "integração desabilitada: …"). Também
+corrigido "1 atualizados" → "1 atualizado(s)".
+
+#### V5 — 🟡 P ☑ TUI de configuração: colunas e rodapé
+
+Valor truncado colava na descrição (`develo...Diretório`); rótulo do menu
+colava na dica em 60 colunas; rodapé cortava um atalho no meio; caminho do
+arquivo quebrava a linha sem recuo. Agora: 1 coluna de respiro, reticência
+de um caractere, `~` no lugar do `$HOME`, rodapé cortado entre atalhos e
+"estado: roda/pulado" no detalhe do step.
+
+#### V6 — 🟢 P ☑ Taxonomia de `security` no `--help steps`
+
+Faltavam gitleaks e trufflehog.
+
+#### V7 — 🟡 P ☑ Scope de `systemd-run` falhado virava todo no Doctor
+
+`t3code-claude-*.scope` (agente encerrado por timeout) aparecia como unit
+real falhada. Todo `*.scope` é transitório: o Doctor o trata como informativo
+e "Limpar scopes transitórios de apps" faz `reset-failed` em qualquer scope,
+não só `app-*.scope`.
+
+#### V8 — 🟡 M ☑ `Doctor: Flatpak repair dry-run` estourava o limite de 60s
+
+Com runtimes do Flathub na instalação do usuário (6,7 GB), o repair confere
+cada objeto e custa 40–70s. Agora roda com prioridade de I/O ociosa, limite de
+180s e só repete a verificação completa quando os refs mudaram ou a última
+limpa tem mais de `FLATPAK_REPAIR_MAX_AGE_DAYS` (7) dias. Medido: 60s
+(timeout) → 9s → 1s.
+
 ## Série U — Auditoria do run real de 2026-11-17 (v3.55.0)
 
 Origem: run real `20261117-135858-15495` (`full-upgrade -y`): 129 ok, 0 warn,
@@ -255,13 +311,25 @@ Feito: Sem ação: o 9router limita `requestDetails` a 1000 registros (`observab
 
 Verificar se cresce sem rotação.
 
-#### U25 — 🔴 P ☐ (máquina) `~/.spawnrc` carregado no shell de login local
+#### U25 — 🔴 P ☑ (máquina) `~/.spawnrc` carregado no shell de login local
 
 O `~/.profile` faz `source ~/.spawnrc`, o rc que o spawn grava para VMs de
 nuvem. Ele exporta uma chave da OpenRouter em texto puro, `IS_SANDBOX=1`,
 `LC_ALL=C.UTF-8`, `OPENAI_BASE_URL` da OpenRouter e põe `~/.claude/local/bin`
 no PATH de toda sessão que lê o `~/.profile`. Decidir: tirar o `source` do
 `~/.profile`, mover a chave para um cofre e rotacioná-la.
+
+Feito (2026-11-17): a chave do `~/.spawnrc` já estava revogada (HTTP 401) e era
+a que o ambiente systemd `--user` exportava para os apps gráficos, junto com
+`IS_SANDBOX`, `HERMES_YOLO_MODE` e `LC_ALL=C.UTF-8` (que sobrepunha o
+`pt_BR.UTF-8`). O `source` saiu do `~/.profile` e do `bash/.bashrc`; o
+`~/.spawnrc` e o spawn (usado uma vez, num teste em 7/ago) foram removidos; o
+ambiente da sessão foi limpo e recarregado do `secrets.env`. A `ZAI_API_KEY`,
+que sumiu no refactor de 9/nov do `~/.config/hypr`, voltou para a fonte única
+`~/.config/claude-env/secrets.env`. O histórico do repo privado `archinho` foi
+reescrito (`git filter-repo --replace-text`) para tirar duas chaves
+(OpenRouter e Z.ai) que estavam versionadas; backup em
+`~/.config/claude-env/backups/archinho-pre-rewrite-*.bundle`.
 
 ### Verificados sem ação
 
@@ -350,7 +418,7 @@ de categoria. Adicionar:
   `security`, `desktop`, `snapshot`, `cve`, `config`, `read-only`-related
   removidos; nomes de ferramenta viram allowlist no teste S2.5.
 
-### S4 — 🟢 P ☐ Documentar a taxonomia no README/help
+### S4 — 🟢 P ☑ Documentar a taxonomia no README/help
 
 - Tabela de categorias com semântica (o que `--only X` pega) em `README.md`
   e tópico `--help steps`.
@@ -594,9 +662,10 @@ os itens novos em `full-upgrade-<run_id>.news` e um evento `news` no JSONL;
 o relatório Markdown (`REPORT_ON_FINISH` / `--report`) ganhou a seção
 "## Notícias do Arch" com data, tipo (intervenção/informativa) e título clicável.
 
-#### Q4 — 🟢 P ☐ Acompanhar upstream ZapZap (ex-P10)
+#### Q4 — 🟢 P ☑ Acompanhar upstream ZapZap (ex-P10)
 
 rafatosta/zapzap#767; remover patch local do launcher quando corrigido.
+Feito: issue fechada em 2026-07-24 e o patch local já não existe.
 
 ---
 
@@ -665,7 +734,7 @@ Arquivos: `lib/steps/doctor.sh`, `tests/doctor*.bats`.
 nativo; Flatpak usa `~/.var/app/com.obsproject.Studio/config/obs-studio`.
 Arquivos: `steps.d/85-obs.sh`, `tests/obs.bats`.
 
-#### P11 — 🟡 P ☐ Tray: falha da consulta Artcraft não pode abortar a verificação inteira
+#### P11 — 🟡 P ☑ Tray: falha da consulta Artcraft não pode abortar a verificação inteira
 
 Em `tray_check` (`lib/tray.sh`), se `artcraft_check_updates` falha, a função
 retorna 1 antes de gravar o estado. Com a API do GitHub em rate limit
@@ -675,8 +744,12 @@ repo/AUR/Flatpak/Doctor ficam congeladas no estado anterior. Visto em
 2026-10-26. Correção: tratar a falha do Artcraft como fonte indisponível
 (mantém a contagem anterior dela e grava o resto), não como falha do check.
 Arquivos: `lib/tray.sh`, `lib/steps/artcraft.sh`, `tests/tray.bats`.
+Feito: a falha vira fonte indisponível (`tray_previous_artcraft` mantém a
+contagem e a lista anteriores). Junto: `tray_read_state_field` passou a ler
+`artcraft_updates` como array; antes a lista Artcraft sumia do menu no modo
+`cached` do fim de cada run.
 
-#### P10 — 🟢 P ☐ ZapZap upstream
+#### P10 — 🟢 P ☑ ZapZap upstream (ver Q4)
 
 Bug reportado em rafatosta/zapzap#767 (ThemeContext + spam de console.error);
 mitigação local no launcher. Quando o upstream corrigir, remover o patch de

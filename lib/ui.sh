@@ -521,7 +521,19 @@ print_summary() {
       log_always "  ${C_DIM}Pulados (${skip})${C_RESET}"
       for i in "${!STEP_NAMES[@]}"; do
         [[ "${STEP_RESULTS[$i]}" != "skip" ]] && continue
-        log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
+        # O motivo do skip (não instalado, FULL_UPGRADE_SKIP, integração
+        # desabilitada…) é o que diz se a ausência é esperada.
+        # Motivo que não cabe ao lado do nome desce para uma linha "↳", como os
+        # motivos de warn/todo: a 80 colunas ele virava "integração desab…".
+        local skip_reason="${STEP_REASONS[$i]:-}" skip_room=$(( $(ui_width) - namew - 9 ))
+        if [[ -n "$skip_reason" ]] && (( ${#skip_reason} <= skip_room )); then
+          log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}$(ui_fit "${STEP_NAMES[$i]}" "$namew")  ${skip_reason}${C_RESET}"
+        elif [[ -n "$skip_reason" ]]; then
+          log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
+          log_always "       ${C_DIM}↳ $(ui_truncate "$skip_reason" "$(( $(ui_width) - 9 ))")${C_RESET}"
+        else
+          log_always "    ${C_YELLOW}${SYM_SKIP}${C_RESET}  ${C_DIM}${STEP_NAMES[$i]}${C_RESET}"
+        fi
       done
     fi
   fi
@@ -623,7 +635,7 @@ print_pkg_changes() {
   # Indentado em 2 como o resto do corpo do resumo; antes o título ficava
   # colado na coluna 0 e destoava do bloco inteiro logo acima.
   local up_color="$C_DIM"; (( up > 0 )) && up_color="$C_GREEN"
-  log_always "  ${C_BOLD}Pacotes alterados${C_RESET} (${up_color}${up} atualizados${C_RESET}, ${ins} instalados, ${rem} removidos)"
+  log_always "  ${C_BOLD}Pacotes alterados${C_RESET} (${up_color}${up} atualizado(s)${C_RESET}, ${ins} instalado(s), ${rem} removido(s))"
 
   local shown=0 max=30 tag a b c namew=0
   # Alinhar a coluna de versões pela maior nome da lista (o catálogo de steps

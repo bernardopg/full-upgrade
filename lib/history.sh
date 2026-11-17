@@ -22,8 +22,9 @@ _history_jsonl_files() {
 }
 
 # Extrai de um JSONL a linha TSV do run:
-#   version<TAB>date<TAB>ok<TAB>warn<TAB>todo<TAB>fail<TAB>skip<TAB>duration
-# Lê script_version/timestamp do run_start e as contagens do summary.
+#   version<TAB>date<TAB>ok<TAB>warn<TAB>todo<TAB>fail<TAB>skip<TAB>duration<TAB>scope
+# Lê script_version/timestamp/scope do run_start e as contagens do summary.
+# Runs gravados antes do campo scope saem com "—".
 _history_row_for() {
   awk '
     function jnum(line, key,   p, c, o, kk) {
@@ -42,7 +43,11 @@ _history_row_for() {
         o = o c; p++ }
       return o
     }
-    /"event":"run_start"/ { if (ver == "") ver = jstr($0, "script_version"); if (sdate == "") sdate = jstr($0, "timestamp") }
+    /"event":"run_start"/ {
+      if (ver == "") ver = jstr($0, "script_version")
+      if (sdate == "") sdate = jstr($0, "timestamp")
+      if (scope == "") scope = jstr($0, "scope")
+    }
     /"event":"summary"/ {
       ok = jnum($0, "ok"); warn = jnum($0, "warn"); todo = jnum($0, "todo")
       fail = jnum($0, "fail"); skip = jnum($0, "skip"); dur = jnum($0, "duration_seconds")
@@ -52,7 +57,7 @@ _history_row_for() {
     END {
       if (!seen) exit 1   # sem summary: run incompleto, ignora
       d = (sdate != "") ? sdate : mdate
-      printf "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\n", (ver == "" ? "—" : ver), d, ok, warn, todo, fail, skip, dur
+      printf "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", (ver == "" ? "—" : ver), d, ok, warn, todo, fail, skip, dur, (scope == "" ? "—" : scope)
     }
   ' "$1"
 }
@@ -77,6 +82,14 @@ _history_warn_todo_steps() {
   ' "$1" | sort -u
 }
 
+# Uma linha da tabela do --history, alinhada por caractere.
+_history_line() {
+  printf '%s  %s  %s  %s %s %s %s %s  %s\n' \
+    "$(ui_pad "$1" 16)" "$(ui_pad "$2" 12)" "$(ui_pad "$3" 9)" \
+    "$(ui_pad_left "$4" 3)" "$(ui_pad_left "$5" 4)" "$(ui_pad_left "$6" 4)" \
+    "$(ui_pad_left "$7" 4)" "$(ui_pad_left "$8" 4)" "$(ui_pad_left "$9" 9)"
+}
+
 # F8 — tabela/tendência dos últimos N runs. Read-only, sem rede.
 report_history() {
   local n="${1:-10}"
@@ -91,13 +104,13 @@ report_history() {
     return 1
   fi
 
-  local -a vers dates oks warns todos fails skips durs
-  local f row v d ok wa to fa sk du
+  local -a vers dates oks warns todos fails skips durs scopes
+  local f row v d ok wa to fa sk du sc
   for f in "${files[@]}"; do
     row="$(_history_row_for "$f")" || continue   # pula runs sem summary
-    IFS=$'\t' read -r v d ok wa to fa sk du <<< "$row"
+    IFS=$'\t' read -r v d ok wa to fa sk du sc <<< "$row"
     vers+=("$v"); dates+=("$d"); oks+=("$ok"); warns+=("$wa")
-    todos+=("$to"); fails+=("$fa"); skips+=("$sk"); durs+=("$du")
+    todos+=("$to"); fails+=("$fa"); skips+=("$sk"); durs+=("$du"); scopes+=("${sc:-—}")
   done
 
   if (( ${#vers[@]} == 0 )); then
@@ -110,8 +123,8 @@ report_history() {
     printf '{"runs":['
     for i in "${!vers[@]}"; do
       (( i > 0 )) && printf ','
-      printf '{"version":"%s","timestamp":"%s","ok":%d,"warn":%d,"todo":%d,"fail":%d,"skip":%d,"duration_seconds":%d}' \
-        "${vers[$i]}" "${dates[$i]}" \
+      printf '{"version":"%s","timestamp":"%s","scope":"%s","ok":%d,"warn":%d,"todo":%d,"fail":%d,"skip":%d,"duration_seconds":%d}' \
+        "${vers[$i]}" "${dates[$i]}" "${scopes[$i]/—/}" \
         "${oks[$i]}" "${warns[$i]}" "${todos[$i]}" "${fails[$i]}" "${skips[$i]}" "${durs[$i]}"
     done
     printf ']}\n'
@@ -119,14 +132,15 @@ report_history() {
   fi
 
   printf 'Histórico dos últimos %d run(s) — %s\n\n' "${#vers[@]}" "$LOG_DIR"
-  printf '%-16s  %-12s  %3s %4s %4s %4s %4s  %9s\n' "DATA" "VERSÃO" "ok" "warn" "todo" "fail" "skip" "DURAÇÃO"
-  printf '%-16s  %-12s  %3s %4s %4s %4s %4s  %9s\n' "----" "------" "---" "----" "----" "----" "----" "-------"
+  # ui_pad conta caracteres: o printf %-Ns do Bash conta bytes e desalinhava as
+  # colunas depois de "VERSÃO"/"DURAÇÃO" e de versões "—".
+  _history_line "DATA" "VERSÃO" "ESCOPO" "ok" "warn" "todo" "fail" "skip" "DURAÇÃO"
+  _history_line "----" "------" "------" "---" "----" "----" "----" "----" "-------"
   local i dshort
   for i in "${!vers[@]}"; do
     dshort="${dates[$i]:0:16}"; dshort="${dshort/T/ }"
-    printf '%-16s  %-12s  %3s %4s %4s %4s %4s  %9s\n' \
-      "$dshort" "${vers[$i]}" "${oks[$i]}" "${warns[$i]}" "${todos[$i]}" \
-      "${fails[$i]}" "${skips[$i]}" "$(elapsed "${durs[$i]}")"
+    _history_line "$dshort" "${vers[$i]}" "${scopes[$i]}" "${oks[$i]}" "${warns[$i]}" \
+      "${todos[$i]}" "${fails[$i]}" "${skips[$i]}" "$(elapsed "${durs[$i]}")"
   done
 
   # ── Tendência de duração: run mais recente vs. o anterior COMPARÁVEL ──
@@ -139,6 +153,12 @@ report_history() {
     local j prev=-1
     for (( j = 1; j < ${#durs[@]}; j++ )); do
       local ranj=$(( oks[j] + warns[j] + todos[j] + fails[j] ))
+      # Escopo gravado nos dois runs e diferente (ex.: doctor x completo): não
+      # compara. Runs antigos sem escopo ("—") caem na heurística de contagem.
+      [[ "${scopes[0]}" != "—" && "${scopes[j]}" != "—" && "${scopes[0]}" != "${scopes[j]}" ]] && continue
+      # Run atual parcial (doctor, filtrado…) não se compara a um run antigo de
+      # escopo desconhecido: a heurística de contagem só vale para "completo".
+      [[ "${scopes[0]}" != "—" && "${scopes[0]}" != "completo" && "${scopes[j]}" == "—" ]] && continue
       if (( ran0 == 0 || ranj * 2 >= ran0 )); then prev=$j; break; fi
     done
 

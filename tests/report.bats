@@ -231,3 +231,28 @@ JSONL
   [ "$status" -eq 0 ]
   [[ "$output" != *"Simulação"* ]]
 }
+
+# ── Cabeçalho: escopo, comando, mais lentos, reboot e JSONL ───────────────────
+
+@test "report: cabeçalho traz escopo, comando, mais lentos, reboot e JSONL" {
+  sed -i '1s/"pid":"900745"}/"pid":"900745","scope":"filtrado","args":["-y","--skip","Atualizar Ollama"]}/' "$FIXTURE"
+  run report_markdown_from_jsonl "$FIXTURE"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"- **Escopo:** filtrado"* ]]
+  [[ "$output" == *'- **Comando:** `full-upgrade -y --skip "Atualizar Ollama"`'* ]]
+  [[ "$output" == *"- **Mais lentos:** Atualizar pacotes do sistema e AUR (1m 15s), Auditar binários cargo (CVEs) (12s), Doctor: reboot pendente (1s)"* ]]
+  [[ "$output" == *"- **Reboot recomendado:** kernel 7.0.11 vs 7.0.12"* ]]
+  [[ "$output" == *'- **JSONL:** `/x.jsonl`'* ]]
+}
+
+@test "report: JSONL antigo sem scope/args não imprime linhas vazias" {
+  run report_markdown_from_jsonl "$FIXTURE"
+  [[ "$output" != *"**Escopo:**"* ]]
+  [[ "$output" != *"**Comando:**"* ]]
+}
+
+@test "report --json: inclui scope quando o run_start tem" {
+  sed -i '1s/"pid":"900745"}/"pid":"900745","scope":"doctor"}/' "$FIXTURE"
+  run report_json_from_jsonl "$FIXTURE"
+  [ "$(jq -r .scope <<<"$output")" = doctor ]
+}

@@ -89,7 +89,7 @@ Categorias (conjunto fechado, uma por step):
   backup     configs de /etc, snapshot pré-upgrade, réplica em nuvem
   packages   pacman/AUR, mirrors, notícias, .pacnew, Flatpak, Snap, Docker
   repair     reparos idempotentes de estado quebrado
-  security   Wireshark, Burp Suite, Snyk, OWASP ZAP
+  security   Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog
   firmware   fwupd e systemd-boot
   lang-js    Node.js (nvm), npm, corepack, pnpm, Bun, Deno, vite-plus
   lang-py    pip --user, pipx, uv, Poetry
@@ -348,6 +348,7 @@ EOF
 
 
 parse_args() {
+    RUN_ARGS=("$@")
     while (( $# > 0 )); do
         case "$1" in
             -y|--yes)       ASSUME_YES=1 ;;

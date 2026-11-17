@@ -33,7 +33,7 @@ Atualizar pacotes do sistema e AUR|packages|update,network,slow,system,aur,pacma
 Garantir Wireshark|security|security,wireshark,network|mutating|180||ensure_wireshark|Garante/atualiza o pacote oficial wireshark-qt.
 Garantir Burp Suite|security|security,burp,aur,network|mutating|300|paru|ensure_burpsuite|Garante/atualiza o Burp Suite e usa fallback oficial PortSwigger quando necessário.
 Reparar comandos locais conflitantes|repair|shadowing|mutating|30||repair_known_command_shadowing|Move binários manuais em /usr/local/bin que sombreiam pacotes gerenciados.
-Limpar scopes transitórios de apps|repair|systemd,user,desktop|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes app-*.scope já encerrados; journal e coredump permanecem para auditoria.
+Limpar scopes transitórios de apps|repair|systemd,user,desktop|mutating|15|systemctl|repair_stale_user_app_scopes|Limpa o estado failed obsoleto de scopes *.scope já encerrados (app-*.scope do desktop e os de systemd-run, como t3code-*.scope); journal e coredump permanecem para auditoria.
 Reparar configuração de coredump|repair|systemd,coredump,config,sudo|mutating|30|awk|repair_coredump_obsolete_keys|Remove apenas MaxAge/Keep inválidos de coredump.conf, com backup reversível.
 Reparar sombra local do full-upgrade|repair|shadowing,self,pacman|mutating|30|pacman|repair_full_upgrade_shadow|Remove cópia standalone em ~/.local/bin que sombreia a instalação pacman/AUR do full-upgrade (preserva symlink de desenvolvimento).
 Reparar unit stale do full-upgrade tray|repair|shadowing,self,systemd,tray,pacman|mutating|30|pacman|repair_full_upgrade_tray_unit|Reescreve unit systemd --user antiga cujo ExecStart aponta para ~/.local/bin/full-upgrade ou usa o nome sem caminho, quando a instalação ativa é pacman/AUR.
@@ -142,7 +142,7 @@ Doctor: configuração paru Devel|doctor|paru,aur|read|10|paru|doctor_paru_devel
 Doctor: journal erros críticos|doctor|journal,systemd|read|30||doctor_journal_errors|Mostra erros críticos do boot atual com limite de linhas.
 Doctor: crashes recorrentes (coredump)|doctor|coredump,systemd|read|30|coredumpctl|doctor_recurrent_coredumps|Agrupa coredumps dos últimos 14 dias por programa e aponta crash recorrente ainda ativo (>=3x com ocorrência nas últimas 48 h).
 Doctor: fwupd security|doctor|fwupd,firmware,security|read|60|fwupdmgr|doctor_fwupd_security|Executa auditoria de segurança de firmware via fwupdmgr.
-Doctor: Flatpak repair dry-run|doctor|flatpak|read|60|flatpak|doctor_flatpak_repair_dry_run|Executa flatpak repair --user --dry-run para detectar inconsistências.
+Doctor: Flatpak repair dry-run|doctor|flatpak|read|180|flatpak|doctor_flatpak_repair_dry_run|Executa flatpak repair --user --dry-run (prioridade de I/O ociosa) para detectar inconsistências; repete a verificação completa só quando os refs mudaram ou a última limpa tem mais de FLATPAK_REPAIR_MAX_AGE_DAYS (7) dias.
 Doctor: saúde de disco|doctor|disk|read|15||doctor_disk_health|Verifica uso de espaço e inodes em mounts essenciais.
 Doctor: saúde de boot|doctor|boot,systemd,sudo|read|30|bootctl|doctor_boot_health|Verifica systemd-boot, kernel/initrd no ESP e espaço livre.
 Doctor: saúde de rede|doctor|network|read|30||doctor_network_health|Verifica DNS e conectividade HTTPS para mirrors Arch.

@@ -123,3 +123,44 @@ _summary_footer_fixture() {
     | awk '{ i = index($0, $3); print i }' | sort -u | wc -l)"
   [ "$cols" -eq 1 ]
 }
+
+# ── Pulados: o motivo diz se a ausência é esperada ────────────────────────────
+
+@test "print_summary: pulados mostram o motivo alinhado depois do nome" {
+  QUIET=0; LOG_FILE=/dev/null; COLUMNS=100; JSON_SUMMARY=0; COMPACT_SKIP_OUTPUT=0
+  JSONL_FILE="${BATS_TEST_TMPDIR}/run.jsonl"; : > "$JSONL_FILE"
+  STEP_NAMES=("Atualizar Ollama" "Atualizar ghcup" "Atualizar cua-driver")
+  STEP_RESULTS=("ok" "skip" "skip")
+  STEP_TIMES=(3 0 0)
+  STEP_REASONS=("" "ghcup não instalado" "integração desabilitada: cua-driver")
+  STEP_CATEGORIES=("ai" "lang-other" "tools")
+  STEP_START=(0 0 0)
+  run print_summary
+  [ "$status" -eq 0 ]
+  plain="$(printf '%s\n' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  [[ "$plain" == *"Pulados (2)"* ]]
+  line1="$(grep -F 'Atualizar ghcup' <<<"$plain" | grep -F '⊘')"
+  line2="$(grep -F 'Atualizar cua-driver' <<<"$plain" | grep -F '⊘')"
+  [[ "$line1" == *"ghcup não instalado" ]]
+  [[ "$line2" == *"integração desabilitada: cua-driver" ]]
+  # motivos começam na mesma coluna (contada em caracteres)
+  c1="$(awk -v s="ghcup não" '{ print index($0, s) }' <<<"$line1")"
+  c2="$(awk -v s="integração" '{ print index($0, s) }' <<<"$line2")"
+  [ "$(printf '%s' "${line1:0:c1}" | wc -m)" -eq "$(printf '%s' "${line2:0:c2}" | wc -m)" ]
+}
+
+@test "print_summary: motivo de pulado que não cabe desce para a linha ↳ inteiro" {
+  QUIET=0; LOG_FILE=/dev/null; COLUMNS=60; JSON_SUMMARY=0; COMPACT_SKIP_OUTPUT=0
+  JSONL_FILE="${BATS_TEST_TMPDIR}/run.jsonl"; : > "$JSONL_FILE"
+  STEP_NAMES=("Doctor: CVEs de pacotes oficiais (arch-audit)" "Atualizar OpenClaw")
+  STEP_RESULTS=("ok" "skip")
+  STEP_TIMES=(1 0)
+  STEP_REASONS=("" "integração desabilitada: openclaw")
+  STEP_CATEGORIES=("doctor" "ai")
+  STEP_START=(0 0)
+  run print_summary
+  plain="$(printf '%s\n' "$output" | sed -E 's/\x1b\[[0-9;]*m//g')"
+  [[ "$plain" == *"⊘  Atualizar OpenClaw"* ]]
+  [[ "$plain" == *"↳ integração desabilitada: openclaw"* ]]
+  [[ "$plain" != *"desabilitada: o…"* ]]
+}

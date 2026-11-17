@@ -135,3 +135,51 @@ JSONL
   [ "$status" -eq 0 ]
   [[ "$output" != *"9.9.9"* ]]
 }
+
+# ── Escopo do run e alinhamento por caractere ─────────────────────────────────
+
+_history_add_doctor_run() {
+  cat > "${LOG_DIR}/full-upgrade-20260614-090000-3.jsonl" <<'JSONL'
+{"event":"run_start","run_id":"20260614-090000-3","timestamp":"2026-06-14T09:00:00-03:00","script_version":"3.5.0","scope":"doctor","args":["--mode","doctor"]}
+{"event":"summary","ok":40,"warn":0,"todo":0,"fail":0,"skip":90,"duration_seconds":30,"has_fail":0,"category_totals":{},"slowest_steps":[]}
+JSONL
+  touch -d '2026-06-14 09:01' "${LOG_DIR}/full-upgrade-20260614-090000-3.jsonl"
+}
+
+@test "_history_row_for: escopo do run_start vai na 9ª coluna; run antigo sai com —" {
+  _history_add_doctor_run
+  run _history_row_for "${LOG_DIR}/full-upgrade-20260614-090000-3.jsonl"
+  [ "$(cut -f9 <<<"$output")" = "doctor" ]
+  run _history_row_for "${LOG_DIR}/full-upgrade-20260610-100000-1.jsonl"
+  [ "$(cut -f9 <<<"$output")" = "—" ]
+}
+
+@test "history: coluna ESCOPO e colunas alinhadas por caractere" {
+  _history_add_doctor_run
+  run report_history 10
+  [ "$status" -eq 0 ]
+  hdr="$(grep '^DATA' <<<"$output")"
+  row="$(grep '^2026-06-14' <<<"$output")"
+  [[ "$hdr" == *"ESCOPO"* ]]
+  [[ "$row" == *"doctor"* ]]
+  # "DURAÇÃO" e a duração terminam na mesma coluna (wc -m conta caracteres)
+  [ "$(printf '%s' "$hdr" | wc -m)" -eq "$(printf '%s' "$row" | wc -m)" ]
+}
+
+@test "history: run de escopo diferente não entra na tendência de duração" {
+  _history_add_doctor_run
+  f="${LOG_DIR}/full-upgrade-20260613-142301-9.jsonl"
+  sed -i 's/"script_version":"3.5.0"}/"script_version":"3.5.0","scope":"completo"}/' "$f"
+  touch -d '2026-06-13 14:28' "$f"
+  run report_history 10
+  # doctor (30s) não é comparado com o run completo anterior de 130s
+  [[ "$output" == *"sem run anterior de escopo comparável"* ]]
+}
+
+@test "history --json: inclui o escopo e deixa vazio quando desconhecido" {
+  _history_add_doctor_run
+  JSON_SUMMARY=1
+  run report_history 10
+  [ "$(jq -r '.runs[0].scope' <<<"$output")" = "doctor" ]
+  [ "$(jq -r '.runs[1].scope' <<<"$output")" = "" ]
+}

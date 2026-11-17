@@ -315,7 +315,7 @@ tray_read_state_field() {
   local f="$1" field="$2" line
   [[ -r "$f" && -n "$field" ]] || return 1
   case "$field" in
-    repo_updates|aur_updates|flatpak_updates)
+    repo_updates|aur_updates|flatpak_updates|artcraft_updates|doctor_pending)
       python3 - "$f" "$field" <<'PYARRAY'
 import json, sys
 try:
@@ -538,6 +538,18 @@ _tray_notify_transition() {
   tray_notify "$urgency" "$icon" "$title" "$body"
 }
 
+# Contagem e lista Artcraft do estado anterior, separadas por TAB, para quando
+# a consulta falha. Sem estado legível: 0 e lista vazia.
+tray_previous_artcraft() {
+  local file="$1" n=0 list='[]'
+  if [[ -r "$file" ]]; then
+    n=$(tray_num_or_zero "$(tray_read_state_field "$file" artcraft 2>/dev/null)")
+    list=$(tray_read_state_field "$file" artcraft_updates 2>/dev/null)
+    [[ "$list" == \[* ]] || list='[]'
+  fi
+  printf '%s\t%s\n' "$n" "$list"
+}
+
 # Recalcula o estado completo, grava o arquivo e (opcionalmente) notifica.
 # Uso: tray_check_now [notify|no_notify]  ->  ecoa o estado (state)
 tray_check_now() {
@@ -553,7 +565,7 @@ tray_check_now() {
 
   local repo=0 aur=0 flatpak=0 artcraft=0 updates=0
   local repo_file aur_file flatpak_file doctor_file repo_json='[]' aur_json='[]' doctor_json='[]' flatpak_json='[]' artcraft_json='[]'
-  local artcraft_file
+  local artcraft_file artcraft_stale=0
   repo_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-repo.$$" )
   aur_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-aur.$$" )
   flatpak_file=$(mktemp 2>/dev/null || printf '%s' "${LOG_DIR}/tray-flatpak.$$" )
@@ -567,12 +579,15 @@ tray_check_now() {
       return 1
     fi
     if declare -F artcraft_installed >/dev/null && artcraft_installed && ! integration_disabled artcraft && ! _step_skip_requested "Atualizar suíte Artcraft"; then
-      if ! artcraft_check_updates > "$artcraft_file"; then
-        rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" "$artcraft_file"
-        printf '%s' "${prev:-unknown}"
-        return 1
+      # Artcraft consulta a API do GitHub (60 req/h sem token): um rate limit
+      # não pode congelar repo/AUR/Flatpak/Doctor. A fonte vira indisponível e
+      # mantém a contagem anterior; o resto do estado é gravado normalmente.
+      if artcraft_check_updates > "$artcraft_file"; then
+        artcraft=$(tray_count_list < "$artcraft_file")
+      else
+        artcraft_stale=1
+        : > "$artcraft_file"
       fi
-      artcraft=$(tray_count_list < "$artcraft_file")
     fi
     read -r repo aur flatpak <<< "$counts"
     updates=$(tray_total_updates "$repo" "$aur" "$flatpak" "$artcraft")
@@ -597,6 +612,10 @@ tray_check_now() {
   doctor_json=$(tray_json_array_from_lines < "$doctor_file")
   artcraft_json=$(tray_json_array_from_lines < "$artcraft_file")
   rm -f "$repo_file" "$aur_file" "$flatpak_file" "$doctor_file" "$artcraft_file" 2>/dev/null || true
+  if (( artcraft_stale )); then
+    IFS=$'\t' read -r artcraft artcraft_json < <(tray_previous_artcraft "$TRAY_STATE_FILE")
+    updates=$(tray_total_updates "$repo" "$aur" "$flatpak" "$artcraft")
+  fi
 
   if (( cached )) && [[ -r "$TRAY_STATE_FILE" ]]; then
     repo=$(tray_num_or_zero "$(tray_read_state_field "$TRAY_STATE_FILE" repo)")

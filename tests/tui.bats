@@ -496,3 +496,45 @@ EOF
   [[ "$output" == *"terminal interativo"* ]]
   [[ "$output" == *"--config"* ]]
 }
+
+# ── Colunas: respiro, reticência e caminhos ───────────────────────────────────
+
+@test "tui_truncv: corta com uma reticência só e respeita a largura" {
+  tui_truncv "abcdefghij" 6
+  [ "$TUI_PAD" = "abcde…" ]
+  tui_truncv "abc" 6
+  [ "$TUI_PAD" = "abc" ]
+  tui_truncv "abc" 0
+  [ "$TUI_PAD" = "" ]
+}
+
+@test "tui_colv: valor truncado nunca cola na coluna seguinte" {
+  tui_colv "/home/bitter/development/artcraft" 10
+  [ "${#TUI_PAD}" -eq 10 ]
+  [ "${TUI_PAD: -1}" = " " ]
+  [ "$TUI_PAD" = "/home/bi… " ]
+  tui_colv "on" 5
+  [ "$TUI_PAD" = "on   " ]
+}
+
+@test "tui_trunc: mesma reticência de um caractere" {
+  run tui_trunc "estado: pulado" 8
+  [ "$output" = "estado:…" ]
+}
+
+@test "tui_home_path: abrevia só o HOME exato ou subcaminho" {
+  HOME=/home/u
+  tui_home_path /home/u/dev/x; [ "$TUI_PAD" = "~/dev/x" ]
+  tui_home_path /home/u;       [ "$TUI_PAD" = "~" ]
+  tui_home_path /home/user2/x; [ "$TUI_PAD" = "/home/user2/x" ]
+  tui_home_path relativo;      [ "$TUI_PAD" = "relativo" ]
+}
+
+@test "tui_fit_hints: corta entre atalhos, nunca no meio de um" {
+  tui_fit_hints "↑/↓ navegar · 1-5 atalho · s salvar · q sair" 30
+  [ "$TUI_PAD" = "↑/↓ navegar · 1-5 atalho" ]
+  tui_fit_hints "↑/↓ navegar · q sair" 80
+  [ "$TUI_PAD" = "↑/↓ navegar · q sair" ]
+  tui_fit_hints "um atalho comprido demais" 5
+  [ "$TUI_PAD" = "" ]
+}

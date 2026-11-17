@@ -30,14 +30,50 @@ doctor_paru_devel_mode() {
 
 
 
+# `flatpak repair --dry-run` confere o checksum de todo objeto do repo do
+# usuário: com runtimes do Flathub instalados (6,7 GB num caso real) custa
+# 40–70s e estourava o limite do step. A verificação completa só roda quando
+# os refs mudaram desde a última verificação limpa ou quando ela tem mais de
+# FLATPAK_REPAIR_MAX_AGE_DAYS dias (corrupção silenciosa não muda os refs).
+FLATPAK_REPAIR_MAX_AGE_DAYS="${FLATPAK_REPAIR_MAX_AGE_DAYS:-7}"
+FLATPAK_REPAIR_STAMP="${FLATPAK_REPAIR_STAMP:-${LOG_DIR}/flatpak-repair-ok}"
+
+# Impressão digital dos refs do repo Flatpak do usuário. Sem repo: rc 1.
+flatpak_user_repo_fingerprint() {
+  local repo="${FLATPAK_USER_REPO:-${HOME}/.local/share/flatpak/repo}"
+  [[ -d "$repo/refs" ]] || return 1
+  find "$repo/refs" -type f -printf '%P %T@\n' 2>/dev/null | LC_ALL=C sort | sha256sum | cut -d' ' -f1
+}
+
+# rc 0 quando a última verificação limpa vale para os refs atuais e não
+# expirou. Qualquer dúvida (sem stamp, sem repo, stamp ilegível) => rc 1.
+flatpak_repair_recent() {
+  local fp="$1" stamp="$FLATPAK_REPAIR_STAMP" age
+  [[ -n "$fp" && -r "$stamp" ]] || return 1
+  [[ "$(<"$stamp")" == "$fp" ]] || return 1
+  age=$(( $(date +%s) - $(stat -c %Y "$stamp" 2>/dev/null || echo 0) ))
+  (( age >= 0 && age < FLATPAK_REPAIR_MAX_AGE_DAYS * 86400 ))
+}
+
 doctor_flatpak_repair_dry_run() {
   if ! has flatpak; then
     log "  flatpak não instalado."
     return 0
   fi
 
+  local fp=""
+  fp="$(flatpak_user_repo_fingerprint 2>/dev/null || true)"
+  if flatpak_repair_recent "$fp"; then
+    log "  Repo Flatpak do usuário sem mudança desde a última verificação limpa (verificação completa a cada ${FLATPAK_REPAIR_MAX_AGE_DAYS} dia(s))."
+    return 0
+  fi
+
+  # Leitura de vários GB: prioridade de I/O ociosa para não travar a sessão.
+  local -a prio=()
+  has ionice && prio+=(ionice -c3)
+  has nice && prio+=(nice -n 10)
   local output rc
-  output="$(flatpak repair --user --dry-run 2>&1)"
+  output="$("${prio[@]}" flatpak repair --user --dry-run 2>&1)"
   rc=$?
   log_raw "$output"
 
@@ -51,6 +87,10 @@ doctor_flatpak_repair_dry_run() {
     log "  Flatpak repair dry-run: nenhuma inconsistência reportada."
   else
     printf '%s\n' "$output" | grep -v '^$' | log_out || true
+  fi
+  # Só uma saída sem problema apontado vale como verificação limpa.
+  if [[ -n "$fp" ]] && ! grep -qiE 'problem|error|erro|corrupt|missing|invalid' <<<"$output"; then
+    printf '%s\n' "$fp" > "$FLATPAK_REPAIR_STAMP" 2>/dev/null || true
   fi
   return 0
 }

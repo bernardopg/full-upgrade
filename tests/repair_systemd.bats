@@ -48,3 +48,22 @@ EOF
   ! grep -q '^Keep=' "$conf"
   compgen -G "${conf}.full-upgrade.bak.*" >/dev/null
 }
+
+@test "repair_stale_user_app_scopes: scope de systemd-run (t3code-*.scope) também é limpo" {
+  local calls="${BATS_TEST_TMPDIR}/calls"
+  export calls
+  has() { [[ "$1" == systemctl ]]; }
+  systemd_user_scope_status() { printf 'available'; }
+  systemctl() {
+    if [[ "$*" == "--user --failed --plain --no-legend" ]]; then
+      printf '%s\n' \
+        't3code-claude-62154908.scope loaded failed failed [systemd-run] claude' \
+        'real.service loaded failed failed real.service'
+      return 0
+    fi
+    printf '%s\n' "$*" >> "$calls"
+  }
+  run repair_stale_user_app_scopes
+  [ "$status" -eq 0 ]
+  [ "$(<"$calls")" = "--user reset-failed t3code-claude-62154908.scope" ]
+}

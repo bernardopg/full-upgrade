@@ -103,6 +103,15 @@ _setup_failed_units() {
   [[ "$output" == *"Nenhuma unit de serviço real falhada"* ]]
 }
 
+@test "failed_units: scope de systemd-run (t3code-*.scope) => rc 0 (informativo)" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" "t3code-claude-62154908.scope loaded failed failed [systemd-run] claude"
+  run doctor_failed_systemd_units
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"t3code-claude-62154908.scope"* ]]
+  [[ "$output" == *"Nenhuma unit de serviço real falhada"* ]]
+}
+
 @test "failed_units: app-autostart + unit real => RC_TODO (a real prevalece)" {
   QUIET=0 LOG_FILE=/dev/null
   _setup_failed_units "" \

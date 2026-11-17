@@ -573,14 +573,25 @@ tui_padlv() {
 
 tui_truncv() {
   local s="$1" max="$2"
-  (( ${#s} > max )) && s="${s:0:$(( max - 3 ))}..."
+  (( max < 1 )) && { TUI_PAD=""; return 0; }
+  (( ${#s} > max )) && s="${s:0:$(( max - 1 ))}…"
   TUI_PAD="$s"
 }
 
-# Trunca e preenche em uma passada (coluna de largura fixa).
+# Trunca e preenche em uma passada (coluna de largura fixa). Reserva 1 coluna
+# de respiro: um valor truncado colava na coluna seguinte ("develo...Diretório").
 tui_colv() {
-  tui_truncv "$1" "$2"
+  tui_truncv "$1" "$(( $2 - 1 ))"
   tui_padv "$TUI_PAD" "$2"
+}
+
+# Caminho com $HOME abreviado para "~" (só exibição; o valor salvo não muda).
+tui_home_path() {
+  local p="$1"
+  if [[ -n "${HOME:-}" && ( "$p" == "$HOME" || "$p" == "$HOME/"* ) ]]; then
+    p="~${p#"$HOME"}"
+  fi
+  TUI_PAD="$p"
 }
 
 # Régua horizontal da largura útil.
@@ -610,9 +621,29 @@ tui_draw_header() {
   tui_line "${pad}${C_DIM}$(tui_rule)${C_RESET}"
 }
 
+# Dicas do rodapé que cabem na largura útil, cortadas entre atalhos (" · "),
+# nunca no meio de um: "s salvar · q" virava um atalho sem sentido.
+tui_fit_hints() {
+  local text="$1" w="$2" fitted="" item rest="$1"
+  (( ${#text} <= w )) && { TUI_PAD="$text"; return 0; }
+  while [[ -n "$rest" ]]; do
+    item="${rest%% · *}"
+    [[ "$rest" == *" · "* ]] && rest="${rest#* · }" || rest=""
+    if [[ -z "$fitted" ]]; then
+      (( ${#item} > w )) && break
+      fitted="$item"
+    else
+      (( ${#fitted} + 3 + ${#item} > w )) && break
+      fitted+=" · $item"
+    fi
+  done
+  TUI_PAD="$fitted"
+}
+
 # Rodapé: régua + linha de teclas (ou flash, que tem prioridade por 1 ciclo).
 tui_footer() {
   local hints="$1" pad
+  tui_fit_hints "$hints" "$TUI_W"; hints="$TUI_PAD"
   pad="$(printf '%*s' "$TUI_MARGIN" '')"
   printf '\033[%d;1H\033[K%s%s%s' "$(( TUI_ROWS - 1 ))" "${pad}${C_DIM}" "$(tui_rule)" "$C_RESET"
   if [[ -n "$TUI_FLASH" ]]; then
@@ -686,14 +717,23 @@ tui_draw_menu() {
   )
   local name_w=$(( TUI_W / 2 )); (( name_w < 24 )) && name_w=24
   local hint_w=$(( TUI_W - name_w - 8 )); (( hint_w < 6 )) && hint_w=6
+  local label
   for i in "${!TUI_MENU_ITEMS[@]}"; do
     icon="${icons[$i]}"; hint="$(tui_trunc "${hints[$i]}" "$hint_w")"
-    plain=" $icon  $(ui_pad "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" "$name_w")$hint"
-    colored=" ${C_CYAN}${icon}${C_RESET}  ${C_BOLD}$(ui_pad "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" "$name_w")${C_RESET}${C_DIM}${hint}${C_RESET}"
+    # tui_colv garante 1 coluna entre rótulo e dica mesmo quando o rótulo
+    # ocupa a largura toda ("config)bool" em 60 colunas).
+    tui_colv "$(( i + 1 )). ${TUI_MENU_ITEMS[$i]}" "$name_w"; label="$TUI_PAD"
+    plain=" $icon  ${label}$hint"
+    colored=" ${C_CYAN}${icon}${C_RESET}  ${C_BOLD}${label}${C_RESET}${C_DIM}${hint}${C_RESET}"
     tui_row "$(( i == TUI_SEL ? 1 : 0 ))" "$plain" "$colored"
   done
   tui_line ""
-  tui_line "${pad}${C_DIM}arquivo: ${FU_CONFIG_FILE}${C_RESET}"
+  # Caminho longo quebrava a linha sem recuo: abrevia $HOME e corta pela
+  # esquerda, que é onde fica a parte menos informativa.
+  local cfg_path
+  tui_home_path "$FU_CONFIG_FILE"; cfg_path="$TUI_PAD"
+  (( ${#cfg_path} > TUI_W - 9 )) && cfg_path="…${cfg_path: -$(( TUI_W - 10 ))}"
+  tui_line "${pad}${C_DIM}arquivo: ${cfg_path}${C_RESET}"
   # Limpa o resto da tela: sem isso, sobras da tela anterior (lista de steps,
   # ajuda) continuam visíveis abaixo do menu.
   printf '\033[J'
@@ -795,7 +835,9 @@ tui_draw_list() {
         local kd nm vl ds
         tui_padv "${TUI_KIND[$i]:0:$kind_w}" "$kind_w"; kd="$TUI_PAD"
         tui_colv "${TUI_NAME[$i]}" "$name_w"; nm="$TUI_PAD"
-        tui_colv "${TUI_VALUE[$i]:-(auto)}" "$value_w"; vl="$TUI_PAD"
+        local shown="${TUI_VALUE[$i]:-(auto)}"
+        [[ "${TUI_KIND[$i]}" == path ]] && { tui_home_path "$shown"; shown="$TUI_PAD"; }
+        tui_colv "$shown" "$value_w"; vl="$TUI_PAD"
         tui_truncv "${TUI_DESC[$i]}" "$desc_w"; ds="$TUI_PAD"
         local mk=" "; [[ "${TUI_VALUE[$i]}" != "${TUI_ORIG[$i]}" ]] && mk="$TUI_DIRTY"
         plain=" $mk $kd $nm$vl$ds"
@@ -834,7 +876,9 @@ tui_draw_detail() {
   case "${TUI_KIND[$i]}" in
     step)
       body+=("$(tui_trunc "categoria/efeito : ${TUI_META[$i]//|/ · }" "$w")")
-      body+=("$(tui_trunc "estado           : ${TUI_VALUE[$i]}" "$w")")
+      local st_label="roda"
+      [[ "${TUI_VALUE[$i]}" == skip ]] && st_label="pulado (FULL_UPGRADE_SKIP)"
+      body+=("$(tui_trunc "estado           : ${st_label}" "$w")")
       body+=("$(tui_trunc "Space alterna; 'skip' entra em FULL_UPGRADE_SKIP" "$w")")
       ;;
     enum)
@@ -958,7 +1002,8 @@ tui_draw_review() {
 
 tui_trunc() {
   local s="$1" max="$2"
-  (( ${#s} > max )) && s="${s:0:$(( max - 3 ))}..."
+  (( max < 1 )) && return 0
+  (( ${#s} > max )) && s="${s:0:$(( max - 1 ))}…"
   printf '%s' "$s"
 }
 

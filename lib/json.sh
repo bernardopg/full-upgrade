@@ -44,10 +44,34 @@ write_jsonl() {
   printf '%s\n' "$*" >> "$JSONL_FILE"
 }
 
+# Escopo do run para histórico e relatório: um run com --only/--skip/--resume
+# ou outro modo não é comparável a um run completo (duração, contagens).
+run_scope_label() {
+  (( ${DRY_RUN:-0} )) && { printf 'dry-run'; return; }
+  (( ${DO_RESUME:-0} )) && { printf 'resume'; return; }
+  local a
+  for a in "${RUN_ARGS[@]}"; do
+    case "$a" in
+      --only|--only=*|--skip|--skip=*|--skip-category|--skip-category=*) printf 'filtrado'; return ;;
+    esac
+  done
+  case "${MODE:-}" in
+    doctor|update|repair) printf '%s' "$MODE" ;;
+    *) printf 'completo' ;;
+  esac
+}
+
+# argv original como array JSON.
+run_args_json() {
+  local a out="" sep=""
+  for a in "${RUN_ARGS[@]}"; do out+="${sep}$(json_escape "$a")"; sep=","; done
+  printf '[%s]' "$out"
+}
+
 write_run_event_json() {
   local event="$1"
   write_jsonl "$(
-    printf '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"dry_run":%s,"pid":%s}\n' \
+    printf '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"dry_run":%s,"pid":%s,"scope":%s,"args":%s}\n' \
       "$(json_escape "$event")" \
       "$(json_escape "$RUN_ID")" \
       "$(json_escape "$(date -Is)")" \
@@ -57,7 +81,9 @@ write_run_event_json() {
       "$(json_escape "$LOG_FILE")" \
       "$(json_escape "$JSONL_FILE")" \
       "$( (( DRY_RUN )) && printf 'true' || printf 'false' )" \
-      "$$"
+      "$$" \
+      "$(json_escape "$(run_scope_label)")" \
+      "$(run_args_json)"
   )"
 }
 

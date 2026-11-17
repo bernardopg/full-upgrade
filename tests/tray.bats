@@ -879,3 +879,35 @@ PY
   [ "$(tray_tooltip_for_state attention 0 1 0)" = "full-upgrade: 1 pendência" ]
   [ "$(tray_tooltip_for_state error 0 0 1)" = "full-upgrade: último run com 1 falha" ]
 }
+
+# P11: rate limit da API do GitHub na consulta Artcraft deixava o menu em
+# "Verificação incompleta" e congelava repo/AUR/Flatpak/Doctor.
+@test "tray: falha do Artcraft mantém a contagem anterior e grava o resto" {
+  LOG_DIR="$BATS_TEST_TMPDIR"
+  TRAY_STATE_FILE="$LOG_DIR/state.json"
+  printf '%s\n' '{"state":"updates","repo":7,"artcraft":2,"artcraft_updates":["photocraft 1 -> 2","pdfcraft 3 -> 4"]}' > "$TRAY_STATE_FILE"
+  tray_is_full_upgrade_running() { return 1; }
+  tray_last_summary_counts() { printf '0 0 0'; }
+  tray_last_summary_line() { return 1; }
+  tray_last_doctor_pending_items() { :; }
+  tray_gather_updates_detail() { printf 'linux 1 -> 2\n' > "$1"; : > "$2"; : > "$3"; printf '1 0 0'; }
+  artcraft_installed() { return 0; }
+  artcraft_check_updates() { echo "HTTP Error 403: rate limit exceeded" >&2; return 1; }
+  run tray_check_now no_notify
+  [ "$status" -eq 0 ]
+  [ "$(tray_read_state_field "$TRAY_STATE_FILE" repo)" = 1 ]
+  [ "$(tray_read_state_field "$TRAY_STATE_FILE" artcraft)" = 2 ]
+  [ "$(tray_read_state_field "$TRAY_STATE_FILE" artcraft_updates)" = '["photocraft 1 -> 2", "pdfcraft 3 -> 4"]' ]
+}
+
+@test "tray_previous_artcraft: sem estado devolve 0 e lista vazia" {
+  run tray_previous_artcraft "$BATS_TEST_TMPDIR/nao-existe.json"
+  [ "$output" = $'0\t[]' ]
+}
+
+@test "tray_read_state_field: artcraft_updates e doctor_pending são arrays JSON" {
+  f="$BATS_TEST_TMPDIR/s.json"
+  printf '%s\n' '{"artcraft_updates":["a 1 -> 2"],"doctor_pending":["x: y"]}' > "$f"
+  [ "$(tray_read_state_field "$f" artcraft_updates)" = '["a 1 -> 2"]' ]
+  [ "$(tray_read_state_field "$f" doctor_pending)" = '["x: y"]' ]
+}

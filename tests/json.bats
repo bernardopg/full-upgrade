@@ -191,3 +191,35 @@ PYEOF
   run jsonl_is_dry_run "$d/real.jsonl"; [ "$status" -ne 0 ]
   run jsonl_is_dry_run "$d/nao-existe"; [ "$status" -ne 0 ]
 }
+
+# ── Escopo e argv do run no run_start ─────────────────────────────────────────
+
+@test "run_scope_label: completo, modos, filtros, resume e dry-run" {
+  DRY_RUN=0; DO_RESUME=0; MODE=""; RUN_ARGS=(-y)
+  [ "$(run_scope_label)" = completo ]
+  MODE=full; [ "$(run_scope_label)" = completo ]
+  MODE=doctor; RUN_ARGS=(--mode doctor); [ "$(run_scope_label)" = doctor ]
+  MODE=""; RUN_ARGS=(-y --only ai); [ "$(run_scope_label)" = filtrado ]
+  RUN_ARGS=(--skip-category=slow); [ "$(run_scope_label)" = filtrado ]
+  RUN_ARGS=(--skip "Atualizar Ollama"); [ "$(run_scope_label)" = filtrado ]
+  RUN_ARGS=(); DO_RESUME=1; [ "$(run_scope_label)" = resume ]
+  DRY_RUN=1; [ "$(run_scope_label)" = dry-run ]
+}
+
+@test "run_args_json: argv vira array JSON válido, com espaço e aspas" {
+  RUN_ARGS=(-y --skip 'Atualizar "x" Ollama')
+  run run_args_json
+  [ "$(jq -c . <<<"$output")" = '["-y","--skip","Atualizar \"x\" Ollama"]' ]
+  RUN_ARGS=()
+  run run_args_json
+  [ "$output" = '[]' ]
+}
+
+@test "write_run_event_json: run_start grava scope e args parseáveis" {
+  JSONL_FILE="$BATS_TEST_TMPDIR/r.jsonl"; : > "$JSONL_FILE"
+  RUN_ID=x SCRIPT_VERSION=1 SCRIPT_PATH=/x SCRIPT_SHA256=a LOG_FILE=/l DRY_RUN=0 DO_RESUME=0 MODE=""
+  RUN_ARGS=(-y --only ai)
+  write_run_event_json run_start
+  [ "$(jq -r .scope "$JSONL_FILE")" = filtrado ]
+  [ "$(jq -c .args "$JSONL_FILE")" = '["-y","--only","ai"]' ]
+}
