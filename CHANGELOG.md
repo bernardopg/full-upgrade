@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-17
 ### Destaques
 
 - Documentação reorganizada: README enxuto e referência técnica em `docs/`.
