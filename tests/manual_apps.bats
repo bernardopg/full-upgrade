@@ -517,7 +517,8 @@ _ma_fake_home() {
   export HOME="$BATS_TEST_TMPDIR/home"
   # /opt do host (no CI: hostedtoolcache, az…) não pode entrar na lista.
   export MANUAL_APPS_OPT_DIR="$BATS_TEST_TMPDIR/opt"
-  mkdir -p "$MANUAL_APPS_OPT_DIR"
+  export MANUAL_APPS_SYSTEM_BIN_DIR="$BATS_TEST_TMPDIR/usr-local-bin"
+  mkdir -p "$MANUAL_APPS_OPT_DIR" "$MANUAL_APPS_SYSTEM_BIN_DIR"
   local b="$HOME/.local/bin"
   mkdir -p "$b" "$HOME/development/gdu/5.39.0" "$HOME/.local/share/uv/tools/x/bin" \
     "$HOME/.local/opt/handy/usr/bin" "$HOME/.local/opt/tor-browser" \

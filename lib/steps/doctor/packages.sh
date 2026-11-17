@@ -452,7 +452,10 @@ doctor_manual_apps() {
   local bindir min_size=1048576 sz real
   local -A seen_target=() pip_bins=()
   while IFS= read -r name; do [[ -n "$name" ]] && pip_bins["$name"]=1; done < <(_manual_apps_pip_user_bins)
-  for bindir in /usr/local/bin "${HOME}/.local/bin"; do
+  # MANUAL_APPS_SYSTEM_BIN_DIR existe para o teste isolar o host: no runner do
+  # CI o /usr/local/bin tem dezenas de binários e a lista truncada escondia o
+  # candidato esperado.
+  for bindir in "${MANUAL_APPS_SYSTEM_BIN_DIR:-/usr/local/bin}" "${HOME}/.local/bin"; do
     [[ -d "$bindir" ]] || continue
     for f in "$bindir"/*; do
       if [[ -L "$f" ]]; then
