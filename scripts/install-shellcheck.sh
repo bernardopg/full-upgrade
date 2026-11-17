@@ -10,7 +10,7 @@
 # (Atenção: nenhuma linha de comentário pode começar com a palavra-chave de
 # diretiva seguida de espaço — o próprio shellcheck tentaria interpretá-la.)
 #
-# Ao subir a versão, atualize também o README (seção de desenvolvimento) e rode
+# Ao subir a versão, atualize também docs/development.md e rode
 # `shellcheck -S warning -x` localmente antes de commitar.
 set -euo pipefail
 

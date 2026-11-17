@@ -3,6 +3,28 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+### Destaques
+
+- Documentação reorganizada: README enxuto e referência técnica em `docs/`.
+- Systray redesenhado a partir do menu real do DMS: estado legível, versões
+  completas, cabeçalho estável e plurais corretos.
+- Relatórios, histórico e TUI depuráveis: escopo e argumentos de cada run,
+  colunas alinhadas, motivo dos steps pulados.
+- CI verde, cobertura real de volta (57%) e proveniência Sigstore anexada às
+  releases.
+- Plugins do Claude Code de 4–7 min para ~30 s; Doctor do Flatpak de 60 s
+  (timeout) para 1 s.
+
+### Documentação
+
+- O README virou uma página de apresentação enxuta (o que é, destaques,
+  instalação, uso essencial e índice). A referência técnica foi para `docs/`,
+  um tema por arquivo: instalação, uso, steps e cobertura, doctor,
+  configuração (todas as chaves, agrupadas), systray, logs e relatórios,
+  salvaguardas, arquitetura, desenvolvimento e solução de problemas. O pacote
+  AUR instala `docs/` em `/usr/share/doc/full-upgrade/docs/`.
+
 ### Corrigido
 
 - **"Limpar symlinks quebrados (~/.local/bin)" nunca removeu nada:** o `find`

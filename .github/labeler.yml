@@ -36,6 +36,7 @@ documentation:
 - changed-files:
   - any-glob-to-any-file:
     - '*.md'
+    - 'docs/**'
     - 'CHANGELOG.md'
     - 'CONTRIBUTING.md'
     - 'config.example'

@@ -7,878 +7,105 @@
 <br>
 
 <a href="https://github.com/bernardopg/full-upgrade/releases/latest"><img src="https://img.shields.io/github/v/release/bernardopg/full-upgrade?style=for-the-badge&logo=github&color=1793D1&label=release" alt="release"></a>
+<a href="https://aur.archlinux.org/packages/full-upgrade"><img src="https://img.shields.io/aur/version/full-upgrade?style=for-the-badge&logo=archlinux&logoColor=white&label=AUR" alt="AUR"></a>
 <a href="https://github.com/bernardopg/full-upgrade/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/bernardopg/full-upgrade/ci.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI" alt="CI"></a>
+<a href="https://codecov.io/gh/bernardopg/full-upgrade"><img src="https://img.shields.io/codecov/c/github/bernardopg/full-upgrade?style=for-the-badge&logo=codecov&logoColor=white&label=coverage" alt="coverage"></a>
 <a href="https://scorecard.dev/viewer/?uri=github.com/bernardopg/full-upgrade"><img src="https://img.shields.io/ossf-scorecard/github.com/bernardopg/full-upgrade?style=for-the-badge&label=Scorecard" alt="OpenSSF Scorecard"></a>
 <a href="https://www.bestpractices.dev/projects/13424"><img src="https://img.shields.io/cii/level/13424?style=for-the-badge" alt="OpenSSF Best Practices"></a>
-<a href="https://codecov.io/gh/bernardopg/full-upgrade"><img src="https://img.shields.io/codecov/c/github/bernardopg/full-upgrade?style=for-the-badge&logo=codecov&logoColor=white&label=coverage" alt="coverage"></a>
-<img src="https://img.shields.io/badge/shell-bash%204%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="bash">
-<img src="https://img.shields.io/badge/Arch%20Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white" alt="Arch Linux">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="license"></a>
 
 <p>
-  <b>Um comando.</b> Atualiza sistema, AUR, runtimes, toolchains, containers, firmware
-  e plugins de shell/editor — e ainda audita a saúde da máquina com logs humanos e JSONL.
+  <b>Um comando para manter um Arch Linux inteiro em dia.</b><br>
+  Sistema, AUR, containers, toolchains, CLIs de IA, firmware e plugins —
+  com auditoria de saúde, logs rastreáveis e um resumo do que precisa da sua atenção.
 </p>
 
-<a href="#instalação"><b>Instalação</b></a> ·
-<a href="#uso-rápido"><b>Uso</b></a> ·
-<a href="#modos-e-filtros"><b>Modos</b></a> ·
-<a href="#doctor"><b>Doctor</b></a> ·
-<a href="#configuração"><b>Configuração</b></a> ·
-<a href="#contribuindo"><b>Contribuir</b></a>
+<a href="docs/installation.md"><b>Instalação</b></a> ·
+<a href="docs/usage.md"><b>Uso</b></a> ·
+<a href="docs/configuration.md"><b>Configuração</b></a> ·
+<a href="docs/README.md"><b>Documentação</b></a> ·
+<a href="CONTRIBUTING.md"><b>Contribuir</b></a>
 
 </div>
 
 ---
 
-`full-upgrade` foi feito para quem mantém uma estação Arch com muitas camadas:
-pacotes oficiais, AUR, Flatpak, Docker, linguagens, CLIs de IA, firmware, shell,
-editor e componentes de desktop. A proposta é simples: um comando, passos
-declarados, execução rastreável e um resumo final que mostra o que atualizou, o
-que falhou, o que virou aviso e o que ainda exige ação manual.
+## Por quê
 
-```text
-full-upgrade
-  -> preflight
-  -> snapshot e mirrors
-  -> pacman / AUR
-  -> apps, containers e firmware
-  -> toolchains de linguagem
-  -> shell, editor, Hyprland e CLIs
-  -> limpeza
-  -> doctor
-  -> resumo + log + JSONL
-```
+Uma estação Arch moderna tem muitas camadas que se atualizam cada uma do seu
+jeito: pacman, AUR, Flatpak, Docker, npm, pip, cargo, Go, CLIs de IA, plugins do
+editor e do shell, firmware. O `full-upgrade` reúne tudo num fluxo único,
+declarado e seguro: cada passo é um step com timeout, dependências e motivo
+registrado, e o run termina com um resumo que separa o que atualizou do que
+falhou, do que é só aviso e do que exige ação sua.
 
 ## Destaques
 
-| Área | O que entrega |
-| --- | --- |
-| Execução modular | Entrypoint fino em `full-upgrade.sh`, bibliotecas em `lib/*.sh` e steps por domínio em `lib/steps/*.sh`. |
-| Catálogo técnico | Steps declarados com categoria, tags, efeito, timeout, dependências e função de implementação. |
-| Segurança operacional | Lock com `flock`, validação de sudo, keepalive controlado, timeouts por step, dry-run e filtros por categoria. Elevação configurável (`sudo`/`doas`/`run0`/`sudo-rs`). |
-| Arch completo | `pacman`, AUR via `paru`/`yay`/`pikaur`, keyring, mirrors, snapshot btrfs, `.pacnew/.pacsave`, órfãos e cache. |
-| Ecossistema do usuário | Flatpak, Snap, Docker, npm, pnpm, Bun, Deno, pip, pipx, uv, Poetry, Rust, Cargo, Go, .NET, Ruby, ghcup e Arduino. |
-| IA & IDE | CLIs de IA (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, Ollama, Kimi, **pi**), servidores **MCP**, Orca IDE (Stably AI) e extensões de IDE da família VSCode (Code/Cursor/Codium). |
-| Desktop e firmware | `fwupd`, `bootctl`, Neovim Lazy/Mason, Oh My Zsh, Hyprland plugins e checks de sessão desktop. |
-| Doctor | Auditorias de reboot, systemd, journal, crashes recorrentes (coredump), fwupd security, pacman, `.pacnew/.pacsave`, boot, rede, SMART/NVMe, btrfs, Python, JavaScript, CLIs de IA, servidores MCP e CVEs oficiais (`arch-audit`). |
-| Auditoria & relatórios | Modo `--audit` consolidado, relatório Markdown/JSON (`--report`), histórico/tendência de runs (`--history`) e remediações opcionais (CVEs Rust, scrub btrfs). |
-| Observabilidade | TUI responsiva com progresso adaptativo e motivos acionáveis, log completo em texto sem escapes ANSI, eventos JSONL por step com `reason`, links `latest.log`/`latest.jsonl`, resumo opcional em JSON, notificação desktop ao fim e systray daemon opcional. Runs filtrados compactam listas extensas de skips no terminal sem perder detalhes no log. |
+- **Cobertura ampla, por presença:** mais de 150 steps em 19 categorias.
+  Ferramenta ausente vira `skip` com o motivo; nada quebra o fluxo.
+- **Seguro por construção:** lock anti-concorrência, snapshot pré-upgrade,
+  backup de `/etc`, timeouts por step, `--dry-run` e um `--mode doctor`
+  garantidamente read-only.
+- **Resiliente:** rede instável vira aviso em vez de falha, e condição
+  permanente vira pendência com remediação, nunca `fail` eterno.
+- **Doctor:** 29 auditorias read-only (reboot pendente, units falhadas, journal,
+  crashes recorrentes, SMART, btrfs, CVEs, firmware, MCP…).
+- **Rastreável:** log humano e JSONL por run, relatório Markdown, histórico com
+  tendência e saída JSON para automação.
+- **Integrado ao desktop:** applet de bandeja com estado, lista de atualizações e
+  ações, e um TUI de configuração em Bash puro.
 
 ## Instalação
 
-### Via AUR (Arch Linux)
-
-Com um helper de AUR (`yay`, `paru`):
-
 ```bash
-yay -S full-upgrade
-# ou
-paru -S full-upgrade
+paru -S full-upgrade        # AUR (recomendado)
 ```
 
-O pacote AUR instala o executável único em `/usr/bin/full-upgrade`, o exemplo de
-configuração em `/usr/share/full-upgrade/config.example`, a unit systemd user do
-systray em `/usr/lib/systemd/user/full-upgrade-tray.service` e a
-licença/documentação em `/usr/share/{licenses,doc}/full-upgrade/`. Copie o
-exemplo para começar:
+Ou, em qualquer distro com Bash 4.3+:
 
 ```bash
-mkdir -p ~/.config/full-upgrade
-cp /usr/share/full-upgrade/config.example ~/.config/full-upgrade/config
+git clone https://github.com/bernardopg/full-upgrade && cd full-upgrade && ./install.sh
 ```
 
-### Via script de instalação (qualquer distro com Bash 4.3+)
+Detalhes, standalone e verificação de integridade em
+[Instalação e atualização](docs/installation.md).
+
+## Uso
 
 ```bash
-git clone https://github.com/bernardopg/full-upgrade
-cd full-upgrade
-./install.sh
-full-upgrade --help
+full-upgrade                 # fluxo completo
+full-upgrade --dry-run       # ver o plano sem mudar nada
+full-upgrade --mode doctor   # só auditorias (read-only)
+full-upgrade --only ai       # só uma categoria, tag ou step
+full-upgrade --resume        # repetir só o que não fechou ok no último run
+full-upgrade --config-tui    # configurar pelo TUI
+full-upgrade --tray --enable # applet de bandeja no login
 ```
-
-O instalador copia a aplicação para:
-
-| Caminho | Função |
-| --- | --- |
-| `~/.local/share/full-upgrade` | Instalação modular com `full-upgrade.sh`, `lib/`, `steps.d/` e `config.example`. |
-| `~/.local/bin/full-upgrade` | Symlink para o executável. Garanta que `~/.local/bin` esteja no `PATH`. |
-| `~/.config/full-upgrade/config` | Configuração inicial criada a partir de `config.example`, sem sobrescrever arquivo existente. |
-
-Também é possível gerar um arquivo único:
-
-```bash
-./build.sh
-./dist/full-upgrade-standalone.sh --help
-```
-
-## Atualização
-
-O `full-upgrade` se mantém atualizado sozinho a partir das releases do GitHub:
-
-```bash
-full-upgrade --version      # mostra a versão instalada
-full-upgrade --update       # baixa e instala a última release (pede confirmação)
-full-upgrade --update -y    # atualiza sem perguntar
-```
-
-Durante o fluxo normal, o step **"Checar atualização do full-upgrade"** apenas
-avisa quando há uma versão nova (não baixa nada) — você decide quando rodar
-`--update`. O canal e a origem são configuráveis:
-
-| Chave | Default | Descrição |
-| --- | --- | --- |
-| `FULL_UPGRADE_REPO` | `bernardopg/full-upgrade` | Repositório `owner/repo` no GitHub. |
-| `FULL_UPGRADE_UPDATE_CHANNEL` | `release` | `release` (última tag) ou `main` (bleeding edge). |
-
-No canal `release`, o `--update` baixa o **standalone publicado** junto do seu
-`.sha256`, **verifica o SHA-256** e só então instala o binário em
-`~/.local/bin/full-upgrade` (guardando o anterior em `…/full-upgrade.bak`). Se o
-checksum não bater — download corrompido ou adulterado em trânsito — a
-atualização é **abortada antes de qualquer execução**. Requer `curl` e
-`sha256sum`/`shasum`. O canal `main` usa o tarball-fonte + `install.sh` e avisa
-que, nesse caso, a integridade não é verificada por checksum (apenas TLS).
-
-## Uso Rápido
-
-```bash
-full-upgrade
-full-upgrade --mode update
-full-upgrade --mode doctor
-full-upgrade --mode repair
-full-upgrade --dry-run
-full-upgrade --list-steps
-full-upgrade --explain-step "Doctor: saúde de rede"
-full-upgrade --config
-full-upgrade --config-tui                 # TUI interativo: ativa steps, edita parâmetros
-full-upgrade --healthcheck                # inventário read-only do setup da máquina
-full-upgrade --healthcheck --json         # mesma coleta em JSON estruturado
-full-upgrade --help config                # ajuda por tópico: modes, steps, config,
-                                          # healthcheck, tui, tray, env
-full-upgrade --audit                       # auditoria de segurança consolidada (read-only)
-full-upgrade --report relatorio.md         # grava relatório do último run em Markdown
-full-upgrade --report --json               # ou em JSON estruturado
-full-upgrade --history                     # tendência dos últimos runs (tabela)
-full-upgrade --tray                        # ícone de bandeja (Wayland/AppIndicator ou X11/yad)
-```
-
-Comandos úteis no dia a dia:
-
-| Comando | Quando usar |
-| --- | --- |
-| `full-upgrade` | Fluxo completo: updates, reparos habilitados, limpeza, checks finais e auditorias. |
-| `full-upgrade -y` | Execução não interativa, assumindo confirmações seguras. |
-| `full-upgrade --dry-run` | Ver o plano de execução sem rodar comandos mutáveis. |
-| `full-upgrade --mode update` | Atualizar e limpar, pulando `repair` e `doctor`. |
-| `full-upgrade --mode doctor` | Focar nas auditorias de saúde. O fluxo ainda passa pelo preflight compartilhado. |
-| `full-upgrade --mode repair` | Rodar apenas reparos conhecidos, além dos steps compartilhados necessários. |
-| `full-upgrade --only lang` | Rodar apenas steps de uma categoria, tag **ou nome exato** (aceita lista por vírgula). Ex.: `--only "Atualizar Ollama,doctor"`. |
-| `full-upgrade --resume` | Re-rodar apenas os steps que **não** fecharam `ok` no último run real (`warn`/`todo`/`fail`), além de core/final. Sem pendências → sai sem rodar. |
-| `full-upgrade --skip-category slow` | Pular steps marcados com uma tag específica. |
-| `full-upgrade --skip "Atualizar ghcup"` | Pular um step pelo nome exato. |
-| `full-upgrade --json` | Imprimir uma linha JSON de resumo ao final. |
-| `full-upgrade --audit` | Auditoria de segurança consolidada (CVEs oficiais/AUR/Rust, firmware, btrfs), sem mutar. |
-| `full-upgrade --report [ARQ]` | Gerar relatório do último run em Markdown (ou `--report --json`). |
-| `full-upgrade --history` | Ver histórico/tendência dos runs gravados (ou `--history --json`). |
-| `full-upgrade --config` | Mostrar caminhos, valores efetivos em uso e um exemplo de configuração. Também aponta chaves do config com cara de erro de digitação (typo-guard) e sugere a correta. |
-| `full-upgrade --config-example` | Imprimir só o config de exemplo (sem cores), ideal para criar o arquivo via `>`. |
-| `full-upgrade --config-tui` | Abrir o TUI interativo de configuração: ativa/desativa steps e edita parâmetros com gravação segura (backup automático, revisão com diff). Teclas em `--help tui`. |
-| `full-upgrade --healthcheck` | Inventário read-only do setup da máquina: distro, kernel (com reboot pendente), DE/terminal/TTY, specs, gerenciadores de pacotes com versão, ferramentas, snapshots Timeshift, backup em nuvem em uso, fetch e resumo final. Plugins DMS são resumidos por estado e os modificados ganham destaque; `--json` preserva o inventário detalhado. |
-| `full-upgrade --help [TÓPICO]` | Ajuda organizada por tópico: `modes`, `steps`, `config`, `healthcheck`, `tui`, `tray`, `env`. |
-| `full-upgrade --quiet` | Reduzir output no terminal e manter o detalhe no log. |
-| `full-upgrade --restart-services` | Permitir reinício de serviços apontados por `needrestart`/`checkservices`. |
-| `full-upgrade --tray` | Iniciar o systray daemon: ícone multi-estado, menu e notificações. Em Wayland usa AppIndicator; em X11 usa `yad --notification`. |
-| `full-upgrade --tray --enable` | Habilitar o systray no login: XDG autostart + unit systemd user em `graphical-session.target`. |
-| `full-upgrade --tray --status` | Mostrar o último estado cacheado do systray, sem rede. |
-| `full-upgrade --tray --check` | Recalcular o estado agora (usa `checkupdates`/AUR, faz rede) e sair. |
-
-## Systray Daemon
-
-O `full-upgrade` inclui um applet opcional de bandeja. Em sessões Wayland
-(Hyprland/DankMaterialShell, KDE, barras com StatusNotifier) ele usa
-AppIndicator via Python/GI quando disponível; em X11 mantém o backend
-`yad --notification --listen`. Ele mostra o estado da máquina com ícones simples:
-
-| Estado | Prioridade | Significado |
-| --- | --- | --- |
-| `running` | 1 | Há um `full-upgrade` rodando (lock ativo). |
-| `error` | 2 | O último run registrou `fail`. |
-| `attention` | 3 | O último run deixou `todo`/Doctor pendente, como reboot ou ação manual. |
-| `updates` | 4 | Há updates de repositório/AUR disponíveis. |
-| `idle` | 5 | Sem updates nem pendências conhecidas. |
-
-Os ícones do painel e do menu são monocromáticos e vêm do Material Symbols
-Rounded, a mesma fonte do `DankIcon` do DankMaterialShell. Os estados formam
-uma família em torno do pacote (`deployed_code`): o ícone base no `idle`, com
-seta em `updates`, relógio em `running` e alerta em `attention`. O `error` usa
-o glifo `error`. No AppIndicator a cor acompanha o texto do tema GTK
-(`TRAY_ICON_COLOR=auto`). Os SVGs em `assets/icons/` são gerados por
-`scripts/gen-icons.py`.
-
-Uso:
-
-```bash
-sudo pacman -S python-gobject libayatana-appindicator yad libnotify pacman-contrib
-full-upgrade --tray --check     # computa o primeiro estado
-full-upgrade --tray             # inicia o applet
-full-upgrade --tray --enable    # autostart via XDG + systemd user
-```
-
-No backend AppIndicator (Wayland/Hyprland/DankMaterialShell) o applet é
-informativo e reativo:
-
-- **Badge no painel** — um contador ao lado do ícone com o número de itens
-  acionáveis do estado atual (atualizações disponíveis, `todo`s do Doctor ou
-  falhas). Desligue com `TRAY_BADGE=0`.
-- **Realce de atenção** — estados `error`/`attention` entram em
-  `IndicatorStatus.ATTENTION`, que barras compatíveis destacam.
-- **Menu dinâmico** (reconstruído quando o estado muda, sem perder a
-  navegação). O cabeçalho é sempre “full-upgrade”. No topo ficam o estado com
-  o ícone correspondente, “Verificado há X” e “Último run há Y” (atualizados a
-  cada minuto sem recriar o menu) e, quando houver, **Reinicialização
-  pendente** com o motivo. Em seguida vem um submenu por fonte com itens:
-  **Pacotes oficiais**, **Pacotes AUR**, **Aplicativos Flatpak**, **Suíte
-  Artcraft** e **Avisos e pendências**. Pacotes aparecem como nome e
-  `versão → versão` (versões longas, como as de pacotes `-git`, em duas
-  linhas); pendências, como nome do step com o motivo recuado. As linhas são
-  quebradas em 28 caracteres, a largura do menu do DMS. Abaixo ficam as ações:
-  **Atualizar** (Sistema completo ou Somente pacotes, `--mode update`),
-  **Diagnosticar (Doctor)**, **Executar reparos**, **Verificar agora**,
-  **Logs e relatórios** (Último log do run resumido, Último relatório e Pasta
-  de logs) e **Sair do applet**. As ações de execução ficam desabilitadas
-  enquanto um run está em andamento.
-- **Atalhos** — o clique abre o menu; o scroll sobre o ícone dispara
-  “Verificar agora” sem abrir o menu.
-
-Se o terminal não for detectado, defina `TRAY_TERMINAL` no config;
-`xdg-terminal-exec` é a opção mais confiável quando disponível. (No backend X11
-`yad` o clique esquerdo roda `full-upgrade` em um terminal e o menu é
-equivalente, sem badge, realce, cabeçalho dinâmico nem ícones no menu.)
-
-Hyprland/DankMaterialShell usa StatusNotifier e exibe o backend AppIndicator.
-GNOME Shell não expõe systray/AppIndicator nativamente; use uma extensão como
-“AppIndicator and KStatusNotifierItem Support” para o ícone aparecer.
-
-> Após atualizar o full-upgrade, reinicie o applet para carregar o novo
-> comportamento e ícones: `full-upgrade --tray --restart` (ou mate o daemon
-> antigo e rode `full-upgrade --tray` de novo).
-
-## Modos e Filtros
-
-O script combina modos formais com filtros de catálogo:
-
-| Modo | Escopo |
-| --- | --- |
-| `full` | Padrão. Executa o fluxo completo disponível no ambiente. |
-| `update` | Updates e limpeza, sem reparos mutáveis opcionais e sem doctor. |
-| `doctor` | Auditorias e checks de saúde, preservando steps compartilhados de preflight/finalização. |
-| `repair` | Reparos conhecidos, sem limpeza. |
-
-Filtros:
-
-```bash
-full-upgrade --only doctor
-full-upgrade --only docker
-full-upgrade --only network
-full-upgrade --only ai                           # todas as CLIs de IA
-full-upgrade --only "Atualizar Ollama"          # nome exato de step
-full-upgrade --only "lang,Doctor: saúde de rede" # categoria/tag + nome, em lista
-full-upgrade --resume                            # só os steps não-ok do último run
-full-upgrade --skip-category aur
-full-upgrade --skip-category cleanup
-FULL_UPGRADE_SKIP="Atualizar ghcup,Atualizar gems de usuário" full-upgrade
-```
-
-Categorias e tags vêm do catálogo. Para descobrir os nomes válidos:
-
-```bash
-full-upgrade --list-steps
-full-upgrade --explain-step "Atualizar pacotes do sistema e AUR"
-```
-
-### Taxonomia de categorias
-
-Cada step pertence a **exatamente uma** categoria (conjunto fechado, validado
-por teste). Categoria responde "que parte do sistema este step mexe"; tags são
-eixos transversais (`network`, `slow`, `sudo`, nome da ferramenta, …).
-
-| Categoria | O que `--only <categoria>` executa |
-| --- | --- |
-| `core` | Preflight obrigatório: lock, sudo, espaço em disco, keyring. Sempre roda (imune a filtros). |
-| `backup` | Backup de configs de `/etc`, snapshot pré-upgrade e réplica de snapshot em nuvem. |
-| `packages` | Gestores de pacote: pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap e Docker. |
-| `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
-| `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog. |
-| `firmware` | `fwupd` e `systemd-boot`. |
-| `lang-js` | Toolchain JavaScript: Node.js e nvm, npm (prefixo ativo, `~/.npm-global` e o do Node em uso), corepack, pnpm, Bun, Deno, vite-plus. |
-| `lang-py` | Toolchain Python: pip `--user`, pipx, uv (self/python/tools), Poetry. |
-| `lang-rust` | Toolchain Rust: rustup, binários cargo e auditoria de CVEs. |
-| `lang-other` | Demais toolchains: Arduino, Go, .NET, Google Cloud SDK, gems, ghcup. |
-| `ai` | CLIs de IA e otimização (inclusive fora de gestor de pacote), plugins do Claude Code e do Codex, agent skills e servidores MCP. |
-| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, purple, Android CLI, Herdr, cloudflared, OBS). |
-| `ide` | IDEs e extensões (Orca, Antigravity, VSCode/Cursor). |
-| `editor` | Neovim (plugins Lazy e ferramentas Mason). |
-| `shell` | Shell e terminal: Oh My Zsh, plugins Zsh, Yazi, Hyprland (hyprpm), cache do tldr. |
-| `cleanup` | Limpeza: caches, snapshots antigos, órfãos, journal, coredumps, relatórios. |
-| `autofix` | Auto-remediações mutáveis, sempre atrás de variável de opt-in e/ou confirmação. |
-| `doctor` | Auditorias **estritamente read-only** (invariante validada por teste). |
-| `final` | Conferências de pós-condição e aviso de atualização do próprio full-upgrade. Sempre roda. |
-
-Compatibilidade de filtros: identidades antigas continuam válidas como **tag**
-— `--only lang` pega as quatro categorias `lang-*`, e `--skip-category pacman`,
-`flatpak`, `snap` ou `docker` continua funcionando dentro de `packages`.
-
-## Catálogo de Steps
-
-Cada step tem metadados no formato:
 
 ```text
-nome | categoria | tags | efeito | timeout | dependências | função | descrição
+Resumo
+  Sistema / Pacotes (27s)
+    ✔  Atualizar pacotes do sistema e AUR        (8s)
+    ✔  Atualizar imagens Docker                  (12s)
+  …
+  Total: 134 ok, 0 warn, 0 todo, 0 fail, 18 skip em 8m 42s
+  Pacotes alterados (4 atualizado(s), 0 instalado(s), 0 removido(s))
 ```
 
-Exemplo:
+Todos os comandos, modos, filtros e status em [Uso](docs/usage.md).
 
-```text
-Doctor: saúde de rede
-Categoria: doctor
-Tags: network
-Efeito: read
-Timeout: 30s
-Função: doctor_network_health
-Descrição: Verifica DNS e conectividade HTTPS para mirrors Arch.
-```
+## Documentação
 
-O campo **efeito** (`read`/`mutating`) é canônico e não é duplicado em tags.
-Steps `mutating` nunca pertencem à categoria `doctor`: auto-remediações vivem
-em `autofix`, o que mantém `--mode doctor` read-only por construção.
-
-Status possíveis no resumo:
-
-| Status | Significado | Impacto no exit code |
-| --- | --- | --- |
-| `ok` | Step concluído. | Mantém sucesso. |
-| `warn` | Problema não bloqueante ou falha transitória tratada. | Mantém sucesso. |
-| `todo` | Requer decisão ou ação manual. | Mantém sucesso. |
-| `fail` | Falha operacional real. | Finaliza com exit code `2`. |
-| `skip` | Step pulado por filtro, ausência de dependência, ambiente ou dry-run. | Mantém sucesso. |
-
-## O Que Ele Atualiza
-
-| Domínio | Cobertura principal |
+| Para quem usa | Para quem desenvolve |
 | --- | --- |
-| Preflight | Lock anti-concorrência, sudo, espaço em `/` e `/boot`, `archlinux-keyring`, backup de configs críticas de `/etc` (`tar.zst` com rotação). |
-| Snapshot e mirrors | `snapper`/`timeshift` em btrfs (com pré-flight de espaço), `reflector`/`rate-mirrors` com backup validado da mirrorlist. |
-| Sistema | `pacman`, AUR (`paru`/`yay`/`pikaur`), reparos conhecidos de lock, GnuPG/AUR, conflitos locais, limpeza recursiva de órfãos, snapshots antigos do próprio script e `.pacnew/.pacsave`. |
-| Apps | Flatpak e Snap quando presentes. |
-| Containers | Pull de imagens Docker remotas, detecção rápida de daemon inacessível e aviso de containers usando imagem antiga. |
-| Firmware e boot | `fwupdmgr` e `bootctl`. |
-| JavaScript | `npm`, pacotes npm globais, pacotes do prefixo secundário `~/.npm-global` (`NPM_CONFIG_PREFIX`, invisível ao npm do nvm), `corepack`, `pnpm` e pacotes pnpm globais; runtimes `Bun` e `Deno` (auto-gerenciados, pulam quando gerenciados pelo pacman). |
-| Python | `pip --user`, `pipx`, `uv`, Python gerenciado pelo uv e Poetry, com proteção contra conflito `poetry-core` fixado pelo Poetry. |
-| Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e auto-remediação opcional de CVEs de toolchain (`AUTO_FIX_RUST_CVES`). |
-| Outras linguagens | Go, .NET, Ruby gems, ghcup e Arduino CLI. |
-| Referência | Atualiza o cache local do Tealdeer (`tldr --update`) quando instalado; a falha preserva o cache anterior e vira `warn`. |
-| Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
-| IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent: self-update nativo `pi update`, extensões instaladas via `pi update --extensions` e refresh dos catálogos de modelos via `pi update --models`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (as que a máquina tiver instaladas, rastreadas pelo lock do skills CLI / `~/.agents/skills`, via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). Updaters Node/Electron repetem uma vez só após `ETIMEDOUT`, sem a auto-seleção de família; TokenSave confirma read-only a release atual quando apenas seu updater não alcança o GitHub. |
-| CLIs e extras | Claude Code, Hermes, GitHub Copilot, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
-| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` (inclusive symlinks), `/opt` e `~/.local/opt` e indica o que ainda não tem step; `Doctor: pacotes locais fora do AUR` aponta pacote de PKGBUILD local atrás do release do GitHub. |
-
-Ferramentas ausentes não quebram a execução normal: o step é marcado como
-`skip` com o motivo, e o restante do fluxo continua.
-
-### Salvaguardas recentes de manutenção
-
-- **Órfãos recursivos:** `Remover pacotes órfãos` repete a consulta
-  `pacman -Qdtq` após cada remoção para capturar dependências que só viram
-  órfãs depois da primeira passada. O limite é `ORPHAN_CLEANUP_MAX_ROUNDS`
-  (default `5`); se ainda sobrar item, o step vira `todo`, não `fail`.
-- **Retenção de coredumps:** `Limpar coredumps antigos` remove apenas dumps
-em `/var/lib/systemd/coredump` mais antigos que `COREDUMP_KEEP_DAYS` (default
-`7`), liberando disco sem apagar a auditoria: o Doctor de recorrência lê os
-metadados do journal, então crashes ativos (3+ vezes com ocorrência nas últimas
-48 h) continuam `todo` por desenho — o que some é o acúmulo eterno de dumps
-transitórios, nunca o diagnóstico.
-- **Temp dirs do Codex:** `Limpar temp dirs de plugins do Codex` remove os
-clones bare `git-*` e os stagings `marketplace-upgrade-*` que o CLI do Codex
-abandona em `~/.codex/.tmp` (e `.marketplace-plugin-source-staging`) a cada
-refresh de marketplace de plugins (acumulam dezenas de GiB), mantendo os mais
-novos que `CODEX_TMP_KEEP_DAYS` (default `1`) para não tocar num refresh em
-andamento. Falha de remoção vira `warn`, nunca `fail`.
-- **Retenção de snapshots:** `Limpar snapshots full-upgrade antigos` remove
-apenas snapshots cuja descrição contém `full-upgrade pré-upgrade`, mantendo os
-`SNAPSHOT_KEEP` mais recentes. A listagem Timeshift usa privilégio administrativo
-e falha de leitura é reportada como warning, nunca como lista vazia. Não toca
-snapshots manuais/de outras origens.
-- **Cópia off-site do Timeshift:** `TIMESHIFT_CLOUD_BACKUP=1` replica o snapshot
-Timeshift mais recente (`@` + `@home`) para um repositório Restic criptografado
-via rclone. `TIMESHIFT_CLOUD_KEEP` controla a retenção remota; falha da nuvem
-vira aviso e nunca remove a cópia local. O catálogo reserva até 48 horas
-(172800 segundos) para essa etapa, permitindo uma primeira réplica longa sem
-corte após quatro horas. A execução mantém o lock durante o envio e registra
-progresso; não inicie outro full-upgrade em paralelo. Descoberta e validação
-  usam privilégio administrativo para ler snapshots protegidos (root:root 0700),
-  sem abrir permissões. Um snapshot sem `@` ou `@home` acessível é recusado.
-  Ao executar via unidade systemd de usuário, preserve o PATH da sessão com
-  `--setenv="PATH=$PATH"` para não perder CLIs instaladas em prefixos pessoais.
-  Verifique previamente sudo não interativo e linger; linger não mantém um
-  processo vivo durante reboot.
-- **Btrfs histórico reconhecido:** `BTRFS_DEVICE_STATS_ACK_SHA256` é opt-in.
-  O helper `btrfs_device_stats_fingerprint` em `lib/steps/doctor/storage.sh`
-  calcula SHA-256 do UUID e dos cinco contadores por device normalizados.
-  Só configure após revisar o histórico e guardar o baseline. O resumo mantém
-  uma nota de reconhecimento; qualquer alteração volta a gerar TODO, e scrub
-  incompleto/com erros ou falha de consulta nunca é dispensado pelo baseline.
-  Reconhecimento não prova reparo nem integridade do hardware.
-- **Mirrorlist:** quando `reflector` ou `rate-mirrors` falha, o backup só é
-  restaurado se contiver uma linha `Server =` ativa. Backup vazio ou totalmente
-  comentado não sobrescreve a mirrorlist corrente.
-- **Docker:** a checagem inicial usa timeout curto configurável
-  (`DOCKER_INFO_TIMEOUT_S`, default `5`) antes de decidir que o daemon está
-  inacessível. Isso evita runs presos por dezenas de segundos em máquinas com
-  Docker instalado, mas parado ou sem permissão. Imagens nos namespaces
-  `local/` e `localhost/` são tratadas como builds locais, e um pull que o
-  registry recusa com `repository does not exist` é ignorado em vez de falhar
-  o step: com o image store containerd, builds locais também ganham digest.
-- **OWASP ZAP:** a mensagem `Check for updates call failed` (que o ZAP emite
-  com rc 0) vira `warn` em vez de OK falso. Com rota IPv6 disponível, o Java
-  do ZAP prefere IPv6 — redes cujo IPv4 não alcança o Marketplace deixam de
-  falhar em todo run.
-- **Node/Electron e TokenSave:** quando um updater Node/Electron falha com
-  `ETIMEDOUT`, a tentativa original é preservada e há apenas um retry com a
-  auto-seleção IPv6/IPv4 desativada — útil em interfaces sem rota IPv6, sem
-  quebrar redes IPv6-only. Se o self-updater do TokenSave não alcançar o
-  GitHub, a API de releases é consultada apenas para comparar versões: match
-  confirma `ok`, mas esse caminho nunca instala nem baixa nada.
-- **Inventário de CLIs de IA:** cada `<cli> --version` externo é limitado por
-  `AI_CLI_VERSION_TIMEOUT_S` (default `5`), para uma CLI travada não consumir o
-  timeout do step nem ocultar as demais versões.
-- **Poetry / `poetry-core`:** quando o Poetry instalado declara requisito fixo
-  para `poetry-core`, o update genérico de `pip --user` adiciona `poetry-core`
-  ao ignore efetivo. Isso evita o ping-pong de versão entre o step de pip e o
-  step de Poetry.
-- **Verificação final por gerenciador:** além de reconferir `pacman`/AUR, o run
-  reconsulta `npm` global, `pnpm` global, `cargo`, gems de usuário e Flatpak
-  depois dos steps de update, para que um update que falhou no meio do run não
-  termine silencioso. Sobrou pendência → `todo` com a contagem por gerenciador e
-  o comando de remediação. `pipx`, `uv tool` e `go` ficam de fora porque não
-  expõem consulta de "outdated" sem executar o upgrade.
-- **Plugins de shell com histórico reescrito:** um force-push no repositório do
-  plugin deixa o clone divergente e derruba `git pull --ff-only`. Com a árvore
-  limpa, o clone é realinhado em `origin/HEAD` e o HEAD anterior fica guardado em
-  `refs/full-upgrade/pre-realign/<timestamp>`. Plugin com modificação local não é
-  tocado e vira `todo`, nunca `fail`.
-- **Atualização de plugins clonados (Zsh, DMS, OBS):** os três steps usam os
-  mesmos helpers (`git_fetch_full`, `git_pull_ff_only`, `git_has_unmerged`,
-  `git_tracking_ref`, `git_remote_gone`), que desarmam cinco armadilhas do git.
-  **(a)** Clone raso: `fetch --depth=1` cria um
-  novo graft point a cada execução, a ponta remota perde ancestralidade com o
-  `HEAD` local e o fast-forward passa a ser impossível *mesmo com árvore limpa* —
-  o repo é desraso uma vez e volta a atualizar por ff. **(b)** `pull --ff-only`
-  não é determinístico: sob `pull.rebase=true` + `rebase.autostash=true` ele vira
-  rebase e, se a reaplicação conflita, deixa marcadores no working tree e **sai
-  com 0** — o pull é forçado a ignorar essa config e todo caminho de sucesso
-  confere que o repo não ficou unmerged. **(c)** Repo com conflito pendente: o
-  git recusa `fetch`/`pull`/`stash`, então o estado é detectado antes e vira
-  `todo` com remediação, em vez de `fail` repetido a cada run. Quando um `stash
-  pop` conflita, a árvore é restaurada para o upstream (o plugin continua
-  carregável) e suas mudanças ficam intactas no stash. **(d)** Branch apagado no
-  remoto: sem `--prune` a ref remota morta sobrevive local, o "behind" é medido
-  contra o fantasma e o plugin "atualiza" em todo run, para sempre — o fetch
-  agora poda, e a ref de upstream é conferida antes de virar referência de
-  comparação (cai para `origin/HEAD` se sumiu). **(e)** Upstream removido de vez
-  (repo apagado, privado, renomeado sem redirect ou credencial revogada): isso
-  responde "Repository not found" em todo run e nunca se resolve sozinho, então
-  vira `todo` com remediação (corrigir o `remote set-url` ou remover o clone
-  órfão) em vez de `fail` eterno — o `fail` duro fica reservado a erro que de
-  fato indica defeito.
-- **Resumo final:** categorias técnicas são renderizadas por grupos estáveis;
-  `flatpak`/`docker`/`snap` aparecem sob **Contêineres**, e `editor`/`shell`
-  compartilham um único bloco **Shell / Editor**. Cada grupo mostra tempo total,
-  o rodapé destaca o top 3 mais lento e `--json` inclui `category_totals` e
-  `slowest_steps`.
-
-## Doctor
-
-O doctor transforma manutenção em diagnóstico acionável. Ele cobre:
-
-| Check | Detecta |
-| --- | --- |
-| Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
-| systemd | Units falhadas no sistema e, quando há sessão/bus disponível, no usuário; scopes transitórios `app-*.scope` já encerrados são informativos e autorreparados no modo completo. |
-| Journal | Erros críticos do boot atual, com agrupamento para reduzir ruído. |
-| Crashes recorrentes | Coredumps dos últimos 14 dias agrupados por programa; vira `todo` no programa que quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h (crash isolado ou já resolvido fica informativo). |
-| Firmware | Nível HSI de `fwupdmgr security`, resumido: o terminal recebe a contagem de atributos ✔ e a lista dos ✘ sem suporte no hardware; a tabela completa fica no arquivo de log. |
-| Flatpak | Inconsistências via `flatpak repair --user --dry-run`. |
-| Disco | Uso de espaço e inodes em mounts essenciais. |
-| Boot | Estado do systemd-boot, kernel/initrd e espaço no ESP. |
-| Rede | DNS e HTTPS contra endpoints de mirrors Arch. |
-| Serviços antigos | Serviços usando bibliotecas atualizadas via `needrestart` ou `checkservices`. |
-| Pacman | Arquivos ausentes via `pacman -Qkq`. |
-| pacnew/pacsave | Arquivos `.pacnew`/`.pacsave` pendentes de merge (`pacdiff -o`/`find /etc`). |
-| CVEs oficiais | Vulnerabilidades de pacotes do repo oficial via `arch-audit` (corrigível → `warn`, sem correção → `todo`). |
-| ALPM | Hooks com falha no journal do boot atual. |
-| SMART/NVMe | Saúde de discos via `smartctl` e `nvme`. |
-| btrfs | Erros de device acumulados e idade do último scrub em mounts btrfs (auto-remediação opcional via `AUTO_BTRFS_SCRUB`). |
-| Tempo de boot | Total via `systemd-analyze time` e as 5 piores units (`blame`). |
-| Desktop | Portais, PipeWire, WirePlumber e informações gráficas quando disponíveis. |
-| IA | Versões das CLIs de IA detectadas (Claude, Codex, Copilot, Gemini, Qwen, Cline, opencode, 9router, Ollama, Kimi, Hermes, pi, Headroom e TokenSave). |
-| MCP | Servidores MCP de Claude, Codex, OpenCode, hub central e Hermes, com escopo/runtime e validação de executáveis, configurações e variáveis obrigatórias sem imprimir segredos. |
-| Python/JS | Dependências quebradas, venvs ausentes, interpreters inválidos, conflitos npm/pnpm e diagnóstico acionável de `pip check`. |
-
-## Logs e Automação
-
-Arquivos ficam em:
-
-```text
-~/.cache/system-upgrade/
-  full-upgrade-<run_id>.log
-  full-upgrade-<run_id>.jsonl
-  latest.log -> último log humano
-  latest.jsonl -> último log estruturado
-```
-
-O script mantém os 20 logs mais recentes de cada tipo. Alguns steps ainda gravam
-artefatos auxiliares com o mesmo `<run_id>` (relatório `.md`, `.pkgs-before`,
-`.aur-out-of-date`, `.aur-build-failed`, `.pacfiles-todo`): steps com timeout
-rodam em subshell, então estado que precisa chegar a um step posterior viaja por
-arquivo, não por variável. A rotação agrupa por `run_id` e não depende de uma
-lista de extensões, então esses artefatos são limpos junto com o run.
-
-JSONL registra eventos de run e step. Campos importantes:
-
-| Campo | Descrição |
-| --- | --- |
-| `event` | `run_start`, `step`, `run_end` ou `summary`. |
-| `run_id` | Identificador único da execução. |
-| `step` | Nome do step, quando aplicável. |
-| `status` | `ok`, `warn`, `todo`, `fail` ou `skip`. |
-| `duration_seconds` | Duração do step ou do run. |
-| `exit_code` | Código retornado pela função do step. |
-| `category`, `tags`, `effect`, `timeout` | Metadados vindos do catálogo. |
-| `category_totals` | No evento `summary`, totais por grupo do resumo (`ok/warn/todo/fail/skip` + tempo). |
-| `slowest_steps` | No evento `summary`, top 3 steps mais lentos não pulados. |
-| `reboot_recommendation` | No evento `summary`, motivo de reboot destacado quando houver. |
-| `log_file`, `jsonl_file` | Caminhos dos artefatos da execução. |
-
-Exemplos:
-
-```bash
-tail -f ~/.cache/system-upgrade/latest.log
-jq -c 'select(.event == "summary")' ~/.cache/system-upgrade/latest.jsonl
-jq -r 'select(.event == "step" and .status != "ok") | [.status, .step, .reason] | @tsv' ~/.cache/system-upgrade/latest.jsonl
-```
-
-## Configuração
-
-Funciona sem configuração. Para personalizar:
-
-### Pelo TUI interativo (recomendado)
-
-```bash
-full-upgrade --config-tui
-```
-
-TUI em bash puro, sem dependências: ative/desative steps do catálogo, edite
-parâmetros (bools, enums, números e paths) com filtro vivo e popup de detalhe.
-As alterações de **Steps** e **Parâmetros** permanecem juntas durante toda a
-sessão, mesmo ao trocar de tela. Todo caminho de salvamento abre a revisão com
-diff antes da confirmação; a revisão é paginada para caber em terminais baixos.
-A gravação consolida chaves duplicadas, faz backup automático do config anterior
-(últimos 5 em `config.bak.<timestamp>`) e preserva comentários. O TUI grava
-sempre no arquivo de config — skips vindos do ambiente não aparecem nele.
-Teclas completas em `full-upgrade --help tui`.
-
-### Manual
-
-```bash
-mkdir -p ~/.config/full-upgrade
-cp config.example ~/.config/full-upgrade/config
-$EDITOR ~/.config/full-upgrade/config
-```
-
-Para inspecionar o que está em uso (caminhos, valores efetivos após
-config + defaults + auto-detecção, listas de ignore e paths de tools), além de
-um exemplo completo de configuração:
-
-```bash
-full-upgrade --config
-```
-
-Sem o arquivo ao lado (ex.: instalação via standalone), dá para criar o config a
-partir do exemplo embutido, sem cores:
-
-```bash
-mkdir -p ~/.config/full-upgrade
-full-upgrade --config-example > ~/.config/full-upgrade/config
-$EDITOR ~/.config/full-upgrade/config
-```
-
-Principais chaves:
-
-| Chave | Default | Descrição |
-| --- | --- | --- |
-| `ENABLE_CUSTOM_TOOLS` | `0` | Só necessário para Burp/Wireshark (que instala `burpsuite`) e para carregar seus plugins de `~/.config/full-upgrade/steps.d/`. As integrações empacotadas (Hermes, Copilot, DMS, OpenClaw, RTK) rodam por presença da ferramenta, sem flag. |
-| `LANG_OVERRIDE` | `auto` | Reservado para seleção `auto`, `pt` ou `en`; a saída principal ainda é majoritariamente PT-BR. |
-| `SNAPSHOT_TOOL` | `auto` | `auto`, `snapper`, `timeshift` ou `none`. |
-| `SNAPSHOT_MIN_FREE_GIB` | `2` | Mínimo de espaço livre em `/` para criar o snapshot; abaixo disso o snapshot é pulado com aviso. `0` desliga a checagem. |
-| `SNAPSHOT_KEEP` | `5` | Quantos snapshots `full-upgrade pré-upgrade` manter na limpeza automática. |
-| `TIMESHIFT_CLOUD_BACKUP` | `0` | `1` replica o snapshot Timeshift mais recente (`@` + `@home`) para um repositório Restic criptografado ao final do run (pós-upgrade, fase de limpeza). |
-| `TIMESHIFT_CLOUD_KEEP` | `3` | Quantas versões mais recentes preservar no repositório remoto. |
-| `TIMESHIFT_CLOUD_REPOSITORY` | `rclone:onedrive:full-upgrade/timeshift` | Repositório Restic remoto; aceita qualquer backend suportado pelo Restic/rclone. |
-| `TIMESHIFT_CLOUD_PASSWORD_FILE` | `~/.config/full-upgrade/restic-timeshift-password` | Arquivo privado com a senha do Restic. Perder essa senha torna o backup irrecuperável. |
-| `TIMESHIFT_CLOUD_RCLONE_CONFIG` | `~/.config/rclone/rclone.conf` | Configuração rclone que contém o remote usado pelo repositório. |
-| `TIMESHIFT_CLOUD_EXCLUDE_FILE` | `~/.config/full-upgrade/restic-timeshift-excludes` | Arquivo opcional de padrões Restic para omitir caches e artefatos reproduzíveis do envio. |
-| `TIMESHIFT_CLOUD_PROGRESS_INTERVAL` | `60` | Intervalo (s) entre heartbeats do upload (% , GiB, arquivos, velocidade, ETA); `0`/inválido volta a `60`. |
-| `MIRROR_TOOL` | `auto` | `auto`, `reflector`, `rate-mirrors` ou `none`. |
-| `MIN_FREE_GIB` | `2` | Espaço mínimo livre em `/`. |
-| `MIN_BOOT_FREE_MIB` | `200` | Espaço mínimo livre em `/boot`. |
-| `BACKUP_CONFIGS` | `1` | Arquiva configs críticas de `/etc` em `tar.zst` antes das mutações. `0` desliga. |
-| `BACKUP_KEEP` | `5` | Quantos tarballs privados manter (rotação antes/depois da criação; mínimo 1 quando o backup está ativo). |
-| `BACKUP_PATHS` | lista de `/etc` | Paths a arquivar, separados por espaço (default cobre `pacman`/boot/`systemd`). |
-| `BTRFS_SCRUB_MAX_DAYS` | `30` | Alerta no doctor se o último scrub btrfs em `/` for mais antigo que isso. |
-| `BTRFS_DEVICE_STATS_ACK_SHA256` | vazio | Reconhecimento explícito do estado exato de UUID + contadores por device; não zera estatísticas nem dispensa scrub/SMART. Qualquer alteração volta a alertar. |
-| `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
-| `FWUPD_HSI_MIN` | `2` | `Doctor: fwupd security` avisa se o nível HSI ficar abaixo disso. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada. |
-| `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
-| `DOCKER_PULL_JOBS` | `4` | Pulls Docker simultâneos no step de imagens; `1` volta ao modo em série. |
-| `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
-| `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
-| `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); metadados dependem também da retenção do journal. Ausência após vacuum não comprova resolução do crash. |
-| `CODEX_TMP_KEEP_DAYS` | `1` | Dias de retenção de temp dirs do Codex (`git-*` em `~/.codex/.tmp` e stagings de marketplace; 0/inválido = 1); os mais novos são preservados para não quebrar um refresh em andamento. |
-| `AUTO_FIX_RUST_CVES` | `0` | `1` = tenta remediar CVEs de toolchain Rust (`rustup self update`/`update` + `cargo install-update`); `0` = só reporta. |
-| `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um `cargo install --force` cujo rebuild anterior não corrigiu a CVE (memo em `~/.cache/system-upgrade/rust-cve-rebuild-nofix.tsv`); versão nova do crate ou `0` reabrem a tentativa. |
-| `AUTO_BTRFS_SCRUB` | `0` | `1` = inicia `btrfs scrub` quando o scrub estiver vencido/ausente (todos os mounts btrfs); `0` = só reporta. |
-| `AUTO_MERGE_PACNEW` | `0` | `1` = mescla sozinho os `.pacnew` cujo merge preserva **exatamente** a configuração ativa do arquivo atual (com backup `.full-upgrade.bak.<timestamp>` e hook de pós-merge, ex. `locale-gen`); `0` = só reporta. `sudoers`, `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram. |
-| `AUTO_RECREATE_STALE_CONTAINERS` | `0` | `1` = depois do pull, recria os serviços de Compose que seguem rodando com imagem antiga (`docker compose -p <projeto> -f <arquivos> up -d --no-deps --force-recreate <serviços>`, volumes preservados) e reverifica a imagem; containers fora do Compose continuam TODO. Reinicia o serviço (interrompe job em andamento). `0` = só reporta o comando. |
-| `GITHUB_TOKEN_FILE` | `~/.config/full-upgrade/github-token` | Token GitHub dedicado (arquivo modo `600`; legível por grupo/outros é ignorado). A API anônima limita a 60 req/h por IP e, num run completo, updaters nativos caíam em HTTP 403. O full-upgrade autentica suas consultas com `GITHUB_TOKEN`/`GH_TOKEN`, este arquivo ou `gh auth token`; aos updaters de terceiros (`bun upgrade`, `hermes update`) só entrega o token do ambiente ou deste arquivo, e só ao processo do updater. Recomendado: token fine-grained com acesso de leitura a repositórios públicos e nenhuma permissão. |
-| `GITHUB_UPDATER_TOKEN_FROM_GH` | `0` | `1` = sem token dedicado, entrega o token do `gh` aos updaters de terceiros. Esse token costuma ter escopos `repo`/`workflow`/`delete_repo`; prefira o token dedicado. |
-| `AI_PLUGIN_BLOCKLIST` | vazio | Nomes de plugin ou marketplace (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar os marketplaces. Desligar a skill por caminho no `config.toml` do Codex não basta: o caminho inclui a versão, e o upgrade seguinte instala outra. |
-| `AGENT_SKILLS_TIMEOUT_S` | `60` | Orçamento do `npx skills update --global`. Quando a versão do CLI o excede, o step repete com a última versão boa (ou a release anterior), cada tentativa limitada ao que sobra do limite do catálogo (660s). A nova só é registrada como lenta em `~/.local/state/full-upgrade/agent-skills-cli` se a anterior couber no orçamento; se as duas estouram, a lentidão é da máquina/rede e nada é marcado. A mais nova volta a ser testada quando o upstream publica outra. Motivação: `skills@1.7.5` levou 71s contra 5s da 1.7.4. |
-| `CLAUDE_PLUGIN_PREFILTER` | `1` | O step de plugins do Claude Code só chama `claude plugin update` nos plugins cuja versão/sha mudou no clone do marketplace; `0` chama em todos. |
-| `AUTO_FIX_PIP_DEPS` | `0` | `1` = o step `Auto-remediar deps Python ausentes` instala com `pip install --user` as dependências **ausentes** de pacotes pip `--user` apontadas pelo `pip check` (aditivo — a dep não existe em nenhum site, nunca toca o pacman; conflitos de versão seguem manuais); `0` = só reporta. |
-| `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
-| `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
-| `TRAY_CHECK_INTERVAL_M` | `30` | Intervalo, em minutos, entre checagens do systray daemon. O daemon impõe mínimo efetivo de 1 minuto. |
-| `TRAY_TERMINAL` | auto | Terminal usado pelo applet para abrir `full-upgrade`; vazio = auto-detecta (`xdg-terminal-exec`, kitty, alacritty, etc.). |
-| `TRAY_NOTIFICATIONS` | `1` | `1` = o systray notifica transições úteis (`updates`, `attention`, `error`, retorno a `idle`); `0` = só muda o ícone. |
-| `TRAY_ICON_COLOR` | `auto` | Cor dos ícones monocromáticos do AppIndicator (painel e menu). `auto` = cor de texto do tema GTK, que no DankMaterialShell é a mesma gerada pelo matugen; ou um `#rrggbb` fixo. |
-| `OLLAMA_SELF_UPDATE` | `0` | `1` = reexecuta o instalador oficial do Ollama (`curl \| sh`) no step; `0` = só reporta a versão. |
-| `CLAUDE_NATIVE_VERSIONS_DIR` | `~/.local/share/claude/versions` | Diretório de versões do instalador nativo do Claude Code. O step varre aí binários truncados (vazios ou sem bit de execução) deixados por um download interrompido antes e depois de `claude update`, senão o updater trata a versão parcial como "já baixada" e o CLI congela na versão antiga. Ajuste só se sua instalação usa outro caminho. |
-| `MCP_HUB_RENDER` | `1` | `1` = após os updates de IA, roda `scripts/mcp_render.py` do claude-env e realinha as configs MCP de todos os harnesses (Claude, Codex, opencode, Cursor, Gemini, pi, Droid, Grok…) ao hub `mcp/servers.json`; `0` = só o Doctor aponta divergência. |
-| `CLAUDE_ENV_DIR` | `~/claude-env` | Repositório claude-env (hub MCP + renderer). |
-| `MCP_AUTO_UPDATE` | `0` | `1` = refresca o cache uv dos servidores MCP uvx (rebuild da última no próximo launch); `0` = só doctor read-only. |
-| `IDE_EXT_CLIS` | auto | Lista (espaço) de CLIs VSCode-family para atualizar extensões; vazio = autodetect (`code cursor codium …`). |
-| `AUR_HELPER` | auto | Helper AUR a usar (`paru`/`yay`/`pikaur`); vazio = autodetecta na ordem `paru > yay > pikaur`. |
-| `PRIV_CMD` | auto | Comando de elevação (`sudo`/`doas`/`run0`/`sudo-rs`); vazio = autodetecta (`sudo` por padrão). |
-| `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular; valores do ambiente e do config são unidos sem duplicatas. |
-| `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit,cua-driver` (IDs: `openclaw`, `coderabbit`, `artcraft`, `cua-driver`); evita depender do texto do step. |
-| `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
-| `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE` | vazio | Ferramentas uv fixadas de propósito por restrição no `uv-receipt.toml`: o step não acusa que ficaram atrás do PyPI. |
-| `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
-| `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins do DankMaterialShell fixados (nomes de diretório separados por espaço ou vírgula, globs permitidos, ex. `dankDiskUsage`). Um plugin fixado é pulado antes do `git fetch`, então nunca sofre `pull` nem o `reset --hard` da recuperação de divergência: patches locais aplicados enquanto se espera um release upstream sobrevivem ao update. Vale também para monorepos do registry, usando o nome sob `.repos/`. |
-| `STALE_SERVICES_IGNORE` | vazio | Units systemd (globs permitidos, ex. `NetworkManager.service`) saciadas da auditoria de libs antigas: saem do TODO do `Doctor: serviços com libs antigas` e da lista de reinício de `--restart-services`. Para units cujo reinício quebraria sessão/rede (upgrade por SSH/Wi-Fi) e que segurarão libs velhas até o reboot por decisão consciente. |
-| `COREDUMP_IGNORE_EXE` | vazio | Executáveis (globs permitidos, ex. `ffmpeg`) saciados do `Doctor: crashes recorrentes (coredump)`: crash conhecido/esperado (ex.: um probe ativo próprio que sonda deliberadamente streams hostis) não vira TODO mesmo crashando com frequência. Compara pelo basename da coluna EXE do `coredumpctl list`. |
-| `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
-| `COPILOT_BIN` | auto | Override do binário `copilot`. |
-| `MIMO_BIN` | auto | Override do binário `mimo`; o autodetect cai para `~/.mimocode/bin/mimo` fora do PATH. |
-| `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
-| `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` (cai para `~/.config/DankMaterialShell/plugins` se só o legado existir) | Diretório dos plugins DankMaterialShell. |
-| `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |
-| `ORCA_IDE_BIN` | auto | Override do binário `stably-orca` (Orca IDE). |
-| `BURPSUITE_JAVA_BIN` | auto | Java usado pelo fallback de instalação do Burp. |
-
-Como o arquivo é carregado com `source`, use sintaxe Bash válida.
-
-### Filtro de ruído do journal
-
-O check `Doctor: journal erros críticos` agrupa erros do boot atual e filtra ruído
-conhecido (ex.: falhas HFP do `bluetoothd`). Para silenciar padrões específicos da
-sua máquina, crie `~/.config/full-upgrade/journal-noise.txt` com um regex estendido
-(`grep -E`) por linha; linhas em branco e começando com `#` são ignoradas:
-
-```text
-# um regex-E por linha
-codeisland\.service: (Failed at step CHDIR|Changing to the requested)
-ftdi_sio .*Unable to read latency timer
-```
-
-## Integrações empacotadas e plugins do usuário
-
-`steps.d/` reúne integrações com ferramentas opcionais. Elas são **empacotadas e
-versionadas no repositório** (e embutidas no binário standalone/AUR), e seguem o
-mesmo padrão dos steps core.
-
-**Integrações empacotadas — rodam por presença da ferramenta** (sem flag, igual
-aos steps de npm/cargo: se a ferramenta não existir, o step entra como `skip`):
-
-| Arquivo | Hook | Roda quando |
-| --- | --- | --- |
-| `steps.d/10-hermes.sh` | `update_hermes` | `hermes` no PATH |
-| `steps.d/30-copilot.sh` | `update_copilot_cli` | `copilot` no PATH ou `COPILOT_BIN` |
-| `steps.d/40-dms.sh` | `update_dms_plugins` | diretório `DMS_PLUGINS_DIR` existe |
-| `steps.d/60-openclaw.sh` | `update_openclaw` | `openclaw` no PATH ou `OPENCLAW_BIN` |
-| `steps.d/70-rtk.sh` | `update_rtk` | `rtk` no PATH ou `RTK_BIN` |
-| `lib/steps/artcraft.sh` + hooks em `tools.sh`/`doctor/packages.sh` | `update_artcraft`, `doctor_artcraft` | inventário em `ARTCRAFT_DIR` (padrão `~/development/artcraft`); bandeja verifica releases sem instalar |
-| `steps.d/80-orca.sh` | `ensure_orca_ide` | Orca instalado (binário/`ORCA_IDE_PACKAGE`); instala novo só com `ENABLE_CUSTOM_TOOLS=1` |
-
-A suíte Artcraft tem filtro `--only artcraft`, atualização em `full`/`update` e auditoria local em `doctor`. O step baixa apenas versões estáveis mais novas dos apps já instalados, valida SHA-256 e inicialização MCP, e atualiza os binários GUI/CLI, ícones, `.desktop`, MIME e inventários. Os caminhos usados pelos quatro clientes MCP continuam iguais. Falha de download, integridade, MCP ou integração mantém esse app na versão em uso, sem impedir a atualização dos demais. Depois dos updates, cada app guarda só a versão para a qual `current` aponta: releases e pacotes antigos, tarballs da instalação original e backups dessas versões são apagados, e o log informa o espaço liberado. Só sai o que tem o nome e o layout de um pacote do app; outros arquivos da pasta ficam. O clone original na raiz do app e qualquer clone de release com alterações locais, inclusive arquivos ignorados pelo `.gitignore`, nunca são apagados; `source-current` aponta para o clone da nova tag. `check` e `doctor` não apagam nada. A bandeja inclui contagem e lista de releases Artcraft; `FULL_UPGRADE_DISABLED_INTEGRATIONS="artcraft"` desliga atualização, doctor e consulta de releases.
-
-**Opt-in via `ENABLE_CUSTOM_TOOLS=1`** (porque INSTALA pacote, não só atualiza):
-
-| Arquivo | Hook |
-| --- | --- |
-| `steps.d/50-wireshark.sh` | `ensure_wireshark`, permissões de captura do Wireshark |
-| `steps.d/51-burp-suite.sh` | `ensure_burpsuite`, fallback PortSwigger, atalhos antigos do Burp |
-
-**Plugins do usuário:** com `ENABLE_CUSTOM_TOOLS=1`, arquivos `.sh` em
-`~/.config/full-upgrade/steps.d/` também são carregados — a última definição de
-função vence, então você pode sobrescrever uma integração empacotada. Para um
-step totalmente novo, defina a função, registre a linha em `lib/catalog.sh` e
-faça o dispatch no ponto correto de `lib/main.sh`.
-
-## Requisitos
-
-Obrigatórios:
-
-| Requisito | Observação |
-| --- | --- |
-| Arch Linux ou derivado | O fluxo assume `pacman` e convenções de Arch. |
-| Bash 4.3+ | Usa arrays, subscritos negativos e recursos modernos de Bash. |
-| `sudo` | Necessário para steps de sistema. Sem sudo, vários steps serão `skip`. |
-
-Opcionais detectados automaticamente:
-
-```text
-paru, yay, pikaur, doas, run0, sudo-rs, pacman-contrib, pacdiff, reflector,
-rate-mirrors, snapper, timeshift, informant, arch-audit, flatpak, snap, docker,
-fwupdmgr, bootctl, npm, corepack, pnpm, bun, deno, python, pipx, uv, uvx, poetry,
-rustup, cargo, cargo-install-update, cargo-audit, go, dotnet, gem, ghcup,
-arduino-cli, gcloud, claude, codex, copilot, gemini, qwen, cline, opencode,
-ollama, kimi, hermes, pi, nvim, code, cursor, codium, hyprpm, needrestart,
-checkservices, smartctl, nvme, notify-send, yad, python-gobject,
-libayatana-appindicator, xdg-terminal-exec, vulkaninfo, glxinfo
-```
-
-## Arquitetura
-
-```text
-.
-├── assets/icons/             # ícones SVG do app, dos estados e do menu do systray (gerados por scripts/gen-icons.py)
-├── res/                      # desktop entry e unit systemd user do systray
-├── full-upgrade.sh          # entrypoint: resolve paths, carrega libs e inicia o fluxo
-├── install.sh               # instalação em ~/.local/share + symlink no PATH
-├── build.sh                 # gera dist/full-upgrade-standalone.sh
-├── config.example           # template de configuração do usuário
-├── lib/
-│   ├── globals.sh           # estado global, paths e flags
-│   ├── ui.sh                # cores, símbolos, banner e resumo
-│   ├── core.sh              # helpers, run_step, status e timeouts
-│   ├── json.sh              # log JSONL e rotação
-│   ├── sudo.sh              # validação e keepalive de sudo
-│   ├── config.sh            # XDG config e auto-detecção
-│   ├── catalog.sh           # metadados dos steps e filtros
-│   ├── cli.sh               # flags, modos e saídas precoces
-│   ├── report.sh            # relatório Markdown/JSON do run (--report)
-│   ├── history.sh           # histórico/tendência de runs (--history)
-│   ├── tray.sh              # systray daemon: estado, AppIndicator/yad, menu e notificações
-│   ├── main.sh              # ordem de execução
-│   └── steps/               # implementação por domínio (ai, mcp, manual_apps, ide, audit, doctor…)
-└── steps.d/                 # hooks opcionais de ferramentas customizadas
-```
-
-O padrão central é `run_step "Nome" funcao`. Ele:
-
-1. aplica `--skip`, `--only`, `--skip-category`, `FULL_UPGRADE_SKIP` e integrações opt-out por ID estável;
-2. respeita `--dry-run`;
-3. valida dependências declaradas no catálogo;
-4. aplica timeout por step;
-5. traduz códigos especiais em `warn` e `todo`;
-6. preserva `STEP_REASON` como `reason` no JSONL;
-7. grava log humano e evento JSONL.
-
-## Boas Práticas
-
-Antes de uma execução real:
-
-```bash
-full-upgrade --dry-run
-full-upgrade --list-steps
-```
-
-Para manutenção assistida:
-
-```bash
-full-upgrade --mode update --json
-full-upgrade --mode doctor --json
-```
-
-Para reduzir risco em automações:
-
-```bash
-full-upgrade --mode update --no-repair --no-cleanup --json --quiet
-```
-
-Para investigar uma falha:
-
-```bash
-tail -n 120 ~/.cache/system-upgrade/latest.log
-jq -r 'select(.event == "step" and .status == "fail")' ~/.cache/system-upgrade/latest.jsonl
-```
-
-## Troubleshooting
-
-| Sintoma | Diagnóstico provável | Ação |
-| --- | --- | --- |
-| `full-upgrade: diretório lib/ não encontrado` | O symlink não resolve para uma instalação modular válida. | Rode `./install.sh` de novo ou use o standalone gerado por `./build.sh`. |
-| Muitos steps `skip` por sudo | Execução sem TTY, sudo ausente ou credencial indisponível. | Rode em terminal interativo ou ajuste os steps para modo sem sudo. |
-| `--only`/`--skip-category` rejeita categoria | Token não existe no catálogo. | Use `full-upgrade --list-steps` para copiar categoria/tag válida. |
-| Um step demora demais | Timeout por step foi atingido e o status vira `warn`. | Veja `latest.log` e rode `--explain-step` para entender timeout/deps. |
-| JSONL parece incompleto | Execução foi interrompida antes do resumo. | Confira eventos `run_start`, `step` e `run_end` em `latest.jsonl`. |
-| Doctor retorna `todo` | O script encontrou ação manual, não necessariamente uma falha. | Leia o bloco do step no log e decida a correção. |
-| Step de plugins reporta `conflito pendente` | O clone do plugin tem arquivos unmerged (merge ou `stash pop` interrompido); o git recusa `fetch`/`pull`/`stash` nesse estado. | `git -C <plugin> status`; resolva ou descarte com `git -C <plugin> checkout -f HEAD -- .`. O log traz o caminho exato. |
-| Plugin resetado com `stash pop` conflitado | Suas mudanças locais divergiram do upstream. A árvore é restaurada para o upstream (o plugin segue carregável) e nada é perdido. | `git -C <plugin> stash list` e `git -C <plugin> stash pop` para reconciliar quando quiser. |
-| Pacote AUR pendente run após run | PKGBUILD quebrado upstream. O retry é pulado de propósito: falha de compilação é determinística. | Acompanhe o pacote no AUR ou coloque em `FULL_UPGRADE_AUR_IGNORE` até o mantenedor corrigir. |
-
-## Desenvolvimento
-
-O gate local canônico, equivalente aos checks bloqueantes do CI, é:
-
-```bash
-scripts/preflight.sh  # Conventional Commits pendentes + bash -n + ShellCheck + build + Bats
-```
-
-Para diagnosticar uma etapa isolada, use o mesmo escopo do CI:
-
-```bash
-bash -n full-upgrade.sh install.sh build.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh scripts/*.sh
-shellcheck -S warning -x full-upgrade.sh lib/*.sh lib/steps/*.sh lib/steps/doctor/*.sh steps.d/*.sh install.sh build.sh scripts/*.sh
-bats --jobs "$(nproc)" tests/  # testes unitários, funções puras e sem mutação
-./full-upgrade.sh --help
-./full-upgrade.sh --list-steps
-XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
-./build.sh && ./dist/full-upgrade-standalone.sh --list-steps
-```
-
-`shfmt -i 4 -d …` é uma verificação local consultiva; não é gate de CI.
-Para alterações de alto risco em branch/PR, o `no-mistakes` é um gate adicional;
-veja o fluxo e a restrição de não usar `--yes` sem consentimento em
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-Ao criar ou alterar steps:
-
-1. mantenha a função no arquivo do **domínio da categoria** do step em
-   `lib/steps/` (auditorias `doctor_*` sempre em `lib/steps/doctor/<área>.sh`;
-   integrações opt-in em `steps.d/`). O mapa categoria→arquivo é validado por
-   teste, então um arquivo novo exige atualizar o mapa no mesmo commit;
-2. registre metadados em `lib/catalog.sh`;
-3. chame o step em `lib/main.sh`;
-4. defina timeout realista;
-5. use `RC_WARN` para problema não bloqueante e `RC_TODO` para ação manual;
-6. garanta que dependências ausentes gerem `skip`, não falha desnecessária;
-7. **nunca deixe uma condição permanente virar `fail`.** Se o step não tem como
-   se recuperar sozinho — upstream removido, credencial revogada, layout não
-   suportado — o `fail` vai se repetir em todo run, para sempre, sem nada que o
-   full-upgrade possa fazer. Isso é pendência do usuário: use `RC_TODO` com
-   remediação acionável e reserve o `fail` para erro que de fato indica defeito.
+| [Instalação e atualização](docs/installation.md) | [Arquitetura](docs/architecture.md) |
+| [Uso](docs/usage.md) | [Salvaguardas](docs/safeguards.md) |
+| [Steps e cobertura](docs/steps.md) | [Desenvolvimento](docs/development.md) |
+| [Doctor e auditoria](docs/doctor.md) | [Contribuindo](CONTRIBUTING.md) |
+| [Configuração](docs/configuration.md) | [Segurança](SECURITY.md) |
+| [Systray](docs/tray.md) | [Changelog](CHANGELOG.md) |
+| [Logs e relatórios](docs/logs-and-reports.md) | |
+| [Solução de problemas](docs/troubleshooting.md) | |
 
 ## Apoie o projeto
 
@@ -888,17 +115,11 @@ Se o `full-upgrade` te poupa tempo, considere apoiar o desenvolvimento:
 <a href="https://ko-fi.com/bernardopg"><img src="https://img.shields.io/badge/Ko--fi-FF5E5B?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi"></a>
 <a href="https://www.buymeacoffee.com/wctwom9emu"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buymeacoffee&logoColor=black" alt="Buy Me a Coffee"></a>
 
-## Contribuindo
-
-Contribuições são bem-vindas. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para o
-fluxo de validação e o padrão de steps, e [SECURITY.md](SECURITY.md) para
-reportar vulnerabilidades.
-
 ## Licença
 
-MIT. Veja [LICENSE](LICENSE).
+[MIT](LICENSE).
 
 <div align="center">
 <br>
-<sub>Feito com ☕ e Bash por <a href="https://github.com/bernardopg">@bernardopg</a> · <a href="https://github.com/bernardopg/full-upgrade/releases/latest">Última release</a></sub>
+<sub>Feito com ☕ e Bash por <a href="https://github.com/bernardopg">@bernardopg</a></sub>
 </div>

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `full-upgrade` is a modular Bash orchestrator for upgrading, maintaining, and auditing Arch Linux machines. Pure Bash 4+, no compiled artifacts. Output and inline comments are PT-BR.
 
+User and developer documentation lives in `docs/` (one topic per file, indexed by `docs/README.md`); the root `README.md` is only the overview. When a change alters behavior, a config key or a CLI flag, update the matching `docs/*.md` page in the same commit.
+
 ## Commands
 
 ```bash
