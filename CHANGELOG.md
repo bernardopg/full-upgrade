@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.54.2] - 2026-11-17
 ### Manutenção
 
 - CI: todos os jobs rodam no runner `ubuntu-26.04` (antes `ubuntu-latest`,
