@@ -40,7 +40,7 @@ ctx = dict(json=json, datetime=datetime, textwrap=textwrap,
            os=__import__('os'), checking=False, check_error='', _menu_key=None,
            _relative_items={}, _previous_menus=[],
            LOG_DIR='', SELF='full-upgrade', FU_ROOT=str(ROOT), SYSTEM_ICON_DIR='/nonexistent',
-           ICON_PLACEHOLDER='#bebebe', ICON_COLOR='#bebebe', MENU_ICON_PX=32,
+           ICON_PLACEHOLDER='#bebebe', ICON_COLOR='#bebebe', MENU_ICON_PX=32, MENU_TEXT_W=28, TITLE='full-upgrade',
            ICON_CACHE_DIR=tempfile.mkdtemp(), _icon_color_probe=None,
            # Pixbuf e Image devolvem o caminho do SVG para o teste conferir o arquivo.
            GdkPixbuf=SimpleNamespace(Pixbuf=SimpleNamespace(new_from_file_at_size=lambda path, w, h: path)),
@@ -64,9 +64,9 @@ ctx['rebuild_menu'](data)
 menu = menus[-1]
 pending = next(i for i in menu.children if i.label.startswith('Avisos'))
 lines = [i.label for i in pending.children if i.label]
-assert len(lines) > 35 and max(map(len, lines)) <= 30
+assert len(lines) > 35 and max(map(len, lines)) <= ctx['MENU_TEXT_W']
 # No entry count cap or truncated tail: compare the complete wrapped output.
-assert lines == [line for entry in entries for line in textwrap.wrap(entry, 30, break_on_hyphens=False)]
+assert lines == [line for entry in entries for line in textwrap.wrap(entry, ctx['MENU_TEXT_W'], break_on_hyphens=False)]
 assert next(i for i in menu.children if i.label == 'Atualizar').image.endswith('/full-upgrade-menu-update.svg')
 ctx['rebuild_menu'](dict(data, prev_state='idle'))
 assert len(menus) == 1, 'unchanged menu should preserve navigation'
@@ -107,13 +107,47 @@ timed = {'state': 'idle', 'checked_at': now.isoformat(),
 ctx['_menu_key'] = None
 menus.clear()
 ctx['rebuild_menu'](timed)
-summary = next(i for i in menus[-1].children if i.label == 'Resumo da execução')
-assert [c.label for c in summary.children] == ['Última execução: há 5 min'], 'sem "Nenhum item"'
+# Verificação e último run em linhas curtas logo abaixo do estado (antes: um
+# submenu "Resumo da execução" com uma linha; juntos não cabiam na largura).
+labels = [i.label for i in menus[-1].children]
+assert labels[1:3] == ['Verificado agora', 'Último run há 5 min'], labels
+assert 'Resumo da execução' not in labels
+assert not menus[-1].children[1].enabled, 'metadado é secundário'
+assert all(i.image for i in menus[-1].children[:3]), 'linhas do topo alinhadas: todas com ícone'
+assert menus[-1].children[0].enabled, 'linha de estado não pode sair esmaecida'
 real_relative = ctx['relative_time']
 ctx['relative_time'] = lambda iso: 'há 7 min' if iso == timed['last_run_at'] else real_relative(iso)
 ctx['refresh_relative_labels'](timed)
-assert len(menus) == 1 and summary.children[0].label == 'Última execução: há 7 min'
+assert len(menus) == 1 and menus[-1].children[2].label == 'Último run há 7 min'
 ctx['relative_time'] = real_relative
+assert ctx['meta_labels']({}) == {}
+assert all(len(t) <= ctx['MENU_TEXT_W'] for t in ctx['meta_labels'](timed).values())
+
+# Reinicialização pendente vira linha própria, com ícone, fora de submenu.
+ctx['_menu_key'] = None
+menus.clear()
+ctx['rebuild_menu'](dict(timed, state='attention', reboot='kernel 7.3.4 → 7.3.5'))
+reboot_item = next(i for i in menus[-1].children if i.label == 'Reinicialização pendente')
+assert reboot_item.image.endswith('/full-upgrade-menu-reboot.svg')
+assert [c.label for c in reboot_item.children] == ['kernel 7.3.4 → 7.3.5']
+# Linhas de pacote legíveis (habilitadas) dentro do submenu.
+ctx['_menu_key'] = None
+menus.clear()
+ctx['rebuild_menu']({'state': 'updates', 'repo': 1, 'repo_updates': ['flex 2.6.10-1 -> 2.6.15-1']})
+repo_menu = next(i for i in menus[-1].children if i.label == 'Pacotes oficiais (1)')
+assert [c.label for c in repo_menu.children] == ['flex', '   2.6.10-1 → 2.6.15-1']
+assert all(c.enabled for c in repo_menu.children)
+# Versão longa (pacote -git): a nova não pode sumir na reticência do host.
+long_lines = ctx['package_lines']('rex 0.0.1794939798_g202b1b-1 -> 0.0.1794945000_gabcdef-1')
+assert long_lines == ['rex', '   0.0.1794939798_g202b1b-1', '   → 0.0.1794945000_gabcdef-1']
+assert all(len(l) <= ctx['MENU_TEXT_W'] + 2 for l in long_lines)
+# Sem nenhuma fonte com itens, não sobra separador duplicado.
+seps = [i for i in menus[-1].children if i.label == '']
+ctx['_menu_key'] = None
+menus.clear()
+ctx['rebuild_menu']({'state': 'idle'})
+kids = menus[-1].children
+assert all(not (a.label == '' and b.label == '') for a, b in zip(kids, kids[1:])), [k.label for k in kids]
 print('Tray: plural, package lines, breakdown and in-place relative labels OK')
 
 # Atomic writes by an external runner update the menu without a network probe.
@@ -134,7 +168,7 @@ print('Tray: external state publications reload without network OK')
 # ícone do estado do painel. Um nome sem arquivo sumiria do menu sem erro.
 ctx['_menu_key'] = None
 menus.clear()
-full = dict(data, state='updates', repo=1, aur=1, flatpak=1, artcraft=1,
+full = dict(data, state='updates', reboot='kernel', repo=1, aur=1, flatpak=1, artcraft=1,
             repo_updates=['a 1-1 -> 1-2'], aur_updates=['b 1-1 -> 1-2'],
             flatpak_updates=['c'], artcraft_updates=['d'], checked_at=now.isoformat())
 ctx['check_error'] = 'timeout'
@@ -181,3 +215,12 @@ if old_env is None:
 else:
     os_mod.environ['XDG_DATA_HOME'] = old_env
 print('Tray: packaged icons win over orphaned user-local copies OK')
+
+# Notificações com plural correto ("1 avisos e pendências" antes).
+notices.clear()
+ctx.update(NOTIFICATIONS_ENABLED=True, desktop_notify=lambda *args: notices.append(args))
+ctx['transition_notify']({'state': 'attention', 'prev_state': 'idle', 'todo': 1})
+assert notices[-1][1] == '1 item precisa de revisão.', notices[-1]
+ctx['transition_notify']({'state': 'attention', 'prev_state': 'idle', 'todo': 3})
+assert notices[-1][1] == '3 itens precisam de revisão.', notices[-1]
+print('Tray: notification plurals OK')

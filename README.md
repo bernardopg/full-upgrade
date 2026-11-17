@@ -233,13 +233,15 @@ informativo e reativo:
 - **Realce de atenção** — estados `error`/`attention` entram em
   `IndicatorStatus.ATTENTION`, que barras compatíveis destacam.
 - **Menu dinâmico** (reconstruído quando o estado muda, sem perder a
-  navegação). No topo ficam o estado com o ícone correspondente e
-  “Verificado há X”, atualizado a cada minuto sem recriar o menu. Em seguida
-  vêm **Resumo da execução** (última execução, fontes com atualização e
-  motivo de reboot pendente) e um submenu por fonte com itens: **Pacotes
-  oficiais**, **Pacotes AUR**, **Aplicativos Flatpak**, **Suíte Artcraft** e
-  **Avisos e pendências**. Pacotes aparecem como nome e `versão → versão`;
-  pendências, como nome do step com o motivo recuado. Abaixo ficam as ações:
+  navegação). O cabeçalho é sempre “full-upgrade”. No topo ficam o estado com
+  o ícone correspondente, “Verificado há X” e “Último run há Y” (atualizados a
+  cada minuto sem recriar o menu) e, quando houver, **Reinicialização
+  pendente** com o motivo. Em seguida vem um submenu por fonte com itens:
+  **Pacotes oficiais**, **Pacotes AUR**, **Aplicativos Flatpak**, **Suíte
+  Artcraft** e **Avisos e pendências**. Pacotes aparecem como nome e
+  `versão → versão` (versões longas, como as de pacotes `-git`, em duas
+  linhas); pendências, como nome do step com o motivo recuado. As linhas são
+  quebradas em 28 caracteres, a largura do menu do DMS. Abaixo ficam as ações:
   **Atualizar** (Sistema completo ou Somente pacotes, `--mode update`),
   **Diagnosticar (Doctor)**, **Executar reparos**, **Verificar agora**,
   **Logs e relatórios** (Último log do run resumido, Último relatório e Pasta

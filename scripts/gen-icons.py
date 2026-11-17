@@ -42,7 +42,7 @@ TRAY = {
 MENU = {
     "check-error": "sync_problem",
     "checked": "schedule",
-    "summary": "info",
+    "reboot": "restart_alt",
     "repo": "package_2",
     "aur": "deployed_code",
     "flatpak": "apps",

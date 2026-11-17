@@ -1039,6 +1039,10 @@ ICON_CACHE_DIR = os.path.join(
 # Os ícones do menu vão como pixbuf (icon-data no dbusmenu): o host SNI não
 # conhece nomes próprios do full-upgrade. 32px fica nítido com escala 2x.
 MENU_ICON_PX = 32
+TITLE = "full-upgrade"
+# Largura útil de uma linha no menu do DMS (largura fixa, ~28 caracteres antes
+# da reticência): acima disso a versão nova de um pacote sumia ("… → …").
+MENU_TEXT_W = 28
 
 
 def plural(n, one, many):
@@ -1366,13 +1370,17 @@ def apply_state(data):
     current_icon = icon
     tooltip = tooltip_for_state(data)
 
-    # Ícone (com fallback) + título (lido pelos hosts SNI como tooltip).
+    # Ícone (com fallback). A descrição acessível leva o estado completo.
     try:
         indicator.set_icon_full(icon, tooltip)
     except Exception:
         indicator.set_icon(icon)
+    # O título fica fixo: o DMS o usa como cabeçalho do menu, cortava o texto
+    # no meio ("full-upgrade: …2 atualizações") e não acompanhava as trocas,
+    # mostrando um estado velho acima do estado atual. O estado vive na linha
+    # principal do menu, no ícone e no badge.
     try:
-        indicator.set_title(tooltip)
+        indicator.set_title(TITLE)
     except Exception:
         pass
 
@@ -1414,7 +1422,8 @@ def transition_notify(data):
             "Clique no ícone para executar o full-upgrade.",
         )
     elif state == "attention":
-        body = f"Reboot pendente: {reboot}" if reboot else f"{todo} avisos e pendências precisam de revisão."
+        body = (f"Reboot pendente: {reboot}" if reboot
+                else f"{plural(todo, 'item precisa', 'itens precisam')} de revisão.")
         desktop_notify("full-upgrade: atenção necessária", body)
     elif state == "error":
         desktop_notify(
@@ -1444,7 +1453,7 @@ def finish_refresh(data, user_initiated=False, probed=False, error=""):
         elif fail > 0:
             body = f"Último run com {plural(fail, 'falha', 'falhas')}."
         elif todo > 0:
-            body = f"{todo} avisos e pendências."
+            body = f"{plural(todo, 'item para revisar', 'itens para revisar')}."
         elif updates > 0:
             body = f"{plural(updates, 'atualização', 'atualizações')}: {updates_breakdown(data)}."
         else:
@@ -1540,9 +1549,31 @@ def menu_item(label, callback=None, enabled=True, icon=""):
     return item
 
 def info_item(label, icon=""):
+    """Linha secundária (esmaecida pelo host): metadados, "Nenhum item"."""
     return menu_item(label, enabled=False, icon=icon)
 
-def entry_lines(entry, width=30):
+
+def text_item(label, icon=""):
+    """Linha de conteúdo legível. Item desabilitado sai esmaecido no DMS, o que
+    apagava justamente o estado e os nomes de pacote; habilitado sem ação, o
+    clique só fecha o menu."""
+    return menu_item(label, enabled=True, icon=icon)
+
+
+def meta_labels(data):
+    """["Verificado há 16 min", "Último run há 37 min"] (o que houver).
+
+    Cada um numa linha: juntos não cabiam na largura do menu do DMS."""
+    labels = {}
+    rel = relative_time(str(data.get("checked_at") or ""))
+    run_rel = relative_time(str(data.get("last_run_at") or ""))
+    if rel:
+        labels["checked"] = f"Verificado {rel}"
+    if run_rel:
+        labels["run"] = f"Último run {run_rel}"
+    return labels
+
+def entry_lines(entry, width=MENU_TEXT_W):
     """Quebra "<item> — <motivo>" em linhas: o item primeiro, o motivo recuado.
 
     Sem separar, o nome do step e o motivo corriam juntos e a quebra caía no
@@ -1556,16 +1587,20 @@ def entry_lines(entry, width=30):
     return lines
 
 
-def package_lines(entry, width=30):
+def package_lines(entry, width=MENU_TEXT_W):
     """"pkg 1.0-1 -> 1.1-1" vira o nome e, recuado, "1.0-1 → 1.1-1".
 
     A quebra por largura cortava a linha no "->" e jogava a versão nova
-    sozinha na linha seguinte.
+    sozinha na linha seguinte. Versões longas (pacotes -git) não cabem numa
+    linha do menu: a atual e a nova vão em linhas próprias.
     """
     parts = entry.split()
     if len(parts) == 4 and parts[2] == "->":
         name, old, _, new = parts
-        return [name, f"   {old} → {new}"]
+        joined = f"   {old} → {new}"
+        if len(joined) <= width:
+            return [name, joined]
+        return [name, f"   {old}", f"   → {new}"]
     return entry_lines(entry, width)
 
 
@@ -1584,7 +1619,7 @@ def submenu_item(label, entries, empty_label="Nenhum item", icon="", formatter=N
         # Hosts SNI como DMS usam linhas de altura fixa: publicar cada linha
         # preserva o texto inteiro sem depender de wrapping no host.
         for line in (formatter or entry_lines)(entry):
-            submenu.append(info_item(line))
+            submenu.append(text_item(line))
     if not entries and empty_label:
         submenu.append(info_item(empty_label))
     item.set_submenu(submenu)
@@ -1599,12 +1634,10 @@ def separator():
 def rebuild_menu(data):
     """Atualiza apenas quando o conteúdo muda; preserva navegação no menu."""
     global _menu_key
-    rel = relative_time(str(data.get("checked_at") or ""))
-    run_rel = relative_time(str(data.get("last_run_at") or ""))
     menu_data = {key: value for key, value in data.items() if key not in ("checked_at", "prev_state")}
-    # Só a presença dos textos relativos entra na chave; o valor muda a cada
+    # Só a presença do texto relativo entra na chave; o valor muda a cada
     # minuto e é atualizado no lugar por refresh_relative_labels.
-    key = (json.dumps(menu_data, sort_keys=True), checking, check_error, bool(rel), bool(run_rel))
+    key = (json.dumps(menu_data, sort_keys=True), checking, check_error, tuple(meta_labels(data)))
     if key == _menu_key:
         refresh_relative_labels(data)
         return
@@ -1614,25 +1647,19 @@ def rebuild_menu(data):
     flatpak = _int(data.get("flatpak"))
     can_run = state != "running"
     menu = Gtk.Menu()
-    menu.append(info_item(state_headline(data), icon_name_for_state(state)))
+    menu.append(text_item(state_headline(data), icon_name_for_state(state)))
+    meta = meta_labels(data)
+    for name, text in meta.items():
+        # Toda linha do menu leva ícone: sem ele o texto começa mais à esquerda
+        # que o das vizinhas no DMS.
+        _relative_items[name] = info_item(text, menu_icon("checked" if name == "checked" else "log"))
+        menu.append(_relative_items[name])
+    if reboot:
+        menu.append(submenu_item("Reinicialização pendente", [reboot], icon=menu_icon("reboot")))
     if check_error:
         menu.append(submenu_item("Verificação incompleta", [check_error], icon=menu_icon("check-error")))
-    if rel:
-        _relative_items["checked"] = info_item(f"Verificado {rel}", menu_icon("checked"))
-        menu.append(_relative_items["checked"])
-    details = []
-    if _updates_total(data):
-        details.append(f"Atualizações: {updates_breakdown(data)}")
-    if reboot:
-        details.append(f"Reinicialização pendente: {reboot}")
-    if details or run_rel:
-        summary = submenu_item("Resumo da execução", details, empty_label="", icon=menu_icon("summary"))
-        if run_rel:
-            _relative_items["run"] = info_item(f"Última execução: {run_rel}")
-            summary.get_submenu().prepend(_relative_items["run"])
-            if details:
-                summary.get_submenu().insert(separator(), 1)
-        menu.append(summary)
+    menu.append(separator())
+    has_sources = False
     for label, field, count, icon, formatter in (
         ("Pacotes oficiais", "repo_updates", repo, menu_icon("repo"), package_lines),
         ("Pacotes AUR", "aur_updates", aur, menu_icon("aur"), package_lines),
@@ -1643,7 +1670,9 @@ def rebuild_menu(data):
         entries = as_list(data, field)
         if entries or count:
             menu.append(submenu_item(f"{label} ({count})", entries, icon=icon, formatter=formatter))
-    menu.append(separator())
+            has_sources = True
+    if has_sources:
+        menu.append(separator())
     update_item = menu_item("Atualizar", enabled=can_run, icon=menu_icon("update"))
     update_menu = Gtk.Menu()
     update_menu.append(menu_item("Sistema completo", lambda: launch_and_refresh([SELF, "--tray-launch"]),
@@ -1687,18 +1716,11 @@ def rebuild_menu(data):
 
 
 def refresh_relative_labels(data=None):
-    """Atualiza "Verificado há…" e "Última execução: há…" sem recriar o menu."""
+    """Atualiza "Verificado há…" e "Último run há…" sem recriar o menu."""
     data = data if data is not None else load_state()
-    texts = {
-        "checked": relative_time(str(data.get("checked_at") or "")),
-        "run": relative_time(str(data.get("last_run_at") or "")),
-    }
-    for name, item in list(_relative_items.items()):
-        rel = texts.get(name, "")
-        if not rel:
-            continue
-        label = f"Verificado {rel}" if name == "checked" else f"Última execução: {rel}"
-        if item.get_label() != label:
+    for name, label in meta_labels(data).items():
+        item = _relative_items.get(name)
+        if item is not None and item.get_label() != label:
             item.set_label(label)
     return True
 
@@ -1721,7 +1743,7 @@ indicator = AppIndicator.Indicator.new(
     AppIndicator.IndicatorCategory.SYSTEM_SERVICES,
 )
 indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-indicator.set_title("full-upgrade")
+indicator.set_title(TITLE)
 # Scroll sobre o ícone => verifica agora (atalho sem abrir o menu).
 # Debounce: um gesto de scroll emite vários eventos; sem isto cada "notch"
 # disparava um toast "Verificação já em andamento".

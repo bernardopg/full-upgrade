@@ -191,11 +191,25 @@ jobs:
           cat dist/full-upgrade-standalone.sh.sha256
 
       - name: Attest build provenance
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/full-upgrade-standalone.sh
             dist/full-upgrade-standalone.sh.sha256
+
+      # O bundle Sigstore da atestação também vai como asset da release: o
+      # OpenSSF Scorecard (Signed-Releases) só reconhece assinatura/proveniência
+      # anexada à release (*.sigstore.json, *.intoto.jsonl), não a registrada na
+      # API de attestations. Verificável offline com:
+      #   gh attestation verify full-upgrade-standalone.sh \
+      #     --bundle full-upgrade-standalone.sh.sigstore.json --repo bernardopg/full-upgrade
+      - name: Copy provenance bundle
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          test -s "${BUNDLE}"
+          cp "${BUNDLE}" dist/full-upgrade-standalone.sh.sigstore.json
 
       - name: Resolve tag
         id: tag
@@ -248,6 +262,7 @@ jobs:
           files: |
             dist/full-upgrade-standalone.sh
             dist/full-upgrade-standalone.sh.sha256
+            dist/full-upgrade-standalone.sh.sigstore.json
 
   publish-aur:
     name: Publish to AUR

@@ -1062,9 +1062,8 @@ update_claude_plugins() {
     local -a why=()
     ((${#failed[@]} > 0)) && why+=("falha ao atualizar plugin(s): ${failed[*]}")
     ((${#deferred[@]} > 0)) && why+=("adiado(s) por tempo: ${deferred[*]}")
-    local IFS=';'
-    STEP_REASON="${why[*]}"
-    STEP_REASON="${STEP_REASON//;/; }"
+    printf -v STEP_REASON '%s; ' "${why[@]}"
+    STEP_REASON="${STEP_REASON%; }"
     return "$RC_WARN"
   fi
   if ((${#confirm[@]} > 0)); then

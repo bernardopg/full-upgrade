@@ -3,10 +3,16 @@
 # disponibilizam binário pré-compilado, e o kcov não está no apt do
 # ubuntu-24.04 (apenas no universe do 22.04). Espelha scripts/install-bats.sh:
 # versão pinada, instala sob .ci/ (gitignored).
+#
+# Pin em commit do master, não na tag v43 (2024): com o bash 5.3 (Ubuntu
+# 26.04, Arch) o motor de bash da v43 perde os traces e a cobertura caiu de
+# 52% para 27% no Codecov (lib/testable/*.sh foram de 100% para 0%). O master
+# traz as correções do bash-engine (#510, #517, #518). KCOV_VERSION aceita
+# tag ou SHA.
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${KCOV_VERSION:-v43}"
+VERSION="${KCOV_VERSION:-bbaa197381a34080a0aa0de09de32f9c57c4cbc7}"
 DEST="${KCOV_INSTALL_DIR:-${ROOT}/.ci/kcov}"
 WORK="${ROOT}/.ci/kcov-src"
 ARCHIVE="${ROOT}/.ci/kcov-${VERSION}.tar.gz"
@@ -34,7 +40,7 @@ mkdir -p "${ROOT}/.ci"
 
 echo ":: Baixando kcov ${VERSION}..."
 curl -fsSL \
-    "https://github.com/SimonKagstrom/kcov/archive/refs/tags/${VERSION}.tar.gz" \
+    "https://github.com/SimonKagstrom/kcov/archive/${VERSION}.tar.gz" \
     -o "$ARCHIVE"
 mkdir -p "$WORK"
 tar -xzf "$ARCHIVE" -C "$WORK" --strip-components=1

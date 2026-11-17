@@ -39,6 +39,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   Agora roda com prioridade de I/O ociosa, limite de 180s, e só repete a
   verificação completa quando os refs mudaram ou a última verificação limpa
   tem mais de `FLATPAK_REPAIR_MAX_AGE_DAYS` (7) dias.
+- **Tray (menu do DMS):** o cabeçalho mostrava um estado velho e cortado
+  ("full-upgrade: …2 atualizações" com o sistema já atualizado), a linha de
+  estado e os nomes de pacote saíam esmaecidos (itens desabilitados), a versão
+  nova de pacotes `-git` sumia na reticência e "Resumo da execução" era um
+  submenu de uma linha. Agora: título fixo, estado e pacotes legíveis,
+  versões longas em duas linhas, "Verificado" e "Último run" no topo,
+  reinicialização pendente com ícone próprio e linhas de até 28 caracteres.
+  Notificações com plural correto ("1 item precisa de revisão").
+- **Coverage do Codecov caiu de 52% para 27%:** o kcov v43 perde os traces
+  com o bash 5.3 do runner `ubuntu-26.04`. O CI compila o kcov num commit do
+  master com as correções do motor de bash (57,9% medido localmente).
+- **CI vermelho na `main`:** um teste de `Doctor: apps manuais` lia o `/opt`
+  real do host, que no runner tem dezenas de diretórios e escondia o
+  candidato esperado (`MANUAL_APPS_OPT_DIR` isola o teste). O Semgrep barrava
+  um `local IFS` em `update_claude_plugins`.
 - **TUI de configuração:** valor truncado colava na descrição, o rótulo do
   menu colava na dica em terminais estreitos, o rodapé cortava um atalho no
   meio e o caminho do config quebrava a linha. Caminhos aparecem com `~`.
@@ -63,6 +78,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   runs de escopos diferentes; o `--report` mostra escopo, comando, reboot
   recomendado, os 3 steps mais lentos e o caminho do JSONL.
 - O resumo do terminal mostra o motivo de cada step pulado.
+- Releases anexam o bundle Sigstore da proveniência
+  (`full-upgrade-standalone.sh.sigstore.json`), verificável com
+  `gh attestation verify --bundle` (sobe o Signed-Releases do Scorecard).
 - Run ~3 min mais rápido sem novidades:
   - Ferramentas Go: só reinstala quando `go list -m mod@latest` ou a toolchain
     mudaram (antes, `go install` nas 9 ferramentas em todo run).

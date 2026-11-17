@@ -31,8 +31,15 @@ Você receberá uma confirmação inicial em até 7 dias.
   arquivos de origem não confiável.
 - Ferramentas customizadas em `steps.d/` ficam desabilitadas por padrão
   (`ENABLE_CUSTOM_TOOLS=0`).
-- O standalone publicado nas releases acompanha um `.sha256`; verifique-o antes de
-  executar.
+- O standalone publicado nas releases acompanha um `.sha256` e o bundle
+  Sigstore da proveniência de build (`.sigstore.json`). Verifique antes de
+  executar:
+
+  ```bash
+  sha256sum -c full-upgrade-standalone.sh.sha256
+  gh attestation verify full-upgrade-standalone.sh \
+    --bundle full-upgrade-standalone.sh.sigstore.json --repo bernardopg/full-upgrade
+  ```
 
 ## Riscos aceitos (OpenSSF Scorecard)
 
@@ -53,6 +60,12 @@ explicação:
   a última versão" contradiz o propósito da feature. O risco residual (supply
   chain do registro npm) é o mesmo que qualquer `npm install -g` manual do
   usuário.
+
+- **Code-Review e Branch-Protection** — projeto de um mantenedor só, com push
+  direto na `main` protegido contra force-push. Exigir aprovação de outra
+  pessoa em todo PR travaria o fluxo sem revisor disponível; o portão é o
+  `scripts/preflight.sh` (hook `pre-push`) mais o CI, Semgrep e Commitlint
+  depois do push.
 
 Esses alerts ficam com `dismissed_reason` preenchido no Code Scanning,
 referenciando esta seção.

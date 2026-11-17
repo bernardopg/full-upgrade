@@ -798,9 +798,10 @@ update_node_nvm() {
     mapfile -t carry < <(npm_prefix_packages "$old_prefix" | grep -vxE 'npm|corepack')
     if (( ${#carry[@]} > 0 )); then
       log "  Reinstalando no Node ${latest}: ${carry[*]}"
-      out="$(npm install -g --prefix "$new_prefix" "${carry[@]/%/@latest}" 2>&1)"
+      # run_network_cmd (como nos demais `npm install` do projeto) já grava a
+      # saída no log e trata DNS/conectividade como transitório.
+      out="$(run_network_cmd npm install -g --prefix "$new_prefix" "${carry[@]/%/@latest}")"
       rc=$?
-      log_raw "$out"
       if (( rc != 0 )); then
         printf '%s\n' "$out" | grep -v '^$' | tail -10 | log_out || true
         failed=("${carry[@]}")

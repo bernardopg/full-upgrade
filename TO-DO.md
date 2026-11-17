@@ -92,6 +92,32 @@ real falhada. Todo `*.scope` é transitório: o Doctor o trata como informativo
 e "Limpar scopes transitórios de apps" faz `reset-failed` em qualquer scope,
 não só `app-*.scope`.
 
+#### V9 — 🔴 P ☑ CI vermelho e Semgrep bloqueando na `main`
+
+`tests/manual_apps.bats` lia o `/opt` do host (no runner: hostedtoolcache,
+az…) e a lista truncada escondia o candidato; `MANUAL_APPS_OPT_DIR` isola o
+teste. Semgrep (`ifs-tampering`) barrava um `local IFS` em `ai.sh`.
+
+#### V10 — 🔴 P ☑ Coverage 52% → 27% no Codecov
+
+Causa: troca do runner para `ubuntu-26.04` (bash 5.3) — o kcov v43 (2024)
+perde os traces (`lib/testable/*` de 100% para 0%). `install-kcov.sh` fixa
+um commit do master com as correções do bash-engine. Local: 57,9%.
+
+#### V11 — 🟡 P ☑ Scorecard: Signed-Releases e Pinned-Dependencies
+
+O bundle Sigstore da atestação vai como asset da release (o Scorecard só
+reconhece proveniência anexada). O único `npm install` direto passou por
+`run_network_cmd`, como os demais. Code-Review/Branch-Protection ficam como
+risco aceito (mantenedor único) no SECURITY.md.
+
+#### V12 — 🔴 M ☑ Tray: revisão visual e lógica do menu
+
+Medido no DMS real (captura do menu): cabeçalho com estado velho e cortado,
+estado e pacotes esmaecidos, versão nova de pacote `-git` cortada, submenu de
+uma linha, linha sem ícone desalinhada, plural errado nas notificações.
+Corrigido; `tests/tray_appindicator.py` cobre cada ponto.
+
 #### V8 — 🟡 M ☑ `Doctor: Flatpak repair dry-run` estourava o limite de 60s
 
 Com runtimes do Flathub na instalação do usuário (6,7 GB), o repair confere

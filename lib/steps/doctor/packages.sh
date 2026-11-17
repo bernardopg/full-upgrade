@@ -487,8 +487,11 @@ doctor_manual_apps() {
   #    pacotes do repo/AUR também usam /opt (google-chrome, spotify, android-studio,
   #    intel-oneapi…). Probe de propriedade: se o 1º arquivo dentro pertence a um
   #    pacote, é gerenciado e não conta. Dirs vazios também são ignorados.
-  if [[ -d /opt ]]; then
-    for d in /opt/*/; do
+  # MANUAL_APPS_OPT_DIR existe para o teste isolar o /opt do host (o runner do
+  # CI tem hostedtoolcache, az… e a lista truncada escondia o candidato).
+  local opt_dir="${MANUAL_APPS_OPT_DIR:-/opt}"
+  if [[ -d "$opt_dir" ]]; then
+    for d in "$opt_dir"/*/; do
       [[ -d "$d" ]] || continue
       [[ -L "${d%/}" ]] && continue          # ignora symlink (ex.: /opt/idea -> idea-X.Y)
       name="${d%/}"; name="${name##*/}"
