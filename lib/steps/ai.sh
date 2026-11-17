@@ -137,7 +137,8 @@ update_kilo() {
   log "  kilo (Kilo Code CLI): ${before:-?} → $(kilo --version 2>/dev/null | head -1)"
   return 0
 }
-update_mimo() { _opencode_style_upgrade "mimo (MiMo Code)" mimo; }
+# MIMO_BIN (autodetectado em load_config) cobre o ~/.mimocode/bin/mimo fora do PATH.
+update_mimo() { _opencode_style_upgrade "mimo (MiMo Code)" "${MIMO_BIN:-mimo}"; }
 
 
 # H1 — atualiza o pi (pi-coding-agent, pacote npm @earendil-works/pi-coding-agent).
@@ -399,6 +400,14 @@ update_kimi() {
 
   local foreign_prefix out rc
   foreign_prefix="$(kimi_foreign_npm_prefix)"
+  # ~/.npm-global e o prefixo do Node do nvm já são atualizados por 'Atualizar
+  # npm global secundário' (npm_secondary_prefix_candidates); repetir o npm
+  # install aqui reinstalava o mesmo pacote duas vezes no run.
+  if [[ -n "$foreign_prefix" ]] && declare -F npm_secondary_prefix_candidates >/dev/null \
+     && grep -qxF -- "$foreign_prefix" <<<"$(npm_secondary_prefix_candidates)"; then
+    log "  kimi é npm global em ${foreign_prefix}; já coberto por 'Atualizar npm global secundário'."
+    return 0
+  fi
   if [[ -n "$foreign_prefix" ]]; then
     log "  kimi é npm global no prefixo ${foreign_prefix} (fora do npm ativo); verificando registry…"
     # No-op quando já está na latest: `npm install -g pkg@latest` REINSTALA
@@ -496,6 +505,18 @@ update_agent_skills() {
   else
     log "  Atualizando agent skills globais via 'npx skills update --global'…"
   fi
+  local heads="" heads_file
+  heads_file="$(agent_skills_heads_file)"
+  if heads="$(agent_skills_source_heads "$lock")"; then
+    if [[ -r "$heads_file" && "$(agent_skills_fingerprint "$heads" "$lock")" == "$(<"$heads_file")" ]]; then
+      log "  Nenhuma das $(grep -c . <<<"$heads") fonte(s) mudou desde o último update (git ls-remote); skills CLI não precisa rodar."
+      agent_skills_git_ff "$skills_dir"
+      return
+    fi
+  else
+    heads=""
+  fi
+
   local output rc
   # Versão do CLI: a mais nova, salvo se ela já foi marcada como lenta (ver
   # agent_skills_cli_pick). O skills 1.7.5 passou a varrer os diretórios de
@@ -590,6 +611,12 @@ update_agent_skills() {
     return "$RC_WARN"
   fi
 
+  # O lock reescrito pelo update entra no fingerprint salvo: o próximo run só
+  # chama o CLI se alguma fonte ganhar commit ou o lock mudar por fora.
+  if [[ -n "$heads" ]] && mkdir -p "$(dirname "$heads_file")" 2>/dev/null; then
+    agent_skills_fingerprint "$heads" "$lock" >"$heads_file" 2>/dev/null || true
+  fi
+
   # Skill removida do upstream não é apagada em modo não-interativo e some da
   # atualização para sempre; o aviso ficava cortado pelo tail acima.
   local orphans
@@ -605,6 +632,41 @@ update_agent_skills() {
 # no orçamento) e `slow=<versão>` (versão que o excedeu). Arquivo de estado,
 # não config: é aprendido sozinho e volta a testar a mais nova assim que o
 # upstream publica outra versão.
+# ── Pular o skills CLI quando nada mudou (U16) ──────────────────────────────────
+# `npx skills update --global` clona/consulta as fontes em todo run (54–98s),
+# mesmo sem commit novo em nenhuma. O lock lista o sourceUrl de cada skill; se
+# o HEAD de todas as fontes (git ls-remote, ~0,4s cada) e o próprio lock estão
+# iguais aos do último update bem-sucedido, não há o que atualizar.
+agent_skills_heads_file() {
+  printf '%s/full-upgrade/agent-skills-heads\n' "${XDG_STATE_HOME:-${HOME}/.local/state}"
+}
+
+# URLs git únicas do lock ($1), ordenadas. Vazio se o lock não é legível.
+agent_skills_source_urls() {
+  [[ -r "$1" ]] && has jq || return 0
+  jq -r '.skills // {} | to_entries[] | .value.sourceUrl // empty' "$1" 2>/dev/null | LC_ALL=C sort -u
+}
+
+# "url sha" do HEAD de cada fonte. rc 1 se alguma fonte não responde ou se
+# alguma skill não tem sourceUrl (aí o fingerprint não prova nada).
+agent_skills_source_heads() {
+  local lock="$1" url sha total with_url
+  [[ -r "$lock" ]] && has jq && has git || return 1
+  total="$(jq -r '.skills // {} | length' "$lock" 2>/dev/null)"
+  with_url="$(jq -r '[.skills // {} | .[] | select(.sourceUrl)] | length' "$lock" 2>/dev/null)"
+  [[ -n "$total" && "$total" == "$with_url" && "$total" -gt 0 ]] || return 1
+  while IFS= read -r url; do
+    sha="$(GIT_TERMINAL_PROMPT=0 timeout 15 git ls-remote "$url" HEAD 2>/dev/null | awk 'NR==1{print $1}')"
+    [[ "$sha" =~ ^[0-9a-f]{40,64}$ ]] || return 1
+    printf '%s %s\n' "$url" "$sha"
+  done < <(agent_skills_source_urls "$lock")
+}
+
+# sha256 de (HEADs + conteúdo do lock). Puro sobre as entradas.
+agent_skills_fingerprint() {
+  { printf '%s\n' "$1"; cat -- "$2" 2>/dev/null; } | sha256sum | cut -d' ' -f1
+}
+
 agent_skills_cli_state_file() {
   printf '%s/full-upgrade/agent-skills-cli\n' "${XDG_STATE_HOME:-${HOME}/.local/state}"
 }
@@ -881,6 +943,58 @@ ai_plugin_purge_blocked() {
   return 0
 }
 
+# ── Pré-filtro dos plugins do Claude Code (U15) ─────────────────────────────────
+# Cada `claude plugin update` sobe a CLI (~2,5–5,6s); com 24 plugins o step
+# levava 62–135s, quase sempre para ouvir "já na última". Depois do `marketplace
+# update`, o clone local de cada marketplace já diz qual versão o update
+# instalaria, na mesma regra da CLI:
+#   - `version` explícita na entrada do marketplace.json;
+#   - fonte relativa (./plugins/x): `version` do plugin.json; sem ela, a CLI
+#     versiona pelo HEAD do marketplace (12 primeiros caracteres do sha);
+#   - fonte git com `sha` fixado: compara com o gitCommitSha instalado.
+# Qualquer dado ausente ou ilegível manda chamar o update (nunca pula às cegas).
+claude_plugins_dir() { printf '%s/plugins\n' "${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"; }
+
+# rc 0 = chamar `claude plugin update` · 1 = idêntico ao marketplace.
+claude_plugin_maybe_outdated() {
+  local id="$1" dir name mk loc entry inst inst_ver inst_sha cand src
+  has jq || return 0
+  dir="$(claude_plugins_dir)"
+  name="${id%@*}"
+  mk="${id#*@}"
+  inst="$(jq -c --arg id "$id" '[.plugins[$id][]? | select(.scope == "user")][0] // empty' \
+    "${dir}/installed_plugins.json" 2>/dev/null)"
+  [[ -n "$inst" ]] || return 0
+  inst_ver="$(jq -r '.version // empty' <<<"$inst")"
+  inst_sha="$(jq -r '.gitCommitSha // empty' <<<"$inst")"
+  [[ -n "$inst_ver" ]] || return 0
+  loc="$(jq -r --arg m "$mk" '.[$m].installLocation // empty' "${dir}/known_marketplaces.json" 2>/dev/null)"
+  [[ -n "$loc" && -r "${loc}/.claude-plugin/marketplace.json" ]] || return 0
+  entry="$(jq -c --arg n "$name" '[.plugins[]? | select(.name == $n)][0] // empty' \
+    "${loc}/.claude-plugin/marketplace.json" 2>/dev/null)"
+  [[ -n "$entry" ]] || return 0
+
+  cand="$(jq -r '.version // empty' <<<"$entry")"
+  if [[ -n "$cand" ]]; then
+    [[ "$cand" == "$inst_ver" ]] && return 1
+    return 0
+  fi
+  src="$(jq -r 'if (.source | type) == "string" then .source else empty end' <<<"$entry")"
+  if [[ -n "$src" ]]; then
+    cand="$(jq -r '.version // empty' "${loc}/${src#./}/.claude-plugin/plugin.json" 2>/dev/null)"
+    if [[ -n "$cand" ]]; then
+      [[ "$cand" == "$inst_ver" ]] && return 1
+      return 0
+    fi
+    cand="$(git -C "$loc" rev-parse HEAD 2>/dev/null)"
+    ((${#inst_ver} >= 7)) && [[ -n "$cand" && "$inst_ver" == "${cand:0:${#inst_ver}}" ]] && return 1
+    return 0
+  fi
+  cand="$(jq -r '.source.sha // empty' <<<"$entry")"
+  [[ -n "$cand" && "$cand" == "$inst_sha" ]] && return 1
+  return 0
+}
+
 update_claude_plugins() {
   has claude || { log "  claude não encontrado."; return 0; }
   ai_plugin_purge_blocked claude
@@ -901,10 +1015,20 @@ update_claude_plugins() {
     return 0
   fi
 
+  local id
+  local -a same=() pending=()
+  if ((${CLAUDE_PLUGIN_PREFILTER:-1})); then
+    for id in "${ids[@]}"; do
+      if claude_plugin_maybe_outdated "$id"; then pending+=("$id"); else same+=("$id"); fi
+    done
+    log "  Pré-filtro: ${#same[@]} plugin(s) idêntico(s) ao marketplace; ${#pending[@]} para conferir com a CLI."
+    ids=("${pending[@]}")
+  fi
+
   # Sequencial de propósito: updates paralelos disputariam a escrita de
   # ~/.claude/plugins/installed_plugins.json. O que não couber no orçamento do
   # step fica para o próximo run (RC_WARN), em vez de o step inteiro estourar.
-  local id raw results left
+  local raw results left
   local -a deferred=()
   results="$(for id in "${ids[@]}"; do
     left="$(step_time_left)"
@@ -917,7 +1041,7 @@ update_claude_plugins() {
   done | claude_plugin_update_classify)"
   log_raw "$results"
 
-  local cls detail n_updated=0 n_current=0
+  local cls detail n_updated=0 n_current=${#same[@]}
   local -a confirm=() failed=()
   while IFS=$'\t' read -r cls id detail; do
     case "$cls" in
@@ -928,7 +1052,7 @@ update_claude_plugins() {
       deferred) deferred+=("$id") ;;
     esac
   done <<<"$results"
-  log "  Plugins do Claude Code: ${n_updated} atualizado(s), ${n_current} já na última versão (${#ids[@]} em escopo user)."
+  log "  Plugins do Claude Code: ${n_updated} atualizado(s), ${n_current} já na última versão ($(( ${#ids[@]} + ${#same[@]} )) em escopo user)."
   ((n_updated > 0)) && log "  Reinicie as sessões do Claude Code para carregar os plugins novos."
 
   if ((${#deferred[@]} > 0)); then
@@ -1297,3 +1421,81 @@ update_kimchi() {
   log "  kimchi atualizado para ${newver:-?}."
   return 0
 }
+
+
+# ── qodo (Qodo Command) ─────────────────────────────────────────────────────────
+# Instalado pelo script de get.qodo.ai em ~/.qodo/bin, fora do PATH do run. O
+# auto-update em background só roda quando a CLI é aberta. `qodo update --check`
+# ("qodo X is available (you have Y…)") e `qodo update` aplicam o contrato do
+# helper de check→apply.
+qodo_bin() { manual_bin_path qodo "${HOME}/.qodo/bin/qodo"; }
+update_qodo() {
+  local b
+  b="$(qodo_bin)"
+  [[ -n "$b" ]] || { log "  qodo não encontrado."; return 0; }
+  _selfupdate_check_apply "qodo" "$b"
+}
+
+# ── ori (OpenRouter) ────────────────────────────────────────────────────────────
+# Agente de código da OpenRouter, binário em ~/.local/bin. `ori update --check`
+# devolve JSON com "updateAvailable"; `ori update` instala no canal salvo
+# (stable/alpha) e não mexe nos artefatos de deploy sem --sync-*.
+# rc: 0 ok · RC_WARN rede/resposta inesperada/falha do update.
+ori_update_available() {
+  # 0 = há versão nova · 1 = atualizado · 2 = resposta sem o campo. Puro.
+  if grep -qE '"updateAvailable"[[:space:]]*:[[:space:]]*true' <<<"$1"; then
+    return 0
+  elif grep -qE '"updateAvailable"[[:space:]]*:[[:space:]]*false' <<<"$1"; then
+    return 1
+  fi
+  return 2
+}
+
+update_ori() {
+  has ori || { log "  ori não encontrado."; return 0; }
+  local check rc state=0
+  check="$(run_network_cmd ori update --check </dev/null 2>&1)"
+  rc=$?
+  if ((rc != 0)); then
+    log "  Não foi possível verificar atualização do ori."
+    STEP_REASON="ori update --check falhou (rc=${rc})"
+    return "$RC_WARN"
+  fi
+  ori_update_available "$check" || state=$?
+  local cur latest
+  cur="$(sed -nE 's/.*"currentVersion"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' <<<"$check" | head -1)"
+  latest="$(sed -nE 's/.*"latestVersion"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' <<<"$check" | head -1)"
+  case "$state" in
+    1) log "  ori já na versão mais recente (${cur:-?})."; return 0 ;;
+    2)
+      printf '%s\n' "$check" | log_raw
+      log "  Resposta inesperada de 'ori update --check'; mantendo a versão atual."
+      STEP_REASON="ori update --check sem o campo updateAvailable"
+      return "$RC_WARN"
+      ;;
+  esac
+  log "  Atualizando ori: ${cur:-?} → ${latest:-?}"
+  local out
+  out="$(run_network_cmd ori update </dev/null 2>&1)"
+  rc=$?
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -5 | log_out || true
+  if ((rc != 0)); then
+    log "  Falha ao atualizar o ori."
+    STEP_REASON="ori update falhou (rc=${rc})"
+    return "$RC_WARN"
+  fi
+  hash -r 2>/dev/null || true
+  log "  ori agora: $(ori --version 2>/dev/null | head -1)"
+  return 0
+}
+
+# ── spawn (OpenRouter) ──────────────────────────────────────────────────────────
+# Lança agentes de código em VMs de nuvem; binário Bun em ~/.local/bin. `spawn
+# update` é idempotente ("Already up to date (vX)") e baixa a release nova
+# sozinho. O nome é genérico, então o gate confere que é o spawn da OpenRouter.
+spawn_is_openrouter() {
+  local out
+  out="$(spawn --version 2>/dev/null)" || return 1
+  grep -q 'OpenRouterLabs/spawn' <<<"$out"
+}
+update_spawn() { _selfupdate_direct "spawn (OpenRouter)" spawn; }

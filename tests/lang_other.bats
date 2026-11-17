@@ -93,3 +93,57 @@ setup() {
   run update_ghcup
   [ "$status" -eq 0 ]
 }
+
+# ── go_tool_needs_update (U13) ────────────────────────────────────────────────
+_go_stub_versions() {
+  # $1 = toolchain do binário, $2 = versão gravada, $3 = GOVERSION atual, $4 = @latest
+  export GT_BUILT="$1" GT_MOD="$2" GT_CUR="$3" GT_LATEST="$4"
+  go() {
+    case "$1 ${2:-}" in
+      "version -m") printf '%s: %s\n\tpath\texample.com/x/cmd/x\n\tmod\texample.com/x\t%s\th1:abc\n' "$3" "$GT_BUILT" "$GT_MOD" ;;
+      "env GOVERSION") echo "$GT_CUR" ;;
+      "list -m") echo "$GT_LATEST" ;;
+    esac
+  }
+}
+
+@test "go_tool_needs_update: módulo e toolchain atuais => não reinstala" {
+  _go_stub_versions go1.27.4-X:nodwarf5 v1.2.0 go1.27.4-X:nodwarf5 v1.2.0
+  run go_tool_needs_update /bin/x
+  [ "$status" -eq 1 ]
+}
+
+@test "go_tool_needs_update: versão nova do módulo => reinstala" {
+  _go_stub_versions go1.27.4 v1.2.0 go1.27.4 v1.3.0
+  run go_tool_needs_update /bin/x
+  [ "$status" -eq 0 ]
+}
+
+@test "go_tool_needs_update: toolchain nova => reinstala mesmo com o módulo igual" {
+  _go_stub_versions go1.27.3 v1.2.0 go1.27.4 v1.2.0
+  run go_tool_needs_update /bin/x
+  [ "$status" -eq 0 ]
+}
+
+@test "go_tool_needs_update: @latest indisponível => reinstala por segurança" {
+  _go_stub_versions go1.27.4 v1.2.0 go1.27.4 ""
+  run go_tool_needs_update /bin/x
+  [ "$status" -eq 0 ]
+}
+
+@test "update_go_tools: ferramenta atual não chama go install" {
+  mkdir -p "$HOME/.local/bin"; : >"$HOME/.local/bin/x"; chmod +x "$HOME/.local/bin/x"
+  _go_stub_versions go1.27.4 v1.2.0 go1.27.4 v1.2.0
+  go() {
+    case "$1 ${2:-}" in
+      "env GOPATH") echo "$BATS_TEST_TMPDIR/inexistente" ;;
+      "version -m") printf '%s: %s\n\tpath\texample.com/x/cmd/x\n\tmod\texample.com/x\t%s\th1:abc\n' "$3" "$GT_BUILT" "$GT_MOD" ;;
+      "env GOVERSION") echo "$GT_CUR" ;;
+      "list -m") echo "$GT_LATEST" ;;
+    esac
+  }
+  run_logged() { echo "$*" >>"$BATS_TEST_TMPDIR/calls"; }
+  run update_go_tools
+  [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/calls" ]
+}

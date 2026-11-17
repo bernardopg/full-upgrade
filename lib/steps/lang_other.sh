@@ -19,6 +19,28 @@ go_tool_module() {
   printf '%s' "$module"
 }
 
+# Decide se o binário Go ($1) precisa de `go install @latest`. Reinstalar as 9
+# ferramentas em todo run levava 46s com nada novo. Precisa quando: a última
+# versão do módulo (`go list -m mod@latest`, via GOPROXY, ~0,2s) difere da
+# gravada no binário; ou a toolchain mudou (o rebuild traz as correções da
+# stdlib); ou a última versão não pôde ser consultada (na dúvida, reinstala).
+# rc 0 = reinstalar · 1 = já atual.
+go_tool_needs_update() {
+  local info modpath modver built cur latest
+  info="$(go version -m "$1" 2>/dev/null)" || return 0
+  modpath="$(awk '$1=="mod"{print $2; exit}' <<<"$info")"
+  modver="$(awk '$1=="mod"{print $3; exit}' <<<"$info")"
+  built="$(awk 'NR==1{print $2; exit}' <<<"$info")"
+  built="${built%%-*}"
+  [[ -n "$modpath" && -n "$modver" ]] || return 0
+  cur="$(go env GOVERSION 2>/dev/null)"
+  cur="${cur%%-*}"   # "go1.27.4-X:nodwarf5" → go1.27.4 (sufixo de GOEXPERIMENT)
+  [[ -n "$cur" && -n "$built" && "$built" != "$cur" ]] && return 0
+  latest="$(cd "${TMPDIR:-/tmp}" && GOWORK=off GOFLAGS=-mod=mod go list -m -f '{{.Version}}' "${modpath}@latest" 2>/dev/null)"
+  [[ -n "$latest" && "$latest" == "$modver" ]] && return 1
+  return 0
+}
+
 update_go_tools() {
   local gopath
   gopath="$(go env GOPATH 2>/dev/null || true)"
@@ -51,10 +73,14 @@ update_go_tools() {
     return 0
   fi
 
-  local -a failed=() updated=()
+  local -a failed=() updated=() current=()
   local before_sum after_sum mod_path
   for module in "${modules[@]}"; do
     mod_path="${mod_to_bin[$module]}"
+    if ! go_tool_needs_update "$mod_path"; then
+      current+=("$(basename "$mod_path")")
+      continue
+    fi
     before_sum="$(go version -m "$mod_path" 2>/dev/null | awk '$1=="mod"{print $3}' || true)"
     log "  Atualizando Go tool: ${module}@latest"
     if ! run_logged env GOBIN="$(dirname "$mod_path")" go install "${module}@latest"; then
@@ -66,6 +92,7 @@ update_go_tools() {
     fi
   done
 
+  ((${#current[@]} > 0)) && log "  Go tools já na última versão (sem reinstalar): ${current[*]}"
   local total_ok=$(( ${#modules[@]} - ${#failed[@]} ))
   if (( ${#updated[@]} > 0 )); then
     log "  Go tools: ${total_ok}/${#modules[@]} ok — versões novas: ${updated[*]}."

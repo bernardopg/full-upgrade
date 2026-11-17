@@ -307,8 +307,8 @@ doctor_pacman_hooks() {
 
 # ── Doctor: inventário de apps manuais ──────────────────────────────────────────
 # Read-only. Mapeia programas instalados FORA de qualquer gerenciador de pacotes
-# (binários reais em /usr/local/bin e ~/.local/bin sem dono pacman, + diretórios
-# de app em /opt) e indica quais já possuem step de atualização dedicado no
+# (binários e symlinks em /usr/local/bin e ~/.local/bin sem dono pacman,
+# diretórios de app em /opt e em ~/.local/opt) e indica quais já possuem step de atualização dedicado no
 # full-upgrade e quais não. NÃO executa binários desconhecidos (evitar abrir GUIs
 # como wireshark/cava); só reporta nome, local e cobertura. Sempre rc 0.
 _manual_apps_has_step() {
@@ -325,7 +325,8 @@ _manual_apps_has_step() {
     uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
     kiro-cli|kiro-cli-chat|kiro-cli-term|\
     grok|jcode|qodercli|qoderwake|kimchi|cua-driver|\
-    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared)
+    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared|\
+    vp|vpr|vpx|vite-plus|herdr-core|hc|herdr-app|qodo|ori|spawn)
       return 0 ;;
     *) return 1 ;;
   esac
@@ -366,6 +367,33 @@ _manual_apps_kind() {
 }
 
 
+# Executáveis de ~/.local/bin instalados pelo pip --user: cada dist-info lista no
+# RECORD os scripts como ../../../bin/<nome>. Estes têm o step de pip --user e
+# não são "apps manuais" (o ruff era marcado como candidato). Imprime nomes.
+_manual_apps_pip_user_bins() {
+  local record
+  for record in "${HOME}"/.local/lib/python3*/site-packages/*.dist-info/RECORD; do
+    [[ -r "$record" ]] || continue
+    sed -nE 's#^\.\./\.\./\.\./bin/([^,/]+),.*#\1#p' "$record"
+  done
+  return 0
+}
+
+# 0 quando o destino resolvido ($1) de um symlink pertence a um gerenciador que
+# já tem step (uv, pipx, nvm, npm, pnpm, bun, deno, cargo, go, Artcraft) ou a
+# um app com step próprio cuja instalação é versionada (claude, codegraph via
+# npm). Puro sobre o caminho.
+_manual_apps_managed_target() {
+  local t="$1" h="$HOME"
+  case "$t" in
+    "$h"/.local/share/uv/* | "$h"/.local/share/pipx/* | "$h"/.nvm/* | "$h"/.npm-global/* | \
+    "$h"/.local/share/pnpm/* | "$h"/.bun/* | "$h"/.deno/* | "$h"/.cargo/* | "$h"/go/* | \
+    "$h"/.local/share/claude/* | "${ARTCRAFT_DIR:-$h/development/artcraft}"/*)
+      return 0 ;;
+  esac
+  return 1
+}
+
 doctor_manual_apps() {
   has pacman || { log "  pacman ausente; inventário de apps manuais indisponível."; return 0; }
 
@@ -377,18 +405,33 @@ doctor_manual_apps() {
   #    mínimo (≥ 1 MiB): apps instalados à mão são binários auto-contidos grandes
   #    (Go/Rust/Node-pkg/Electron); scripts pessoais e wrappers pequenos ficam de
   #    fora para o inventário não virar ruído.
-  local bindir min_size=1048576 sz
+  #    Symlinks contam pelo destino resolvido (gdu baixado à mão, herdr-app,
+  #    instalação própria antiga do codegraph), exceto quando o destino é de um
+  #    gerenciador com step; cada destino conta uma vez. Scripts do pip --user
+  #    (RECORD dos dist-info) são cobertos pelo step de pip.
+  local bindir min_size=1048576 sz real
+  local -A seen_target=() pip_bins=()
+  while IFS= read -r name; do [[ -n "$name" ]] && pip_bins["$name"]=1; done < <(_manual_apps_pip_user_bins)
   for bindir in /usr/local/bin "${HOME}/.local/bin"; do
     [[ -d "$bindir" ]] || continue
     for f in "$bindir"/*; do
-      [[ -f "$f" && ! -L "$f" && -x "$f" ]] || continue
-      sz="$(stat -c%s "$f" 2>/dev/null || echo 0)"
+      if [[ -L "$f" ]]; then
+        real="$(readlink -f -- "$f" 2>/dev/null)" || continue
+        _manual_apps_managed_target "$real" && continue
+      else
+        real="$f"
+      fi
+      [[ -f "$real" && -x "$real" ]] || continue
+      [[ -z "${seen_target[$real]+x}" ]] || continue
+      seen_target["$real"]=1
+      sz="$(stat -c%s "$real" 2>/dev/null || echo 0)"
       (( sz >= min_size )) || continue
-      pacman -Qo "$f" >/dev/null 2>&1 && continue
+      pacman -Qo "$real" >/dev/null 2>&1 && continue
       name="${f##*/}"
       total=$((total + 1))
       kind="$(_manual_apps_kind "$name")"
-      if [[ "$kind" == candidate ]] && has go && declare -F go_tool_module >/dev/null && go_tool_module "$f" >/dev/null; then
+      [[ "$kind" == candidate && -n "${pip_bins[$name]+x}" ]] && kind=covered
+      if [[ "$kind" == candidate ]] && has go && declare -F go_tool_module >/dev/null && go_tool_module "$real" >/dev/null; then
         kind=covered
       fi
       case "$kind" in
@@ -423,6 +466,23 @@ doctor_manual_apps() {
     done
   fi
 
+  # 3) Apps extraídos à mão em ~/.local/opt (AppImage/.deb/tarball: handy,
+  #    recordly, Tor Browser). Cada diretório é um app.
+  if [[ -d "${HOME}/.local/opt" ]]; then
+    for d in "${HOME}"/.local/opt/*/; do
+      [[ -d "$d" && ! -L "${d%/}" ]] || continue
+      name="${d%/}"; name="${name##*/}"
+      total=$((total + 1))
+      kind="$(_manual_apps_kind "$name")"
+      case "$kind" in
+        covered) covered=$((covered + 1)) ;;
+        backup) backups=$((backups + 1)); backup_items+=("${name}  (${HOME}/.local/opt)") ;;
+        auxiliary) auxiliary=$((auxiliary + 1)); auxiliary_items+=("${name}  (${HOME}/.local/opt)") ;;
+        *) uncovered+=("${name}  (${HOME}/.local/opt)") ;;
+      esac
+    done
+  fi
+
   if (( total == 0 )); then
     log "  Nenhum app fora de gerenciador de pacotes detectado."
     return 0
@@ -452,6 +512,106 @@ doctor_manual_apps() {
   if (( auxiliary > 0 )); then
     log "  Binários auxiliares conhecidos (${auxiliary}) foram excluídos da contagem de candidatos."
     for u in "${auxiliary_items[@]}"; do log_raw "manual-app-auxiliar: ${u}"; done
+  fi
+  return 0
+}
+
+# ── Doctor: pacotes locais fora do AUR (U10) ────────────────────────────────────
+# Pacote estrangeiro (pacman -Qm) que o AUR não conhece veio de PKGBUILD local:
+# o helper AUR só imprime "pacotes não presentes no AUR" e ele nunca atualiza
+# (dankcalendar-bin e dsearch-bin ficaram na 2.0.0 com 2.1.x publicadas). O
+# doctor pergunta ao AUR por todos de uma vez e, para os ausentes cujo URL é do
+# GitHub, compara com o último release. Read-only.
+
+# Nomes da entrada padrão que a resposta da RPC v5 ($1) não trouxe. Puro.
+aur_rpc_missing() {
+  local json="$1" name
+  local -A found=()
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && found["$name"]=1
+  done < <(grep -oE '"Name"[[:space:]]*:[[:space:]]*"[^"]+"' <<<"$json" | sed -E 's/.*"([^"]+)"$/\1/')
+  while IFS= read -r name; do
+    [[ -n "$name" && -z "${found[$name]+x}" ]] && printf '%s\n' "$name"
+  done
+  return 0
+}
+
+# owner/repo de um URL do GitHub (com ou sem .git e subcaminho). Puro.
+github_repo_from_url() {
+  [[ "$1" =~ ^https?://(www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+) ]] || return 1
+  printf '%s/%s\n' "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]%.git}"
+}
+
+# Versão upstream de uma versão pacman: tira epoch e pkgrel ("1:2.0.0-3" → 2.0.0).
+pkg_upstream_version() {
+  local v="${1#*:}"
+  printf '%s\n' "${v%-*}"
+}
+
+doctor_foreign_pkgs_upstream() {
+  has pacman || { log "  pacman ausente."; return 0; }
+  local -A ver=()
+  local name v
+  while read -r name v; do
+    [[ -n "$name" ]] && ver["$name"]="$v"
+  done < <(pacman -Qm 2>/dev/null)
+  if ((${#ver[@]} == 0)); then
+    log "  Nenhum pacote estrangeiro instalado."
+    return 0
+  fi
+
+  local -a names=() missing=() chunk=()
+  mapfile -t names < <(printf '%s\n' "${!ver[@]}" | LC_ALL=C sort)
+  local i json qs rc
+  for ((i = 0; i < ${#names[@]}; i += 100)); do
+    chunk=("${names[@]:i:100}")
+    qs="$(printf 'arg[]=%s&' "${chunk[@]}" | sed 's/+/%2B/g')"
+    json="$(fetch_network_text --connect-timeout 10 --max-time 30 "https://aur.archlinux.org/rpc/v5/info?${qs%&}")"
+    rc=$?
+    if ((rc != 0)) || [[ "$json" != *'"results"'* ]]; then
+      STEP_REASON="RPC do AUR indisponível; pacotes locais não verificados"
+      return "$RC_WARN"
+    fi
+    mapfile -t -O "${#missing[@]}" missing < <(printf '%s\n' "${chunk[@]}" | aur_rpc_missing "$json")
+  done
+
+  # Pacote -debug gerado pelo makepkg acompanha o base; não é fonte própria.
+  local -a local_pkgs=()
+  for name in "${missing[@]}"; do
+    [[ "$name" == *-debug && -n "${ver[${name%-debug}]+x}" ]] && continue
+    local_pkgs+=("$name")
+  done
+  if ((${#local_pkgs[@]} == 0)); then
+    log "  Todos os ${#names[@]} pacote(s) estrangeiro(s) existem no AUR (o helper AUR os atualiza)."
+    return 0
+  fi
+
+  log "  Pacotes locais fora do AUR (${#local_pkgs[@]}): ${local_pkgs[*]}"
+  local url repo latest cur
+  local -a outdated=()
+  for name in "${local_pkgs[@]}"; do
+    url="$(LC_ALL=C pacman -Qi "$name" 2>/dev/null | sed -n 's/^URL *: //p' | head -1)"
+    cur="$(pkg_upstream_version "${ver[$name]}")"
+    if ! repo="$(github_repo_from_url "$url")"; then
+      log "    • ${name} ${cur}: URL fora do GitHub (${url:-sem URL}); confira a origem à mão."
+      continue
+    fi
+    if ! latest="$(github_latest_release_version "$repo")"; then
+      log "    • ${name} ${cur}: sem release semver em github.com/${repo}."
+      continue
+    fi
+    if version_is_outdated "$cur" "$latest"; then
+      log "    • ${name} ${cur} → ${latest} (github.com/${repo})"
+      outdated+=("${name} ${cur}→${latest}")
+    else
+      log "    • ${name} ${cur}: em dia com github.com/${repo}."
+    fi
+  done
+
+  if ((${#outdated[@]} > 0)); then
+    remediation "reconstrua o PKGBUILD local na versão nova (pkgver + checksums) ou troque por um pacote do AUR/repo"
+    STEP_REASON="pacote(s) local(is) atrás do upstream: ${outdated[*]}"
+    return "$RC_TODO"
   fi
   return 0
 }

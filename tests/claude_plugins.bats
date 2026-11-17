@@ -9,6 +9,8 @@ setup() {
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/ai.sh"
   STEP_REASON=""
+  # O pré-filtro (U15) lê o diretório de config do Claude: aponta para um vazio.
+  export CLAUDE_CONFIG_DIR="$BATS_TEST_TMPDIR/claude"
   has() { [[ "$1" == claude ]]; }
   run_network_cmd() { "$@"; }
   # O `timeout` real executaria o claude da máquina, não o stub.

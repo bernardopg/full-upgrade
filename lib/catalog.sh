@@ -54,6 +54,7 @@ Atualizar pnpm (self)|lang-js|javascript,pnpm,update,network,lang|mutating|120|p
 Atualizar pnpm global|lang-js|javascript,pnpm,update,network,lang|mutating|300|pnpm|update_pnpm_globals|Atualiza pacotes pnpm globais e remove deps locais quebradas.
 Atualizar Bun|lang-js|javascript,bun,update,network,lang|mutating|120|bun|update_bun|Atualiza o runtime Bun via bun upgrade (pula se gerenciado pelo sistema).
 Atualizar Deno|lang-js|javascript,deno,update,network,lang|mutating|120|deno|update_deno|Atualiza o runtime Deno via deno upgrade (pula se gerenciado pelo sistema).
+Atualizar vite-plus (vp)|lang-js|javascript,vite-plus,update,network,lang|mutating|300||update_vite_plus|Atualiza o vite-plus (toolchain JS da VoidZero em ~/.local/share/vite-plus, fora do PATH do run) via vp upgrade, só quando vp upgrade --check aponta versão nova.
 Atualizar pacotes pip --user|lang-py|python,pip,update,network,lang|mutating|300|pip|update_pip_user|Atualiza pacotes Python instalados no usuário.
 Atualizar pacotes pipx|lang-py|python,pipx,update,network,lang|mutating|300|pipx|update_pipx|Atualiza aplicações gerenciadas pelo pipx.
 Atualizar uv (self)|lang-py|python,uv,update,network,lang|mutating|120|uv|update_uv_self|Atualiza o binário uv.
@@ -104,10 +105,14 @@ Atualizar qodercli (Qoder)|ai|ai,qoder,update,network|mutating|300|qodercli|upda
 Atualizar qoderwake|ai|ai,qoder,update,network|mutating|180|qoderwake|update_qoderwake|Atualiza o qoderwake (companheiro do Qoder, self-download em ~/.qoderwake) via update nativo com check prévio.
 Atualizar kimchi|ai|ai,kimchi,update,network|mutating|300|kimchi|update_kimchi|Atualiza a CLI kimchi (self-download) via 'kimchi update self' com dry-run prévio; não mexe em extensões do usuário.
 Atualizar muse (Muse Code)|ai|ai,muse,update,network|mutating|300|muse|update_muse|Atualiza o Muse Code (Meta) pelo launcher em ~/.local/bin com MUSE_LAUNCHER_INSTALL=1, sem abrir a TUI.
+Atualizar qodo|ai|ai,qodo,update,network|mutating|180||update_qodo|Atualiza a CLI qodo (Qodo Command, ~/.qodo/bin) via qodo update --check e qodo update.
+Atualizar ori (OpenRouter)|ai|ai,ori,update,network|mutating|300|ori|update_ori|Atualiza o ori (agente da OpenRouter) via ori update quando ori update --check devolve updateAvailable=true; respeita o canal salvo.
+Atualizar spawn (OpenRouter)|ai|ai,spawn,update,network|mutating|180|spawn|update_spawn|Atualiza o spawn (lança agentes em VMs de nuvem, OpenRouter) via spawn update, que só baixa release nova.
 Atualizar pool (Poolside)|ai|ai,pool,update,network|mutating|180|pool|update_pool|Atualiza a CLI pool (agente Poolside, self-download em ~/.local/bin) via pool update, que só baixa release nova.
 Atualizar cua-driver|tools|automation,cua,update,network|mutating|300|cua-driver|update_cua_driver|Atualiza o cua-driver (trycua, self-download em ~/.cua-driver) só quando check-update --json indica nova versão; também atualiza as skills.
 Atualizar purple (cliente SSH)|tools|purple,update,network|mutating|180|purple|update_purple|Atualiza o purple (cliente SSH de terminal, self-download em ~/.local/bin) via purple update, com checksum.
 Atualizar Android CLI|tools|android,update,network|mutating|900|android|update_android_cli|Atualiza a Android CLI (android update), as skills instaladas (android skills update --all) e os pacotes do Android SDK (android sdk update).
+Atualizar Herdr (core e app)|tools|herdr,update,network|mutating|300||update_herdr|Atualiza o herdr-core (herdr-core update, só com versão nova no manifest; terminais continuam) e o herdr-app (download com sha256 e troca atômica de ~/.local/share/herdr-app).
 Atualizar cloudflared|tools|cloudflared,update,network|mutating|180||update_cloudflared|Atualiza cópias do cloudflared fora de pacote (~/.9router/bin, ~/.local/bin) via cloudflared update; rc 11 do upstream significa atualizado.
 Atualizar Oh My Zsh|shell|zsh,update,network|mutating|120||update_omz|Atualiza Oh My Zsh.
 Atualizar plugins customizados do Zsh|shell|zsh,git,update,network|mutating|120|git|update_omz_custom_plugins|Atualiza plugins customizados do Oh My Zsh.
@@ -150,7 +155,8 @@ Doctor: hooks ALPM com falha|doctor|pacman,journal|read|15||doctor_pacman_hooks|
 Doctor: SMART e NVMe|doctor|disk,smart,sudo|read|60||doctor_smart_health|Verifica saúde de discos via smartctl e nvme smart-log.
 Doctor: saúde da sessão desktop|doctor|desktop|read|15||doctor_desktop_health|Verifica xdg-desktop-portal, PipeWire e WirePlumber.
 Doctor: suíte Artcraft|doctor|artcraft,desktop,manual|read|60|python3|doctor_artcraft|Confere versões, binários GUI/CLI, symlinks e launchers da instalação Artcraft sem rede nem alterações.
-Doctor: apps manuais (fora de pacote)|doctor|manual,inventory|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (/usr/local/bin, ~/.local/bin, /opt) e quais têm step de atualização dedicado.
+Doctor: pacotes locais fora do AUR|doctor|pacman,aur,network|read|120||doctor_foreign_pkgs_upstream|Lista pacotes estrangeiros (pacman -Qm) que o AUR não conhece (PKGBUILD local, nunca atualizados pelo helper) e compara com o último release do GitHub do campo URL; todo quando há versão nova.
+Doctor: apps manuais (fora de pacote)|doctor|manual,inventory|read|60||doctor_manual_apps|Mapeia programas instalados fora de gerenciador de pacotes (binários e symlinks em /usr/local/bin e ~/.local/bin, /opt, ~/.local/opt; pip --user é coberto) e quais têm step de atualização dedicado.
 Doctor: módulos OBS|doctor|obs|read|30||doctor_obs_modules|Lê o log da última sessão do OBS e aponta módulos que falharam o load (ABI antiga pós-upgrade) e crashes recentes.
 Doctor: AI CLIs|doctor|ai|read|90||doctor_ai_clis|Inventário read-only de versões das CLIs de IA e otimização (Claude, Codex, OpenCode, Pi, Hermes, Headroom, TokenSave e demais CLIs conhecidas).
 Sincronizar hub MCP (claude-env)|autofix|mcp,ai,config|mutating|150|python3|mcp_render_hub|Sob MCP_HUB_RENDER=1 (padrão), roda $CLAUDE_ENV_DIR/scripts/mcp_render.py e realinha as configs MCP de todos os harnesses (Claude, Codex, opencode, Cursor, Gemini, pi, Droid, Grok…) ao hub mcp/servers.json, que os updates de IA reescrevem; idempotente, com backup, sem segredos.

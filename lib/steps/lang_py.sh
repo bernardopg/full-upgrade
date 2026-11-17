@@ -288,6 +288,113 @@ check_headroom_unit_compat() {
   return "$RC_TODO"
 }
 
+# ── uv tool preso por restrição do receipt (U2) ───────────────────────────────
+# `uv tool upgrade` respeita as restrições gravadas no uv-receipt.toml (as do
+# `--with "mcp<2"` e o pin da própria ferramenta) e sai 0 sem atualizar. O
+# headroom ficou em 0.42.0 com a 0.44.0 publicada, porque a 0.43+ exige
+# mcp>=2.2, e o step relatou ok. Estes helpers acham a ferramenta presa.
+
+# Nome normalizado pela PEP 503 (Foo_Bar.baz → foo-bar-baz).
+_pep503_name() {
+  local n="${1,,}"
+  printf '%s' "$n" | sed -E 's/[-_.]+/-/g'
+}
+
+# Lê o receipt ($1) e imprime, uma por linha, as restrições de versão
+# ("nome<spec") gravadas em [tool].requirements. Puro.
+uv_receipt_constraints() {
+  local receipt="$1" line in_req=0
+  [[ -r "$receipt" ]] || return 0
+  while IFS= read -r line; do
+    [[ "$line" =~ ^[[:space:]]*requirements[[:space:]]*= ]] && in_req=1
+    ((in_req)) || continue
+    if [[ "$line" =~ name[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]]; then
+      local name="${BASH_REMATCH[1]}"
+      if [[ "$line" =~ specifier[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]]; then
+        printf '%s%s\n' "$name" "${BASH_REMATCH[1]}"
+      fi
+    fi
+    [[ "$line" =~ \][[:space:]]*$ ]] && in_req=0
+  done <"$receipt"
+  return 0
+}
+
+# Spec de reinstalação sem restrições: nome da ferramenta ($2) com os extras
+# gravados no receipt ($1), ex.: headroom-ai[all]. Puro.
+uv_receipt_install_spec() {
+  local receipt="$1" tool="$2" line extras=""
+  local want
+  want="$(_pep503_name "$tool")"
+  if [[ -r "$receipt" ]]; then
+    while IFS= read -r line; do
+      [[ "$line" =~ name[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]] || continue
+      [[ "$(_pep503_name "${BASH_REMATCH[1]}")" == "$want" ]] || continue
+      if [[ "$line" =~ extras[[:space:]]*=[[:space:]]*\[([^]]*)\] ]]; then
+        extras="${BASH_REMATCH[1]//\"/}"
+        extras="${extras//[[:space:]]/}"
+      fi
+      break
+    done <"$receipt"
+  fi
+  if [[ -n "$extras" ]]; then
+    printf '%s[%s]' "$tool" "$extras"
+  else
+    printf '%s' "$tool"
+  fi
+}
+
+# Converte a saída de `uv tool list` em "nome versão" (sem o v). Puro.
+uv_tool_list_versions() {
+  local line
+  while IFS= read -r line; do
+    [[ "$line" =~ ^([A-Za-z0-9][A-Za-z0-9._-]*)[[:space:]]+v([0-9][^[:space:]]*) ]] || continue
+    printf '%s %s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  done <<<"$1"
+}
+
+# Última versão publicada no PyPI. Vazio quando a rede ou o PyPI falham, e o
+# chamador trata vazio como "desconhecida" (nunca como desatualizada).
+pypi_latest_version() {
+  has curl || return 0
+  local json
+  json="$(curl -fsS --connect-timeout 5 --max-time 10 "https://pypi.org/pypi/${1}/json" 2>/dev/null)" || return 0
+  if has jq; then
+    jq -r '.info.version // empty' <<<"$json" 2>/dev/null
+  else
+    sed -nE 's/.*"info":\{.*"version":[[:space:]]*"([^"]+)".*/\1/p' <<<"$json" | head -1
+  fi
+}
+
+# Ferramentas uv com restrição no receipt E atrás da última versão do PyPI.
+# Só consulta o PyPI das que têm restrição, então o custo é zero no caso comum.
+# Imprime "ferramenta|instalada|última|restrições|spec" por linha.
+uv_tools_held_back() {
+  local dir list tool ver receipt cons latest
+  dir="$(uv tool dir 2>/dev/null)" || return 0
+  [[ -n "$dir" && -d "$dir" ]] || return 0
+  list="$(uv tool list 2>/dev/null)" || return 0
+  while read -r tool ver; do
+    [[ -n "$tool" ]] || continue
+    receipt="${dir}/${tool}/uv-receipt.toml"
+    cons="$(uv_receipt_constraints "$receipt" | paste -sd' ' -)"
+    [[ -n "$cons" ]] || continue
+    latest="$(pypi_latest_version "$tool")"
+    [[ -n "$latest" ]] && version_is_outdated "$ver" "$latest" || continue
+    printf '%s|%s|%s|%s|%s\n' "$tool" "$ver" "$latest" "$cons" "$(uv_receipt_install_spec "$receipt" "$tool")"
+  done < <(uv_tool_list_versions "$list")
+}
+
+# 0 se a ferramenta ($1) está em FULL_UPGRADE_UV_TOOL_HOLD_IGNORE (espaço ou
+# vírgula; nomes comparados pela PEP 503).
+uv_tool_hold_ignored() {
+  local want item
+  want="$(_pep503_name "$1")"
+  for item in ${FULL_UPGRADE_UV_TOOL_HOLD_IGNORE//,/ }; do
+    [[ "$(_pep503_name "$item")" == "$want" ]] && return 0
+  done
+  return 1
+}
+
 update_uv_tools() {
   local output rc
 
@@ -303,7 +410,32 @@ update_uv_tools() {
     return "$rc"
   fi
 
-  check_headroom_unit_compat
+  local compat_rc=0
+  check_headroom_unit_compat || compat_rc=$?
+
+  local entry tool ver latest cons spec
+  local -a held=() held_names=()
+  mapfile -t held < <(uv_tools_held_back)
+  for entry in "${held[@]}"; do
+    IFS='|' read -r tool ver latest cons spec <<<"$entry"
+    if uv_tool_hold_ignored "$tool"; then
+      log "  ${tool} ${ver} fixado de propósito (FULL_UPGRADE_UV_TOOL_HOLD_IGNORE); última: ${latest}."
+      continue
+    fi
+    log "  ${tool} ${ver} está preso pela restrição '${cons}' do receipt; última versão: ${latest}."
+    remediation "uv tool install '${spec}' --force   # reinstala sem '${cons}'; confira a compatibilidade antes"
+    held_names+=("${tool} ${ver}→${latest}")
+  done
+
+  if ((compat_rc != 0)); then
+    ((${#held_names[@]} > 0)) && STEP_REASON="${STEP_REASON:+${STEP_REASON}; }uv tool preso por restrição do receipt: ${held_names[*]}"
+    return "$compat_rc"
+  fi
+  if ((${#held_names[@]} > 0)); then
+    STEP_REASON="uv tool preso por restrição do receipt: ${held_names[*]}"
+    return "$RC_TODO"
+  fi
+  return 0
 }
 
 

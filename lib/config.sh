@@ -35,6 +35,9 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${BOOT_LOADER_WARN_S:=10}"       # alerta se o segmento loader (menu GRUB/sd-boot) exceder N segundos
 : "${FWUPD_HSI_MIN:=2}"            # alerta se o nível HSI do fwupd ficar abaixo disso (0 desliga)
 : "${DOCKER_INFO_TIMEOUT_S:=5}"     # timeout curto para detectar daemon Docker inacessível
+: "${DOCKER_PULL_JOBS:=4}"          # pulls Docker simultâneos no step de imagens (1 = em série)
+: "${CLAUDE_PLUGIN_PREFILTER:=1}"   # 1 = só chama `claude plugin update` nos plugins cuja versão/sha mudou no marketplace
+: "${FULL_UPGRADE_UV_TOOL_HOLD_IGNORE:=}" # ferramentas uv fixadas de propósito por restrição no receipt (espaço ou vírgula)
 : "${ORPHAN_CLEANUP_MAX_ROUNDS:=5}" # rodadas máximas para remover órfãos recursivos
 : "${COREDUMP_KEEP_DAYS:=7}"        # dias de retenção de dumps em /var/lib/systemd/coredump (0/inválido = 7)
 : "${CODEX_TMP_KEEP_DAYS:=1}"       # dias de retenção de temp dirs git-* em ~/.codex/.tmp (0/inválido = 1)
@@ -76,6 +79,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 # Overrides de path (vazio = auto-detecta via command -v / locais conhecidos)
 : "${GCLOUD_BIN:=}"
 : "${COPILOT_BIN:=}"
+: "${MIMO_BIN:=}"
 : "${DMS_PLUGINS_DIR:=}"
 : "${OPENCLAW_BIN:=}"
 : "${ARTCRAFT_DIR:=$HOME/development/artcraft}"
@@ -144,6 +148,8 @@ NETWORK_GATE
 NETWORK_GATE_HOST
 NETWORK_GATE_WAIT_S
 DOCKER_INFO_TIMEOUT_S
+DOCKER_PULL_JOBS
+CLAUDE_PLUGIN_PREFILTER
 ORPHAN_CLEANUP_MAX_ROUNDS
 COREDUMP_KEEP_DAYS
 CODEX_TMP_KEEP_DAYS
@@ -176,6 +182,7 @@ FULL_UPGRADE_REPO
 FULL_UPGRADE_UPDATE_CHANNEL
 FULL_UPGRADE_AUR_IGNORE
 FULL_UPGRADE_PIP_USER_IGNORE
+FULL_UPGRADE_UV_TOOL_HOLD_IGNORE
 FULL_UPGRADE_DMS_PLUGINS_IGNORE
 FULL_UPGRADE_SKIP
 FULL_UPGRADE_DISABLED_INTEGRATIONS
@@ -183,6 +190,7 @@ STALE_SERVICES_IGNORE
 COREDUMP_IGNORE_EXE
 GCLOUD_BIN
 COPILOT_BIN
+MIMO_BIN
 DMS_PLUGINS_DIR
 OPENCLAW_BIN
 ARTCRAFT_DIR
@@ -315,6 +323,19 @@ config_file_value() {
   printf '%s' "$value"
 }
 
+# O instalador do mimo (MiMo Code) põe o binário em ~/.mimocode/bin sem mexer no
+# PATH: o step o dava como "não instalado" com o binário presente e parado.
+default_mimo_bin() {
+  local b
+  if b="$(command -v mimo 2>/dev/null)" && [[ -n "$b" ]]; then
+    printf '%s\n' "$b"
+    return 0
+  fi
+  b="${HOME}/.mimocode/bin/mimo"
+  [[ -x "$b" ]] && printf '%s\n' "$b"
+  return 0
+}
+
 # Dux Shell 2.0 moveu ~/.config/DankMaterialShell para ~/.config/dms; o
 # diretório legado só vale quando o novo ainda não existe (DMS < 2.0).
 default_dms_plugins_dir() {
@@ -347,6 +368,7 @@ load_config() {
   # Auto-detecção de paths quando não definidos no config.
   [[ -z "$GCLOUD_BIN"  ]] && GCLOUD_BIN="$(command -v gcloud 2>/dev/null || true)"
   [[ -z "$COPILOT_BIN" ]] && COPILOT_BIN="$(command -v copilot 2>/dev/null || true)"
+  [[ -z "$MIMO_BIN" ]] && MIMO_BIN="$(default_mimo_bin)"
   [[ -z "$OPENCLAW_BIN" ]] && OPENCLAW_BIN="$(command -v openclaw 2>/dev/null || true)"
   [[ -z "$ORCA_IDE_BIN" ]] && ORCA_IDE_BIN="$(command -v stably-orca 2>/dev/null || true)"
   [[ -z "$ANTIGRAVITY_BIN" ]] && ANTIGRAVITY_BIN="$(command -v antigravity 2>/dev/null || true)"
@@ -377,9 +399,9 @@ load_config() {
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE TRAY_ICON_COLOR
   export AUR_HELPER PRIV_CMD
   export ARTCRAFT_DIR
-  export GCLOUD_BIN COPILOT_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
+  export GCLOUD_BIN COPILOT_BIN MIMO_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE COREDUMP_IGNORE_EXE
-  export FULL_UPGRADE_DMS_PLUGINS_IGNORE
+  export FULL_UPGRADE_DMS_PLUGINS_IGNORE FULL_UPGRADE_UV_TOOL_HOLD_IGNORE DOCKER_PULL_JOBS CLAUDE_PLUGIN_PREFILTER
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
   config_warn_typos
@@ -476,6 +498,8 @@ BOOT_TIME_WARN_S=60
 # para parar o aviso recorrente numa máquina já avaliada.
 FWUPD_HSI_MIN=2
 DOCKER_INFO_TIMEOUT_S=5
+# Pulls Docker simultâneos no step de imagens (1 = em série)
+DOCKER_PULL_JOBS=4
 ORPHAN_CLEANUP_MAX_ROUNDS=5
 
 # ── Auto-remediação de CVEs de toolchain Rust (F7) ──
@@ -588,6 +612,8 @@ MCP_AUTO_UPDATE=0
 # (CLAUDE_ENV_DIR/mcp/servers.json), sem segredos (só referências ${VAR}).
 # Idempotente: só grava quando algo divergiu, sempre com backup.
 MCP_HUB_RENDER=1
+# 1 = só chama `claude plugin update` nos plugins cuja versão/sha mudou no marketplace
+CLAUDE_PLUGIN_PREFILTER=1
 CLAUDE_ENV_DIR="${HOME}/claude-env"
 
 # ── Auto-update do Ollama (H2) ──
@@ -604,6 +630,9 @@ IDE_EXT_CLIS=""
 FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa poetry-core, poetry-core entra no ignore efetivo automaticamente.
 FULL_UPGRADE_PIP_USER_IGNORE=""
+# Ferramentas uv fixadas de propósito por restrição no uv-receipt.toml: o step
+# de ferramentas uv não acusa que ficaram atrás da última versão do PyPI.
+FULL_UPGRADE_UV_TOOL_HOLD_IGNORE=""
 # IDs estáveis de integrações opcionais desabilitadas (openclaw, coderabbit, artcraft, cua-driver).
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # Units systemd saciadas da auditoria de libs antigas (needrestart/checkservices):
@@ -622,6 +651,7 @@ COREDUMP_IGNORE_EXE=""
 # ── Overrides de path (vazio = auto-detecta) ──
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
+# MIMO_BIN="$HOME/.mimocode/bin/mimo"
 # DMS_PLUGINS_DIR="$HOME/.config/dms/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ARTCRAFT_DIR="$HOME/development/artcraft"
@@ -702,6 +732,8 @@ show_config() {
   _cfg_kv "NETWORK_GATE_HOST" "${NETWORK_GATE_HOST:-archlinux.org}"
   _cfg_kv "NETWORK_GATE_WAIT_S" "${NETWORK_GATE_WAIT_S:-20}"
   _cfg_kv "DOCKER_INFO_TIMEOUT_S" "$DOCKER_INFO_TIMEOUT_S"
+  _cfg_kv "DOCKER_PULL_JOBS" "$DOCKER_PULL_JOBS"
+  _cfg_kv "CLAUDE_PLUGIN_PREFILTER" "$CLAUDE_PLUGIN_PREFILTER"
   _cfg_kv "ORPHAN_CLEANUP_MAX_ROUNDS" "$ORPHAN_CLEANUP_MAX_ROUNDS"
   _cfg_kv "COREDUMP_KEEP_DAYS" "$COREDUMP_KEEP_DAYS"
   _cfg_kv "CODEX_TMP_KEEP_DAYS" "$CODEX_TMP_KEEP_DAYS"
@@ -748,6 +780,7 @@ show_config() {
   printf '%sListas de ignore%s\n' "$C_BOLD" "$C_RESET"
   _cfg_kv "FULL_UPGRADE_AUR_IGNORE" "$FULL_UPGRADE_AUR_IGNORE" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_PIP_USER_IGNORE" "$FULL_UPGRADE_PIP_USER_IGNORE" "<nenhum>"
+  _cfg_kv "FULL_UPGRADE_UV_TOOL_HOLD_IGNORE" "$FULL_UPGRADE_UV_TOOL_HOLD_IGNORE" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_SKIP" "$FULL_UPGRADE_SKIP" "<nenhum>"
   _cfg_kv "FULL_UPGRADE_DISABLED_INTEGRATIONS" "$FULL_UPGRADE_DISABLED_INTEGRATIONS" "<nenhuma>"
   _cfg_kv "STALE_SERVICES_IGNORE" "$STALE_SERVICES_IGNORE" "<nenhum>"
@@ -759,6 +792,7 @@ show_config() {
     "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
   _cfg_kv "GCLOUD_BIN" "$GCLOUD_BIN" "<não encontrado>"
   _cfg_kv "COPILOT_BIN" "$COPILOT_BIN" "<não encontrado>"
+  _cfg_kv "MIMO_BIN" "$MIMO_BIN" "<não encontrado>"
   _cfg_kv "OPENCLAW_BIN" "$OPENCLAW_BIN" "<não encontrado>"
   _cfg_kv "ARTCRAFT_DIR" "$ARTCRAFT_DIR"
   _cfg_kv "ORCA_IDE_BIN" "$ORCA_IDE_BIN" "<não encontrado>"

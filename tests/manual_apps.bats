@@ -511,3 +511,90 @@ _fake_github_release() {
   [ "${rc:-0}" -eq "$RC_WARN" ]
   [[ "$STEP_REASON" == *"ZAP core"*"2.17.0 mantido"* ]]
 }
+
+# ── U11: symlinks, ~/.local/opt e pip --user ──────────────────────────────────
+_ma_fake_home() {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  local b="$HOME/.local/bin"
+  mkdir -p "$b" "$HOME/development/gdu/5.39.0" "$HOME/.local/share/uv/tools/x/bin" \
+    "$HOME/.local/opt/handy/usr/bin" "$HOME/.local/opt/tor-browser" \
+    "$HOME/.local/lib/python3.14/site-packages/ruff-0.17.5.dist-info"
+  truncate -s 2M "$HOME/development/gdu/5.39.0/gdu_linux_amd64" "$HOME/.local/share/uv/tools/x/bin/x" \
+    "$b/ruff" "$b/herdr-core" "$b/meu-app"
+  chmod +x "$HOME/development/gdu/5.39.0/gdu_linux_amd64" "$HOME/.local/share/uv/tools/x/bin/x" "$b"/*
+  ln -s "$HOME/development/gdu/5.39.0/gdu_linux_amd64" "$b/gdu"
+  ln -s "$HOME/development/gdu/5.39.0/gdu_linux_amd64" "$b/gdu2"
+  ln -s "$HOME/.local/share/uv/tools/x/bin/x" "$b/x"
+  printf 'ruff/__init__.py,sha256=a,1\n../../../bin/ruff,sha256=b,2\n' \
+    >"$HOME/.local/lib/python3.14/site-packages/ruff-0.17.5.dist-info/RECORD"
+  has() { [[ "$1" == pacman ]]; }
+  pacman() { return 1; }
+  log() { printf '%s\n' "$*"; }
+  log_raw() { :; }
+}
+
+@test "_manual_apps_pip_user_bins: lê os scripts do RECORD" {
+  _ma_fake_home
+  run _manual_apps_pip_user_bins
+  [ "$output" = "ruff" ]
+}
+
+@test "_manual_apps_managed_target: destinos de gerenciador com step" {
+  export HOME=/h
+  run _manual_apps_managed_target /h/.local/share/uv/tools/headroom-ai/bin/headroom
+  [ "$status" -eq 0 ]
+  run _manual_apps_managed_target /h/.nvm/versions/node/v24/bin/npm
+  [ "$status" -eq 0 ]
+  run _manual_apps_managed_target /h/development/gdu/5.39.0/gdu
+  [ "$status" -ne 0 ]
+}
+
+@test "doctor_manual_apps: symlink manual conta, gerenciado não, destino conta uma vez" {
+  _ma_fake_home
+  run doctor_manual_apps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"• gdu  ("* ]]
+  [[ "$output" != *"gdu2"* ]]
+  [[ "$output" != *"• x  ("* ]]
+}
+
+@test "doctor_manual_apps: script do pip --user e herdr-core contam como cobertos" {
+  _ma_fake_home
+  run doctor_manual_apps
+  [[ "$output" != *"• ruff"* ]]
+  [[ "$output" != *"• herdr-core"* ]]
+  [[ "$output" == *"• meu-app"* ]]
+}
+
+@test "doctor_manual_apps: diretórios de ~/.local/opt viram candidatos" {
+  _ma_fake_home
+  run doctor_manual_apps
+  [[ "$output" == *"• handy  ($HOME/.local/opt)"* ]]
+  [[ "$output" == *"• tor-browser  ($HOME/.local/opt)"* ]]
+}
+
+@test "_manual_apps_has_step: reconhece os steps da Série U" {
+  for app in vp herdr-core hc herdr-app qodo ori spawn; do
+    run _manual_apps_has_step "$app"
+    [ "$status" -eq 0 ] || { echo "não coberto: $app"; return 1; }
+  done
+}
+
+@test "cloudflared_owner: nomeia a cópia do 9router e a manual (U18)" {
+  export HOME=/h
+  run cloudflared_owner /h/.9router/bin/cloudflared
+  [ "$output" = "cópia embutida do 9router" ]
+  run cloudflared_owner /h/.local/bin/cloudflared
+  [ "$output" = "instalação manual" ]
+}
+
+@test "update_cloudflared: o log diz de quem é a cópia atualizada (U18)" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME/.9router/bin"
+  printf '#!/bin/sh\n[ "$1" = update ] && exit 0\necho "cloudflared version 2026.11.1"\n' >"$HOME/.9router/bin/cloudflared"
+  chmod +x "$HOME/.9router/bin/cloudflared"
+  log() { printf '%s\n' "$*"; }
+  run update_cloudflared
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"(cópia embutida do 9router): 2026.11.1"* ]]
+}

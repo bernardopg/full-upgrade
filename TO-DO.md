@@ -44,6 +44,236 @@ verdes). Restam T4/T5 (documentação de regra e guard-rail opcional).
 
 ---
 
+## Série U — Auditoria do run real de 2026-11-17 (v3.55.0)
+
+Origem: run real `20261117-135858-15495` (`full-upgrade -y`): 129 ok, 0 warn,
+0 todo, 0 fail, 17 skip, 715s. Verde no resumo, mas a análise passo a passo
+achou um step que falha em silêncio, uma ferramenta presa por pin obsoleto,
+programas instalados à mão que nenhum step atualiza e quatro steps que
+refazem trabalho a cada run. Itens marcados "(máquina)" são correções no
+ambiente local, fora do código do projeto.
+
+### Correções de erros
+
+#### U1 — 🔴 P ☑ `Limpar symlinks quebrados (~/.local/bin)` nunca removeu nada
+
+Feito: Corrigido com `-xtype l`; `tests/cleanup_symlinks.bats` (5 testes, find real).
+
+`find "$dir" -maxdepth 1 -type l ! -e` usa um predicado inexistente (`-e`);
+o find aborta com `predicado inválido "-e"`, o `2>/dev/null` esconde e a lista
+sai vazia: o step registra "Sem symlinks quebrados" em todo run. Prova:
+`~/.local/bin/cr -> coderabbit` quebrado desde maio. Correção: `-xtype l`.
+Teste bats com symlink quebrado e válido em `$BATS_TEST_TMPDIR`.
+
+#### U2 — 🔴 M ☑ uv tool preso por restrição do receipt passa como ok
+
+Feito: `uv_tools_held_back` + helpers em `lang_py.sh`; `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE`; `tests/uv_tools_hold.bats` (14 testes).
+
+`uv tool upgrade --all` respeita as restrições gravadas no `uv-receipt.toml`
+(`--with "mcp<2"`) e sai 0 sem atualizar: o headroom ficou em 0.42.0 com a
+0.44.0 publicada (exige `mcp>=2.2`). O step passa a comparar a versão de cada
+ferramenta com a última do PyPI e, quando o receipt tem restrição extra e a
+ferramenta ficou para trás, devolve `RC_TODO` com o comando de reinstalação.
+Ignorável por `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE`.
+
+#### U3 — 🔴 P ☑ (máquina) Reinstalar o headroom sem o pin `mcp<2`
+
+Feito: Reinstalado: headroom 0.44.0 com mcp 2.3.0 e Python 3.11 fixado no receipt (sem `--python 3.11` o uv escolheu 3.15 e resolveu headroom 0.2.15). Proxy saudável, `headroom mcp serve` lista as ferramentas.
+
+O pin veio do crash do servidor MCP com mcp 2 na 0.42. A 0.44 sobe com mcp
+2.3.0 (`initialize` respondido em teste isolado com `uvx`). Ação:
+`uv tool install "headroom-ai[all]" --force` e conferir `headroom mcp serve`.
+
+#### U4 — 🔴 P ☑ (máquina) Tor Browser manual um major atrás
+
+Feito: Instalado `torbrowser-launcher` (extra), que baixa e verifica o Tor Browser e se atualiza; a cópia manual virou `~/.local/opt/tor-browser.manual-backup-20261117`. A primeira abertura do launcher baixa o 16.x.
+
+`~/.local/opt/tor-browser` em 15.0.11 com a 16.0.1 publicada; só se atualiza
+quando o app abre. Migrar para `tor-browser-bin` (AUR, 1311 votos), que o step
+de pacotes atualiza; guardar a pasta antiga como backup até conferir o perfil.
+
+#### U12 — 🟡 P ☑ mimo dado como "não instalado" com o binário presente
+
+Feito: `MIMO_BIN` autodetectado (`default_mimo_bin` em `config.sh`); testes em `tests/config.bats` e `tests/opencode.bats`.
+
+`~/.mimocode/bin/mimo` (0.1.17) fora do PATH; `main.sh` só testa `has mimo`.
+Autodetectar `MIMO_BIN` em `load_config` (padrão do `COPILOT_BIN`) e usar o
+caminho no step.
+
+### Novos steps (programas fora de gerenciador de pacotes)
+
+#### U5 — 🟡 M ☑ Step `Atualizar vite-plus (vp)`
+
+Feito: `update_vite_plus` + `vite_plus_bin` (`lang_js.sh`); testes em `tests/selfupdate_series_u.bats`.
+
+`~/.local/share/vite-plus` em 1.3.0 com a 1.7.0 publicada. `vp upgrade --check`
+(read-only) e `vp upgrade` (aplica). Detecta `vp` no PATH ou em
+`~/.local/share/vite-plus/bin/vp`.
+
+#### U6 — 🟡 M ☑ Step `Atualizar Herdr (core e app)`
+
+Feito: `update_herdr` e helpers de manifest (`tools.sh`); sha256 obrigatório e troca atômica do app; testes com tarball real em `tests/selfupdate_series_u.bats`.
+
+`herdr-core` 0.1.21 e `herdr-app` 0.1.15 (instalador próprio). Manifests em
+`https://releases.herdr.dev/{core,app}/latest.json`. Core: `herdr-core update`
+só quando o manifest é mais novo (o update reinicia o servidor; os terminais
+continuam). App: baixa o tar.gz do manifest, confere o sha256 e troca
+`~/.local/share/herdr-app` atomicamente, como o instalador oficial.
+
+#### U7 — 🟡 P ☑ Step `Atualizar qodo`
+
+Feito: `update_qodo` via `_selfupdate_check_apply`, binário resolvido por `manual_bin_path`.
+
+`~/.qodo/bin/qodo` 2.3.0 (2.3.3 publicada). `qodo update --check` e
+`qodo update`.
+
+#### U8 — 🟡 P ☑ Step `Atualizar ori (OpenRouter)`
+
+Feito: `update_ori` + `ori_update_available` (JSON do `--check`).
+
+`ori` 0.17.0. `ori update --check` devolve JSON com `updateAvailable`;
+`ori update` aplica no canal salvo.
+
+#### U9 — 🟡 P ☑ Step `Atualizar spawn (OpenRouter)`
+
+Feito: `update_spawn`; o gate `spawn_is_openrouter` evita outro `spawn` homônimo.
+
+`spawn` 1.1.1. `spawn update` é idempotente ("Already up to date").
+
+#### U10 — 🟡 M ☑ Doctor de pacotes locais sem fonte de atualização
+
+Feito: `doctor_foreign_pkgs_upstream` (`doctor/packages.sh`); `tests/doctor_foreign_pkgs.bats` (8 testes). Achado na máquina: os dois pacotes foram renomeados no AUR (ver U22).
+
+`dankcalendar-bin` 2.0.0 (upstream 2.1.2) e `dsearch-bin` 2.0.0 (2.1.1) foram
+instalados de PKGBUILD local e não existem no AUR: o paru só imprime "pacotes
+não presentes no AUR" e eles nunca atualizam. Novo doctor: lista os
+estrangeiros fora do AUR (uma chamada RPC), compara a versão com o último
+release do GitHub do campo `URL` e devolve `RC_TODO` quando há versão nova.
+
+### Melhorias
+
+#### U11 — 🟡 M ☑ `Doctor: apps manuais` enxerga symlinks, `~/.local/opt` e pip --user
+
+Feito: Symlinks resolvidos, `~/.local/opt`, `RECORD` do pip --user e marcadores dos steps novos; 6 testes novos em `tests/manual_apps.bats`.
+
+Hoje pula symlinks (gdu, herdr-app, codegraph antigo), ignora `~/.local/opt`
+(handy, recordly, Tor Browser) e marca como candidato binário que é do
+`pip --user` (ruff). Resolver o realpath dos symlinks (ignorando destinos de
+gerenciadores conhecidos), varrer `~/.local/opt/*`, ler o `RECORD` dos
+dist-info do pip --user e reconhecer os steps novos (vp, herdr, qodo, ori,
+spawn).
+
+#### U13 — 🟡 M ☑ Go tools: só reinstalar o que mudou
+
+Feito: `go_tool_needs_update` (`lang_other.sh`), que ignora o sufixo de GOEXPERIMENT da toolchain; 5 testes em `tests/lang_other.bats`. Nas 8 ferramentas da máquina: nenhuma reinstalação.
+
+`go install @latest` roda nas 9 ferramentas em todo run (46s). Comparar a
+versão do módulo (`go version -m`) com `go list -m mod@latest` e a toolchain
+do binário com `go env GOVERSION`; reinstalar só se algum mudou.
+
+#### U14 — 🟡 M ☑ Docker: pulls em paralelo
+
+Feito: `_docker_pull_all` com `DOCKER_PULL_JOBS`; 4 testes em `tests/docker_update.bats` (inclui o limite de concorrência).
+
+20 pulls em série (75s). Pulls concorrentes limitados por
+`DOCKER_PULL_JOBS` (padrão 4), resultados processados na ordem original.
+
+#### U15 — 🟡 M ☑ Plugins do Claude: pré-filtro pelo marketplace
+
+Feito: `claude_plugin_maybe_outdated` + `CLAUDE_PLUGIN_PREFILTER`; `tests/claude_plugins_prefilter.bats` (9 testes). Nos 24 plugins da máquina: 20 pulados, 4 conferidos pela CLI (marketplace sem `.git`, então a HEAD não é verificável).
+
+24 × `claude plugin update` (62–135s). Comparar versão/sha do
+`marketplace.json` (ou do `plugin.json` de fonte relativa) com o
+`installed_plugins.json` e chamar `update` só nos divergentes ou
+indeterminados. Desligável por `CLAUDE_PLUGIN_PREFILTER=0`.
+
+#### U16 — 🟡 M ☑ Agent skills: pular quando nenhuma fonte mudou
+
+Feito: Fingerprint de `git ls-remote` + lock (`agent_skills_source_heads`/`agent_skills_fingerprint`); `tests/agent_skills_heads.bats` (9 testes).
+
+`npx skills update --global` clona 7 fontes git em todo run (54–98s). Guardar
+o `git ls-remote <url> HEAD` de cada fonte do lock e pular o update quando
+todas as HEADs e o próprio lock estão iguais ao último run bem-sucedido.
+
+#### U17 — 🟢 P ☑ Simplificar `update_kimi`
+
+Feito: `update_kimi` delega prefixos de `npm_secondary_prefix_candidates`; teste novo em `tests/kimi.bats`.
+
+A lógica de "prefixo npm estrangeiro" repete `update_npm_globals_secondary`,
+que já itera todos os prefixos. Remover o caminho duplicado.
+
+#### U18 — 🟢 P ☑ `Atualizar cloudflared`: dizer de quem é a cópia
+
+Feito: `cloudflared_owner`; 2 testes em `tests/manual_apps.bats`.
+
+O step atualiza a cópia embutida do 9router (`~/.9router/bin`); o log passa
+a nomear o dono do binário.
+
+### Ambiente local (máquina)
+
+#### U19 — 🟢 P ☑ `FULL_UPGRADE_SKIP` redundante
+
+Feito: OpenClaw, CodeRabbit, qodercli e qoderwake saíram do `FULL_UPGRADE_SKIP` (backup em `config.bak-20261117`).
+
+OpenClaw e CodeRabbit já estão em `FULL_UPGRADE_DISABLED_INTEGRATIONS`;
+qodercli/qoderwake não estão instalados (o step pula sozinho).
+
+#### U20 — 🟢 P ☑ PATH com entradas mortas e duplicadas
+
+Feito: As entradas vinham de `~/.config/hypr/zsh/.zshenv` (qoder) e `.zshrc` (env do uv), já que `ZDOTDIR` aponta para lá; removidas (alterações não commitadas no repo `~/.config/hypr`). `~/.claude/local/bin` vem do `~/.spawnrc`, carregado pelo `~/.profile`; fica pendente de decisão (U25).
+
+`~/.qoder/entry` (`~/.zprofile`) e `~/.claude/local/bin` não existem;
+`~/.local/share/../bin` (do `~/.profile`, instalador do uv) duplica
+`~/.local/bin`.
+
+#### U21 — 🟢 P ☑ Trocar instalações manuais por pacote e limpar restos
+
+Feito: gdu do pacote `extra/gdu` (download manual apagado); handy do `handy-bin` (wrapper em `~/.local/bin/handy` aponta para `/usr/bin/handy`; cópia antiga em `~/.local/opt/handy.manual-backup-20261117`); codegraph antigo (282M) removido; snapd e python-lockfile desinstalados. O `~/.local/bin/cr` quebrado fica para o step corrigido removê-lo.
+
+gdu manual (`~/development/gdu/5.39.0`) → `extra/gdu`; handy (.deb extraído
+em `~/.local/opt/handy`) → `handy-bin`; codegraph antigo
+(`~/.codegraph/versions/v1.6.0` + symlink) sombreado pelo npm 1.6.3; snapd sem
+nenhum snap; `python-lockfile` sem dependentes; `~/.local/bin/cr` quebrado.
+
+#### U22 — 🟡 M ☑ Atualizar dankcalendar-bin e dsearch-bin
+
+Feito: Renomeados no AUR: instalados `dux-search-bin` 2.1.1 e `dux-calendar-bin` 2.1.2, que substituem `dsearch-bin` e `dankcalendar-bin`; `dsearch.service` ativo.
+
+Reconstruir os PKGBUILDs locais nas versões 2.1.2 e 2.1.1 (ver U10).
+
+#### U23 — 🟢 P ☑ ffmpeg com 1074 coredumps em 14 dias (projeto IPTV)
+
+Feito: `ulimits.core` 0 na âncora `x-streamworks` de `~/iptv/deploy/docker/compose.yml` (não commitado). Vale após `docker compose up -d` no `deploy/docker`.
+
+Vêm de um container Docker que testa `live.tvimpact.ro` (HEVC). O
+`COREDUMP_IGNORE_EXE` só esconde do relatório. Desligar core dump no compose
+(`ulimits: core: 0`) ou corrigir o teste do stream no projeto.
+
+#### U24 — 🟢 P ☑ `~/.9router/db` com 658M
+
+Feito: Sem ação: o 9router limita `requestDetails` a 1000 registros (`observabilityMaxRecords`), ~660 KB cada; o tamanho é estável.
+
+Verificar se cresce sem rotação.
+
+#### U25 — 🔴 P ☐ (máquina) `~/.spawnrc` carregado no shell de login local
+
+O `~/.profile` faz `source ~/.spawnrc`, o rc que o spawn grava para VMs de
+nuvem. Ele exporta uma chave da OpenRouter em texto puro, `IS_SANDBOX=1`,
+`LC_ALL=C.UTF-8`, `OPENAI_BASE_URL` da OpenRouter e põe `~/.claude/local/bin`
+no PATH de toda sessão que lê o `~/.profile`. Decidir: tirar o `source` do
+`~/.profile`, mover a chave para um cofre e rotacioná-la.
+
+### Verificados sem ação
+
+- Android SDK: já coberto por `Atualizar Android CLI` (`android sdk update`).
+- ruff em `~/.local/bin`: é do `pip --user`, coberto por
+  `Atualizar pacotes pip --user` (o doctor marcava errado; ver U11).
+- Firmware: `fwupd` cobre BIOS, ME, câmera, sensor e chaves UEFI; nada pendente.
+- `IgnorePkg = python-aiostream`: ainda necessário (vdirsyncer 0.21.0 pede
+  `aiostream<0.8.0`).
+
+---
+
 ## Série S — Coerência do catálogo de steps (revisão estrutural 2026-09-14)
 
 Objetivo: alinhar categoria ↔ semântica ↔ arquivo de implementação, tornar o

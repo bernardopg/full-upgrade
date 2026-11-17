@@ -91,12 +91,12 @@ Categorias (conjunto fechado, uma por step):
   repair     reparos idempotentes de estado quebrado
   security   Wireshark, Burp Suite, Snyk, OWASP ZAP
   firmware   fwupd e systemd-boot
-  lang-js    Node.js (nvm), npm, corepack, pnpm, Bun, Deno
+  lang-js    Node.js (nvm), npm, corepack, pnpm, Bun, Deno, vite-plus
   lang-py    pip --user, pipx, uv, Poetry
   lang-rust  rustup, bins cargo, auditoria de CVEs
   lang-other Arduino, Go, .NET, gcloud, gems, ghcup
   ai         CLIs de IA e de otimização de contexto
-  tools      utilitários fora de gestor de pacote (gk, cua-driver, OBS)
+  tools      utilitários fora de gestor de pacote (gk, Herdr, cloudflared, OBS)
   ide        Orca, Antigravity e extensões VSCode/Cursor
   editor     Neovim (Lazy e Mason)
   shell      Oh My Zsh, plugins Zsh, Yazi, hyprpm, tldr

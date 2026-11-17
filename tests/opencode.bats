@@ -82,3 +82,18 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"mimo (MiMo Code) agora: 0.1.14"* ]]
 }
+
+@test "opencode-style: mimo fora do PATH usa o MIMO_BIN" {
+  mkdir -p "$BATS_TEST_TMPDIR/mimocode/bin"
+  cat >"$BATS_TEST_TMPDIR/mimocode/bin/mimo" <<'SH'
+#!/usr/bin/env bash
+case "$1" in --version) echo 0.1.18 ;; upgrade) echo "upgrade-chamado" ;; esac
+SH
+  chmod +x "$BATS_TEST_TMPDIR/mimocode/bin/mimo"
+  MIMO_BIN="$BATS_TEST_TMPDIR/mimocode/bin/mimo"
+  run_network_cmd() { "$@"; }
+  run update_mimo
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"upgrade-chamado"* ]]
+  [[ "$output" == *"mimo (MiMo Code) agora: 0.1.18"* ]]
+}

@@ -308,12 +308,12 @@ eixos transversais (`network`, `slow`, `sudo`, nome da ferramenta, …).
 | `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
 | `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog. |
 | `firmware` | `fwupd` e `systemd-boot`. |
-| `lang-js` | Toolchain JavaScript: Node.js e nvm, npm (prefixo ativo, `~/.npm-global` e o do Node em uso), corepack, pnpm, Bun, Deno. |
+| `lang-js` | Toolchain JavaScript: Node.js e nvm, npm (prefixo ativo, `~/.npm-global` e o do Node em uso), corepack, pnpm, Bun, Deno, vite-plus. |
 | `lang-py` | Toolchain Python: pip `--user`, pipx, uv (self/python/tools), Poetry. |
 | `lang-rust` | Toolchain Rust: rustup, binários cargo e auditoria de CVEs. |
 | `lang-other` | Demais toolchains: Arduino, Go, .NET, Google Cloud SDK, gems, ghcup. |
 | `ai` | CLIs de IA e otimização (inclusive fora de gestor de pacote), plugins do Claude Code e do Codex, agent skills e servidores MCP. |
-| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, purple, Android CLI, cloudflared, OBS). |
+| `tools` | Utilitários de linha de comando e plugins fora de gestor (GitKraken CLI, cua-driver, purple, Android CLI, Herdr, cloudflared, OBS). |
 | `ide` | IDEs e extensões (Orca, Antigravity, VSCode/Cursor). |
 | `editor` | Neovim (plugins Lazy e ferramentas Mason). |
 | `shell` | Shell e terminal: Oh My Zsh, plugins Zsh, Yazi, Hyprland (hyprpm), cache do tldr. |
@@ -378,7 +378,7 @@ Status possíveis no resumo:
 | Shell/editor/IDE | Oh My Zsh, plugins customizados de Zsh, Neovim Lazy/Mason, Hyprland `hyprpm` e extensões de IDE da família VSCode (Code/Cursor/Codium via `--update-extensions`). |
 | IA | CLIs de IA via npm global (Codex, Gemini, Qwen, Cline, 9router…), instaladores próprios (opencode, Ollama via `OLLAMA_SELF_UPDATE`), **pi** (pi-coding-agent: self-update nativo `pi update`, extensões instaladas via `pi update --extensions` e refresh dos catálogos de modelos via `pi update --models`), Kimi, Orca IDE (Stably AI, com reparo de `.desktop`/ícone), **TokenSave** via self-update, **agent skills** globais (as que a máquina tiver instaladas, rastreadas pelo lock do skills CLI / `~/.agents/skills`, via `npx skills update --global`) e refresh de servidores **MCP** uvx (`MCP_AUTO_UPDATE`). Updaters Node/Electron repetem uma vez só após `ETIMEDOUT`, sem a auto-seleção de família; TokenSave confirma read-only a release atual quando apenas seu updater não alcança o GitHub. |
 | CLIs e extras | Claude Code, Hermes, GitHub Copilot, DankMaterialShell, RTK, TokenSave, OpenClaw, Burp Suite e Wireshark (steps independentes) quando habilitados. |
-| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` e `/opt` e indica o que ainda não tem step. |
+| Apps manuais | Programas instalados **fora de qualquer gerenciador de pacotes**, cada um com seu step dedicado: Factory **droid** (self-update nativo), **Snyk CLI** e **GitKraken CLI** (binários verificados por sha256) e core/add-ons do **OWASP ZAP**. O step read-only `Doctor: apps manuais` mapeia tudo em `/usr/local/bin`, `~/.local/bin` (inclusive symlinks), `/opt` e `~/.local/opt` e indica o que ainda não tem step; `Doctor: pacotes locais fora do AUR` aponta pacote de PKGBUILD local atrás do release do GitHub. |
 
 Ferramentas ausentes não quebram a execução normal: o step é marcado como
 `skip` com o motivo, e o restante do fluxo continua.
@@ -637,6 +637,7 @@ Principais chaves:
 | `BOOT_TIME_WARN_S` | `60` | Alerta no doctor se o boot (`systemd-analyze`) exceder N segundos. |
 | `FWUPD_HSI_MIN` | `2` | `Doctor: fwupd security` avisa se o nível HSI ficar abaixo disso. HSI costuma ser limitado pelo hardware/UEFI; `1` ou `0` silencia uma máquina já avaliada. |
 | `DOCKER_INFO_TIMEOUT_S` | `5` | Timeout curto para detectar daemon Docker inacessível antes de pular o step. |
+| `DOCKER_PULL_JOBS` | `4` | Pulls Docker simultâneos no step de imagens; `1` volta ao modo em série. |
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Teto, em segundos, por `<cli> --version` no `Doctor: AI CLIs`; valor inteiro positivo. |
 | `ORPHAN_CLEANUP_MAX_ROUNDS` | `5` | Rodadas máximas de remoção de órfãos para capturar dependências que viram órfãs após a primeira remoção. |
 | `COREDUMP_KEEP_DAYS` | `7` | Dias de retenção de dumps em `/var/lib/systemd/coredump` (0/inválido = 7); metadados dependem também da retenção do journal. Ausência após vacuum não comprova resolução do crash. |
@@ -650,6 +651,7 @@ Principais chaves:
 | `GITHUB_UPDATER_TOKEN_FROM_GH` | `0` | `1` = sem token dedicado, entrega o token do `gh` aos updaters de terceiros. Esse token costuma ter escopos `repo`/`workflow`/`delete_repo`; prefira o token dedicado. |
 | `AI_PLUGIN_BLOCKLIST` | vazio | Nomes de plugin ou marketplace (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar os marketplaces. Desligar a skill por caminho no `config.toml` do Codex não basta: o caminho inclui a versão, e o upgrade seguinte instala outra. |
 | `AGENT_SKILLS_TIMEOUT_S` | `60` | Orçamento do `npx skills update --global`. Quando a versão do CLI o excede, o step repete com a última versão boa (ou a release anterior), cada tentativa limitada ao que sobra do limite do catálogo (660s). A nova só é registrada como lenta em `~/.local/state/full-upgrade/agent-skills-cli` se a anterior couber no orçamento; se as duas estouram, a lentidão é da máquina/rede e nada é marcado. A mais nova volta a ser testada quando o upstream publica outra. Motivação: `skills@1.7.5` levou 71s contra 5s da 1.7.4. |
+| `CLAUDE_PLUGIN_PREFILTER` | `1` | O step de plugins do Claude Code só chama `claude plugin update` nos plugins cuja versão/sha mudou no clone do marketplace; `0` chama em todos. |
 | `AUTO_FIX_PIP_DEPS` | `0` | `1` = o step `Auto-remediar deps Python ausentes` instala com `pip install --user` as dependências **ausentes** de pacotes pip `--user` apontadas pelo `pip check` (aditivo — a dep não existe em nenhum site, nunca toca o pacman; conflitos de versão seguem manuais); `0` = só reporta. |
 | `REPORT_ON_FINISH` | `0` | `1` = grava relatório Markdown do run em `~/.cache/system-upgrade/` ao final. |
 | `NOTIFY_ON_FINISH` | `0` | `1` = envia notificação desktop (`notify-send`) com o resumo ao fim do run. |
@@ -668,12 +670,14 @@ Principais chaves:
 | `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular; valores do ambiente e do config são unidos sem duplicatas. |
 | `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit,cua-driver` (IDs: `openclaw`, `coderabbit`, `artcraft`, `cua-driver`); evita depender do texto do step. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
+| `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE` | vazio | Ferramentas uv fixadas de propósito por restrição no `uv-receipt.toml`: o step não acusa que ficaram atrás do PyPI. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
 | `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins do DankMaterialShell fixados (nomes de diretório separados por espaço ou vírgula, globs permitidos, ex. `dankDiskUsage`). Um plugin fixado é pulado antes do `git fetch`, então nunca sofre `pull` nem o `reset --hard` da recuperação de divergência: patches locais aplicados enquanto se espera um release upstream sobrevivem ao update. Vale também para monorepos do registry, usando o nome sob `.repos/`. |
 | `STALE_SERVICES_IGNORE` | vazio | Units systemd (globs permitidos, ex. `NetworkManager.service`) saciadas da auditoria de libs antigas: saem do TODO do `Doctor: serviços com libs antigas` e da lista de reinício de `--restart-services`. Para units cujo reinício quebraria sessão/rede (upgrade por SSH/Wi-Fi) e que segurarão libs velhas até o reboot por decisão consciente. |
 | `COREDUMP_IGNORE_EXE` | vazio | Executáveis (globs permitidos, ex. `ffmpeg`) saciados do `Doctor: crashes recorrentes (coredump)`: crash conhecido/esperado (ex.: um probe ativo próprio que sonda deliberadamente streams hostis) não vira TODO mesmo crashando com frequência. Compara pelo basename da coluna EXE do `coredumpctl list`. |
 | `GCLOUD_BIN` | auto | Override do binário `gcloud`. |
 | `COPILOT_BIN` | auto | Override do binário `copilot`. |
+| `MIMO_BIN` | auto | Override do binário `mimo`; o autodetect cai para `~/.mimocode/bin/mimo` fora do PATH. |
 | `OPENCLAW_BIN` | auto | Override do binário `openclaw`. |
 | `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` (cai para `~/.config/DankMaterialShell/plugins` se só o legado existir) | Diretório dos plugins DankMaterialShell. |
 | `RTK_BIN` | auto | Override do binário `rtk` (Rust Token Killer). |

@@ -893,3 +893,44 @@ update_deno() {
   printf '%s\n' "$output" | grep -v '^$' | tail -5 | log_out || true
   return "$rc"
 }
+
+
+# ── vite-plus (vp) ──────────────────────────────────────────────────────────────
+# Toolchain JS da VoidZero instalada por script próprio em
+# ~/.local/share/vite-plus; o `vp` chega ao shell interativo por uma função
+# definida no rc, nunca pelo PATH do run. Ficou na 1.3.0 com a 1.7.0 publicada.
+# `vp upgrade --check` é read-only ("Update available: A → B"); `vp upgrade`
+# aplica. rc: 0 ok · RC_WARN rede/falha.
+vite_plus_bin() {
+  manual_bin_path vp "${VITE_PLUS_HOME:-${HOME}/.local/share/vite-plus}/bin/vp"
+}
+
+update_vite_plus() {
+  local vp
+  vp="$(vite_plus_bin)"
+  [[ -n "$vp" ]] || { log "  vite-plus (vp) não encontrado."; return 0; }
+  local check rc
+  check="$(run_network_cmd "$vp" upgrade --check 2>&1)"
+  rc=$?
+  printf '%s\n' "$check" | _strip_ansi | grep -v '^[[:space:]]*$' | log_out || true
+  if ((rc != 0)); then
+    log "  Não foi possível verificar atualização do vite-plus."
+    STEP_REASON="vp upgrade --check falhou (rc=${rc})"
+    return "$RC_WARN"
+  fi
+  if ! grep -qi 'update available' <<<"$check"; then
+    log "  vite-plus já na versão mais recente ($("$vp" --version 2>/dev/null | head -1))."
+    return 0
+  fi
+  local out
+  out="$(run_network_cmd "$vp" upgrade 2>&1)"
+  rc=$?
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -5 | log_out || true
+  if ((rc != 0)); then
+    log "  Falha ao atualizar o vite-plus."
+    STEP_REASON="vp upgrade falhou (rc=${rc})"
+    return "$RC_WARN"
+  fi
+  log "  vite-plus agora: $("$vp" --version 2>/dev/null | head -1)"
+  return 0
+}

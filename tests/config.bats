@@ -131,3 +131,33 @@ EOF
   run default_dms_plugins_dir
   [ "$output" = "$XDG_CONFIG_HOME/dms/plugins" ]
 }
+
+# ── default_mimo_bin ──────────────────────────────────────────────────────────
+@test "default_mimo_bin: cai para ~/.mimocode/bin/mimo fora do PATH" {
+  HOME="$BATS_TEST_TMPDIR/h"; mkdir -p "$HOME/.mimocode/bin"
+  printf '#!/bin/sh\n' >"$HOME/.mimocode/bin/mimo"; chmod +x "$HOME/.mimocode/bin/mimo"
+  PATH="/usr/bin:/bin" run default_mimo_bin
+  [ "$status" -eq 0 ]
+  [ "$output" = "$HOME/.mimocode/bin/mimo" ]
+}
+
+@test "default_mimo_bin: prefere o mimo do PATH" {
+  HOME="$BATS_TEST_TMPDIR/h"; mkdir -p "$BATS_TEST_TMPDIR/p"
+  printf '#!/bin/sh\n' >"$BATS_TEST_TMPDIR/p/mimo"; chmod +x "$BATS_TEST_TMPDIR/p/mimo"
+  PATH="$BATS_TEST_TMPDIR/p:/usr/bin:/bin" run default_mimo_bin
+  [ "$output" = "$BATS_TEST_TMPDIR/p/mimo" ]
+}
+
+@test "default_mimo_bin: sem binário nenhum devolve vazio e rc 0" {
+  HOME="$BATS_TEST_TMPDIR/vazio"; mkdir -p "$HOME"
+  PATH="/usr/bin:/bin" run default_mimo_bin
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "config_known_keys: inclui as chaves da Série U" {
+  run config_known_keys
+  for k in MIMO_BIN DOCKER_PULL_JOBS CLAUDE_PLUGIN_PREFILTER FULL_UPGRADE_UV_TOOL_HOLD_IGNORE; do
+    grep -qx "$k" <<<"$output" || { echo "falta $k"; return 1; }
+  done
+}

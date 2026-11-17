@@ -239,3 +239,51 @@ setup() {
   [ "$rc" -eq "$RC_TODO" ]
   [ ! -e "${MOCK_RECREATED}.args" ]
 }
+
+# ── U14: pulls em paralelo ────────────────────────────────────────────────────
+@test "_docker_pull_all: grava saída e rc de cada imagem pelo índice" {
+  _retry() { shift; [[ "$3" == b:1 ]] && { echo "falhou $3"; return 1; }; echo "ok $3"; }
+  local d="$BATS_TEST_TMPDIR/p"; mkdir -p "$d"
+  DOCKER_PULL_JOBS=2 _docker_pull_all "$d" a:1 b:1 c:1
+  [ "$(cat "$d/0.out")" = "ok a:1" ]
+  [ "$(cat "$d/1.rc")" = "1" ]
+  [ "$(cat "$d/2.rc")" = "0" ]
+}
+
+@test "_docker_pull_all: nunca passa de DOCKER_PULL_JOBS pulls simultâneos" {
+  local d="$BATS_TEST_TMPDIR/p" lk="$BATS_TEST_TMPDIR/lk"; mkdir -p "$d" "$lk"
+  _retry() {
+    local me="$lk/$BASHPID"; : >"$me"
+    ls "$lk" | wc -l >>"$BATS_TEST_TMPDIR/conc"
+    sleep 0.2; rm -f "$me"
+  }
+  DOCKER_PULL_JOBS=2 _docker_pull_all "$d" i1 i2 i3 i4 i5
+  [ "$(sort -n "$BATS_TEST_TMPDIR/conc" | tail -1)" -le 2 ]
+  [ -e "$d/4.rc" ]
+}
+
+@test "_docker_pull_all: DOCKER_PULL_JOBS inválido cai para 1 (em série)" {
+  local d="$BATS_TEST_TMPDIR/p" lk="$BATS_TEST_TMPDIR/lk"; mkdir -p "$d" "$lk"
+  _retry() {
+    local me="$lk/$BASHPID"; : >"$me"
+    ls "$lk" | wc -l >>"$BATS_TEST_TMPDIR/conc"
+    sleep 0.1; rm -f "$me"
+  }
+  DOCKER_PULL_JOBS=abc _docker_pull_all "$d" i1 i2 i3
+  [ "$(sort -n "$BATS_TEST_TMPDIR/conc" | tail -1)" -eq 1 ]
+}
+
+@test "Docker: várias imagens em paralelo mantêm a classificação por imagem" {
+  MOCK_IMAGES=$'caddy:2.11-alpine\nalpine:3.22\nhttpd:2'
+  _retry() {
+    case "$4" in
+      alpine:3.22) echo 'Status: Downloaded newer image for alpine:3.22' ;;
+      httpd:2) echo 'erro definitivo'; return 1 ;;
+      *) echo 'Status: Image is up to date' ;;
+    esac
+  }
+  update_docker_images >"$BATS_TEST_TMPDIR/out" && rc=0 || rc=$?
+  [ "$rc" -eq 1 ]
+  [[ "$STEP_REASON" == *"httpd:2"* ]]
+  [[ "$STEP_REASON" != *"alpine"* ]]
+}

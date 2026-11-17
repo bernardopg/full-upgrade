@@ -21,6 +21,24 @@ _manual_write_prefix() {
   return 1
 }
 
+# Caminho do executável $1: o do PATH (type -P ignora função de shell) ou o
+# primeiro caminho alternativo executável. Instaladores próprios (qodo, vite-plus,
+# herdr) põem o binário em ~/.<tool>/bin e mexem no PATH só do shell
+# interativo, então o run (bash não interativo) não o enxerga pelo nome.
+manual_bin_path() {
+  local name="$1" b
+  shift
+  b="$(type -P "$name" 2>/dev/null || true)"
+  if [[ -n "$b" ]]; then
+    printf '%s\n' "$b"
+    return 0
+  fi
+  for b in "$@"; do
+    [[ -x "$b" && ! -d "$b" ]] && { printf '%s\n' "$b"; return 0; }
+  done
+  return 0
+}
+
 # ── CLIs com update nativo que já checa sozinho ──────────────────────────────
 # `pool update` (Poolside, ~/.local/bin/pool) e `purple update` comparam a versão
 # instalada com a última release, verificam checksum e só baixam se houver

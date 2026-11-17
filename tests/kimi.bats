@@ -156,3 +156,24 @@ setup() {
   [ "$status" -eq "$RC_TODO" ]
   [[ "$output" == *"não reconhece esta instalação"* ]]
 }
+
+@test "kimi: prefixo estrangeiro coberto pelo npm secundário => sem npm install (U17)" {
+  has() { [[ "$1" == kimi ]]; }
+  kimi() { [[ "$1" == --version ]] && printf '0.36.1\n'; }
+  command() {
+    if [[ "$1" == -v && "$2" == kimi ]]; then
+      printf '/home/u/.npm-global/bin/kimi\n'
+      return 0
+    fi
+    builtin command "$@"
+  }
+  readlink() { printf '/home/u/.npm-global/lib/node_modules/@moonshot-ai/kimi-code/dist/main.mjs\n'; }
+  npm_secondary_prefix_candidates() { printf '/home/u/.npm-global\n/home/u/.nvm/versions/node/v24\n'; }
+  local args_file="${BATS_TEST_TMPDIR}/npm.args"
+  : >"$args_file"
+  npm() { printf '%s\n' "$*" >>"$args_file"; [[ "$1" == ls ]] && return 0; return 1; }
+  run update_kimi
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"já coberto por 'Atualizar npm global secundário'"* ]]
+  [[ "$(cat "$args_file")" != *"install"* ]]
+}

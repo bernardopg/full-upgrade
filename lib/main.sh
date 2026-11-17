@@ -190,6 +190,12 @@ run_all_steps() {
         step_skip "Atualizar Deno" "deno não instalado"
     fi
 
+    if [[ -n "$(vite_plus_bin)" ]]; then
+        run_step "Atualizar vite-plus (vp)" update_vite_plus
+    else
+        step_skip "Atualizar vite-plus (vp)" "vite-plus não instalado"
+    fi
+
     # ── Python ────────────────────────────────────────────────────────────────────
     
     if has python && python -m pip --version >/dev/null 2>&1; then
@@ -380,7 +386,7 @@ run_all_steps() {
         step_skip "Atualizar kilo (Kilo Code CLI)" "kilo não instalado"
     fi
 
-    if has mimo; then
+    if has mimo || [[ -x "${MIMO_BIN:-}" ]]; then
         run_step "Atualizar mimo (MiMo Code)" update_mimo
     else
         step_skip "Atualizar mimo (MiMo Code)" "mimo não instalado"
@@ -531,6 +537,24 @@ run_all_steps() {
         step_skip "Atualizar muse (Muse Code)" "muse não instalado"
     fi
 
+    if [[ -n "$(qodo_bin)" ]]; then
+        run_step "Atualizar qodo" update_qodo
+    else
+        step_skip "Atualizar qodo" "qodo não instalado"
+    fi
+
+    if has ori; then
+        run_step "Atualizar ori (OpenRouter)" update_ori
+    else
+        step_skip "Atualizar ori (OpenRouter)" "ori não instalado"
+    fi
+
+    if has spawn && spawn_is_openrouter; then
+        run_step "Atualizar spawn (OpenRouter)" update_spawn
+    else
+        step_skip "Atualizar spawn (OpenRouter)" "spawn (OpenRouter) não instalado"
+    fi
+
     if has pool; then
         run_step "Atualizar pool (Poolside)" update_pool
     else
@@ -555,6 +579,12 @@ run_all_steps() {
         run_step "Atualizar Android CLI" update_android_cli
     else
         step_skip "Atualizar Android CLI" "android não instalado"
+    fi
+
+    if herdr_installed; then
+        run_step "Atualizar Herdr (core e app)" update_herdr
+    else
+        step_skip "Atualizar Herdr (core e app)" "Herdr não instalado"
     fi
 
     if [[ -n "$(cloudflared_manual_bins)" ]]; then
@@ -814,6 +844,7 @@ run_all_steps() {
     else
         step_skip "Doctor: suíte Artcraft" "suíte Artcraft não instalada"
     fi
+    run_step "Doctor: pacotes locais fora do AUR" doctor_foreign_pkgs_upstream
     run_step "Doctor: apps manuais (fora de pacote)" doctor_manual_apps
 
     if has obs || pacman -Q obs-studio >/dev/null 2>&1; then

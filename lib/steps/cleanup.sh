@@ -14,7 +14,11 @@ cleanup_broken_symlinks_local_bin() {
 
   [[ -d "$dir" ]] || return 0
 
-  mapfile -t broken < <(find "$dir" -maxdepth 1 -type l ! -e -print 2>/dev/null)
+  # `-xtype l` casa o symlink cujo destino não existe. A versão anterior usava
+  # `! -e`, predicado que o find não tem: ele abortava com "predicado inválido",
+  # o 2>/dev/null escondia o erro e o step relatou "sem symlinks quebrados" em
+  # todo run, deixando o ~/.local/bin/cr quebrado por seis meses.
+  mapfile -t broken < <(find "$dir" -maxdepth 1 -xtype l -print 2>/dev/null)
 
   if (( ${#broken[@]} == 0 )); then
     log "  Sem symlinks quebrados em ${dir}."

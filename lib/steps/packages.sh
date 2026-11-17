@@ -158,6 +158,31 @@ _docker_recreate_stale_compose() {
   done
 }
 
+# Puxa as imagens ($2..) com até DOCKER_PULL_JOBS pulls simultâneos. Em série,
+# 20 imagens já atualizadas levavam 75s, quase tudo esperando o registry. Cada
+# pull grava saída e rc em <dir>/<índice>.{out,rc}; o chamador lê na ordem
+# original, então o log e a classificação ficam iguais aos do modo em série.
+_docker_pull_all() {
+  local dir="$1"
+  shift
+  local jobs="${DOCKER_PULL_JOBS:-4}" i=0 running=0 img
+  [[ "$jobs" =~ ^[0-9]+$ ]] && ((jobs >= 1)) || jobs=1
+  for img in "$@"; do
+    (
+      local prc=0
+      _retry 2 docker pull "$img" >"${dir}/${i}.out" 2>&1 || prc=$?
+      printf '%s\n' "$prc" >"${dir}/${i}.rc"
+    ) &
+    i=$((i + 1))
+    running=$((running + 1))
+    if ((running >= jobs)); then
+      wait -n 2>/dev/null || true
+      running=$((running - 1))
+    fi
+  done
+  wait
+}
+
 update_docker_images() {
   if ! has docker; then
     log "  docker não encontrado."
@@ -206,11 +231,17 @@ update_docker_images() {
   fi
   (( ${#skipped[@]} > 0 )) && log "  Imagens locais (builds) ignoradas: ${skipped[*]}"
 
-  local output rc
+  local output rc pull_dir idx=0
+  pull_dir="$(mktemp -d)" || { STEP_REASON="Docker: mktemp falhou"; return "$RC_WARN"; }
+  ((${#remote_images[@]} > 1 && ${DOCKER_PULL_JOBS:-4} > 1)) \
+    && log "  Pulls em paralelo: até ${DOCKER_PULL_JOBS:-4} por vez (DOCKER_PULL_JOBS)."
+  _docker_pull_all "$pull_dir" "${remote_images[@]}"
   for img in "${remote_images[@]}"; do
     log "  docker pull ${img}"
-    output="$(_retry 2 docker pull "$img" 2>&1)"
-    rc=$?
+    output="$(cat -- "${pull_dir}/${idx}.out" 2>/dev/null)"
+    rc="$(cat -- "${pull_dir}/${idx}.rc" 2>/dev/null)"
+    [[ "$rc" =~ ^[0-9]+$ ]] || rc=1
+    idx=$((idx + 1))
     if (( rc == RC_WARN )); then
       log "  docker pull ${img}: falha de rede transitória após 2 tentativas."
       transient+=("$img")
@@ -235,6 +266,7 @@ update_docker_images() {
       fi
     fi
   done
+  rm -rf -- "$pull_dir"
 
   # Remover imagens dangling geradas pelos pulls
   local dangling

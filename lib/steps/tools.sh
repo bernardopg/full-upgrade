@@ -169,6 +169,15 @@ cloudflared_manual_bins() {
   return 0
 }
 
+# Dono de uma cópia do cloudflared ($1), para o log dizer de quem é o binário
+# atualizado (a do 9router fica fora do PATH e confundia a leitura). Puro.
+cloudflared_owner() {
+  case "$1" in
+    "${HOME}/.9router/"*) printf 'cópia embutida do 9router\n' ;;
+    *) printf 'instalação manual\n' ;;
+  esac
+}
+
 update_cloudflared() {
   local -a bins=()
   mapfile -t bins < <(cloudflared_manual_bins)
@@ -179,7 +188,7 @@ update_cloudflared() {
     rc=$?
     printf '%s\n' "$out" | grep -v ' INF ' | log_out
     case "$rc" in
-      0 | 11) log "  ${b}: $("$b" --version 2>/dev/null | awk '{print $3; exit}')" ;;
+      0 | 11) log "  ${b} ($(cloudflared_owner "$b")): $("$b" --version 2>/dev/null | awk '{print $3; exit}')" ;;
       *) log "  Falha ao atualizar ${b} (rc=${rc})."; any_fail=1 ;;
     esac
   done
@@ -258,4 +267,150 @@ update_artcraft() {
     STEP_REASON="Artcraft: atualização incompleta; confira o log (versões anteriores preservadas)"
     return "$RC_WARN"
   fi
+}
+
+
+# ── Herdr (herdr-core e herdr-app) ──────────────────────────────────────────────
+# Instalados pelos scripts de releases.herdr.dev: o core (`hc`) em
+# ~/.local/bin/herdr-core e o app em ~/.local/share/herdr-app (symlink em
+# ~/.local/bin). Os manifests <releases>/{core,app}/latest.json dão a versão e,
+# no app, URL + sha256 por alvo. O core se atualiza com `herdr-core update
+# --version X`, que reinicia o servidor e mantém os terminais vivos; por isso só
+# roda quando o manifest é mais novo. O app não tem updater: é trocado como o
+# instalador oficial faz (download, sha256, troca atômica do diretório).
+HERDR_RELEASES_URL="${HERDR_RELEASES_URL:-https://releases.herdr.dev}"
+
+herdr_core_bin() { manual_bin_path herdr-core "${HOME}/.local/bin/herdr-core"; }
+herdr_app_home() { printf '%s\n' "${XDG_DATA_HOME:-${HOME}/.local/share}/herdr-app"; }
+herdr_installed() {
+  [[ -n "$(herdr_core_bin)" || -x "$(herdr_app_home)/herdr-app" ]]
+}
+
+# Campo de topo de um manifest ($1 = JSON, $2 = campo). Puro, sem jq: o
+# manifest é plano o bastante para sed depois de tirar espaços e quebras.
+herdr_manifest_field() {
+  tr -d '\n ' <<<"$1" | sed -nE "s/^\{(.*,)?\"$2\":\"([^\"]*)\".*/\2/p" | head -1
+}
+
+# Campo do alvo ($2, ex.: linux-x86_64) dentro de "targets" ($3 = url|sha256).
+herdr_manifest_target_field() {
+  local entry
+  entry="$(tr -d '\n ' <<<"$1" | sed -n "s/.*\"$2\":{\([^}]*\)}.*/\1/p")"
+  sed -nE "s/.*\"$3\":\"([^\"]*)\".*/\1/p" <<<"$entry" | head -1
+}
+
+herdr_target() {
+  case "$(uname -m)" in
+    x86_64 | amd64) printf 'linux-x86_64\n' ;;
+    aarch64 | arm64) printf 'linux-aarch64\n' ;;
+    *) return 1 ;;
+  esac
+}
+
+# Versão X.Y.Z de uma linha como "hc 0.1.21" ou "herdr-app 0.1.15".
+_herdr_version_of() { "$@" --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1; }
+
+_herdr_update_core() {
+  local core="$1" cur manifest latest rc
+  cur="$(_herdr_version_of "$core")"
+  manifest="$(fetch_network_text --connect-timeout 10 --max-time 30 "${HERDR_RELEASES_URL}/core/latest.json")" || return "$RC_WARN"
+  latest="$(herdr_manifest_field "$manifest" version)"
+  if [[ -z "$latest" ]]; then
+    log "  herdr-core: manifest sem versão."
+    return "$RC_WARN"
+  fi
+  if [[ -n "$cur" ]] && ! version_is_outdated "$cur" "$latest"; then
+    log "  herdr-core já na versão mais recente (${cur})."
+    return 0
+  fi
+  log "  Atualizando herdr-core: ${cur:-?} → ${latest} (o servidor reinicia; os terminais continuam)."
+  local out
+  out="$(run_network_cmd "$core" update --version "$latest" </dev/null 2>&1)"
+  rc=$?
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -5 | log_out || true
+  ((rc == 0)) || { log "  Falha ao atualizar o herdr-core (rc=${rc})."; return "$RC_WARN"; }
+  log "  herdr-core agora: $(_herdr_version_of "$core")"
+  return 0
+}
+
+_herdr_update_app() {
+  local home="$1" app cur manifest latest target url want
+  app="${home}/herdr-app"
+  cur="$(_herdr_version_of "$app")"
+  manifest="$(fetch_network_text --connect-timeout 10 --max-time 30 "${HERDR_RELEASES_URL}/app/latest.json")" || return "$RC_WARN"
+  latest="$(herdr_manifest_field "$manifest" version)"
+  if [[ -z "$latest" ]]; then
+    log "  herdr-app: manifest sem versão."
+    return "$RC_WARN"
+  fi
+  if [[ -n "$cur" ]] && ! version_is_outdated "$cur" "$latest"; then
+    log "  herdr-app já na versão mais recente (${cur})."
+    return 0
+  fi
+  target="$(herdr_target)" || { log "  herdr-app: arquitetura $(uname -m) sem build."; return 0; }
+  url="$(herdr_manifest_target_field "$manifest" "$target" url)"
+  want="$(herdr_manifest_target_field "$manifest" "$target" sha256)"
+  if [[ -z "$url" || -z "$want" ]]; then
+    log "  herdr-app ${latest}: manifest sem build ${target} ainda."
+    return 0
+  fi
+  if ! has curl || ! has tar || ! has sha256sum; then
+    log "  curl, tar e sha256sum são necessários para atualizar o herdr-app."
+    return 0
+  fi
+  log "  Atualizando herdr-app: ${cur:-?} → ${latest}"
+  local tmp got
+  tmp="$(mktemp -d)" || return "$RC_WARN"
+  if ! run_network_cmd curl -fsSL "$url" -o "${tmp}/app.tar.gz" >/dev/null; then
+    rm -rf "$tmp"
+    log "  Falha ao baixar o herdr-app ${latest}."
+    return "$RC_WARN"
+  fi
+  got="$(sha256sum "${tmp}/app.tar.gz" | cut -d' ' -f1)"
+  if [[ "$got" != "$want" ]]; then
+    rm -rf "$tmp"
+    log "  herdr-app ${latest}: sha256 não confere (esperado ${want}, obtido ${got}); mantendo a versão atual."
+    STEP_REASON="herdr-app ${latest}: checksum divergente"
+    return 1
+  fi
+  if ! tar -xzf "${tmp}/app.tar.gz" -C "$tmp" 2>>"$LOG_FILE" || [[ ! -x "${tmp}/herdr-app/herdr-app" ]]; then
+    rm -rf "$tmp"
+    log "  herdr-app ${latest}: pacote sem herdr-app/herdr-app."
+    return 1
+  fi
+  rm -rf "${home}.new" "${home}.old"
+  mv "${tmp}/herdr-app" "${home}.new" \
+    && mv "$home" "${home}.old" \
+    && mv "${home}.new" "$home" \
+    && rm -rf "${home}.old"
+  rc=$?
+  rm -rf "$tmp"
+  if ((rc != 0)); then
+    [[ -d "$home" ]] || mv "${home}.old" "$home" 2>/dev/null
+    log "  Falha ao trocar ${home}."
+    return 1
+  fi
+  log "  herdr-app agora: $(_herdr_version_of "${home}/herdr-app"). Reabra o Herdr para carregar a versão nova."
+  return 0
+}
+
+update_herdr() {
+  local core home rc worst=0
+  core="$(herdr_core_bin)"
+  home="$(herdr_app_home)"
+  if [[ -n "$core" ]]; then
+    _herdr_update_core "$core"
+    rc=$?
+    ((rc > worst)) && worst=$rc
+  fi
+  if [[ -x "${home}/herdr-app" ]]; then
+    _herdr_update_app "$home"
+    rc=$?
+    ((rc == 1 || (worst != 1 && rc > worst))) && worst=$rc
+  fi
+  case "$worst" in
+    0) return 0 ;;
+    1) return 1 ;;
+    *) STEP_REASON="${STEP_REASON:-Herdr: rede/manifest indisponível}"; return "$RC_WARN" ;;
+  esac
 }

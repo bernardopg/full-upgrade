@@ -3,6 +3,53 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **"Limpar symlinks quebrados (~/.local/bin)" nunca removeu nada:** o `find`
+  usava `! -e`, um predicado que não existe. O find abortava com "predicado
+  inválido", o erro ia para `/dev/null` e o step relatava "Sem symlinks
+  quebrados" em todo run (o `~/.local/bin/cr` ficou quebrado por seis meses).
+  Agora usa `-xtype l`.
+- **Ferramenta uv presa por restrição do receipt passava como ok:** o `uv tool
+  upgrade` respeita as restrições gravadas no `uv-receipt.toml` (um `--with
+  "mcp<2"`, por exemplo) e sai 0 sem atualizar. O headroom ficou na 0.42.0 com
+  a 0.44.0 publicada. O step compara cada ferramenta com restrição com a última
+  versão do PyPI e vira todo com o comando de reinstalação;
+  `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE` silencia um pin intencional.
+- **mimo dado como "não instalado" com o binário presente:** o instalador põe o
+  `mimo` em `~/.mimocode/bin`, fora do PATH. `MIMO_BIN` é autodetectado.
+- **`Doctor: apps manuais` deixava programas de fora e acusava o que já tinha
+  step:** passa a seguir symlinks (gdu baixado à mão, herdr-app), varrer
+  `~/.local/opt` (Tor Browser, handy, recordly) e reconhecer os scripts do
+  `pip --user` pelo `RECORD` (o ruff aparecia como candidato).
+
+### Adicionado
+
+- Steps para programas com instalador próprio, que nenhum gerenciador
+  atualizava: "Atualizar vite-plus (vp)" (`vp upgrade`), "Atualizar Herdr
+  (core e app)" (manifest de releases.herdr.dev; o app é trocado com sha256
+  conferido), "Atualizar qodo", "Atualizar ori (OpenRouter)" e "Atualizar spawn
+  (OpenRouter)". Cada um só aplica quando há versão nova.
+- "Doctor: pacotes locais fora do AUR": pacote estrangeiro que o AUR não
+  conhece veio de PKGBUILD local e nunca atualiza. O doctor consulta o AUR de
+  uma vez e compara cada um com o último release do GitHub do campo URL; todo
+  quando há versão nova.
+
+### Melhorado
+
+- Run ~3 min mais rápido sem novidades:
+  - Ferramentas Go: só reinstala quando `go list -m mod@latest` ou a toolchain
+    mudaram (antes, `go install` nas 9 ferramentas em todo run).
+  - Imagens Docker: pulls em paralelo (`DOCKER_PULL_JOBS`, padrão 4).
+  - Plugins do Claude Code: pré-filtro pelo clone do marketplace; a CLI só é
+    chamada nos plugins cuja versão ou sha mudou (`CLAUDE_PLUGIN_PREFILTER=0`
+    desliga).
+  - Agent skills: o skills CLI só roda quando alguma fonte git ganhou commit
+    (`git ls-remote`) ou o lock mudou.
+- "Atualizar Kimi CLI" não reinstala o pacote npm de um prefixo que "Atualizar
+  npm global secundário" já cobre.
+- "Atualizar cloudflared" diz no log de quem é a cópia atualizada (a do 9router
+  fica fora do PATH).
 
 ## [3.55.0] - 2026-11-17
 ### Corrigido
