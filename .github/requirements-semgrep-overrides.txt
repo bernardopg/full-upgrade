@@ -1,4 +1,4 @@
-# Override temporário do pin upstream mcp==1.29.0 do Semgrep 1.182.1.
+# Override temporário do pin upstream mcp==1.29.0 do Semgrep 1.185.0.
 # SDK 1.30.0 corrige CVE-2026-59951. Não é exceção ao pip-audit.
 # Regenerar: uv pip compile .github/requirements-semgrep.in \
 #   --override .github/requirements-semgrep-overrides.txt --generate-hashes \
@@ -8,7 +8,7 @@
 # Remover quando Semgrep publicar uma versão que aceite mcp>=1.30.0.
 mcp==1.30.0
 # Override temporário dos pins upstream opentelemetry-*~=1.37.0/~=0.58b0 do
-# Semgrep 1.182.1: opentelemetry-api 1.45.1 corrige CVE-2026-114603. O SDK fixa
+# Semgrep 1.185.0: opentelemetry-api 1.45.1 corrige CVE-2026-114603. O SDK fixa
 # api e semantic-conventions na mesma versão, então a família sobe junta; o job
 # valida o import e o scan antes da auditoria. Remover quando o Semgrep aceitar
 # opentelemetry>=1.45.1.
