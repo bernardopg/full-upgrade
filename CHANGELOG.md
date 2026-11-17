@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.55.0] - 2026-11-17
 ### Corrigido
 
 - **Plugins do Claude Code levavam 4–7 min e já estouraram o limite de 600s:**
