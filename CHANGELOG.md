@@ -4,6 +4,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Manutenção
+
+- CI: todos os jobs rodam no runner `ubuntu-26.04` (antes `ubuntu-latest`,
+  ainda 24.04, e `ubuntu-24.04` fixo no Lint & Test).
+- CI: `github/codeql-action` v4.39.3 e `softprops/action-gh-release` v3.0.4
+  (consolida o PR #206 do Dependabot).
+- CI: Semgrep 1.185.0, com o lock hash-pinned regenerado no latest compatível
+  (pydantic 2.14.3, pip 26.3, python-multipart 0.0.34, sse-starlette 3.7.0,
+  entre outros). Os overrides de `mcp` 1.30.0 e `opentelemetry-*` 1.45.2
+  continuam necessários: o Semgrep 1.185.0 ainda fixa `mcp==1.29.0` e
+  `opentelemetry~=1.37.0`. O `pip-audit --strict` não acha CVE no lock.
+
 ## [3.54.1] - 2026-11-16
 ### Corrigido
 

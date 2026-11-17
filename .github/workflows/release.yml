@@ -38,7 +38,7 @@ jobs:
   bump:
     name: Bump VERSION (workflow_dispatch)
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: write # push do commit de bump direto na main
@@ -132,7 +132,7 @@ jobs:
     needs: bump
     # Roda após o bump (dispatch) ou diretamente em push de tag (bump é skipped).
     if: always() && (needs.bump.result == 'success' || github.event_name == 'push')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     permissions:
       contents: write       # criar release + push da tag
@@ -252,7 +252,7 @@ jobs:
   publish-aur:
     name: Publish to AUR
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Margem para a espera de até 10min por janelas de manutenção do AUR.
     timeout-minutes: 25
     # Publica tanto em push de tag v* quanto em workflow_dispatch manual, desde

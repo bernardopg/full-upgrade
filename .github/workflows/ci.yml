@@ -16,7 +16,7 @@ concurrency:
 jobs:
   lint:
     name: Lint & Test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     env:
       # Coverage (kcov) roda só fora de PR: PRs ganham feedback rápido e a
@@ -39,8 +39,8 @@ jobs:
       # shellcheck PINADO (scripts/install-shellcheck.sh): o do apt/da imagem do
       # runner é 0.9.0 e diverge do 0.11.0 usado no desenvolvimento, então
       # código aprovado localmente quebrava aqui. Mesma política do bats.
-      # kcov não está no apt do ubuntu-24.04: compilado do fonte pelo
-      # scripts/install-kcov.sh (ver INSTALL.md do kcov) só em push/dispatch.
+      # kcov não tem binário oficial nem pacote apt confiável no runner:
+      # compilado do fonte pelo scripts/install-kcov.sh (ver INSTALL.md do kcov) só em push/dispatch.
       - name: Install shellcheck (+ kcov p/ coverage)
         run: |
           scripts/install-shellcheck.sh
