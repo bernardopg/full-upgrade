@@ -129,7 +129,8 @@ FULL_UPGRADE_PIP_USER_IGNORE=""
 # (use o nome sob .repos/). Ex: FULL_UPGRADE_DMS_PLUGINS_IGNORE="dankDiskUsage"
 FULL_UPGRADE_DMS_PLUGINS_IGNORE=""
 # Integrações opcionais desabilitadas por ID estável (não depende do nome do
-# step). Ex.: FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw,coderabbit"
+# step). IDs: openclaw, coderabbit, artcraft, cua-driver.
+# Ex.: FULL_UPGRADE_DISABLED_INTEGRATIONS="openclaw,coderabbit"
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # Units systemd saciadas da auditoria de libs antigas (needrestart/checkservices):
 # não são reportadas como pendência nem candidatas a reinício. Use para units cujo

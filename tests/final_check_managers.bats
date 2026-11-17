@@ -27,6 +27,9 @@ setup() {
   done
   # Isola o prefixo secundário do ~/.npm-global real da máquina de teste.
   NPM_CONFIG_PREFIX="${BATS_TEST_TMPDIR}/npm-sec"
+  # ...e do prefixo do Node real (nvm) da máquina de teste.
+  NVM_DIR="${BATS_TEST_TMPDIR}/nvm-ausente"
+  npm_node_install_prefix() { :; }
   stub_npm
 }
 

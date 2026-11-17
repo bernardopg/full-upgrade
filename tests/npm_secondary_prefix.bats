@@ -19,6 +19,9 @@ setup() {
   OUTDATED_TABLE=""
   # Prefixo ativo fictício (nvm) — difere do secundário por padrão.
   npm_global_prefix() { printf '/home/u/.nvm/versions/node/v24.19.0'; }
+  # Sem isto o prefixo do Node real (nvm) da máquina de teste entraria na lista.
+  NODE_PREFIX=""
+  npm_node_install_prefix() { [[ -n "$NODE_PREFIX" ]] && printf '%s\n' "$NODE_PREFIX"; return 0; }
 }
 
 npm() {
@@ -102,4 +105,58 @@ npm warn install-scripts   node-pty@1.1.0 (install: node scripts/prebuild.js)'
   run update_npm_globals_secondary
   [ "$status" -eq 1 ]
   [[ "$output" == *"Não foi possível extrair"* ]]
+}
+
+@test "npm secundário: prefixo do Node (nvm) entra quando difere do ativo" {
+  # Cenário real: ~/.npmrc com prefix=~/.npm-global (ativo) e o npm/corepack
+  # usados de fato no prefixo do nvm, que vem antes no PATH.
+  NODE_PREFIX="${BATS_TEST_TMPDIR}/nvm-node"
+  mkdir -p "${NODE_PREFIX}/lib/node_modules/npm"
+  npm_global_prefix() { printf '%s' "$NPM_CONFIG_PREFIX"; }
+  OUTDATED_JSON='{"npm":{"current":"12.0.2","latest":"12.2.2"}}'
+  run update_npm_globals_secondary
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"já coberto"* ]]
+  grep -q -- "--prefix ${NODE_PREFIX} npm@12.2.2" "$INSTALL_ARGS"
+}
+
+@test "npm secundário: pacote duplicado nos dois prefixos gera aviso" {
+  NODE_PREFIX="${BATS_TEST_TMPDIR}/nvm-node"
+  mkdir -p "${NODE_PREFIX}/lib/node_modules/@openai/codex" "${NODE_PREFIX}/lib/node_modules/npm" \
+    "${NPM_CONFIG_PREFIX}/lib/node_modules/@openai/codex" "${NPM_CONFIG_PREFIX}/lib/node_modules/npm"
+  npm_global_prefix() { printf '%s' "$NPM_CONFIG_PREFIX"; }
+  run update_npm_globals_secondary
+  [ "$status" -eq 0 ]
+  [[ "$(tr -s '[:space:]' ' ' <<<"$output")" == *"@openai/codex"*"só a cópia do primeiro diretório no PATH"* ]]
+  [[ "$output" != *"npm corepack"* ]]
+}
+
+@test "npm secundário: rc pior entre prefixos prevalece (fail > ok)" {
+  NODE_PREFIX="${BATS_TEST_TMPDIR}/nvm-node"
+  mkdir -p "${NODE_PREFIX}/lib/node_modules"
+  OUTDATED_JSON='{"x":{"latest":"2.0.0"}}'
+  INSTALL_RC=1
+  run update_npm_globals_secondary
+  [ "$status" -eq 1 ]
+}
+
+@test "npm_node_install_prefix: alias default do nvm tem precedência" {
+  unset -f npm_node_install_prefix
+  source "${FU_LIB}/steps/lang_js.sh"
+  NVM_DIR="${BATS_TEST_TMPDIR}/nvm"
+  mkdir -p "${NVM_DIR}/alias" "${NVM_DIR}/versions/node/v24.22.3/lib/node_modules"
+  printf '24.22.3\n' > "${NVM_DIR}/alias/default"
+  run npm_node_install_prefix
+  [ "$output" = "${NVM_DIR}/versions/node/v24.22.3" ]
+}
+
+@test "npm_node_install_prefix: Node do sistema (/usr) fica de fora" {
+  unset -f npm_node_install_prefix
+  source "${FU_LIB}/steps/lang_js.sh"
+  NVM_DIR="${BATS_TEST_TMPDIR}/sem-nvm"
+  node() { :; }
+  command() { [[ "$1 $2" == "-v node" ]] && { printf '/usr/bin/node\n'; return 0; }; builtin command "$@"; }
+  readlink() { printf '/usr/bin/node\n'; }
+  run npm_node_install_prefix
+  [ -z "$output" ]
 }

@@ -347,14 +347,63 @@ for name in sorted(data.keys()):
 # normais do usuário (sem links de monorepo); scripts bloqueados pelo
 # allowScripts seguem reportados como RC_TODO com remediação, igual ao step do
 # prefixo ativo.
-update_npm_globals_secondary() {
-  local sec="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}"
+# Prefixo de instalação do Node ativo (onde vivem o npm/npx/corepack que o
+# PATH realmente usa). Com nvm, é ~/.nvm/versions/node/<versão>; o alias
+# `default` do nvm tem precedência sobre o `node` do PATH porque o step
+# 'Atualizar Node.js (nvm)' pode trocar a versão no meio do run, e o PATH deste
+# processo continuaria apontando para a antiga. Node do sistema (/usr) não
+# entra: é do pacman.
+npm_node_install_prefix() {
+  local nvm_dir="${NVM_DIR:-$HOME/.nvm}" alias_v node_bin prefix=""
+  if [[ -r "${nvm_dir}/alias/default" ]]; then
+    alias_v="$(<"${nvm_dir}/alias/default")"
+    alias_v="v${alias_v#v}"
+    [[ -d "${nvm_dir}/versions/node/${alias_v}/lib/node_modules" ]] \
+      && prefix="${nvm_dir}/versions/node/${alias_v}"
+  fi
+  if [[ -z "$prefix" ]] && node_bin="$(command -v node 2>/dev/null)"; then
+    node_bin="$(readlink -f "$node_bin" 2>/dev/null || printf '%s' "$node_bin")"
+    prefix="$(dirname "$(dirname "$node_bin")")"
+  fi
+  case "$prefix" in
+    ''|/usr|/usr/*|/) return 0 ;;
+  esac
+  printf '%s\n' "$prefix"
+}
+
+# Prefixos npm globais além do ativo (`npm config get prefix`): o
+# ~/.npm-global (ou $NPM_CONFIG_PREFIX) e o prefixo do próprio Node. O segundo
+# importa quando o ~/.npmrc aponta o prefix para fora do nvm: o `npm install -g`
+# atualiza o npm/corepack do ~/.npm-global, mas o bin do nvm vem antes no PATH,
+# então o npm/npx/corepack/pnpm em uso continuavam velhos para sempre.
+npm_secondary_prefix_candidates() {
+  local legacy="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}" node_prefix
+  printf '%s\n' "$legacy"
+  node_prefix="$(npm_node_install_prefix)"
+  [[ -n "$node_prefix" && "$node_prefix" != "$legacy" ]] && printf '%s\n' "$node_prefix"
+  return 0
+}
+
+# Nomes de pacote instalados em <prefix>/lib/node_modules (inclui @escopo/nome).
+npm_prefix_packages() {
+  local root="$1/lib/node_modules" d s
+  [[ -d "$root" ]] || return 0
+  for d in "$root"/*; do
+    [[ -d "$d" ]] || continue
+    case "${d##*/}" in
+      .*) continue ;;
+      @*) for s in "$d"/*; do [[ -d "$s" ]] && printf '%s/%s\n' "${d##*/}" "${s##*/}"; done ;;
+      *) printf '%s\n' "${d##*/}" ;;
+    esac
+  done
+}
+
+_npm_update_secondary_prefix() {
+  local sec="$1" primary="$2"
   if [[ ! -d "${sec}/lib/node_modules" ]]; then
     log "  Prefixo secundário ${sec} não encontrado; nada a fazer."
     return 0
   fi
-  local primary
-  primary="$(npm_global_prefix)"
   if [[ -n "$primary" && "$sec" == "$primary" ]]; then
     log "  ${sec} é o prefixo global ativo; já coberto por 'Atualizar npm global'."
     return 0
@@ -362,6 +411,17 @@ update_npm_globals_secondary() {
   if ! [[ -w "${sec}/lib/node_modules" ]]; then
     log "  Prefixo secundário ${sec} não é gravável pelo usuário; pulando."
     return 0
+  fi
+
+  # Pacote nos dois prefixos: o bin que vence é o do primeiro diretório no PATH
+  # (com nvm, o do Node), então a cópia do outro prefixo nunca roda. npm e
+  # corepack fazem parte do Node e são esperados lá.
+  if [[ -n "$primary" && -d "${primary}/lib/node_modules" ]]; then
+    local -a dup=()
+    mapfile -t dup < <(comm -12 <(npm_prefix_packages "$sec" | sort) <(npm_prefix_packages "$primary" | sort) | grep -vxE 'npm|corepack')
+    if (( ${#dup[@]} > 0 )); then
+      log "  Aviso: pacote(s) instalado(s) em ${sec} e em ${primary}: ${dup[*]} — só a cópia do primeiro diretório no PATH é usada."
+    fi
   fi
 
   local outdated
@@ -388,6 +448,7 @@ for name in sorted(data.keys()):
   )
   if (( ${#pkg_specs[@]} == 0 )); then
     log "  Não foi possível extrair a lista de pacotes desatualizados de ${sec}."
+    STEP_REASON="lista de pacotes de ${sec} ilegível"
     return 1
   fi
 
@@ -419,6 +480,30 @@ for name in sorted(data.keys()):
   fi
   log "  Prefixo secundário ${sec} atualizado."
   return 0
+}
+
+update_npm_globals_secondary() {
+  local primary sec rc worst=0 reason=""
+  local -a prefixes=()
+  primary="$(npm_global_prefix)"
+  mapfile -t prefixes < <(npm_secondary_prefix_candidates)
+  for sec in "${prefixes[@]}"; do
+    [[ -n "$sec" ]] || continue
+    STEP_REASON=""
+    _npm_update_secondary_prefix "$sec" "$primary"
+    rc=$?
+    [[ -n "$STEP_REASON" ]] && reason="${reason:+${reason}; }${STEP_REASON}"
+    # Severidade: fail > todo > warn > ok.
+    if (( rc != 0 && rc != RC_TODO && rc != RC_WARN )); then
+      worst=$rc
+    elif (( rc == RC_TODO )) && (( worst == 0 || worst == RC_WARN )); then
+      worst=$rc
+    elif (( rc == RC_WARN && worst == 0 )); then
+      worst=$rc
+    fi
+  done
+  STEP_REASON="$reason"
+  return "$worst"
 }
 
 
@@ -619,6 +704,132 @@ for name, info in deps.items():
 # Atualiza o runtime Bun via `bun upgrade` (auto-gerenciado em ~/.bun). Só roda
 # se o binário for gravável — uma instalação via pacman (/usr/bin, read-only) é
 # atualizada pelo gerenciador de pacotes, então pula com aviso em vez de falhar.
+# nvm é um shell function: roda num bash à parte (nvm.sh não sobrevive ao
+# `set -u` do full-upgrade).
+_nvm() {
+  NVM_DIR="${NVM_DIR:-$HOME/.nvm}" bash -c 'source "$NVM_DIR/nvm.sh" --no-use >/dev/null 2>&1 || exit 97; nvm "$@"' _ "$@"
+}
+
+# Atualiza o nvm (clone git, por tag de release) e o Node.js do alias
+# `default` para o último patch/minor da MESMA major: dentro da major o ABI de
+# módulos nativos não muda, então os pacotes globais compilados (node-pty etc.)
+# continuam válidos. Troca de major (ex.: nova LTS) só é anunciada, nunca
+# feita sozinha. Os globais que estavam no prefixo do Node antigo são
+# reinstalados no novo; o --reinstall-packages-from do nvm não serve aqui,
+# porque com `prefix` no ~/.npmrc ele lê e reinstala o ~/.npm-global inteiro.
+update_node_nvm() {
+  local nvm_dir="${NVM_DIR:-$HOME/.nvm}" rc=0 out
+  if [[ ! -s "${nvm_dir}/nvm.sh" ]]; then
+    log "  nvm não encontrado em ${nvm_dir}."
+    return 0
+  fi
+
+  # 1) O próprio nvm.
+  if [[ -d "${nvm_dir}/.git" ]]; then
+    local cur_tag latest_tag
+    if [[ -n "$(git -C "$nvm_dir" status --porcelain 2>/dev/null)" ]]; then
+      log "  nvm: ${nvm_dir} tem alterações locais; atualização do nvm pulada."
+    else
+      out="$(run_network_cmd git -C "$nvm_dir" fetch --tags --quiet origin)"
+      rc=$?
+      if (( rc == RC_WARN )); then
+        STEP_REASON="sem rede para atualizar o nvm"
+        return "$RC_WARN"
+      elif (( rc != 0 )); then
+        log "  nvm: git fetch falhou (rc=${rc})."
+        printf '%s\n' "$out" | tail -5 | log_out || true
+        STEP_REASON="git fetch do nvm falhou"
+        return "$rc"
+      fi
+      cur_tag="$(git -C "$nvm_dir" describe --tags --abbrev=0 2>/dev/null || true)"
+      latest_tag="$(git -C "$nvm_dir" tag -l 'v[0-9]*' | sort -V | tail -1)"
+      if [[ -n "$latest_tag" ]] && version_is_outdated "${cur_tag#v}" "${latest_tag#v}"; then
+        if git -C "$nvm_dir" -c advice.detachedHead=false checkout --quiet "$latest_tag" 2>&1 | log_out; then
+          log "  nvm: ${cur_tag:-?} → ${latest_tag}"
+        else
+          log "  nvm: checkout de ${latest_tag} falhou."
+          STEP_REASON="checkout do nvm ${latest_tag} falhou"
+          return 1
+        fi
+      else
+        log "  nvm ${cur_tag:-?} já na versão mais recente."
+      fi
+    fi
+  fi
+
+  # 2) Node.js do alias default.
+  local cur latest major lts
+  cur="$(_nvm version default 2>/dev/null | tail -1)"
+  if [[ "$cur" != v[0-9]* ]]; then
+    log "  nvm sem alias default instalado; nada a atualizar no Node.js."
+    return 0
+  fi
+  major="${cur#v}"; major="${major%%.*}"
+  latest="$(_nvm version-remote "$major" 2>/dev/null | tail -1)"
+  if [[ "$latest" != v[0-9]* ]]; then
+    log "  Node.js: não foi possível consultar a última v${major}.x."
+    STEP_REASON="consulta de versões do Node falhou (rede?)"
+    return "$RC_WARN"
+  fi
+
+  if version_is_outdated "${cur#v}" "${latest#v}"; then
+    log "  Node.js (nvm default): ${cur} → ${latest}"
+    out="$(_nvm install "$latest" 2>&1)"
+    rc=$?
+    log_raw "$out"
+    # O `nvm install` termina com um `nvm use`, que recusa o `prefix` do
+    # ~/.npmrc (rc != 0) mesmo com o Node já baixado e extraído. O que importa
+    # aqui é o binário novo existir e responder a versão certa.
+    if (( rc != 0 )) && [[ "$("${nvm_dir}/versions/node/${latest}/bin/node" --version 2>/dev/null)" == "$latest" ]]; then
+      log "  Node ${latest} instalado (o 'nvm use' final recusou o prefix do ~/.npmrc; irrelevante para o alias default)."
+      rc=0
+    fi
+    if (( rc != 0 )); then
+      printf '%s\n' "$out" | grep -v '^$' | tail -10 | log_out || true
+      grep -qiE "$NETWORK_TRANSIENT_RE" <<<"$out" && return "$RC_WARN"
+      STEP_REASON="nvm install ${latest} falhou"
+      return "$rc"
+    fi
+
+    # Globais que moravam no prefixo do Node antigo (fora npm/corepack, que
+    # vêm com o Node novo) passam para o novo prefixo.
+    local old_prefix="${nvm_dir}/versions/node/${cur}" new_prefix="${nvm_dir}/versions/node/${latest}"
+    local -a carry=() failed=()
+    mapfile -t carry < <(npm_prefix_packages "$old_prefix" | grep -vxE 'npm|corepack')
+    if (( ${#carry[@]} > 0 )); then
+      log "  Reinstalando no Node ${latest}: ${carry[*]}"
+      out="$(npm install -g --prefix "$new_prefix" "${carry[@]/%/@latest}" 2>&1)"
+      rc=$?
+      log_raw "$out"
+      if (( rc != 0 )); then
+        printf '%s\n' "$out" | grep -v '^$' | tail -10 | log_out || true
+        failed=("${carry[@]}")
+      fi
+    fi
+
+    out="$(_nvm alias default "${latest#v}" 2>&1)"
+    log_raw "$out"
+    log "  nvm alias default → ${latest#v} (vale para shells novos; ${cur} continua instalado)."
+    if (( ${#failed[@]} > 0 )); then
+      remediation "npm install -g --prefix ${new_prefix} ${failed[*]}"
+      STEP_REASON="Node ${latest} ativo, mas falhou reinstalar: ${failed[*]}"
+      return "$RC_TODO"
+    fi
+  else
+    log "  Node.js ${cur} já é o último v${major}.x."
+  fi
+
+  lts="$(_nvm version-remote --lts 2>/dev/null | tail -1)"
+  if [[ "$lts" == v[0-9]* ]]; then
+    local lts_major="${lts#v}"; lts_major="${lts_major%%.*}"
+    if (( lts_major > major )); then
+      log "  Nova linha LTS disponível: ${lts} (default em v${major}). Troca de major recompila módulos nativos; faça manualmente:"
+      log "    nvm install --lts && nvm alias default lts/*  # depois: npm rebuild -g"
+    fi
+  fi
+  return 0
+}
+
 update_bun() {
   local bun_bin output rc
   bun_bin="$(command -v bun 2>/dev/null || true)"

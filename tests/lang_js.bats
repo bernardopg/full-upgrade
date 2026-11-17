@@ -241,6 +241,9 @@ setup() {
     fi
     return 99
   }
+  # Sem este stub o `corepack install -g pnpm@11.12.0` REAL rodava a cada
+  # `bats tests/` e rebaixava o pnpm default da máquina (lastKnownGood.json).
+  corepack() { return 1; }
   run update_pnpm_self
   [ "$status" -eq "$RC_TODO" ]
   grep -q 'corepack' "$msgf"

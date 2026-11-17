@@ -148,6 +148,12 @@ run_all_steps() {
     
     # ── JavaScript ────────────────────────────────────────────────────────────────
     
+    if [[ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]]; then
+        run_step "Atualizar Node.js (nvm)" update_node_nvm
+    else
+        step_skip "Atualizar Node.js (nvm)" "nvm não instalado"
+    fi
+
     if has npm; then
         run_step "Atualizar npm (self)" update_npm_self
         run_step "Atualizar npm global" update_npm_globals
@@ -531,7 +537,9 @@ run_all_steps() {
         step_skip "Atualizar pool (Poolside)" "pool não instalado"
     fi
 
-    if has cua-driver; then
+    if integration_disabled cua-driver; then
+        step_skip "Atualizar cua-driver" "integração desabilitada: cua-driver"
+    elif has cua-driver; then
         run_step "Atualizar cua-driver" update_cua_driver
     else
         step_skip "Atualizar cua-driver" "cua-driver não instalado"

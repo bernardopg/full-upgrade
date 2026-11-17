@@ -308,7 +308,7 @@ eixos transversais (`network`, `slow`, `sudo`, nome da ferramenta, …).
 | `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
 | `security` | Ferramentas de segurança: Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog. |
 | `firmware` | `fwupd` e `systemd-boot`. |
-| `lang-js` | Toolchain JavaScript: npm (dois prefixos), corepack, pnpm, Bun, Deno. |
+| `lang-js` | Toolchain JavaScript: Node.js e nvm, npm (prefixo ativo, `~/.npm-global` e o do Node em uso), corepack, pnpm, Bun, Deno. |
 | `lang-py` | Toolchain Python: pip `--user`, pipx, uv (self/python/tools), Poetry. |
 | `lang-rust` | Toolchain Rust: rustup, binários cargo e auditoria de CVEs. |
 | `lang-other` | Demais toolchains: Arduino, Go, .NET, Google Cloud SDK, gems, ghcup. |
@@ -666,7 +666,7 @@ Principais chaves:
 | `AUR_HELPER` | auto | Helper AUR a usar (`paru`/`yay`/`pikaur`); vazio = autodetecta na ordem `paru > yay > pikaur`. |
 | `PRIV_CMD` | auto | Comando de elevação (`sudo`/`doas`/`run0`/`sudo-rs`); vazio = autodetecta (`sudo` por padrão). |
 | `FULL_UPGRADE_SKIP` | vazio | Lista (vírgula) de nomes exatos de steps a pular; valores do ambiente e do config são unidos sem duplicatas. |
-| `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit`; evita depender do texto do step. |
+| `FULL_UPGRADE_DISABLED_INTEGRATIONS` | vazio | IDs estáveis (vírgula) de integrações opcionais desabilitadas, como `openclaw,coderabbit,cua-driver` (IDs: `openclaw`, `coderabbit`, `artcraft`, `cua-driver`); evita depender do texto do step. |
 | `FULL_UPGRADE_AUR_IGNORE` | vazio | Pacotes AUR ignorados no update automático. |
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` ignorados no update genérico. O script ainda adiciona `poetry-core` ao ignore efetivo quando o Poetry instalado fixa uma versão exata. |
 | `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins do DankMaterialShell fixados (nomes de diretório separados por espaço ou vírgula, globs permitidos, ex. `dankDiskUsage`). Um plugin fixado é pulado antes do `git fetch`, então nunca sofre `pull` nem o `reset --hard` da recuperação de divergência: patches locais aplicados enquanto se espera um release upstream sobrevivem ao update. Vale também para monorepos do registry, usando o nome sob `.repos/`. |

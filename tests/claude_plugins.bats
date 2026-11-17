@@ -11,6 +11,8 @@ setup() {
   STEP_REASON=""
   has() { [[ "$1" == claude ]]; }
   run_network_cmd() { "$@"; }
+  # O `timeout` real executaria o claude da máquina, não o stub.
+  timeout() { shift; "$@"; }
 }
 
 @test "claude_plugin_user_ids: só escopo user, sem duplicata" {
@@ -24,15 +26,20 @@ a@m	{"outcome":"ok","updateOutcome":"updated","oldVersion":"1","newVersion":"2"}
 b@m	{"outcome":"ok","updateOutcome":"already-latest"}
 c@m	{"outcome":"needs-confirmation","shownCommand":{"sha256":"x"}}
 d@m	{"outcome":"error","message":"boom"}
+e@m	{}
+f@m	{"outcome":"deferred"}
 EOF2
   [ "${lines[0]}" = $'updated\ta@m\t1 → 2' ]
   [ "${lines[1]}" = $'current\tb@m\t' ]
   [ "${lines[2]}" = $'confirm\tc@m\t' ]
   [ "${lines[3]}" = $'fail\td@m\tboom' ]
+  [ "${lines[4]}" = $'fail\te@m\tsem resposta JSON (timeout ou erro do CLI)' ]
+  [ "${lines[5]}" = $'deferred\tf@m\t' ]
 }
 
 @test "update_claude_plugins: comando de instalação alterado vira TODO sem -y" {
   claude() {
+    [[ "$1" == --settings ]] && shift 2
     case "$*" in
       "plugin marketplace update") echo ok ;;
       "plugin list --json") echo '[{"id":"x@m","scope":"user"}]' ;;
@@ -43,6 +50,56 @@ EOF2
   update_claude_plugins || status=$?
   [ "${status:-0}" -eq "$RC_TODO" ]
   [[ "$STEP_REASON" == *"x@m"* ]]
+}
+
+# Hooks de sessão do usuário (sync de dotfiles, export de memória, git push)
+# rodavam em cada `claude plugin …`: ~9s por chamada e um push por plugin.
+@test "update_claude_plugins: toda chamada ao claude desliga os hooks" {
+  CALLS="$BATS_TEST_TMPDIR/calls"
+  claude() {
+    printf '%s\n' "$*" >>"$CALLS"
+    [[ "$1" == --settings ]] && shift 2
+    case "$*" in
+      "plugin list --json") echo '[{"id":"a@m","scope":"user"},{"id":"b@m","scope":"user"}]' ;;
+      "plugin update "*) echo '{"outcome":"ok","updateOutcome":"up_to_date"}' ;;
+      *) echo '[]' ;;
+    esac
+  }
+  AI_PLUGIN_BLOCKLIST="bloqueado"
+  update_claude_plugins
+  [ "$(wc -l <"$CALLS")" -ge 5 ]
+  run grep -vc '^--settings {"disableAllHooks":true} ' "$CALLS"
+  [ "$output" = 0 ]
+}
+
+@test "update_claude_plugins: sem orçamento no step adia plugins e vira RC_WARN" {
+  claude() {
+    [[ "$1" == --settings ]] && shift 2
+    case "$*" in
+      "plugin list --json") echo '[{"id":"a@m","scope":"user"}]' ;;
+      "plugin update "*) echo "não devia atualizar" >&2; return 9 ;;
+      *) echo ok ;;
+    esac
+  }
+  step_time_left() { echo 5; }
+  update_claude_plugins || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [ "$STEP_REASON" = "adiado(s) por tempo: a@m" ]
+}
+
+@test "update_claude_plugins: plugin sem resposta JSON vira falha nomeada" {
+  claude() {
+    [[ "$1" == --settings ]] && shift 2
+    case "$*" in
+      "plugin list --json") echo '[{"id":"a@m","scope":"user"},{"id":"b@m","scope":"user"}]' ;;
+      "plugin update a@m "*) echo '{"outcome":"ok","updateOutcome":"updated","oldVersion":"1","newVersion":"2"}' ;;
+      "plugin update b@m "*) return 124 ;;
+      *) echo ok ;;
+    esac
+  }
+  update_claude_plugins || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [ "$STEP_REASON" = "falha ao atualizar plugin(s): b@m" ]
 }
 
 @test "update_claude_plugins: falha no marketplace vira RC_WARN" {

@@ -91,7 +91,7 @@ Categorias (conjunto fechado, uma por step):
   repair     reparos idempotentes de estado quebrado
   security   Wireshark, Burp Suite, Snyk, OWASP ZAP
   firmware   fwupd e systemd-boot
-  lang-js    npm, corepack, pnpm, Bun, Deno
+  lang-js    Node.js (nvm), npm, corepack, pnpm, Bun, Deno
   lang-py    pip --user, pipx, uv, Poetry
   lang-rust  rustup, bins cargo, auditoria de CVEs
   lang-other Arduino, Go, .NET, gcloud, gems, ghcup

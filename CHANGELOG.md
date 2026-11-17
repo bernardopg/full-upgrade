@@ -4,6 +4,42 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Plugins do Claude Code levavam 4–7 min e já estouraram o limite de 600s:**
+  toda chamada do CLI (`claude plugin update`, `plugin list`, `marketplace
+  update` e `claude update`) disparava os hooks de sessão do usuário. Medido
+  num run real: ~11s por plugin, dos quais ~9s eram de um hook de SessionEnd
+  (sync de dotfiles e export de memória), que ainda fazia um `git push` por
+  chamada. O full-upgrade agora chama o CLI com `disableAllHooks`; cada
+  verificação cai para ~2,4s. Cada plugin tem limite de 90s, e os que não
+  couberem no limite do step ficam para o próximo run (warn com os nomes), em
+  vez de o step inteiro estourar. Plugin sem resposta JSON aparece como falha
+  nomeada.
+
+- **npm/npx/corepack em uso nunca eram atualizados com nvm + `prefix` no
+  `~/.npmrc`:** "Atualizar npm (self)" e "Atualizar corepack" instalam no
+  prefixo do `~/.npmrc` (`~/.npm-global`), mas o `bin` do nvm vem antes no
+  PATH, então o npm/npx/corepack realmente executados (os que vêm com o Node)
+  ficavam velhos para sempre, com o step em ok. "Atualizar npm global
+  secundário" agora também cobre o prefixo do Node ativo (alias `default` do
+  nvm), e avisa pacote instalado nos dois prefixos (só a cópia do primeiro no
+  PATH roda). A verificação final de gerenciadores confere os dois prefixos.
+- **Rodar a suíte Bats rebaixava o pnpm da máquina:** um teste de
+  `update_pnpm_self` não stubava o `corepack` e executava o
+  `corepack install -g pnpm@11.12.0` real, reescrevendo o `lastKnownGood.json`.
+  Cada preflight/pre-push voltava o pnpm default para 11.12.0, e o run seguinte
+  o atualizava de novo.
+
+### Adicionado
+
+- Step "Atualizar Node.js (nvm)": atualiza o nvm (tag de release) e o Node.js
+  do alias `default` para a última versão da mesma major, reinstalando no Node
+  novo os pacotes globais que estavam no prefixo do antigo. Troca de major
+  (nova LTS) é só anunciada, porque exige recompilar módulos nativos.
+- `FULL_UPGRADE_DISABLED_INTEGRATIONS` aceita `cua-driver`: o step "Atualizar
+  cua-driver" vira skip mesmo que o binário volte a aparecer no PATH.
+
 ## [3.54.2] - 2026-11-17
 ### Manutenção
 

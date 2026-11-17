@@ -246,14 +246,18 @@ final_check_managers() {
     fi
   fi
 
-  # Prefixo secundário (~/.npm-global): o step 'Atualizar npm global
-  # secundário' cuida do update, mas sem esta checagem o relatório final daria
-  # ok falso se aquele prefixo ainda tivesse pendências. Espelha os guards do
-  # step: só verifica se existir, ser gravável e difere do prefixo ativo.
+  # Prefixos secundários (~/.npm-global e o prefixo do Node ativo, ex.: nvm):
+  # o step 'Atualizar npm global secundário' cuida do update, mas sem esta
+  # checagem o relatório final daria ok falso se algum deles ainda tivesse
+  # pendências. Espelha os guards do step: só verifica se existir, ser gravável
+  # e diferir do prefixo ativo.
   if has npm; then
-    local sec="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}" primary
+    local sec primary
+    local -a secs=()
     primary="$(npm_global_prefix)"
-    if [[ -d "${sec}/lib/node_modules" && -w "${sec}/lib/node_modules" && "$sec" != "$primary" ]]; then
+    mapfile -t secs < <(npm_secondary_prefix_candidates)
+    for sec in "${secs[@]}"; do
+      [[ -n "$sec" && -d "${sec}/lib/node_modules" && -w "${sec}/lib/node_modules" && "$sec" != "$primary" ]] || continue
       out="$(npm outdated -g --prefix "$sec" --depth=0 --parseable 2>/dev/null || true)"
       count="$(_count_lines "$out")"
       if (( count > 0 )); then
@@ -262,7 +266,7 @@ final_check_managers() {
         log_stream <<< "$out"
         remediation "npm install -g --prefix ${sec} <pacote>@latest"
       fi
-    fi
+    done
   fi
 
   if has pnpm; then

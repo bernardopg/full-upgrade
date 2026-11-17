@@ -604,7 +604,7 @@ IDE_EXT_CLIS=""
 FULL_UPGRADE_AUR_IGNORE=""
 # Se Poetry fixa poetry-core, poetry-core entra no ignore efetivo automaticamente.
 FULL_UPGRADE_PIP_USER_IGNORE=""
-# IDs estáveis de integrações opcionais desabilitadas (ex.: openclaw,coderabbit).
+# IDs estáveis de integrações opcionais desabilitadas (openclaw, coderabbit, artcraft, cua-driver).
 FULL_UPGRADE_DISABLED_INTEGRATIONS=""
 # Units systemd saciadas da auditoria de libs antigas (needrestart/checkservices):
 # não são reportadas como pendência nem candidatas a reinício. Use para units cujo

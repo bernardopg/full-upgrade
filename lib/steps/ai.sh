@@ -272,6 +272,20 @@ claude_prune_partial_versions() {
 }
 
 
+# Toda invocação do CLI do Claude Code — inclusive `claude update` e
+# `claude plugin …` — dispara os hooks do usuário (SessionStart/SessionEnd das
+# settings e dos plugins). Num run real o hook de SessionEnd (sync de dotfiles +
+# export de memória + git push) custava ~9s por chamada: cada `plugin update`
+# levava ~11s contra ~2,4s sem hooks, 24 plugins somavam 4–7min e um run estourou
+# o limite de 600s. Pior, cada chamada fazia um push no repositório do hook.
+# Chamadas não interativas do full-upgrade nunca devem rodar hooks de sessão.
+CLAUDE_CLI_NOHOOKS=(claude --settings '{"disableAllHooks":true}')
+
+# Limite de cada `claude plugin update` (um plugin travado em rede não pode
+# consumir o orçamento do step inteiro) e folga mínima para começar o próximo.
+CLAUDE_PLUGIN_UPDATE_TIMEOUT_S=90
+CLAUDE_PLUGIN_MIN_LEFT_S=30
+
 # H1 — atualiza o Claude Code CLI pelo instalador nativo (`claude update`).
 # Falha de rede => RC_WARN e falha do updater => RC_WARN, alinhado aos steps
 # irmãos (opencode/pi/ollama): uma queda de rede transitória não pode marcar o
@@ -292,7 +306,7 @@ update_claude_code() {
   claude_prune_partial_versions "$CLAUDE_NATIVE_VERSIONS_DIR"
 
   local output rc
-  output="$(run_network_cmd claude update)"
+  output="$(run_network_cmd "${CLAUDE_CLI_NOHOOKS[@]}" update)"
   rc=$?
   printf '%s\n' "$output" | grep -v '^$' | log_out || true
 
@@ -756,7 +770,11 @@ for line in sys.stdin:
     except Exception:
         print("fail\t%s\t%s" % (pid, raw.strip()[:160]))
         continue
-    if r.get("shownCommand"):
+    if r.get("outcome") == "deferred":
+        print("deferred\t%s\t" % pid)
+    elif not r:
+        print("fail\t%s\tsem resposta JSON (timeout ou erro do CLI)" % pid)
+    elif r.get("shownCommand"):
         print("confirm\t%s\t" % pid)
     elif r.get("outcome") == "ok" and r.get("updateOutcome") == "updated":
         print("updated\t%s\t%s → %s" % (pid, r.get("oldVersion", "?"), r.get("newVersion", "?")))
@@ -832,8 +850,10 @@ ai_plugin_purge_blocked() {
       rm_p=(codex plugin remove) rm_m=(codex plugin marketplace remove)
       ;;
     claude)
-      list_p=(claude plugin list --json) list_m=(claude plugin marketplace list --json)
-      rm_p=(claude plugin uninstall --scope user) rm_m=(claude plugin marketplace remove)
+      list_p=("${CLAUDE_CLI_NOHOOKS[@]}" plugin list --json)
+      list_m=("${CLAUDE_CLI_NOHOOKS[@]}" plugin marketplace list --json)
+      rm_p=("${CLAUDE_CLI_NOHOOKS[@]}" plugin uninstall --scope user)
+      rm_m=("${CLAUDE_CLI_NOHOOKS[@]}" plugin marketplace remove)
       ;;
     *) return 0 ;;
   esac
@@ -865,7 +885,7 @@ update_claude_plugins() {
   has claude || { log "  claude não encontrado."; return 0; }
   ai_plugin_purge_blocked claude
   local mk_out mk_rc
-  mk_out="$(run_network_cmd claude plugin marketplace update </dev/null)"
+  mk_out="$(run_network_cmd "${CLAUDE_CLI_NOHOOKS[@]}" plugin marketplace update </dev/null)"
   mk_rc=$?
   printf '%s\n' "$mk_out" | log_out
   if ((mk_rc != 0)); then
@@ -875,15 +895,24 @@ update_claude_plugins() {
   fi
 
   local -a ids=()
-  mapfile -t ids < <(claude plugin list --json </dev/null 2>/dev/null | claude_plugin_user_ids)
+  mapfile -t ids < <("${CLAUDE_CLI_NOHOOKS[@]}" plugin list --json </dev/null 2>/dev/null | claude_plugin_user_ids)
   if ((${#ids[@]} == 0)); then
     log "  Nenhum plugin do Claude Code em escopo user."
     return 0
   fi
 
-  local id raw results
+  # Sequencial de propósito: updates paralelos disputariam a escrita de
+  # ~/.claude/plugins/installed_plugins.json. O que não couber no orçamento do
+  # step fica para o próximo run (RC_WARN), em vez de o step inteiro estourar.
+  local id raw results left
+  local -a deferred=()
   results="$(for id in "${ids[@]}"; do
-    raw="$(claude plugin update "$id" --scope user --json </dev/null 2>&1 | grep -m1 '^{')"
+    left="$(step_time_left)"
+    if [[ -n "$left" ]] && ((left < CLAUDE_PLUGIN_MIN_LEFT_S)); then
+      printf '%s\t%s\n' "$id" '{"outcome":"deferred"}'
+      continue
+    fi
+    raw="$(timeout "$CLAUDE_PLUGIN_UPDATE_TIMEOUT_S" "${CLAUDE_CLI_NOHOOKS[@]}" plugin update "$id" --scope user --json </dev/null 2>&1 | grep -m1 '^{')"
     printf '%s\t%s\n' "$id" "${raw:-{\}}"
   done | claude_plugin_update_classify)"
   log_raw "$results"
@@ -892,17 +921,26 @@ update_claude_plugins() {
   local -a confirm=() failed=()
   while IFS=$'\t' read -r cls id detail; do
     case "$cls" in
-      updated) ((n_updated++)); log "  ${id}: ${detail}" ;;
-      current) ((n_current++)) ;;
+      updated) ((++n_updated)); log "  ${id}: ${detail}" ;;
+      current) ((++n_current)) ;;
       confirm) confirm+=("$id") ;;
       fail) failed+=("$id"); log "  ${id}: falhou ${detail}" ;;
+      deferred) deferred+=("$id") ;;
     esac
   done <<<"$results"
   log "  Plugins do Claude Code: ${n_updated} atualizado(s), ${n_current} já na última versão (${#ids[@]} em escopo user)."
   ((n_updated > 0)) && log "  Reinicie as sessões do Claude Code para carregar os plugins novos."
 
-  if ((${#failed[@]} > 0)); then
-    STEP_REASON="falha ao atualizar plugin(s): ${failed[*]}"
+  if ((${#deferred[@]} > 0)); then
+    log "  Sem tempo no step para: ${deferred[*]}; ficam para o próximo run."
+  fi
+  if ((${#failed[@]} > 0 || ${#deferred[@]} > 0)); then
+    local -a why=()
+    ((${#failed[@]} > 0)) && why+=("falha ao atualizar plugin(s): ${failed[*]}")
+    ((${#deferred[@]} > 0)) && why+=("adiado(s) por tempo: ${deferred[*]}")
+    local IFS=';'
+    STEP_REASON="${why[*]}"
+    STEP_REASON="${STEP_REASON//;/; }"
     return "$RC_WARN"
   fi
   if ((${#confirm[@]} > 0)); then

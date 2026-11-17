@@ -37,6 +37,8 @@ setup() {
     esac
   }
   claude() {
+    # O step chama `claude --settings {"disableAllHooks":true} …`.
+    [[ "$1" == --settings ]] && shift 2
     case "$*" in
       'plugin list --json') printf '%s\n' "$CLAUDE_PLUGINS" ;;
       'plugin marketplace list --json') printf '%s\n' "$CLAUDE_MKTS" ;;
