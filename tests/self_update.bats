@@ -194,26 +194,26 @@ setup() {
 
 @test "self_pacman_managed_bin: pacman presente, /usr/bin/full-upgrade inexistente => rc 1" {
   has() { [[ "$1" == pacman ]]; }
-  # [[ -e ]] curto-circuita antes de pacman -Qo: o caminho fixo não existe.
-  [ -e /usr/bin/full-upgrade ] && skip "ambiente tem /usr/bin/full-upgrade; teste só válido sem ele"
+  # [[ -e ]] curto-circuita antes de pacman -Qo (o test_helper aponta
+  # FULL_UPGRADE_SYSTEM_BIN para um caminho que não existe).
   run self_pacman_managed_bin
   [ "$status" -eq 1 ]
 }
 
 @test "self_pacman_managed_bin: existe mas não é owned => rc 1" {
   has() { [[ "$1" == pacman ]]; }
-  local sysbin="/usr/bin/full-upgrade"
-  [ -e "$sysbin" ] || skip "teste requer /usr/bin/full-upgrade neste ambiente"
+  local sysbin="$BATS_TEST_TMPDIR/full-upgrade"; touch "$sysbin"
+  export FULL_UPGRADE_SYSTEM_BIN="$sysbin"
   pacman() { return 1; }   # -Qo nega a propriedade
   run self_pacman_managed_bin
   [ "$status" -eq 1 ]
 }
 
-@test "self_pacman_managed_bin: owned pelo pacman => ecoa /usr/bin/full-upgrade" {
+@test "self_pacman_managed_bin: owned pelo pacman => ecoa o binário do sistema" {
   has() { [[ "$1" == pacman ]]; }
   pacman() { return 0; }   # simula -Qo sucesso
-  local sysbin="/usr/bin/full-upgrade"
-  [ -e "$sysbin" ] || skip "teste requer /usr/bin/full-upgrade neste ambiente"
+  local sysbin="$BATS_TEST_TMPDIR/full-upgrade"; touch "$sysbin"
+  export FULL_UPGRADE_SYSTEM_BIN="$sysbin"
   run self_pacman_managed_bin
   [ "$status" -eq 0 ]
   [ "$output" = "$sysbin" ]

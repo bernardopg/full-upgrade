@@ -4,8 +4,10 @@
 # shellcheck shell=bash
 
 # Diretório de config (XDG). Exposto para o entrypoint achar steps.d/ do usuário.
-FU_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade"
-FU_CONFIG_FILE="${FU_CONFIG_DIR}/config"
+# FU_CONFIG_DIR/FU_CONFIG_FILE no ambiente têm precedência (testes e configs
+# alternativos rodam sem tocar no config do usuário).
+FU_CONFIG_DIR="${FU_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/full-upgrade}"
+FU_CONFIG_FILE="${FU_CONFIG_FILE:-${FU_CONFIG_DIR}/config}"
 export FU_CONFIG_DIR FU_CONFIG_FILE
 
 # Defaults de config (zero-config funciona). Sobrescritos pelo arquivo se existir.

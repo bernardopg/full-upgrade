@@ -23,6 +23,17 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
 # como no runner do CI.
 unset XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME
 
+# Config, token do GitHub e o binário do pacote apontam para caminhos que não
+# existem: sem isso o resultado dependia da máquina (o config real do usuário
+# era carregado, o token dele era lido e o /usr/bin/full-upgrade do pacman
+# mudava o caminho do --update). O CI não tem nada disso e media outra coisa.
+_fu_isolated="${BATS_RUN_TMPDIR:-${TMPDIR:-/tmp}}/fu-isolado"
+export FU_CONFIG_DIR="${_fu_isolated}/config" FU_CONFIG_FILE="${_fu_isolated}/config/config"
+export GITHUB_TOKEN_FILE="${_fu_isolated}/github-token"
+export FULL_UPGRADE_SYSTEM_BIN="${_fu_isolated}/usr-bin-full-upgrade"
+export REPAIR_LOCAL_BIN_DIR="${_fu_isolated}/usr-local-bin"
+unset _fu_isolated GITHUB_TOKEN GH_TOKEN
+
 # Carrega libs compartilhadas, na ordem mínima do entrypoint:
 #   globals -> ui -> core -> json -> catalog.
 # NÃO carrega main/cli/sudo nem steps/* — esses podem ter efeitos colaterais

@@ -57,3 +57,16 @@ setup() {
   run custom_step_or_skip "Passo" minha_funcao
   [ "$output" = "run:Passo:minha_funcao" ]
 }
+
+@test "load_config lê o arquivo; --config mostra token presente; custom desligado pula" {
+  printf 'MIRROR_TOOL=reflector\n' > "$FU_CONFIG_FILE"
+  load_config
+  [ "$MIRROR_TOOL" = reflector ]
+  GITHUB_TOKEN_FILE="$BATS_TEST_TMPDIR/token2"; echo ghp_x > "$GITHUB_TOKEN_FILE"; chmod 600 "$GITHUB_TOKEN_FILE"
+  unset GITHUB_TOKEN GH_TOKEN
+  run show_config
+  [[ "$output" == *"[presente]"* ]]
+  step_skip() { echo "skip:$2"; }
+  ENABLE_CUSTOM_TOOLS=0 run custom_step_or_skip "Passo" qualquer
+  [ "$output" = "skip:requer ENABLE_CUSTOM_TOOLS=1" ]
+}

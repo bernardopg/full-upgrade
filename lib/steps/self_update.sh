@@ -63,7 +63,7 @@ self_latest_version() {
 # do sistema quando /usr/bin/full-upgrade pertence a um pacote.
 self_pacman_managed_bin() {
   has pacman || return 1
-  local sysbin="/usr/bin/full-upgrade"
+  local sysbin="${FULL_UPGRADE_SYSTEM_BIN:-/usr/bin/full-upgrade}"
   [[ -e "$sysbin" ]] || return 1
   pacman -Qo "$sysbin" >/dev/null 2>&1 || return 1
   printf '%s\n' "$sysbin"

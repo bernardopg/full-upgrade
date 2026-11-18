@@ -98,3 +98,14 @@ self_perform_update; echo \"rc=\$?\""
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"Falha ao instalar o standalone"* ]]
 }
+
+@test "binário do pacote: dono pacman e sem dono" {
+  unset -f self_pacman_managed_bin; source "${FU_LIB}/steps/self_update.sh"
+  export FULL_UPGRADE_SYSTEM_BIN="$BATS_TEST_TMPDIR/full-upgrade"; touch "$FULL_UPGRADE_SYSTEM_BIN"
+  load stub_helper
+  stub pacman 0 ""
+  [ "$(self_pacman_managed_bin)" = "$FULL_UPGRADE_SYSTEM_BIN" ]
+  stub pacman 1 ""
+  run self_pacman_managed_bin
+  [ "$status" -eq 1 ]
+}

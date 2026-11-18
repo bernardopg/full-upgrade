@@ -1,7 +1,9 @@
 # Configuração
 
 O full-upgrade funciona sem configuração. Para personalizar, use o TUI ou edite
-`~/.config/full-upgrade/config`.
+`~/.config/full-upgrade/config`. Para usar outro arquivo, exporte
+`FU_CONFIG_FILE` (ou `FU_CONFIG_DIR`, que também muda onde ficam os
+`steps.d/` do usuário) antes de rodar.
 
 ## TUI interativo (recomendado)
 

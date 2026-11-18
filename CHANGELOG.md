@@ -4,6 +4,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- `FU_CONFIG_FILE`/`FU_CONFIG_DIR` no ambiente escolhem outro arquivo de config.
+
 ### Corrigido
 
 - **Servers MCP fixados nunca eram comparados com a última release:** o plano
@@ -47,6 +51,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - O kcov é compilado com `scripts/kcov-bash-quote-state.patch`: um `'` sem par
   numa linha do xtrace fazia o kcov ignorar todo o trace seguinte, de todos os
   processos, e a cobertura mudava com a ordem dos testes.
+- Testes herméticos: config, token do GitHub, `/usr/bin/full-upgrade` e
+  `/usr/local/bin` apontam para caminhos descartáveis (`FU_CONFIG_FILE`,
+  `GITHUB_TOKEN_FILE`, `FULL_UPGRADE_SYSTEM_BIN`, `REPAIR_LOCAL_BIN_DIR`). Antes
+  o resultado dependia da máquina: o config real era carregado e alguns testes
+  só rodavam onde o pacote estava instalado.
 - Testes isolados do HOME real: os diretórios XDG da sessão são removidos, o
   `pty_call` recoloca o PATH isolado (um teste rodava o `cargo install-update`
   da máquina) e `PACMAN_CONF_FILE` aponta para um arquivo descartável.

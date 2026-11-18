@@ -209,21 +209,13 @@ EOF
     esac
   }
   # Override para que /usr/bin/dumpcap pareça ausente
-  # Como não podemos remover o arquivo real, testamos a lógica indiretamente
-  # Se dumpcap não existe no sistema, deve retornar 1
-  if [[ ! -e /usr/bin/dumpcap ]]; then
-    run repair_wireshark_capture_permissions
-    [ "$status" -eq 1 ]
-  else
-    # Se dumpcap existe, este teste não se aplica — skip
-    skip "dumpcap instalado no sistema"
-  fi
+  export WIRESHARK_DUMPCAP="$BATS_TEST_TMPDIR/nao-existe/dumpcap"
+  run repair_wireshark_capture_permissions
+  [ "$status" -eq 1 ]
 }
 
 @test "repair_wireshark_permissions: grupo wireshark ausente => return 1" {
-  if [[ ! -e /usr/bin/dumpcap ]]; then
-    skip "dumpcap não instalado"
-  fi
+  export WIRESHARK_DUMPCAP="$BATS_TEST_TMPDIR/dumpcap"; touch "$WIRESHARK_DUMPCAP"
   # Mock getent para retornar falha
   getent() { return 1; }
   has() {
