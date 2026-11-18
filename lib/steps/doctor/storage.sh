@@ -418,7 +418,7 @@ autofix_btrfs_scrub() {
       local ans
       read -r ans
       case "$ans" in
-        [sS][iI][mM]|[sS]) ;;
+        [sS][iI][mM]|[sS]) : ;;
         *) log "  Scrub cancelado pelo usuário."; STEP_REASON="cancelado pelo usuário"; return "$RC_TODO" ;;
       esac
     else

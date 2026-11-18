@@ -284,7 +284,7 @@ self_perform_update() {
       local answer
       read -r answer
       case "$answer" in
-        [sS][iI][mM]|[sS]) ;;
+        [sS][iI][mM]|[sS]) : ;;
         *) log_always "Atualização cancelada."; return 0 ;;
       esac
     else

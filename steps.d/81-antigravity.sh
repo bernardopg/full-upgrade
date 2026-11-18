@@ -205,7 +205,7 @@ EOF
 antigravity_desktop_present() {
     local desktop_id="$1"
     [[ -f "${HOME}/.local/share/applications/${desktop_id}" ]] && return 0
-    [[ -f "/usr/share/applications/${desktop_id}" ]] && return 0
+    [[ -f "${ANTIGRAVITY_SYSTEM_APPS_DIR:-/usr/share/applications}/${desktop_id}" ]] && return 0
     return 1
 }
 
@@ -276,8 +276,8 @@ repair_antigravity_command_shadowing() {
     local name local_bin system_bin backup pfx
     local status=0
     for name in antigravity antigravity-ide; do
-        local_bin="/usr/local/bin/${name}"
-        system_bin="/usr/bin/${name}"
+        local_bin="${ANTIGRAVITY_LOCAL_BIN_DIR:-/usr/local/bin}/${name}"
+        system_bin="${ANTIGRAVITY_SYSTEM_BIN_DIR:-/usr/bin}/${name}"
         [[ -e "$local_bin" && -x "$system_bin" ]] || continue
         pacman -Qo "$local_bin" >/dev/null 2>&1 && continue
 
@@ -306,8 +306,8 @@ repair_antigravity_command_shadowing() {
 }
 
 repair_antigravity_legacy_opt_dir() {
-    local legacy_dir="/opt/antigravity"
-    local packaged_bin="/opt/Antigravity/antigravity"
+    local legacy_dir="${ANTIGRAVITY_OPT_DIR:-/opt}/antigravity"
+    local packaged_bin="${ANTIGRAVITY_OPT_DIR:-/opt}/Antigravity/antigravity"
     local backup_dir pfx link target
 
     [[ -d "$legacy_dir" && -x "$packaged_bin" ]] || return 0
@@ -331,7 +331,7 @@ repair_antigravity_legacy_opt_dir() {
         return "$RC_TODO"
     fi
 
-    for link in /usr/local/bin/antigravity.manual-backup-*; do
+    for link in "${ANTIGRAVITY_LOCAL_BIN_DIR:-/usr/local/bin}"/antigravity.manual-backup-*; do
         [[ -L "$link" ]] || continue
         target="$(readlink "$link" 2>/dev/null || true)"
         [[ "$target" == "${legacy_dir}/antigravity" ]] || continue

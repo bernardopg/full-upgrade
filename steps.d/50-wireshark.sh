@@ -31,11 +31,12 @@ ensure_wireshark() {
 }
 
 repair_wireshark_capture_permissions() {
+    local dumpcap="${WIRESHARK_DUMPCAP:-/usr/bin/dumpcap}"
     if declare -F repair_command_shadowing >/dev/null 2>&1; then
-        repair_command_shadowing dumpcap /usr/bin/dumpcap || return $?
+        repair_command_shadowing dumpcap "$dumpcap" || return $?
     fi
 
-    if [[ ! -e /usr/bin/dumpcap ]]; then
+    if [[ ! -e "$dumpcap" ]]; then
         log "  dumpcap não encontrado."
         return 1
     fi
@@ -44,10 +45,10 @@ repair_wireshark_capture_permissions() {
         return 1
     fi
 
-    run_logged sudo chgrp wireshark /usr/bin/dumpcap
-    run_logged sudo chmod 750 /usr/bin/dumpcap
+    run_logged sudo chgrp wireshark "$dumpcap"
+    run_logged sudo chmod 750 "$dumpcap"
     if has setcap; then
-        run_logged sudo setcap cap_net_raw,cap_net_admin,cap_dac_override+eip /usr/bin/dumpcap
+        run_logged sudo setcap cap_net_raw,cap_net_admin,cap_dac_override+eip "$dumpcap"
     else
         log "  setcap não instalado; não foi possivel configurar capabilities."
         return 1

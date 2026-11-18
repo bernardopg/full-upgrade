@@ -52,8 +52,7 @@ orca_ide_release_appimage_sha256() {
   has python || return 1
   # Metadados via github_api_get (autenticado quando há token; ver lib/core.sh):
   # anônimo, o limite de 60/h por IP esgotava no meio do run.
-  github_api_get "https://api.github.com/repos/stablyai/orca/releases/latest" 2>/dev/null \
-    | python -c '
+  github_api_get "https://api.github.com/repos/stablyai/orca/releases/latest" 2>/dev/null | python -c '
 import json
 import sys
 
@@ -125,15 +124,16 @@ install_orca_ide_appimage() {
 
 orca_ide_icon_source() {
   local icon
+  local usr="${ORCA_SYSTEM_ROOT:-}/usr" opt="${ORCA_SYSTEM_ROOT:-}/opt/stably-orca"
   for icon in \
     "${HOME}/.local/share/icons/hicolor/512x512/apps/${ORCA_IDE_ICON_NAME}.png" \
-    /usr/share/icons/hicolor/*/apps/stably-orca.png \
-    /usr/share/icons/hicolor/*/apps/orca.png \
-    /opt/stably-orca/usr/share/icons/hicolor/*/apps/stably-orca.png \
-    /opt/stably-orca/usr/share/icons/hicolor/*/apps/orca.png \
-    /opt/stably-orca/stably-orca.png \
-    /opt/stably-orca/orca.png \
-    /opt/stably-orca/.DirIcon; do
+    "$usr"/share/icons/hicolor/*/apps/stably-orca.png \
+    "$usr"/share/icons/hicolor/*/apps/orca.png \
+    "$opt"/usr/share/icons/hicolor/*/apps/stably-orca.png \
+    "$opt"/usr/share/icons/hicolor/*/apps/orca.png \
+    "$opt"/stably-orca.png \
+    "$opt"/orca.png \
+    "$opt"/.DirIcon; do
     [[ -f "$icon" ]] || continue
     printf '%s\n' "$icon"
     return 0

@@ -27,7 +27,7 @@ hc_os_release_field() {
 # Uptime humano a partir de /proc/uptime.
 hc_uptime_human() {
   local s
-  s="$(awk '{printf "%d", $1}' /proc/uptime 2>/dev/null || printf 0)"
+  s="$(awk '{printf "%d", $1}' "${HC_UPTIME_FILE:-/proc/uptime}" 2>/dev/null || printf 0)"
   [[ "$s" =~ ^[0-9]+$ ]] || s=0
   if (( s >= 86400 )); then
     printf '%dd %dh' $(( s / 86400 )) $(( (s % 86400) / 3600 ))
@@ -122,8 +122,9 @@ hc_tty_info() {
     printf 'tty%s' "$XDG_VTNR"
     return 0
   fi
-  if [[ -r /sys/class/tty/tty0/active ]]; then
-    v="$(cat /sys/class/tty/tty0/active 2>/dev/null || true)"
+  local active="${HC_TTY_ACTIVE_FILE:-/sys/class/tty/tty0/active}"
+  if [[ -r "$active" ]]; then
+    v="$(cat "$active" 2>/dev/null || true)"
     [[ -n "$v" ]] && { printf '%s' "$v"; return 0; }
   fi
   v="$(tty 2>/dev/null || true)"
@@ -192,7 +193,7 @@ hc_dms_plugins() {
     if [[ -d "$d/.git" ]] && has git; then
       branch="$(git -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null || printf '?')"
       note="$(git -C "$d" log -1 --format=%s 2>/dev/null | head -c 60 || true)"
-  if [[ -n "$(git -C "$d" --no-optional-locks status --porcelain 2>/dev/null | head -1)" ]]; then
+      if [[ -n "$(git -C "$d" --no-optional-locks status --porcelain 2>/dev/null | head -1)" ]]; then
         state="modificado"
       else
         state="limpo"

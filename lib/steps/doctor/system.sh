@@ -69,7 +69,7 @@ doctor_reboot_pending() {
   # release. Normaliza os dois efeitos para comparar maçã com maçã.
   expected="${installed/.arch/-arch}"
   case "$pkgbase" in
-    linux) ;;
+    linux) : ;;
     linux-*)
       local flavour="${pkgbase#linux-}"
       expected="${expected/.${flavour}/-${flavour}}"
@@ -117,7 +117,7 @@ doctor_reboot_pending() {
 
   # microcode: versão aplicada vs pacote instalado
   local ucode_sys ucode_pkg ucode_pkg_name
-  ucode_sys="$(cat /sys/devices/system/cpu/cpu0/microcode/version 2>/dev/null | tr -d '[:space:]' || true)"
+  ucode_sys="$(cat "${MICROCODE_VERSION_FILE:-/sys/devices/system/cpu/cpu0/microcode/version}" 2>/dev/null | tr -d '[:space:]' || true)"
   if pacman -Q intel-ucode >/dev/null 2>&1; then
     ucode_pkg_name="intel-ucode"
     ucode_pkg="$(pacman -Q intel-ucode 2>/dev/null | awk '{print $2}' || true)"
@@ -251,13 +251,14 @@ doctor_failed_systemd_units() {
 # linha de erro (já filtrada/agrupada) e emite uma sugestão curta, ou nada quando
 # não há dica conhecida. Read-only; só agrega contexto ao diagnóstico.
 journal_hint_for() {
-  local l="$1"
+  # O prefixo vai numa variável: o kcov não mede padrão de case com "(".
+  local l="$1" pr='Uncaught (in promise)'
   case "$l" in
     *applications.menu*not\ found*|*'"applications.menu"'*)
       printf 'menu XDG ausente: instale "archlinux-xdg-menu" e rode "XDG_MENU_PREFIX=arch- kbuildsycoca6" (KDE) para regenerar o cache de menus' ;;
     *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*)
       printf 'ZapZap/WhatsApp Web: falha transitória ao detectar tema; atualize/reinicie o app se persistir' ;;
-    *Uncaught\ \(in\ promise\)\ DisconnectedError*|*Uncaught\ \(in\ promise\)\ cancel*|*Uncaught\ \(in\ promise\)\ CustomError:\ fh*)
+    *"$pr DisconnectedError"*|*"$pr cancel"*|*"$pr CustomError: fh"*)
       printf 'erro de promise em app Electron/Chromium sem serviço falhado; normalmente benigno se não houver crash visível' ;;
     *Bluetooth:\ hci0*|*a2dp-sink*|*btd_service_connect*|*bluetoothd*|*profiles/audio/avdtp.c*|*bluez_output*)
       printf 'Bluetooth/áudio: correlacione dispositivo e perfil com journalctl -u bluetooth e btmon; verifique multipoint, alcance e firmware se recorrente' ;;
@@ -282,20 +283,14 @@ journal_hint_for() {
 # recorrente quando só restam erros ambientais conhecidos de sessão gráfica,
 # Bluetooth/áudio ou USB serial.
 journal_signature_class() {
-  local l="$1"
+  local l="$1" pr='Uncaught (in promise)'
   l="${l#"${l%%[![:space:]]*}"}"
   l="$(printf '%s\n' "$l" | sed -E 's/^[0-9]+[[:space:]]+//')"
   case "$l" in
-    *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*|\
-    *Uncaught\ \(in\ promise\)\ DisconnectedError*|\
-    *Uncaught\ \(in\ promise\)\ cancel*|\
-    *Uncaught\ \(in\ promise\)\ CustomError:\ fh*|\
-    *profiles/audio/avdtp.c*|*bluez_output*|\
-    *ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
+    # Padrões numa linha só: o kcov não mede padrão de case quebrado com "\".
+    *ZapZap\ WAWeb\ Theme\ Controller*|*WhatsApp\ Web\ ThemeContext*|*"$pr DisconnectedError"*|*"$pr cancel"*|*"$pr CustomError: fh"*|*profiles/audio/avdtp.c*|*bluez_output*|*ftdi_sio\ ttyUSB0:\ error\ from\ flowcontrol\ urb*)
       printf 'benign' ;;
-    *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*|\
-    *I/O\ error*|*Buffer\ I/O*|*EXT4-fs\ error*|*BTRFS:\ error*|\
-    *kernel\ panic*|*Oops:*|*segfault*|*dumped\ core*)
+    *pam_unix*authentication\ failure*|*sudo*authentication\ failure*|*pam_authenticate*|*I/O\ error*|*Buffer\ I/O*|*EXT4-fs\ error*|*BTRFS:\ error*|*kernel\ panic*|*Oops:*|*segfault*|*dumped\ core*)
       printf 'actionable' ;;
     *)
       printf 'unknown' ;;
@@ -333,14 +328,17 @@ journal_battery_warning_self_healed() {
 }
 
 
+# Erro de unit já resolvido sozinho (o serviço voltou a subir depois).
+journal_exec_self_healed() {
+  journal_full_upgrade_tray_exec_self_healed "$1" ||
+    journal_dmail_exec_self_healed "$1" ||
+    journal_battery_warning_self_healed "$1"
+}
+
 journal_effective_signature_class() {
   local l="$1" class
   class="$(journal_signature_class "$l")"
-  if [[ "$class" == "unknown" ]] && {
-    journal_full_upgrade_tray_exec_self_healed "$l" ||
-      journal_dmail_exec_self_healed "$l" ||
-      journal_battery_warning_self_healed "$l"
-  }; then
+  if [[ "$class" == "unknown" ]] && journal_exec_self_healed "$l"; then
     printf 'benign'
   else
     printf '%s' "$class"
@@ -381,79 +379,81 @@ journal_filter_known_noise() {
 # ~/.config/full-upgrade/journal-noise.txt. Compartilhado por
 # doctor_journal_errors e journal_unknown_signatures (--doctor-ack-journal).
 journal_noise_patterns() {
-  local -a pats=(
-    'bluetoothd.*HFP.*(gateway|profile|SDP|connect|disconnect)'
-    'bluetoothd.*Unable to get.*(Headset|HFP|HandsFree|Hands-Free|Voice gateway)'
-    'bluetoothd.*Unable to get Hands-Free'
-    'bluetoothd.*Voice gateway SDP'
-    'bluetoothd.*connect error'
-    'bluetoothd.*Profile.*not registered'
-    'bluetoothd.*Connect to.*(HFP|HFP/HF).*failed'
-    'bluetoothd.*Getting .* SDP failed'
-    'profile\.c.*Unable to get Hands-Free'
-    'profile\.c.*Voice gateway SDP'
-    'Device is already marked as connected'
-    'profiles/audio/avdtp\.c.*connect.*Host is down'
-    ':[[:space:]]+#[0-9]+[[:space:]]+0x[0-9a-f]+'
-    'ELF object binary architecture:'
-    # ── Firmware/ACPI: bugs do DSDT do fabricante, não corrigíveis por SW ──
-    'ACPI BIOS Error \(bug\):'
-    'ACPI Error: AE_ALREADY_EXISTS'
-    'ACPI Error:.*(psobject|dswload|namespace)'
-    'Failure creating named object \[\\_SB\.'
-    # ── Drivers que pedem report upstream / hardware opcional ausente ──
-    'thinkpad_acpi: Unknown/reserved .* mode value'
-    'ftdi_sio .*: Unable to read latency timer'
-    'Failed to set default system config for hci[0-9]'
-    # ── gnome-keyring em sessão gráfica (sem control file / unlock) ──
-    'gkr-pam: unable to locate daemon control file'
-    'gkr-pam: couldn.t unlock the login keyring'
-    # ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
-    'Original source was unlinked while parsing service file'
-    # ── dbus-broker: dois pacotes declaram o mesmo nome D-Bus (ex.: Dolphin e
-    #    outro gerenciador de arquivos em org.freedesktop.FileManager1). Ele usa
-    #    o primeiro e repete o aviso a cada reload; o hook do pacman recarrega o
-    #    dbus em todo upgrade, então isso reabria warn em quase todo run. ──
-    "dbus-broker-launch.*Ignoring duplicate name '[^']+' in service file"
-    # ── steam-runtime: steam-remote sonda o cliente antes de ele subir ──
-    'steam-runtime-steam-remote.*Steam is not running'
-    # ── systemd: o processo morreu antes do registro do pidref. Corrida
-    #    interna do systemd com processo de vida curta; nada a fazer. ──
-    'Failed to initialize pidref: No such process'
-    # ── Virtualização: host sem Intel TDX — informativo, não é falha ──
-    'virt/tdx: TDX not supported by the host platform'
-    # ── KVM: o kernel convidado de uma VM (Docker/emulador) escreveu um MSR que
-    #    o KVM não emula e ignorou. Assunto do convidado; o host segue normal. ──
-    'kvm: kvm \[[0-9]+\]: vcpu[0-9]+, guest rIP: .*Unhandled (WR|RD)MSR'
-    # ── wpa_supplicant: o driver wifi não suporta registro de multicast RX
-    #    via nl80211; o wpa_supplicant segue sem isso a cada associação. ──
-    'nl80211: kernel reports: multicast RX registrations are not supported'
-    # ── USB: falha de enumeração de dispositivo/hub com problema de hardware
-    #    (mau contato, controlador do dispositivo falhando). O kernel já faz
-    #    power-cycle e desiste; não há ação do full-upgrade — é between-device.
-    #    Caso típico: Genesys Hub + dispositivo na porta debaixo que o kernel
-    #    não consegue ler o device descriptor (error -32 EPIPE / -71 EPROTO).
-    'usb [0-9].*: device descriptor read/(all|64),? error -(32|71|110)'
-    'usb [0-9].*-port[0-9]+: unable to enumerate USB device'
-    'usb [0-9].*-port[0-9]+: attempt power cycle'
-    'usb [0-9].*: device not accepting address [0-9]+, error -(32|71|110)'
-    'usb [0-9].*: device descriptor read/all, error'
-    # ── Intel WiFi (iwlwifi): microcode SW error → firmware crash dump no log.
-    #    Bug entre driver iwlwifi e firmware Intel AX-series. O driver detecta o
-    #    erro, faz dump do estado (registers, PC, Fseq), reinicia o firmware e
-    #    recupera. Não acionável por software — é upstream driver/firmware. ──
-    'iwlwifi [0-9].*: Start IWL Error Log Dump'
-    'iwlwifi [0-9].*: Microcode SW error detected'
-    'iwlwifi [0-9].*: Device error - SW reset'
-    'iwlwifi [0-9].*: Transport status:'
-    'iwlwifi [0-9].*: (UMAC|LMAC)[0-9]* (CURRENT PC|CURRENT)'
-    'iwlwifi [0-9].*: Not associated and the session protection'
-    'iwlwifi [0-9].*: Loaded firmware version:'
-    'iwlwifi [0-9].*: IML/ROM dump'
-    'iwlwifi [0-9].*: Fseq'
-    'iwlwifi [0-9].*: 0x[0-9A-Fa-f]+ \|'
-  )
-  printf '%s\n' "${pats[@]}"
+  # Um padrão grep -E por linha; linhas iniciadas por "#" são comentário.
+  # Heredoc (e não array literal): o kcov conta cada elemento de um array de
+  # várias linhas como linha nunca executada.
+  grep -v '^#' <<'NOISE'
+bluetoothd.*HFP.*(gateway|profile|SDP|connect|disconnect)
+bluetoothd.*Unable to get.*(Headset|HFP|HandsFree|Hands-Free|Voice gateway)
+bluetoothd.*Unable to get Hands-Free
+bluetoothd.*Voice gateway SDP
+bluetoothd.*connect error
+bluetoothd.*Profile.*not registered
+bluetoothd.*Connect to.*(HFP|HFP/HF).*failed
+bluetoothd.*Getting .* SDP failed
+profile\.c.*Unable to get Hands-Free
+profile\.c.*Voice gateway SDP
+Device is already marked as connected
+profiles/audio/avdtp\.c.*connect.*Host is down
+:[[:space:]]+#[0-9]+[[:space:]]+0x[0-9a-f]+
+ELF object binary architecture:
+# ── Firmware/ACPI: bugs do DSDT do fabricante, não corrigíveis por SW ──
+ACPI BIOS Error \(bug\):
+ACPI Error: AE_ALREADY_EXISTS
+ACPI Error:.*(psobject|dswload|namespace)
+Failure creating named object \[\\_SB\.
+# ── Drivers que pedem report upstream / hardware opcional ausente ──
+thinkpad_acpi: Unknown/reserved .* mode value
+ftdi_sio .*: Unable to read latency timer
+Failed to set default system config for hci[0-9]
+# ── gnome-keyring em sessão gráfica (sem control file / unlock) ──
+gkr-pam: unable to locate daemon control file
+gkr-pam: couldn.t unlock the login keyring
+# ── Race transitório: pacote (re)instalou .service durante o scan dbus ──
+Original source was unlinked while parsing service file
+# ── dbus-broker: dois pacotes declaram o mesmo nome D-Bus (ex.: Dolphin e
+#    outro gerenciador de arquivos em org.freedesktop.FileManager1). Ele usa
+#    o primeiro e repete o aviso a cada reload; o hook do pacman recarrega o
+#    dbus em todo upgrade, então isso reabria warn em quase todo run. ──
+dbus-broker-launch.*Ignoring duplicate name '[^']+' in service file
+# ── steam-runtime: steam-remote sonda o cliente antes de ele subir ──
+steam-runtime-steam-remote.*Steam is not running
+# ── systemd: o processo morreu antes do registro do pidref. Corrida
+#    interna do systemd com processo de vida curta; nada a fazer. ──
+Failed to initialize pidref: No such process
+# ── Virtualização: host sem Intel TDX — informativo, não é falha ──
+virt/tdx: TDX not supported by the host platform
+# ── KVM: o kernel convidado de uma VM (Docker/emulador) escreveu um MSR que
+#    o KVM não emula e ignorou. Assunto do convidado; o host segue normal. ──
+kvm: kvm \[[0-9]+\]: vcpu[0-9]+, guest rIP: .*Unhandled (WR|RD)MSR
+# ── wpa_supplicant: o driver wifi não suporta registro de multicast RX
+#    via nl80211; o wpa_supplicant segue sem isso a cada associação. ──
+nl80211: kernel reports: multicast RX registrations are not supported
+# ── USB: falha de enumeração de dispositivo/hub com problema de hardware
+#    (mau contato, controlador do dispositivo falhando). O kernel já faz
+#    power-cycle e desiste; não há ação do full-upgrade — é between-device.
+#    Caso típico: Genesys Hub + dispositivo na porta debaixo que o kernel
+#    não consegue ler o device descriptor (error -32 EPIPE / -71 EPROTO).
+usb [0-9].*: device descriptor read/(all|64),? error -(32|71|110)
+usb [0-9].*-port[0-9]+: unable to enumerate USB device
+usb [0-9].*-port[0-9]+: attempt power cycle
+usb [0-9].*: device not accepting address [0-9]+, error -(32|71|110)
+usb [0-9].*: device descriptor read/all, error
+# ── Intel WiFi (iwlwifi): microcode SW error → firmware crash dump no log.
+#    Bug entre driver iwlwifi e firmware Intel AX-series. O driver detecta o
+#    erro, faz dump do estado (registers, PC, Fseq), reinicia o firmware e
+#    recupera. Não acionável por software — é upstream driver/firmware. ──
+iwlwifi [0-9].*: Start IWL Error Log Dump
+iwlwifi [0-9].*: Microcode SW error detected
+iwlwifi [0-9].*: Device error - SW reset
+iwlwifi [0-9].*: Transport status:
+iwlwifi [0-9].*: (UMAC|LMAC)[0-9]* (CURRENT PC|CURRENT)
+iwlwifi [0-9].*: Not associated and the session protection
+iwlwifi [0-9].*: Loaded firmware version:
+iwlwifi [0-9].*: IML/ROM dump
+iwlwifi [0-9].*: Fseq
+iwlwifi [0-9].*: 0x[0-9A-Fa-f]+ \|
+NOISE
 
   # Coerência com COREDUMP_IGNORE_EXE: um executável já declarado como
   # "crash esperado" (ex.: ffmpeg probando streams dentro de um container)
@@ -535,10 +535,8 @@ doctor_journal_errors() {
   fi
 
   log "  Erros filtrados agrupados por assinatura gravados no log para auditoria (1 linha por assinatura, com contagem; sem o dump bruto repetitivo)."
-  {
-    printf '\n--- journalctl -p 3 -b erros filtrados, agrupados por assinatura ---\n'
-    printf '%s\n' "$filtered" | journal_dump_dedupe
-  } >> "$LOG_FILE"
+  printf '\n--- journalctl -p 3 -b erros filtrados, agrupados por assinatura ---\n' >> "$LOG_FILE"
+  printf '%s\n' "$filtered" | journal_dump_dedupe >> "$LOG_FILE"
 
   # O inventário acima cobre o boot inteiro para auditoria, porém um erro já
   # resolvido antes do full-upgrade não deve contaminar o resultado atual nem o
@@ -733,12 +731,14 @@ journal_group_signatures() {
 # da primeira ocorrência. (sed faz a normalização: gsub do awk não suporta \1.)
 journal_dump_dedupe() {
   sed -E 's/(^|[^A-Za-z0-9])[0-9]+/\1N/g' | awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     {
       count[$0]++
       if (!($0 in seen)) { order[++n] = $0; seen[$0] = 1 }
     }
     END { for (i = 1; i <= n; i++) printf "[ %d ]x %s\n", count[order[i]], order[i] }
   '
+  # kcov-excl-stop
 }
 
 
@@ -832,7 +832,7 @@ doctor_ack_journal_interactive() {
       local answer
       read -r answer
       case "$answer" in
-        [sS][iI][mM]|[sS]) ;;
+        [sS][iI][mM]|[sS]) : ;;
         *) printf 'Cancelado.\n'; return 1 ;;
       esac
     else
@@ -949,7 +949,9 @@ doctor_stale_services() {
     fi
     local svc_count="${#svc_list[@]}"
     local kstat
-    kstat="$(printf '%s\n' "$output" | awk -F'=' '/NEEDRESTART-KSTA/{print $2; exit}')"
+    # O modo batch imprime "NEEDRESTART-KSTA: 3" (dois-pontos, não "="): com -F'='
+    # o campo saía vazio e o kernel desatualizado nunca era detectado aqui.
+    kstat="$(sed -nE 's/^NEEDRESTART-KSTA:?[[:space:]]*([0-9]+).*/\1/p' <<<"$output" | head -1)"
     if (( svc_count > 0 )); then
       log "  needrestart: ${svc_count} serviço(s) usando bibliotecas antigas:"
       printf '%s\n' "${svc_list[@]}" | sed 's/^/    /' | log_stream
@@ -1022,9 +1024,9 @@ service_is_bus_activated() {
   local props="$1" nl=$'\n'
   # Regex com `$'\n'` literal confunde o parser do ShellCheck (SC1011); a
   # quebra de linha vai por variável, com o mesmo significado.
-  [[ ${nl}${props} == *"${nl}Type=dbus"* \
-    && ${nl}${props} == *"${nl}UnitFileState=static"* \
-    && ${nl}${props} =~ ${nl}BusName=[^[:space:]] ]]
+  [[ ${nl}${props} == *"${nl}Type=dbus"* ]] &&
+    [[ ${nl}${props} == *"${nl}UnitFileState=static"* ]] &&
+    [[ ${nl}${props} =~ ${nl}BusName=[^[:space:]] ]]
 }
 
 restart_stale_services() {
@@ -1098,7 +1100,7 @@ restart_stale_services() {
       local answer
       read -r answer
       case "$answer" in
-        [sS][iI][mM]|[sS]) ;;
+        [sS][iI][mM]|[sS]) : ;;
         *) log "  Reinício de serviços cancelado pelo usuário."; STEP_REASON="reinício cancelado pelo usuário"; return "$RC_TODO" ;;
       esac
     else
@@ -1152,7 +1154,7 @@ doctor_desktop_health() {
   # truncado em 15 chars (comm="xdg-desktop-por"), então `pgrep -x` com o nome
   # completo não casava. Detecta por arquivo/pacote e checa execução por -f.
   local _xdp_installed=0 _xdp_running=0
-  if [[ -x /usr/lib/xdg-desktop-portal ]] \
+  if [[ -x "${XDG_PORTAL_BIN:-/usr/lib/xdg-desktop-portal}" ]] \
      || has xdg-desktop-portal \
      || pacman -Qq xdg-desktop-portal >/dev/null 2>&1; then
     _xdp_installed=1
@@ -1335,7 +1337,7 @@ doctor_ack_coredumps_interactive() {
             local answer
             read -r answer
             case "$answer" in
-                [sS][iI][mM]|[sS]) ;;
+                [sS][iI][mM]|[sS]) : ;;
                 *) printf 'Cancelado.\n'; return 1 ;;
             esac
         else

@@ -7,7 +7,7 @@
 repair_command_shadowing() {
     local name="$1"
     local managed_path="$2"
-    local local_path="/usr/local/bin/${name}"
+    local local_path="${REPAIR_LOCAL_BIN_DIR:-/usr/local/bin}/${name}"
 
     if [[ ! -e "$local_path" ]]; then
         log "  Sem sombra local para ${name}."
@@ -85,19 +85,23 @@ repair_coredump_obsolete_keys() {
     for file in $paths; do
         [[ -f "$file" && -r "$file" ]] || continue
         if ! awk '
+          # kcov-excl-start (programa embutido, não é Bash)
           /^\[/ { in_coredump = ($0 == "[Coredump]") }
           in_coredump && /^[[:space:]]*(MaxAge|Keep)[[:space:]]*=/ { found=1 }
           END { exit found ? 0 : 1 }
         ' "$file"; then
+        # kcov-excl-stop
             continue
         fi
 
         tmp="$(mktemp 2>/dev/null || true)"
         [[ -n "$tmp" ]] || { STEP_REASON="mktemp falhou ao reparar coredump.conf"; return "$RC_WARN"; }
         awk '
+          # kcov-excl-start (programa embutido, não é Bash)
           /^\[/ { in_coredump = ($0 == "[Coredump]") }
           !(in_coredump && /^[[:space:]]*(MaxAge|Keep)[[:space:]]*=/)
         ' "$file" > "$tmp"
+        # kcov-excl-stop
 
         backup="${file}.full-upgrade.bak.$(date +%Y%m%d-%H%M%S)"
         mode="$(stat -c '%a' "$file" 2>/dev/null || printf '644')"

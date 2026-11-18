@@ -11,6 +11,7 @@ parse_mcp_claude_json() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
@@ -40,6 +41,7 @@ for path, pv in (d.get("projects") or {}).items():
     for name in sorted((pv.get("mcpServers") or {})):
         emit(name, "project:" + path, (pv.get("mcpServers") or {})[name])
 ' "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -49,6 +51,7 @@ parse_mcp_codex_names() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import sys
 try:
     import tomllib
@@ -64,6 +67,7 @@ if isinstance(servers, dict):
     for name in sorted(servers):
         print(name)
 ' "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -105,6 +109,7 @@ codex_toml_duplicate_tables() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import re, sys
 try:
     import tomllib
@@ -167,6 +172,7 @@ for blk in blocks:
 for row in sorted(out, key=lambda r: r[2], reverse=True):
     print("\t".join(str(v) for v in row))
 ' "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -176,6 +182,7 @@ parse_mcp_codex_entries() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import os, shutil, sys
 try:
     import tomllib
@@ -228,6 +235,7 @@ if isinstance(servers, dict):
     for name in sorted(servers):
         print("\t".join(inspect(name, servers[name])))
 ' "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -237,6 +245,7 @@ parse_mcp_json_entries() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, os, shutil, sys
 try:
     data = json.load(open(sys.argv[1]))
@@ -274,6 +283,7 @@ for name in sorted(servers):
                 issues.append("env ausente: " + var)
     print(name + "\t" + detail + "\t" + "; ".join(issues))
 ' "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -283,6 +293,7 @@ parse_mcp_hermes_names() {
   local f="$1"
   [[ -r "$f" ]] || return 1
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     /^mcp_servers:[[:space:]]*$/ { inside=1; next }
     inside && /^[^[:space:]#]/ { exit }
     inside && /^  [^[:space:]#][^:]*:[[:space:]]*($|#)/ {
@@ -292,6 +303,7 @@ parse_mcp_hermes_names() {
       print line
     }
   ' "$f"
+  # kcov-excl-stop
 }
 
 
@@ -311,6 +323,7 @@ mcp_update_plan() {
   local kind="$1" f="$2"
   [[ -r "$f" ]] || return 1
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import sys, os, re, json
 try:
     import tomllib
@@ -435,6 +448,7 @@ elif kind == "json":
             if isinstance(cfg, dict) and cfg.get("enabled", True) is not False:
                 emit(name, cfg, seen)
 ' "$kind" "$f" 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -506,7 +520,11 @@ mcp_update_servers() {
                "json:${pi_json}" "json:${cursor_json}"; do
     kind="${entry%%:*}"; file="${entry#*:}"
     [[ -r "$file" ]] || continue
-    while IFS=$'\t' read -r name action dist pin; do
+    # Tab é espaço em branco para o IFS: com `IFS=$'\t'` campos vazios no meio
+    # colapsam. Um server npx fixado sai como "nome<TAB>pinned<TAB><TAB>npm:pkg@v"
+    # (sem dist), e o pin caía em `dist`: o @playwright/mcp fixado nunca era
+    # comparado com a última release. O separador \x1f não é espaço em branco.
+    while IFS=$'\x1f' read -r name action dist pin; do
       [[ -n "$name" ]] || continue
       [[ -n "$pin" && ",${pins[$pin]:-}," != *",${name},"* ]] && pins["$pin"]+="${pins[$pin]:+,}${name}"
       # O mesmo nome pode apontar para runtimes diferentes em clientes
@@ -516,7 +534,7 @@ mcp_update_servers() {
       seen["$key"]=1
       action_of["$key"]="$action"
       cache_of["$key"]="$dist"
-    done < <(mcp_update_plan "$kind" "$file")
+    done < <(mcp_update_plan "$kind" "$file" | tr '\t' '\037')
   done
 
   local total="${#action_of[@]}"

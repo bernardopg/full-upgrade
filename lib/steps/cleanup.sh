@@ -41,8 +41,7 @@ cleanup_broken_symlinks_local_bin() {
 # rotação não toca: com ~2GB de backups o relatório saía "1996MB → 1996MB"
 # depois de remover arquivos de verdade.
 _logdir_files_mib() {
-  find "$LOG_DIR" -maxdepth 1 -type f -printf '%s\n' 2>/dev/null \
-    | awk '{ s += $1 } END { printf "%.1f", s / 1048576 }'
+  find "$LOG_DIR" -maxdepth 1 -type f -printf '%s\n' 2>/dev/null | awk '{ s += $1 } END { printf "%.1f", s / 1048576 }'
 }
 
 
@@ -152,10 +151,9 @@ cleanup_old_coredumps() {
 # Espelha a lista de artefatos de _purge_aur_partial_sources (pacman.sh). Opera
 # em ~/.cache do usuário — não precisa de sudo.
 cleanup_aur_cache() {
-  local -a dirs=(
-    "${PARU_CLONE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/paru/clone}"
-    "${XDG_CACHE_HOME:-$HOME/.cache}/yay"
-  )
+  local -a dirs=()
+  dirs+=("${PARU_CLONE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/paru/clone}")
+  dirs+=("${XDG_CACHE_HOME:-$HOME/.cache}/yay")
   local dir before after found=0
   for dir in "${dirs[@]}"; do
     [[ -d "$dir" ]] || continue
@@ -218,11 +216,10 @@ cleanup_codex_plugin_tmp() {
   local keep="${CODEX_TMP_KEEP_DAYS:-1}"
   [[ "$keep" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=1
   local codex_tmp="${CODEX_TMP_DIR:-${HOME}/.codex/.tmp}"
-  local -a specs=(
-    "${codex_tmp}|git-*"
-    "${CODEX_MKT_STAGING_DIR:-${codex_tmp}/marketplaces/.staging}|marketplace-upgrade-*"
-    "${CODEX_SRC_STAGING_DIR:-${HOME}/.codex/plugins/.marketplace-plugin-source-staging}|marketplace-plugin-source-*"
-  )
+  local -a specs=()
+  specs+=("${codex_tmp}|git-*")
+  specs+=("${CODEX_MKT_STAGING_DIR:-${codex_tmp}/marketplaces/.staging}|marketplace-upgrade-*")
+  specs+=("${CODEX_SRC_STAGING_DIR:-${HOME}/.codex/plugins/.marketplace-plugin-source-staging}|marketplace-plugin-source-*")
   local spec dir pattern before after found=0 removed=0 freed=0
   local -a victims=()
   for spec in "${specs[@]}"; do
@@ -273,12 +270,14 @@ snapshot_keep_count() {
 snapper_full_upgrade_ids_to_delete() {
   local keep="$1"
   awk -F'|' -v keep="$keep" '
+    # kcov-excl-start (programa embutido, não é Bash)
     /full-upgrade pré-upgrade/ && $1 ~ /^[0-9]+$/ { ids[++n] = $1 }
     END {
       limit = n - keep
       for (i = 1; i <= limit; i++) print ids[i]
     }
   '
+  # kcov-excl-stop
 }
 
 
@@ -316,11 +315,8 @@ cleanup_old_snapshots() {
   case "$tool" in
     snapper)
       has snapper || { log "  snapper não instalado; limpeza de snapshots pulada."; return 0; }
-      mapfile -t victims < <(
-        snapper -c root list --csvout 2>/dev/null \
-          | awk -F, 'NR > 1 { gsub(/"/, "", $1); gsub(/"/, "", $6); print $1 "|" $6 }' \
-          | snapper_full_upgrade_ids_to_delete "$keep"
-      )
+      # Colunas 1 (número) e 6 (descrição) do CSV, sem aspas: "id|descrição".
+      mapfile -t victims < <(snapper -c root list --csvout 2>/dev/null | awk -F, 'NR > 1 { gsub(/"/, "", $1); gsub(/"/, "", $6); print $1 "|" $6 }' | snapper_full_upgrade_ids_to_delete "$keep")
       if (( ${#victims[@]} == 0 )); then
         log "  Nenhum snapshot snapper full-upgrade antigo para remover (mantendo ${keep})."
         return 0
@@ -331,7 +327,7 @@ cleanup_old_snapshots() {
           printf '%b' "${C_YELLOW}  Remover estes snapshots snapper? [s/N] ${C_RESET}"
           local answer
           read -r answer
-          case "$answer" in [sS][iI][mM]|[sS]) ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
+          case "$answer" in [sS][iI][mM]|[sS]) : ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
         else
           log "  Execução não interativa sem --yes; pulando limpeza de snapshots."
           remediation "full-upgrade --yes --only cleanup"
@@ -365,7 +361,7 @@ cleanup_old_snapshots() {
           printf '%b' "${C_YELLOW}  Remover estes snapshots timeshift? [s/N] ${C_RESET}"
           local answer
           read -r answer
-          case "$answer" in [sS][iI][mM]|[sS]) ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
+          case "$answer" in [sS][iI][mM]|[sS]) : ;; *) log "  Limpeza de snapshots cancelada pelo usuário."; return 0 ;; esac
         else
           log "  Execução não interativa sem --yes; pulando limpeza de snapshots."
           remediation "full-upgrade --yes --only cleanup"
@@ -424,7 +420,7 @@ cleanup_orphans() {
         local answer
         read -r answer
         case "$answer" in
-          [sS][iI][mM]|[sS]) ;;
+          [sS][iI][mM]|[sS]) : ;;
           *) log "  Remoção de órfãos cancelada pelo usuário."; return 0 ;;
         esac
       else

@@ -12,7 +12,7 @@ pacman_db_is_locked() {
 }
 
 ensure_pacman_lock_is_clean() {
-  local lock="/var/lib/pacman/db.lck"
+  local lock="${PACMAN_DB_LOCK:-/var/lib/pacman/db.lck}"
   if [[ ! -e "${lock}" ]]; then
     log "  Sem lock do pacman."
     return 0
@@ -207,6 +207,17 @@ _aur_syu_with_retry_and_fallback() {
 
 
 
+# Puro: nomes (sem versão) dos pacotes AUR que falharam build/download na saída
+# do paru, um por linha, sem repetição. Vazio se a saída não citar nenhum.
+paru_failed_aur_pkgs() {
+  local found
+  found="$(grep -oiE "os pacotes ([^ ]+) falharam na compilação|falha ao (compilar|baixar fontes) (de |para )?'?([^' ]+)'?" <<<"$1")" || return 0
+  found="$(grep -oE "[a-z0-9][a-z0-9@._+-]+-[0-9][^ ']*" <<<"$found")" || return 0
+  sed -E 's/-[0-9][^-]*-[0-9]+$//' <<<"$found" | sort -u
+}
+
+
+
 # Puro/testável: deriva nome(s) de processo candidato(s) para um pacote —
 # nome do pacote + base sem sufixos comuns de empacotamento (-git, -svn,
 # -appimage, -bin; nessa ordem, para casar foo-bin-git → foo). O binário
@@ -337,13 +348,7 @@ update_system_aur() {
     if (( _paru_rc != 0 )); then
       if grep -qiE 'falharam na compilação|failed to build|falha ao compilar|failed to compile|falha ao baixar fontes|error downloading sources|não passaram na verificação de validade' <<<"$_paru_out"; then
         local -a _failed_aur=()
-        mapfile -t _failed_aur < <(
-          printf '%s\n' "$_paru_out" \
-            | grep -oiE "os pacotes ([^ ]+) falharam na compilação|falha ao (compilar|baixar fontes) (de |para )?'?([^' ]+)'?" \
-            | grep -oE "[a-z0-9][a-z0-9@._+-]+-[0-9][^ ']*" \
-            | sed -E 's/-[0-9][^-]*-[0-9]+$//' \
-            | sort -u
-        )
+        mapfile -t _failed_aur < <(paru_failed_aur_pkgs "$_paru_out")
         if (( ${#_failed_aur[@]} > 0 )); then
           log "  ${C_YELLOW}Falha isolada em ${#_failed_aur[@]} pacote(s) AUR: ${_failed_aur[*]}${C_RESET}"
           # Persiste os que falharam em build()/download para o run inteiro:
@@ -408,8 +413,9 @@ pacnew_safe_merge() {
   local current="$1" new="$2"
   [[ -r "$current" && -r "$new" ]] || return 1
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
-    FNR == NR {
+    FILENAME == ARGV[1] {   # não FNR == NR: com o atual vazio, valeria também no .pacnew
       t = trim($0)
       if (t == "") next
       if (substr(t, 1, 1) == "#") {
@@ -454,6 +460,7 @@ pacnew_safe_merge() {
       }
     }
   ' "$current" "$new"
+  # kcov-excl-stop
 }
 
 
@@ -631,7 +638,7 @@ refresh_mirrors() {
   [[ "$tool" == "none" ]] && { log "  Mirror refresh desabilitado (MIRROR_TOOL=none)."; return 0; }
   has pacman || { log "  pacman ausente; mirror refresh pulado."; return 0; }
 
-  local mirrorlist="/etc/pacman.d/mirrorlist"
+  local mirrorlist="${PACMAN_MIRRORLIST:-/etc/pacman.d/mirrorlist}"
   local backup="${mirrorlist}.full-upgrade.bak"
 
   # Freshness gate: rate-test de mirrors é caro (reflector baixa a .db de cada

@@ -53,8 +53,8 @@ burpsuite_java_bin() {
     for candidate in \
         "${BURPSUITE_JAVA_BIN:-}" \
         "${JAVA_BIN:-}" \
-        /usr/lib/jvm/java-26-openjdk/bin/java \
-        /usr/lib/jvm/java-21-openjdk/bin/java \
+        "${BURPSUITE_JVM_ROOT:-/usr/lib/jvm}/java-26-openjdk/bin/java" \
+        "${BURPSUITE_JVM_ROOT:-/usr/lib/jvm}/java-21-openjdk/bin/java" \
         "$(command -v java 2>/dev/null || true)"; do
         [[ -n "$candidate" && -x "$candidate" ]] || continue
         printf '%s\n' "$candidate"
@@ -158,13 +158,10 @@ package() {
 }
 EOF
 
-    (
-        cd "$tmpdir"
-        run_logged makepkg -f --noconfirm
-    ) || {
+    if ! (cd "$tmpdir" && run_logged makepkg -f --noconfirm); then
         rm -rf -- "$tmpdir"
         return 1
-    }
+    fi
 
     local _burp_pkg
     _burp_pkg="$(find "$tmpdir" -maxdepth 1 -name "burpsuite-${pkgver}-1-any.pkg.tar.*" ! -name "*-debug*" | head -1)"

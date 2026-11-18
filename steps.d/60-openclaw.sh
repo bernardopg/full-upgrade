@@ -99,11 +99,7 @@ $output"
   fi
 
   # Mostrar saída relevante no terminal (sem linhas vazias, sem ANSI)
-  printf '%s\n' "$output" \
-    | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' \
-    | grep -v '^$' \
-    | head -30 \
-    || true
+  printf '%s\n' "$output" | sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' | grep -v '^$' | head -30 || true
 
   if (( rc == 0 )); then
     openclaw_verify_gateway

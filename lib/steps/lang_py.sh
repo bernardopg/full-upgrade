@@ -68,10 +68,8 @@ update_pip_user() {
     log "  Aviso: 'pip list --not-required' não retornou folhas; subindo todos os desatualizados (sem filtro de top-level)."
   fi
   if [[ $json == *[![:space:]]* ]]; then
-    mapfile -t pkgs < <(
-      FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" \
-      FULL_UPGRADE_PIP_USER_LEAVES="$leaves_json" \
-      python -c '
+    mapfile -t pkgs < <(FULL_UPGRADE_PIP_USER_IGNORE="$effective_ignore" FULL_UPGRADE_PIP_USER_LEAVES="$leaves_json" python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 import os
 
@@ -105,8 +103,8 @@ for pkg in data:
     if leaves and key not in leaves:
         continue
     print(name)
-' <<<"$json"
-    )
+' <<<"$json")
+# kcov-excl-stop
   fi
 
   if (( ${#pkgs[@]} == 0 )); then
@@ -441,8 +439,8 @@ update_uv_tools() {
 
 update_poetry() {
   local latest core_req
-  latest="$(
-    python -m pip list --user --outdated --format=json 2>/dev/null | python -c '
+  latest="$(python -m pip list --user --outdated --format=json 2>/dev/null | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json,sys
 try:
     data = json.load(sys.stdin)
@@ -451,8 +449,8 @@ except Exception:
 for pkg in data:
     if pkg.get("name") == "poetry":
         print(pkg.get("latest", ""))
-'
-  )"
+')"
+# kcov-excl-stop
 
   core_req="$(poetry_core_requirement 2>/dev/null || true)"
 

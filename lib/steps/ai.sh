@@ -694,6 +694,7 @@ agent_skills_cli_previous_version() {
   local target="$1"
   [[ -n "$target" ]] || return 0
   timeout 20 npm view skills versions --json 2>/dev/null | python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, re, sys
 target = sys.argv[1]
 try:
@@ -708,6 +709,7 @@ older = sorted((v for v in stable if key(v) < key(target)), key=key)
 if older:
     print(older[-1])
 ' "$target" 2>/dev/null || true
+# kcov-excl-stop
 }
 
 # Spec do npx a usar: `skills@<latest>`; se a latest é a versão marcada como
@@ -752,10 +754,12 @@ print(len(skills) if isinstance(skills, dict) else 0)
 # apagadas no upstream: bullets "• nome" após "deleted upstream". Puro.
 agent_skills_upstream_deleted() {
   _strip_ansi | awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     /deleted upstream/ { grab = 1; next }
     grab && /^[[:space:]]*•/ { sub(/^[[:space:]]*•[[:space:]]*/, ""); if (!seen[$0]++) out = out (out ? " " : "") $0; next }
     { grab = 0 }
     END { print out }'
+  # kcov-excl-stop
 }
 
 # ~/.agents/skills pode ser um clone git (ex.: anthropics/skills) com as skills
@@ -805,6 +809,7 @@ agent_skills_git_ff() {
 # confirmação humana e vira TODO. rc: 0 ok · RC_WARN rede/falha · RC_TODO.
 claude_plugin_user_ids() {
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -817,6 +822,7 @@ for p in data if isinstance(data, list) else []:
         seen.add(pid)
         print(pid)
 '
+# kcov-excl-stop
 }
 
 # Lê as linhas JSON de `plugin update --json` (uma por plugin, prefixadas por
@@ -824,6 +830,7 @@ for p in data if isinstance(data, list) else []:
 # (comando declarado mudou) ou fail.
 claude_plugin_update_classify() {
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 for line in sys.stdin:
     pid, _, raw = line.rstrip("\n").partition("\t")
@@ -845,6 +852,7 @@ for line in sys.stdin:
     else:
         print("fail\t%s\t%s" % (pid, (r.get("message") or r.get("error") or "")[:160]))
 '
+# kcov-excl-stop
 }
 
 # ── Blocklist de plugins de agentes ────────────────────────────────────────────
@@ -865,6 +873,7 @@ ai_plugin_blocked() {
   shift
   (($# > 0)) || return 0
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 mode, blocked = sys.argv[1], {b.lower() for b in sys.argv[2:] if b}
 try:
@@ -895,6 +904,7 @@ elif mode == "claude-marketplaces":
 for x in dict.fromkeys(out):
     print(x)
 ' "$mode" "$@"
+# kcov-excl-stop
 }
 
 # Desinstala do CLI ($1 = codex|claude) os plugins e marketplaces bloqueados.

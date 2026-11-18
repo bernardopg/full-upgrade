@@ -25,8 +25,8 @@ _docker_is_remote_image() {
   [[ "$repo" == *"/"* ]] && return 0
   # Imagens oficiais Docker Hub conhecidas (single-name sem usuário)
   case "$repo" in
-    redis|postgres|mongo|mysql|mariadb|nginx|apache|alpine|ubuntu|debian|\
-    python|node|golang|rust|ruby|php|java|openjdk|eclipse-temurin|\
+    redis|postgres|mongo|mysql|mariadb|nginx|apache|alpine|ubuntu|debian) return 0 ;;
+    python|node|golang|rust|ruby|php|java|openjdk|eclipse-temurin) return 0 ;;
     selenium|firefox|chrome|chromium|caddy|archlinux|httpd) return 0 ;;
   esac
   return 1
@@ -158,6 +158,13 @@ _docker_recreate_stale_compose() {
   done
 }
 
+# Um pull (com retry): saída em <base>.out e rc em <base>.rc.
+_docker_pull_one() {
+  local prc=0
+  _retry 2 docker pull "$1" >"${2}.out" 2>&1 || prc=$?
+  printf '%s\n' "$prc" >"${2}.rc"
+}
+
 # Puxa as imagens ($2..) com até DOCKER_PULL_JOBS pulls simultâneos. Em série,
 # 20 imagens já atualizadas levavam 75s, quase tudo esperando o registry. Cada
 # pull grava saída e rc em <dir>/<índice>.{out,rc}; o chamador lê na ordem
@@ -168,11 +175,7 @@ _docker_pull_all() {
   local jobs="${DOCKER_PULL_JOBS:-4}" i=0 running=0 img
   [[ "$jobs" =~ ^[0-9]+$ ]] && ((jobs >= 1)) || jobs=1
   for img in "$@"; do
-    (
-      local prc=0
-      _retry 2 docker pull "$img" >"${dir}/${i}.out" 2>&1 || prc=$?
-      printf '%s\n' "$prc" >"${dir}/${i}.rc"
-    ) &
+    _docker_pull_one "$img" "${dir}/${i}" &
     i=$((i + 1))
     running=$((running + 1))
     if ((running >= jobs)); then
@@ -200,9 +203,7 @@ update_docker_images() {
     STEP_REASON="Docker: inventário de imagens não verificado"
     return "$RC_WARN"
   fi
-  mapfile -t images < <(
-    printf '%s\n' "$inventory" | awk 'NF && !/<none>/' | LC_ALL=C sort -u
-  )
+  mapfile -t images < <(printf '%s\n' "$inventory" | awk 'NF && !/<none>/' | LC_ALL=C sort -u)
 
   if (( ${#images[@]} == 0 )); then
     log "  Sem imagens Docker locais."

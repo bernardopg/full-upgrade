@@ -135,6 +135,7 @@ npm_manifest_has_local_file_deps() {
   # local do publicador e falhariam na instalação. file:./vendor/ são vendored
   # dentro do tarball e são seguros.
   printf '%s' "$meta" | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 
 def is_problematic_file_dep(value):
@@ -165,6 +166,7 @@ except Exception:
 
 raise SystemExit(0 if has_problematic_file_dep(data) else 1)
 '
+# kcov-excl-stop
 }
 
 
@@ -182,6 +184,7 @@ npm_clean_reinstall_global_package() {
 
 npm_get_linked_packages() {
   npm list -g --depth=0 --json 2>/dev/null | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -193,6 +196,7 @@ for name, info in deps.items():
     if resolved.startswith("file:") or info.get("link"):
         print(name)
 '
+# kcov-excl-stop
 }
 
 
@@ -257,6 +261,7 @@ update_npm_globals() {
 
   mapfile -t pkg_specs < <(
     printf '%s' "$outdated" | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json,sys
 try:
     data = json.load(sys.stdin)
@@ -266,6 +271,7 @@ for name in sorted(data.keys()):
     latest = data.get(name, {}).get("latest") or "latest"
     print(f"{name}\t{latest}")
 '
+# kcov-excl-stop
   )
 
   if (( ${#pkg_specs[@]} == 0 )); then
@@ -390,8 +396,8 @@ npm_prefix_packages() {
   [[ -d "$root" ]] || return 0
   for d in "$root"/*; do
     [[ -d "$d" ]] || continue
+    # O glob "*" não casa nomes ocultos (sem dotglob): .bin/.package-lock ficam de fora.
     case "${d##*/}" in
-      .*) continue ;;
       @*) for s in "$d"/*; do [[ -d "$s" ]] && printf '%s/%s\n' "${d##*/}" "${s##*/}"; done ;;
       *) printf '%s\n' "${d##*/}" ;;
     esac
@@ -436,6 +442,7 @@ _npm_update_secondary_prefix() {
   local -a pkg_specs=() failed=() script_blocked=() _blocked=()
   mapfile -t pkg_specs < <(
     printf '%s' "$outdated" | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json,sys
 try:
     data = json.load(sys.stdin)
@@ -445,6 +452,7 @@ for name in sorted(data.keys()):
     latest = data.get(name, {}).get("latest") or "latest"
     print(f"{name}\t{latest}")
 '
+# kcov-excl-stop
   )
   if (( ${#pkg_specs[@]} == 0 )); then
     log "  Não foi possível extrair a lista de pacotes desatualizados de ${sec}."
@@ -534,6 +542,7 @@ update_corepack() {
 
 pnpm_global_project_dir() {
   pnpm list -g --depth 0 --json 2>/dev/null | python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, os, sys
 try:
     data = json.load(sys.stdin)
@@ -545,6 +554,7 @@ try:
 except Exception:
     pass
 '
+# kcov-excl-stop
 }
 
 update_pnpm_self() {

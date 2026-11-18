@@ -14,7 +14,7 @@ doctor_paru_devel_mode() {
   fi
 
   local conf
-  for conf in /etc/paru.conf "$HOME/.config/paru/paru.conf"; do
+  for conf in "${PARU_SYSTEM_CONF:-/etc/paru.conf}" "$HOME/.config/paru/paru.conf"; do
     [[ -r "$conf" ]] || continue
     if awk '$1 == "Devel" { found=1 } END { exit found ? 0 : 1 }' "$conf"; then
       log "  paru tem Devel ativo em ${conf}."
@@ -130,15 +130,14 @@ doctor_pacman_health() {
   # Padrões de falsos positivos conhecidos:
   #   hicolor-icon-theme declara dirs 256x256@2 que apps instalam conforme necessário
   #   intel-ucode /boot/intel-ucode.img é embutido no initramfs pelo mkinitcpio
-  local -a _pacman_health_noise=(
-    '^hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/'
-    '^intel-ucode /boot/intel-ucode.img$'
-    # Bytecode em __pycache__ é regenerado pelo interpretador (recompila a cada
-    # bump de Python ou import); mtime/size divergem do empacotado mas o arquivo
-    # é reconstruído sob demanda — não indica pacote quebrado. Filtra só .pyc/.pyo
-    # dentro de __pycache__/. Arquivos .py, .orig e .pacnew seguem reportados.
-    '/__pycache__/[^ ]*\.py[co]$'
-  )
+  local -a _pacman_health_noise=()
+  _pacman_health_noise+=('^hicolor-icon-theme /usr/share/icons/hicolor/256x256@2/')
+  _pacman_health_noise+=('^intel-ucode /boot/intel-ucode.img$')
+  # Bytecode em __pycache__ é regenerado pelo interpretador (recompila a cada
+  # bump de Python ou import); mtime/size divergem do empacotado mas o arquivo
+  # é reconstruído sob demanda — não indica pacote quebrado. Filtra só .pyc/.pyo
+  # dentro de __pycache__/. Arquivos .py, .orig e .pacnew seguem reportados.
+  _pacman_health_noise+=('/__pycache__/[^ ]*\.py[co]$')
 
   output="$("${check_cmd[@]}" 2>&1)"
   rc=$?
@@ -356,18 +355,19 @@ _manual_apps_has_step() {
   # step de atualização do full-upgrade. Mantido manualmente em sincronia com os
   # steps acima e com ai.sh/self_update.sh/steps.d.
   local marker="$1"
+  # Um grupo por braço, sem continuação "\": o kcov não mede padrão quebrado.
   case "$marker" in
-    photocraft|photocraft-cli|vectorcraft|vectorcraft-cli|filmcraft|filmcraft-cli|\
-    lightcraft|lightcraft-cli|pdfcraft|pdfcraft-cli|effectcraft|effectcraft-cli|designcraft|designcraft-cli)
+    photocraft|photocraft-cli|vectorcraft|vectorcraft-cli|filmcraft|filmcraft-cli|lightcraft|lightcraft-cli)
       [[ -r "${ARTCRAFT_DIR:-$HOME/development/artcraft}/${marker%-cli}/installation.json" ]] ;;
-    droid|snyk|zap|zap.sh|zaproxy|rtk|tokensave|openclaw|\
-    hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide|\
-    uv|copilot|kimi|gk|gitkraken|coderabbit|cr|\
-    kiro-cli|kiro-cli-chat|kiro-cli-term|\
-    grok|jcode|qodercli|qoderwake|kimchi|cua-driver|\
-    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared|\
-    vp|vpr|vpx|vite-plus|herdr-core|hc|herdr-app|qodo|ori|spawn)
-      return 0 ;;
+    pdfcraft|pdfcraft-cli|effectcraft|effectcraft-cli|designcraft|designcraft-cli)
+      [[ -r "${ARTCRAFT_DIR:-$HOME/development/artcraft}/${marker%-cli}/installation.json" ]] ;;
+    droid|snyk|zap|zap.sh|zaproxy|rtk|tokensave|openclaw) return 0 ;;
+    hermes|ollama|claude|claude-code|opencode|OpenCode|antigravity|antigravity-ide) return 0 ;;
+    uv|copilot|kimi|gk|gitkraken|coderabbit|cr) return 0 ;;
+    kiro-cli|kiro-cli-chat|kiro-cli-term) return 0 ;;
+    grok|jcode|qodercli|qoderwake|kimchi|cua-driver) return 0 ;;
+    kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared) return 0 ;;
+    vp|vpr|vpx|vite-plus|herdr-core|hc|herdr-app|qodo|ori|spawn) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -426,10 +426,9 @@ _manual_apps_pip_user_bins() {
 _manual_apps_managed_target() {
   local t="$1" h="$HOME"
   case "$t" in
-    "$h"/.local/share/uv/* | "$h"/.local/share/pipx/* | "$h"/.nvm/* | "$h"/.npm-global/* | \
-    "$h"/.local/share/pnpm/* | "$h"/.bun/* | "$h"/.deno/* | "$h"/.cargo/* | "$h"/go/* | \
-    "$h"/.local/share/claude/* | "${ARTCRAFT_DIR:-$h/development/artcraft}"/*)
-      return 0 ;;
+    "$h"/.local/share/uv/* | "$h"/.local/share/pipx/* | "$h"/.nvm/* | "$h"/.npm-global/*) return 0 ;;
+    "$h"/.local/share/pnpm/* | "$h"/.bun/* | "$h"/.deno/* | "$h"/.cargo/* | "$h"/go/*) return 0 ;;
+    "$h"/.local/share/claude/* | "${ARTCRAFT_DIR:-$h/development/artcraft}"/*) return 0 ;;
   esac
   return 1
 }

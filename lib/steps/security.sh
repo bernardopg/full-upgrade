@@ -106,6 +106,7 @@ update_snyk() {
 # Só aceita o tar oficial Linux com digest publicado pela própria release.
 zap_release_asset_info() {
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json, re, sys
 try:
     data = json.load(sys.stdin)
@@ -121,6 +122,7 @@ try:
 except Exception:
     raise SystemExit(1)
 '
+# kcov-excl-stop
 }
 
 

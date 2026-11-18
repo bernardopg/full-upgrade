@@ -468,8 +468,13 @@ tui_read_key() {
       fi
       return 0 ;;
     $'\x7f'|$'\x08') TUI_KEY="backspace"; return 0 ;;
-    # raw mode desliga ISIG: Ctrl-C/Ctrl-D chegam como bytes, não sinais.
-    $'\x03'|$'\x04') TUI_KEY="char:q"; return 0 ;;
+    # Ctrl-C digitado enquanto o read está ativo vira SIGINT (o read do Bash
+    # religa o ISIG) e cai na trap do config_tui_main. Digitado no intervalo
+    # entre duas leituras (redesenho, máquina carregada), o raw mode o entrega
+    # como byte — antes isso só voltava ao menu, como um "q". Mesmo destino
+    # do SIGINT: restaura o terminal e sai com 130.
+    $'\x03') tui_close; trap - EXIT; exit 130 ;;
+    $'\x04') TUI_KEY="char:q"; return 0 ;;
     $'\n'|$'\r'|$'\x0a') TUI_KEY="enter"; return 0 ;;
     ' ') TUI_KEY="space"; return 0 ;;
   esac
@@ -513,11 +518,10 @@ if [[ "${SYM_ARROW:-}" == "▶" ]]; then
   TUI_DOT_ON="●"; TUI_DOT_OFF="○"; TUI_DIRTY="•"
   TUI_ICON_STEPS="▶"; TUI_ICON_PARAMS="→"; TUI_ICON_HELP="?"
   TUI_ICON_SAVE="↓"; TUI_ICON_QUIT="×"
-  TUI_LOGO=(
-    "┏━╸╻ ╻╻  ╻    ╻ ╻┏━┓┏━╸┏━┓┏━┓╺┳┓┏━╸"
-    "┣╸ ┃ ┃┃  ┃    ┃ ┃┣━┛┃╺┓┣┳┛┣━┫ ┃┃┣╸ "
-    "╹  ┗━┛┗━╸┗━╸  ┗━┛╹  ┗━┛╹┗╸╹ ╹╺┻┛┗━╸"
-  )
+  TUI_LOGO=()
+  TUI_LOGO+=("┏━╸╻ ╻╻  ╻    ╻ ╻┏━┓┏━╸┏━┓┏━┓╺┳┓┏━╸")
+  TUI_LOGO+=("┣╸ ┃ ┃┃  ┃    ┃ ┃┣━┛┃╺┓┣┳┛┣━┫ ┃┃┣╸ ")
+  TUI_LOGO+=("╹  ┗━┛┗━╸┗━╸  ┗━┛╹  ┗━┛╹┗╸╹ ╹╺┻┛┗━╸")
 else
   TUI_BOX_TL="+"; TUI_BOX_TR="+"; TUI_BOX_BL="+"; TUI_BOX_BR="+"
   TUI_BOX_H="-"; TUI_BOX_V="|"
@@ -525,11 +529,10 @@ else
   TUI_DOT_ON="*"; TUI_DOT_OFF="-"; TUI_DIRTY="*"
   TUI_ICON_STEPS=">"; TUI_ICON_PARAMS="="; TUI_ICON_HELP="?"
   TUI_ICON_SAVE="v"; TUI_ICON_QUIT="x"
-  TUI_LOGO=(
-    " ___ _   _ _    _       _   _ ___  ___ ___  _   ___  ___ "
-    "| __| | | | |  | |  ___| | | | _ \\/ __| _ \\/_\\ |   \\| __|"
-    "|_|  \\_,_|_|__|_|__    \\___/|  _/\\__ \\   / _ \\| |) | _| "
-  )
+  TUI_LOGO=()
+  TUI_LOGO+=(" ___ _   _ _    _       _   _ ___  ___ ___  _   ___  ___ ")
+  TUI_LOGO+=("| __| | | | |  | |  ___| | | | _ \\/ __| _ \\/_\\ |   \\| __|")
+  TUI_LOGO+=("|_|  \\_,_|_|__|_|__    \\___/|  _/\\__ \\   / _ \\| |) | _| ")
 fi
 
 TUI_HEAD_H=5           # altura do cabeçalho (logo + breadcrumb + régua)
@@ -708,13 +711,12 @@ tui_draw_menu() {
   tui_draw_header "menu principal"
   tui_line ""
   local icons=("$TUI_ICON_STEPS" "$TUI_ICON_PARAMS" "$TUI_ICON_HELP" "$TUI_ICON_SAVE" "$TUI_ICON_QUIT")
-  local hints=(
-    "liga/desliga steps do catálogo"
-    "bool · enum · números · caminhos"
-    "teclas e navegação"
-    "grava em $(basename "${FU_CONFIG_FILE:-config}")"
-    "encerra (confirma se houver pendências)"
-  )
+  local hints=()
+  hints+=("liga/desliga steps do catálogo")
+  hints+=("bool · enum · números · caminhos")
+  hints+=("teclas e navegação")
+  hints+=("grava em $(basename "${FU_CONFIG_FILE:-config}")")
+  hints+=("encerra (confirma se houver pendências)")
   local name_w=$(( TUI_W / 2 )); (( name_w < 24 )) && name_w=24
   local hint_w=$(( TUI_W - name_w - 8 )); (( hint_w < 6 )) && hint_w=6
   local label
@@ -1283,7 +1285,11 @@ config_tui_main() {
   tui_enter_screen menu
   tui_open
   # Garante restauração do terminal em QUALQUER saída (Ctrl-C incluso).
-  trap 'tui_close' EXIT INT TERM
+  # O `read -N1` do Bash religa o ISIG durante a leitura, então Ctrl-C chega
+  # como SIGINT, não como byte: a trap precisa SAIR. Só restaurar o terminal
+  # deixava o laço rodando fora do raw mode, com a tela já desmontada.
+  trap 'tui_close' EXIT
+  trap 'tui_close; trap - EXIT; exit 130' INT TERM
   # Só relê o tamanho do terminal quando ele realmente muda.
   trap 'TUI_SIZE_DIRTY=1' WINCH
 

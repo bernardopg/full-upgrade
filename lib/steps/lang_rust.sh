@@ -253,6 +253,12 @@ _rust_rebuild_memo_skip() {
     "$(date +%s)" "${RUST_CVE_REBUILD_TTL_D:-7}"
 }
 
+# Conteúdo novo do memo: cabeçalho da advisory DB + entradas com o crate atualizado.
+_rust_rebuild_memo_render() {
+  printf '# advisory-db %s\n' "$1"
+  rust_rebuild_memo_upsert "$2" "$3" "$4" "$(date +%s)"
+}
+
 _rust_rebuild_memo_record() {
   local f cur="" db_revision
   f="$(_rust_rebuild_memo_file)"
@@ -265,9 +271,7 @@ _rust_rebuild_memo_record() {
   if [[ -n "$db_revision" ]] && ! grep -qxF "# advisory-db ${db_revision}" <<<"$cur"; then
     cur=""
   fi
-  if { printf '# advisory-db %s\n' "$db_revision";
-       rust_rebuild_memo_upsert "$cur" "$1" "$2" "$(date +%s)";
-     } > "${f}.tmp" 2>/dev/null &&
+  if _rust_rebuild_memo_render "$db_revision" "$cur" "$1" "$2" > "${f}.tmp" 2>/dev/null &&
     mv -f "${f}.tmp" "$f" 2>/dev/null; then
     return 0
   fi
@@ -308,9 +312,11 @@ _rust_rebuild_crate() {
     return "$?"
   fi
   mapfile -t installed_bins < <(cargo install --list 2>/dev/null | awk -v crate="$crate" '
+    # kcov-excl-start (programa embutido, não é Bash)
     /^[^[:space:]]/ { active=($1==crate); next }
     active && /^[[:space:]]/ { gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print }
   ')
+  # kcov-excl-stop
   (( ${#installed_bins[@]} > 0 )) || return 1
   work="$(mktemp -d "${TMPDIR:-/tmp}/full-upgrade-rust.XXXXXX")" || return 1
   if cp -a "$source_dir/." "$work/" && run_logged cargo update --manifest-path "$work/Cargo.toml"; then
@@ -395,7 +401,7 @@ autofix_rust_cves() {
       local ans
       read -r ans
       case "$ans" in
-        [sS][iI][mM]|[sS]) ;;
+        [sS][iI][mM]|[sS]) : ;;
         *) log "  Auto-remediação cancelada pelo usuário."; STEP_REASON="cancelado pelo usuário"; return "$RC_TODO" ;;
       esac
     else

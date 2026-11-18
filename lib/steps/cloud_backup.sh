@@ -16,7 +16,7 @@ timeshift_cloud_latest_name() {
   local top="$1" snapshots="${1}/timeshift-btrfs/snapshots"
   local -a prefix=() names=()
   case "${2:-}" in
-    '') ;;
+    '') : ;;
     sudo) prefix=(sudo -n) ;;
     *) return 2 ;;
   esac
@@ -40,11 +40,13 @@ timeshift_cloud_snapshot_state() {
 }
 
 _timeshift_cloud_restic() {
-  sudo -n env \
-    HOME="$HOME" \
-    RCLONE_CONFIG="$TIMESHIFT_CLOUD_RCLONE_CONFIG" \
-    RESTIC_PASSWORD_FILE="$TIMESHIFT_CLOUD_PASSWORD_FILE" \
-    restic --repo "$TIMESHIFT_CLOUD_REPOSITORY" "$@"
+  # Uma variável por linha (sem continuação "\"): o kcov não mede a primeira
+  # linha de um comando quebrado.
+  local -a envs=()
+  envs+=(HOME="$HOME")
+  envs+=(RCLONE_CONFIG="$TIMESHIFT_CLOUD_RCLONE_CONFIG")
+  envs+=(RESTIC_PASSWORD_FILE="$TIMESHIFT_CLOUD_PASSWORD_FILE")
+  sudo -n env "${envs[@]}" restic --repo "$TIMESHIFT_CLOUD_REPOSITORY" "$@"
 }
 
 # ── Progresso do upload ───────────────────────────────────────────────────────
@@ -203,7 +205,7 @@ timeshift_cloud_summary_line() {
 # sumia do log — o step chamava restic sem passar por `log`, então a causa de
 # uma falha só existia no terminal de quem estava olhando na hora.
 timeshift_cloud_consume_progress() {
-  local interval last line elapsed
+  local interval last line elapsed msg
   local prev_bytes="" prev_elapsed=""
   interval="$(timeshift_cloud_progress_interval)"
   # Primeiro status sai na hora: o valor de um heartbeat é dizer "comecei e
@@ -227,11 +229,11 @@ timeshift_cloud_consume_progress() {
         log "  $(timeshift_cloud_summary_line "$line")"
         ;;
       *'"message_type":"error"'*)
-        log "  ${C_YELLOW}restic:${C_RESET} $(timeshift_cloud_json_field "$line" message \
-          || timeshift_cloud_json_field "$line" error || printf '%s' "$line")"
+        msg="$(timeshift_cloud_json_field "$line" message || timeshift_cloud_json_field "$line" error || printf '%s' "$line")"
+        log "  ${C_YELLOW}restic:${C_RESET} ${msg}"
         ;;
-      '') ;;
-      '{'*) ;;   # verbose_status e afins: ruído por arquivo, sem valor agregado
+      '') : ;;
+      '{'*) : ;;   # verbose_status e afins: ruído por arquivo, sem valor agregado
       *)
         # Texto cru do restic/rclone (lock, rede, token): a causa raiz das
         # falhas deste step mora aqui.
@@ -354,9 +356,8 @@ backup_timeshift_cloud() {
     log "  Enviando snapshot Timeshift ${snapshot} (@ + @home) ao repositório criptografado..."
     log "  Progresso a cada $(timeshift_cloud_progress_interval)s (TIMESHIFT_CLOUD_PROGRESS_INTERVAL)."
     timeshift_cloud_clear_stale_locks
-    local -a backup_args=(
-      backup --json --tag full-upgrade-timeshift --tag "$snapshot"
-    )
+    local -a backup_args=()
+    backup_args+=(backup --json --tag full-upgrade-timeshift --tag "$snapshot")
     if [[ -n "${TIMESHIFT_CLOUD_EXCLUDE_FILE:-}" && -r "$TIMESHIFT_CLOUD_EXCLUDE_FILE" ]]; then
       backup_args+=(--exclude-file "$TIMESHIFT_CLOUD_EXCLUDE_FILE")
       log "  Exclusões de caches/artefatos: ${TIMESHIFT_CLOUD_EXCLUDE_FILE}"
@@ -388,8 +389,7 @@ backup_timeshift_cloud() {
   # "permission denied" ao gravar o cache — o repositório parece quebrado quando
   # só a posse do cache está errada.
   local restic_cache="${XDG_CACHE_HOME:-${HOME}/.cache}/restic"
-  [[ -d "$restic_cache" ]] &&
-    sudo -n chown -R "$(id -u):$(id -g)" "$restic_cache" 2>/dev/null || true
+  [[ -d "$restic_cache" ]] && sudo -n chown -R "$(id -u):$(id -g)" "$restic_cache" 2>/dev/null || true
 
   if (( rc == 0 )); then
     keep="$(timeshift_cloud_keep_count)"
@@ -404,8 +404,7 @@ backup_timeshift_cloud() {
     # cada run. Sem isso cada backup vira um grupo de um elemento, "keep-last 3"
     # nunca descarta nada e o repositório remoto cresce para sempre — a
     # retenção parecia configurada e nunca tinha apagado uma única versão.
-    if ! run_logged _timeshift_cloud_restic forget \
-      --tag full-upgrade-timeshift --group-by '' --keep-last "$keep" --prune; then
+    if ! run_logged _timeshift_cloud_restic forget --tag full-upgrade-timeshift --group-by '' --keep-last "$keep" --prune; then
       STEP_REASON="backup enviado, mas retenção remota falhou"
       rc="$RC_WARN"
     fi

@@ -21,12 +21,11 @@ _ai_cli_first_version() {
 # CLIs ausentes são omitidas para reduzir ruído. Conta quantas foram detectadas.
 doctor_ai_clis() {
   # Lista "rótulo:comando". A maioria aceita `--version`.
-  local -a clis=(
-    "claude:claude" "copilot:copilot" "codex:codex" "gemini:gemini"
-    "qwen:qwen" "cline:cline" "opencode:opencode" "9router:9router"
-    "ollama:ollama" "kimi:kimi" "hermes:hermes" "pi:pi"
-    "headroom:headroom" "tokensave:tokensave"
-  )
+  local -a clis=()
+  clis+=("claude:claude" "copilot:copilot" "codex:codex" "gemini:gemini")
+  clis+=("qwen:qwen" "cline:cline" "opencode:opencode" "9router:9router")
+  clis+=("ollama:ollama" "kimi:kimi" "hermes:hermes" "pi:pi")
+  clis+=("headroom:headroom" "tokensave:tokensave")
   local version_timeout="${AI_CLI_VERSION_TIMEOUT_S:-5}"
   [[ "$version_timeout" =~ ^[1-9][0-9]*$ ]] || version_timeout=5
 
@@ -96,6 +95,7 @@ PYVERSION
 # inválido ou vazio => saída vazia (best-effort; nunca derruba o step).
 pnpm_global_shadow_managers() {
   python3 -c "
+# kcov-excl-start (programa embutido, não é Bash)
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -113,6 +113,7 @@ for entry in data or []:
                 seen.append(name)
 print('\\n'.join(seen))
 " 2>/dev/null || true
+  # kcov-excl-stop
 }
 
 
@@ -266,6 +267,7 @@ summarize_pip_check() {
 # venvs isoladas e não aparecem no `pip check` do python do sistema.
 _classify_pip_origins() {
   python3 -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import importlib.metadata as md, sys
 for line in sys.stdin:
     pkg = line.strip()
@@ -280,6 +282,7 @@ for line in sys.stdin:
         origin = "user"
     print(f"{pkg}\t{origin}")
 ' 2>/dev/null
+# kcov-excl-stop
 }
 
 
@@ -494,6 +497,7 @@ gem_shadow_diff() {
   local sys="$1" usr="$2"
   [[ -r "$sys" && -r "$usr" ]] || return 0
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     function gname(line,   name) { name = line; sub(/ *\(.*/, "", name); return name }
     function realvers(line,   vers, n, parts, i, p, out) {
       if (line !~ /\(/) return ""
@@ -507,7 +511,7 @@ gem_shadow_diff() {
       }
       return out
     }
-    NR == FNR { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }
+    FILENAME == ARGV[1] { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }   # não NR == FNR: falha com o 1º arquivo vazio
     {
       if ($0 !~ /\(/) next
       name = gname($0)
@@ -523,6 +527,7 @@ gem_shadow_diff() {
       if (diff) print name "|" sysv[name] "|" uv
     }
   ' "$sys" "$usr"
+  # kcov-excl-stop
 }
 
 

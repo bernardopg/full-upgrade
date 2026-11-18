@@ -699,8 +699,9 @@ git_recover_plugin_repo() {
   if ! git -C "$dir" reset --hard --quiet "$remote_ref" 2>>"${LOG_FILE:-/dev/null}"; then
     # pop com stdout redirecionado: em conflito o git imprime "The stash entry
     # is kept..." no STDOUT, e este helper só pode emitir "<status> <ref>".
-    [[ "$stash_after" != "$stash_before" ]] && \
+    if [[ "$stash_after" != "$stash_before" ]]; then
       git -C "$dir" stash pop --quiet >>"${LOG_FILE:-/dev/null}" 2>&1 || true
+    fi
     return 1
   fi
 
@@ -847,23 +848,22 @@ parse_checkservices_units() {
 service_restart_is_session_critical() {
   local unit="${1:-}" display_manager_units="${2:-}" alias
 
+  # Um grupo por braço, sem continuação "\": o kcov não mede padrão quebrado.
   case "$unit" in
-    display-manager.service | greetd.service | gdm.service | gdm3.service | \
-      sddm.service | lightdm.service | ly.service | lxdm.service | xdm.service | \
-      cosmic-greeter.service | lemurs.service | systemd-logind.service | \
-      systemd-user-sessions.service | dbus.service | dbus-broker.service | \
-      user@*.service | user-runtime-dir@*.service | getty@*.service | \
-      autovt@*.service | serial-getty@*.service)
-      return 0
-      ;;
+    # Sessão gráfica, login e barramento do sistema.
+    display-manager.service | greetd.service | gdm.service | gdm3.service) return 0 ;;
+    sddm.service | lightdm.service | ly.service | lxdm.service | xdm.service) return 0 ;;
+    cosmic-greeter.service | lemurs.service | systemd-logind.service) return 0 ;;
+    systemd-user-sessions.service | dbus.service | dbus-broker.service) return 0 ;;
+    user@*.service | user-runtime-dir@*.service | getty@*.service) return 0 ;;
+    autovt@*.service | serial-getty@*.service) return 0 ;;
     # Runtimes de containers podem interromper jobs e demorar além do orçamento
     # do step. Reinício pertence à janela de manutenção dos workloads.
-    docker.service | containerd.service | podman.service | \
-    NetworkManager.service | systemd-networkd.service | systemd-resolved.service | \
-      wpa_supplicant.service | iwd.service | connman.service | netctl.service | \
-      netctl@*.service | dhcpcd.service | dhcpcd@*.service)
-      return 0
-      ;;
+    docker.service | containerd.service | podman.service) return 0 ;;
+    # Rede.
+    NetworkManager.service | systemd-networkd.service | systemd-resolved.service) return 0 ;;
+    wpa_supplicant.service | iwd.service | connman.service | netctl.service) return 0 ;;
+    netctl@*.service | dhcpcd.service | dhcpcd@*.service) return 0 ;;
   esac
 
   for alias in $display_manager_units; do
@@ -929,12 +929,14 @@ parse_cargo_vuln_bins() {
 # A linha de resumo identifica o binário; não mistura yanked/unmaintained.
 parse_cargo_risk_bins() {
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     /^Warning:[[:space:]]+unsound/ { unsound=1 }
     tolower($0) ~ /vulnerabilit(y|ies) found in / || (tolower($0) ~ /allowed warnings? found in / && unsound) {
       bin=$NF; sub(/^.*\//, "", bin); print bin
     }
     /found in / { unsound=0 }
   ' | sort -u
+  # kcov-excl-stop
 }
 
 # Classifica um binário cargo: imprime "toolchain" (gerenciado por rustup/pacman,
@@ -956,10 +958,12 @@ classify_cargo_bin() {
 cargo_crate_for_bin() {
   local bin="$1" list="$2"
   printf '%s\n' "$list" | awk -v bin="$bin" '
+    # kcov-excl-start (programa embutido, não é Bash)
     /^[^[:space:]]/ { crate = $1 }
     /^[[:space:]]/  { name = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
                       if (name == bin) { print crate; exit } }
   '
+  # kcov-excl-stop
 }
 
 # Versão instalada de um crate na saída de `cargo install --list` (linhas
@@ -967,8 +971,10 @@ cargo_crate_for_bin() {
 cargo_crate_version() {
   local crate="$1" list="$2"
   printf '%s\n' "$list" | awk -v c="$crate" '
+    # kcov-excl-start (programa embutido, não é Bash)
     /^[^[:space:]]/ { if ($1 == c) { v = $2; sub(/^v/, "", v); sub(/:$/, "", v); print v; exit } }
   '
+  # kcov-excl-stop
 }
 
 # Espaço suficiente? Recebe KiB disponíveis (coluna do `df -k`) e o mínimo em
@@ -1033,12 +1039,14 @@ verify_sha256() {
 # "[/dev/x].write_io_errs   0". Puro, testável.
 sum_btrfs_dev_errors() {
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     /_errs/ {
       v = $NF
       if (v ~ /^[0-9]+$/) total += v
     }
     END { print total + 0 }
   '
+  # kcov-excl-stop
 }
 
 # Converte uma duração estilo systemd ("1min 23.456s", "2min 5s", "45.6s",
@@ -1047,6 +1055,7 @@ sum_btrfs_dev_errors() {
 systemd_time_to_seconds() {
   local s="$1"
   awk -v str="$s" '
+    # kcov-excl-start (programa embutido, não é Bash)
     BEGIN {
       total = 0
       n = split(str, toks, /[[:space:]]+/)
@@ -1059,6 +1068,7 @@ systemd_time_to_seconds() {
       }
       printf "%d", total
     }'
+  # kcov-excl-stop
 }
 
 elapsed() {
@@ -1466,7 +1476,10 @@ pkg_diff() {
   local before="$1" after="$2"
   [[ -r "$before" && -r "$after" ]] || return 1
   awk '
-    FNR == NR { b[$1] = $2; next }
+    # kcov-excl-start (programa embutido, não é Bash)
+    # FILENAME, não FNR == NR: com o "antes" vazio, FNR == NR continua
+    # verdadeiro no segundo arquivo e todo pacote saía como removido.
+    FILENAME == ARGV[1] { b[$1] = $2; next }
     {
       a[$1] = $2
       if ($1 in b) { if (b[$1] != $2) print "U " $1 " " b[$1] " " $2 }
@@ -1474,4 +1487,5 @@ pkg_diff() {
     }
     END { for (n in b) if (!(n in a)) print "R " n " " b[n] }
   ' "$before" "$after" | sort -k2
+  # kcov-excl-stop
 }
