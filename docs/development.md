@@ -58,6 +58,8 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
     hit; deixe o comando numa linha ou use uma variável/array intermediário;
   - array literal em várias linhas: use `arr=()` e um `arr+=(...)` por linha;
   - braço de `case` vazio (`x) ;;`): escreva `x) : ;;`;
+  - `fi ;;` ou `done ;;` na mesma linha: ponha o `;;` na linha seguinte;
+  - `cmd "$( \n printf ... \n )"` em várias linhas: use `printf -v var`;
   - padrão de `case` com `(`, mesmo entre aspas: guarde o texto numa variável;
   - `done < <(cmd)` fica fora da medição (`--exclude-line`): o fecho nunca
     recebe hit, e `done <<< "$(cmd)"` muda o comportamento com saída vazia.
@@ -83,6 +85,13 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
 
 Convenções que já custaram bugs reais:
 
+- awk com dois arquivos não usa `FNR == NR` (vale no segundo arquivo quando o
+  primeiro é vazio) nem `FILENAME == ARGV[1]` (falha com o mesmo caminho dos
+  dois lados): marque o segundo com uma atribuição, `awk '!segundo {…}' a
+  segundo=1 b`.
+- Um stub definido como função não vale para `env CMD`, `timeout N CMD` ou
+  `sudo CMD`, que executam o binário: nesses caminhos use `stub`/`stub_script`
+  no PATH isolado, senão o teste roda a ferramenta real da máquina.
 - Nunca `produtor | grep -q PADRÃO`: com `pipefail`, o SIGPIPE transforma um
   match em "sem match". Use `grep -q PADRÃO <<<"$var"`.
 - Saída de comando externo vai ao terminal por `log_stream` (ou `run_logged`),
