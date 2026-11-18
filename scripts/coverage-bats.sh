@@ -22,9 +22,15 @@ include_pattern+=",${ROOT}/steps.d/"
 # nunca executadas. Ficam entre "# kcov-excl-start" e "# kcov-excl-stop" (válido
 # como comentário em awk e Python) e são testados por tests/report.bats e
 # tests/tray_appindicator.py.
+#
+# "done < <(" fica fora pelo mesmo motivo: o fecho de um laço alimentado por
+# process substitution nunca recebe hit no kcov, mesmo com o laço executando (o
+# corpo é medido normalmente). Verificado num script mínimo: a linha fica em 0
+# e a alternativa `done <<< "$(cmd)"` muda a semântica com saída vazia.
 KCOV_ROOT="$ROOT" kcov \
   --include-pattern="$include_pattern" \
   --exclude-region="# kcov-excl-start:# kcov-excl-stop" \
+  --exclude-line="done < <(" \
   --bash-parse-files-in-dir="$ROOT" \
   "$OUT" \
   "${ROOT}/scripts/run-bats.sh" tests/

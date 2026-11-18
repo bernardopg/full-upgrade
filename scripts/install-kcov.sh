@@ -8,7 +8,7 @@
 # 26.04, Arch) o motor de bash da v43 perde os traces e a cobertura caiu de
 # 52% para 27% no Codecov (lib/testable/*.sh foram de 100% para 0%). O master
 # traz as correções do bash-engine (#510, #517, #518). KCOV_VERSION aceita
-# tag ou SHA.
+# tag ou SHA. O patch abaixo é feito contra esse commit.
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -44,6 +44,16 @@ curl -fsSL \
     -o "$ARCHIVE"
 mkdir -p "$WORK"
 tar -xzf "$ARCHIVE" -C "$WORK" --strip-components=1
+
+# O motor de bash do kcov alterna um estado "dentro de aspa simples" a cada '
+# ímpar numa linha de trace, para pular valores multilinha. Só que `[[ ]]`,
+# `for`, `case` e `arr+=()` saem no xtrace sem escape ("[[ it's == a ]]"): um
+# apóstrofo num valor deixava o kcov ignorando TODO o trace seguinte, de todos
+# os processos, e a cobertura variava com a ordem dos testes. O patch remove
+# esse estado (linha sem o marcador kcov@ já é ignorada) e trata texto que só
+# cita o PS4 como linha comum, não como erro.
+echo ":: Aplicando scripts/kcov-bash-quote-state.patch..."
+patch -d "$WORK" -p1 < "${ROOT}/scripts/kcov-bash-quote-state.patch"
 
 echo ":: Compilando kcov ${VERSION}..."
 BUILD="${WORK}/build"

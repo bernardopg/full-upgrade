@@ -1,0 +1,35 @@
+--- a/src/engines/bash-engine.cc
++++ b/src/engines/bash-engine.cc
+@@ -291,11 +291,6 @@
+ 		std::string cur(curLine);
+ 		// Line markers always start with kcov@
+ 
+-		if (m_inputType == INPUT_SINGLE_QUOTE) {
+-			m_inputType = getInputType(cur);
+-			return true;
+-		}
+-
+ 		size_t kcovStr = cur.find("kcov@");
+ 		if (kcovStr == std::string::npos)
+ 		{
+@@ -307,8 +302,6 @@
+ 				fprintf(stderr, "%s", cur.c_str());
+ 			return true;
+ 		}
+-		m_inputType = getInputType(cur);
+-
+ 		std::vector<std::string> parts = split_string(cur.substr(kcovStr), "@");
+ 
+ 		// kcov@FILENAME@LINENO@...
+@@ -327,9 +320,8 @@
+ 
+ 		if (!string_is_integer(lineNo))
+ 		{
+-			error("%s is not an integer", lineNo.c_str());
+-
+-			return false;
++			// Texto que só cita o PS4 (ex.: o próprio trap do helper), não um marcador.
++			return true;
+ 		}
+ 
+ 		if (!m_reportedFiles[filename])
