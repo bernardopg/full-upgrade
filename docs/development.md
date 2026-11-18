@@ -35,7 +35,16 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
   variável: o runner do CI tem conteúdo que a máquina local não tem.
 - Testes com repositório git criam repos descartáveis em `$BATS_TEST_TMPDIR`
   com `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_NOSYSTEM` apontando para lá.
+- `tests/stub_helper.bash` isola o PATH: `stub_path_init` deixa só stubs e
+  utilitários seguros (coreutils, awk, sed, grep, jq, python3), e `stub` /
+  `stub_script` criam comandos falsos que registram cada chamada. Um gerenciador
+  de pacotes não stubado simplesmente não existe, em vez de rodar de verdade.
 - `tests/tray_appindicator.py` exercita o menu do systray com o GTK stubado.
+- Cobertura: `scripts/coverage-bats.sh` roda a suíte sob kcov. Programas awk e
+  Python embutidos (o applet AppIndicator, os geradores do `--report`) ficam
+  entre `# kcov-excl-start` e `# kcov-excl-stop`, porque o kcov não os
+  instrumenta; eles são testados por `tests/report.bats` e
+  `tests/tray_appindicator.py`.
 - `lib/testable/*.sh` são cópias de helpers puros usadas só pelos
   `*_pure.bats`; não são carregadas em runtime.
 

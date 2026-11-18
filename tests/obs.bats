@@ -119,3 +119,36 @@ STUB
   run _obs_config_dir
   [ "$output" = "$HOME/.var/app/com.obsproject.Studio/config/obs-studio" ]
 }
+
+# ── Plugins OBS clonados com git ──────────────────────────────────────────────
+
+_obs_git_plugin() {
+  export GIT_CONFIG_GLOBAL="$MOCKDIR/gitconfig" GIT_CONFIG_NOSYSTEM=1
+  git config --global user.email t@t; git config --global user.name t
+  git config --global init.defaultBranch main
+  git init -q "$MOCKDIR/up/$1"
+  git -C "$MOCKDIR/up/$1" commit -q --allow-empty -m one
+  mkdir -p "$OBS_CONFIG_DIR/plugins"
+  git clone -q "$MOCKDIR/up/$1" "$OBS_CONFIG_DIR/plugins/$1"
+}
+
+@test "update_obs_plugins: atualiza clone atrasado e ignora .disabled/.bak" {
+  _obs_git_plugin blur
+  git -C "$MOCKDIR/up/blur" commit -q --allow-empty -m two
+  mkdir -p "$OBS_CONFIG_DIR/plugins/velho.disabled" "$OBS_CONFIG_DIR/plugins/x.bak"
+  run update_obs_plugins
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$OBS_CONFIG_DIR/plugins/blur" log -1 --format=%s)" = two ]
+  [[ "$output" != *"velho.disabled"* ]]
+}
+
+@test "update_obs_plugins: upstream removido e conflito pendente" {
+  _obs_git_plugin some
+  rm -rf "$MOCKDIR/up/some"
+  run update_obs_plugins
+  [[ "$output" == *"fetch falhou para plugin OBS some"* ]]
+  _obs_git_plugin travado
+  git_has_unmerged() { [[ "$1" == *travado* ]]; }
+  run update_obs_plugins
+  [[ "$output" == *"travado"* ]]
+}

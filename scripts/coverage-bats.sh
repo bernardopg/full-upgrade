@@ -17,8 +17,14 @@ include_pattern+=",${ROOT}/install.sh"
 include_pattern+=",${ROOT}/lib/"
 include_pattern+=",${ROOT}/steps.d/"
 
+# Programas awk/Python embutidos (o applet AppIndicator, os geradores do
+# relatório) não são Bash: o kcov não os instrumenta e os contaria como linhas
+# nunca executadas. Ficam entre "# kcov-excl-start" e "# kcov-excl-stop" (válido
+# como comentário em awk e Python) e são testados por tests/report.bats e
+# tests/tray_appindicator.py.
 KCOV_ROOT="$ROOT" kcov \
   --include-pattern="$include_pattern" \
+  --exclude-region="# kcov-excl-start:# kcov-excl-stop" \
   --bash-parse-files-in-dir="$ROOT" \
   "$OUT" \
   "${ROOT}/scripts/run-bats.sh" tests/

@@ -911,3 +911,31 @@ PY
   [ "$(tray_read_state_field "$f" artcraft_updates)" = '["a 1 -> 2"]' ]
   [ "$(tray_read_state_field "$f" doctor_pending)" = '["x: y"]' ]
 }
+
+# ── Notificações do backend yad (X11) ─────────────────────────────────────────
+
+@test "_tray_notify_transition: título, urgência e plural por estado" {
+  NOTES="$BATS_TEST_TMPDIR/notes"
+  tray_notify() { printf '%s|%s|%s\n' "$1" "$3" "$4" >> "$NOTES"; }
+  tray_resolve_icon() { echo icon; }
+  _tray_notify_transition idle updates 1 0 0 ""
+  _tray_notify_transition idle updates 3 0 0 ""
+  _tray_notify_transition idle attention 0 1 0 ""
+  _tray_notify_transition idle attention 0 2 0 ""
+  _tray_notify_transition idle attention 0 0 0 "kernel 7.3.5"
+  _tray_notify_transition idle error 0 0 1 ""
+  _tray_notify_transition idle error 0 0 2 ""
+  _tray_notify_transition updates idle 0 0 0 ""
+  _tray_notify_transition idle idle 0 0 0 ""
+  _tray_notify_transition idle running 0 0 0 ""
+  run cat "$NOTES"
+  [ "${lines[0]}" = "normal|full-upgrade: 1 atualização disponível|Clique no ícone para executar o full-upgrade." ]
+  [ "${lines[1]}" = "normal|full-upgrade: 3 atualizações disponíveis|Clique no ícone para executar o full-upgrade." ]
+  [ "${lines[2]}" = "normal|full-upgrade: atenção necessária|1 item precisa de revisão." ]
+  [ "${lines[3]}" = "normal|full-upgrade: atenção necessária|2 itens precisam de revisão." ]
+  [ "${lines[4]}" = "normal|full-upgrade: atenção necessária|Reboot pendente: kernel 7.3.5" ]
+  [[ "${lines[5]}" == "critical|full-upgrade: último run com falha|1 step falhou."* ]]
+  [[ "${lines[6]}" == "critical|full-upgrade: último run com falha|2 steps falharam."* ]]
+  [ "${lines[7]}" = "low|full-upgrade: sistema atualizado|Tudo em dia." ]
+  [ "${#lines[@]}" -eq 8 ]
+}

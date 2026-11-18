@@ -11,7 +11,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / 'lib/tray.sh').read_text()
-source = source.split("<<'PY'\nimport atexit", 1)[1].split('\nPY\n', 1)[0]
+# O heredoc começa com o marcador de exclusão do kcov (comentário Python).
+source = source.split("<<'PY'\n# kcov-excl-start", 1)[1].split('\nimport atexit', 1)[1].split('\nPY\n', 1)[0]
 module = ast.parse('import atexit' + source)
 functions = ast.Module(body=[n for n in module.body if isinstance(n, ast.FunctionDef)], type_ignores=[])
 

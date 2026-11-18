@@ -17,6 +17,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 - Plugins do Claude Code de 4–7 min para ~30 s; Doctor do Flatpak de 60 s
   (timeout) para 1 s.
 
+### Testes
+
+- Cobertura de 57% para 79%: testes novos para os Doctors de sistema, disco,
+  SMART, boot, Python, JavaScript e pacman; update do pacman/AUR, npm, pnpm,
+  corepack, Snap, Neovim, Oh My Zsh, Yazi, Arduino, Android CLI, firmware,
+  bootctl, pip e gems; auto-update do full-upgrade; binários verificados (gk,
+  RTK, Snyk, ZAP); snapshots, mirrors e `.pacnew`; Antigravity e Burp; telas do
+  TUI e `--config`. `tests/stub_helper.bash` isola o PATH, então nenhum teste
+  chega a um gerenciador de pacotes real.
+- awk e Python embutidos saem da medição do kcov (marcadores
+  `# kcov-excl-start`/`# kcov-excl-stop`): o kcov não os instrumenta e os
+  contava como linhas nunca executadas.
+- O backend yad (X11) do tray também usava "1 avisos e pendências".
+
 ### Documentação
 
 - O README virou uma página de apresentação enxuta (o que é, destaques,

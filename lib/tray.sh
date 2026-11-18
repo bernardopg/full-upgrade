@@ -520,7 +520,7 @@ _tray_notify_transition() {
       if [[ $reboot == *[![:space:]]* ]]; then
         body="Reboot pendente: ${reboot}"
       else
-        body="${todo} avisos e pendências precisam de revisão."
+        if [[ "$todo" == 1 ]]; then body="1 item precisa de revisão."; else body="${todo} itens precisam de revisão."; fi
       fi ;;
     error)
       urgency=critical
@@ -989,6 +989,7 @@ tray_appindicator_main() {
   FU_TRAY_ICON_COLOR="${TRAY_ICON_COLOR:-auto}" \
   FU_TRAY_SYSTEM_ICON_DIR="${TRAY_SYSTEM_ICON_DIR:-}" \
     exec "$py" - 2> >(_tray_appindicator_stderr_filter) <<'PY'
+# kcov-excl-start (não-Bash: o kcov não instrumenta; testado por tests/tray_appindicator.py)
 import atexit
 import datetime
 import json
@@ -1784,6 +1785,7 @@ GLib.timeout_add_seconds(INTERVAL, every_interval)
 # O texto é trocado no lugar, sem recriar o menu.
 GLib.timeout_add_seconds(60, refresh_relative_labels)
 Gtk.main()
+# kcov-excl-stop
 PY
 }
 

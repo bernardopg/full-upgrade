@@ -53,6 +53,7 @@ report_markdown_from_jsonl() {
   awk -v groupspec="$group_spec" \
     -v sym_ok="${SYM_OK:-ok}" -v sym_warn="${SYM_WARN:-!!}" -v sym_todo="${SYM_TODO:-->}" \
     -v sym_fail="${SYM_FAIL:-XX}" -v sym_skip="${SYM_SKIP:---}" '
+    # kcov-excl-start (não-Bash: o kcov não instrumenta; testado por tests/report.bats)
     function fmt_dur(s,   m) {
       s = s + 0
       if (s >= 60) { m = int(s / 60); return m "m " sprintf("%02d", s % 60) "s" }
@@ -378,6 +379,7 @@ report_markdown_from_jsonl() {
         print ""
       }
     }
+    # kcov-excl-stop
   ' "$jsonl"
 }
 
@@ -422,6 +424,7 @@ report_json_from_jsonl() {
   local jsonl="$1"
   [[ -r "$jsonl" ]] || return 1
   awk '
+    # kcov-excl-start (não-Bash: o kcov não instrumenta; testado por tests/report.bats)
     function json_str(line, key,   p, c, out, esc, kk) {
       kk = "\"" key "\":\""
       p = index(line, kk)
@@ -523,6 +526,7 @@ report_json_from_jsonl() {
       }
       printf "]}\n"
     }
+    # kcov-excl-stop
   ' "$jsonl"
 }
 
