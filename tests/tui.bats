@@ -538,3 +538,53 @@ EOF
   tui_fit_hints "um atalho comprido demais" 5
   [ "$TUI_PAD" = "" ]
 }
+
+# ── Comentário inline, falha de gravação, retenção de backups, glifos ASCII ──
+
+@test "tui_inline_comment_suffix: aspas, escape e # sem espaço antes" {
+  run tui_inline_comment_suffix '"a \" # b" # comentário'
+  [ "$output" = " # comentário" ]
+  run tui_inline_comment_suffix "'x#y' #c"
+  [ "$output" = " #c" ]
+  run tui_inline_comment_suffix 'valor#sem-espaco'
+  [ "$output" = "" ]
+}
+
+@test "tui_config_save_pairs: valor que quebra a sintaxe não ativa o config" {
+  printf 'A=1\n' > "$FU_CONFIG_FILE"
+  tui_upsert_into() { printf 'if then\n' >> "$1"; }
+  run tui_config_save_pairs 'B|string|x'
+  [ "$status" -eq 1 ]
+  [ "$(cat "$FU_CONFIG_FILE")" = "A=1" ]
+  [ -z "$(ls "${FU_CONFIG_FILE%/*}"/.full-upgrade-tui* 2>/dev/null)" ]
+}
+
+@test "tui_config_save_pairs: mantém só os 5 backups mais recentes" {
+  printf 'A=1\n' > "$FU_CONFIG_FILE"
+  local i
+  for i in 1 2 3 4 5 6 7; do
+    touch -d "2026-01-0$i" "${FU_CONFIG_FILE}.bak.2026010${i}-000000"
+  done
+  tui_config_save_pairs 'B|string|x'
+  [ "$(ls -1 "${FU_CONFIG_FILE}".bak.* | wc -l)" -eq 5 ]
+}
+
+@test "tui: terminal sem UTF-8 usa glifos e logo ASCII" {
+  SYM_ARROW=">"
+  # shellcheck source=/dev/null
+  source "${FU_LIB}/tui.sh"
+  [ "$TUI_BOX_H" = "-" ]
+  [ "$TUI_SEL_BAR" = ">" ]
+  [[ "${TUI_LOGO[0]}" == " ___"* ]]
+}
+
+# Ctrl-C que chega como byte (digitado entre duas leituras, em raw mode) não
+# pode só voltar ao menu: restaura o terminal e sai com 130, como o SIGINT.
+@test "tui_read_key: Ctrl-C como byte restaura o terminal e sai com 130" {
+  tui_close() { echo fechou; }
+  run tui_read_key < <(printf '\x03')
+  [ "$status" -eq 130 ]
+  [ "$output" = fechou ]
+  tui_read_key < <(printf '\x04')
+  [ "$TUI_KEY" = "char:q" ]
+}

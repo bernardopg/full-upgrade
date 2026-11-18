@@ -166,3 +166,13 @@ EOF
   [ ! -e "$NEW" ]
   [ ! -s "$left" ]
 }
+
+# Regressão: com o arquivo atual vazio, `FNR == NR` valia também no .pacnew e o
+# merge saía vazio, descartando os comentários novos do pacote.
+@test "pacnew_safe_merge: atual vazio e pacnew só com comentários adota o pacnew" {
+  : >"$CUR"
+  printf '# novo\n#opcao = 1\n' >"$NEW"
+  run pacnew_safe_merge "$CUR" "$NEW"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'# novo\n#opcao = 1' ]
+}

@@ -147,3 +147,12 @@ _go_stub_versions() {
   [ "$status" -eq 0 ]
   [ ! -e "$BATS_TEST_TMPDIR/calls" ]
 }
+
+# Regressão: sem gems do sistema (lista vazia), `NR == FNR` tratava o outdated
+# do usuário como lista do sistema e nenhuma gem do usuário era atualizada.
+@test "gem_user_updatable: lista do sistema vazia não esconde as gems do usuário" {
+  : > "$BATS_TEST_TMPDIR/arch"
+  printf 'rake (13.0.0 < 13.2.1)\n' > "$BATS_TEST_TMPDIR/outdated"
+  run gem_user_updatable "$BATS_TEST_TMPDIR/outdated" "$BATS_TEST_TMPDIR/arch"
+  [ "$output" = rake ]
+}

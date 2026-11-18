@@ -289,3 +289,208 @@ _checkservices_units() {
   [ "${status:-0}" -eq "$RC_TODO" ]
   ! grep -q "restart" "$STUB_LOG"
 }
+
+# ── Cobertura completa de doctor/system.sh ────────────────────────────────────
+
+@test "reboot_pending: versão do kernel ilegível vira warn" {
+  stub_script pacman 'case "$*" in "-Q linux") echo linux ;; *) exit 1 ;; esac'
+  stub uname 0 "7.3.4-arch1-2"
+  kernel_running_pkgbase() { echo linux; }
+  run doctor_reboot_pending
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "reboot_pending: microcode da AMD, da Intel e sem pacote" {
+  export MICROCODE_VERSION_FILE="$BATS_TEST_TMPDIR/ucode"; echo "0xa20120e" > "$MICROCODE_VERSION_FILE"
+  stub uname 0 "7.3.4-arch1-2"
+  kernel_running_pkgbase() { echo linux; }
+  stub_script pacman 'case "$*" in "-Q linux") echo "linux 7.3.4.arch1-2" ;; "-Q amd-ucode") echo "amd-ucode 20261111-1" ;; *) exit 1 ;; esac'
+  run doctor_reboot_pending
+  [[ "$output" == *"pacote amd-ucode 20261111-1"* ]]
+  stub_script pacman 'case "$*" in "-Q linux") echo "linux 7.3.4.arch1-2" ;; *) exit 1 ;; esac'
+  run doctor_reboot_pending
+  [[ "$output" == *"Microcode aplicado: 0xa20120e (pacote não detectado)"* ]]
+}
+
+@test "failed_systemd_units: sem systemctl e escopo de usuário indisponível" {
+  run doctor_failed_systemd_units
+  [[ "$output" == *"systemctl não encontrado"* ]]
+  stub systemctl 0 ""
+  systemd_user_scope_status() { echo no-runtime; }
+  run doctor_failed_systemd_units
+  [[ "$output" == *"sem XDG_RUNTIME_DIR"* ]]
+  systemd_user_scope_status() { echo no-bus; }
+  run doctor_failed_systemd_units
+  [[ "$output" == *"sem bus de sessão"* ]]
+  stub systemctl 0 "nginx.service loaded failed failed nginx"
+  run doctor_failed_systemd_units
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"sem bus de sessão"* ]]
+  systemd_user_scope_status() { echo no-runtime; }
+  run doctor_failed_systemd_units
+  [[ "$output" == *"sem XDG_RUNTIME_DIR"* ]]
+}
+
+@test "journal_hint_for e journal_signature_class: cada família de assinatura" {
+  [[ "$(journal_hint_for 'app: Uncaught (in promise) DisconnectedError: x')" == *"Electron/Chromium"* ]]
+  [[ "$(journal_hint_for 'systemd[1]: full-upgrade-tray.service: Failed at step EXEC spawning /usr/bin/full-upgrade: No such file')" == *"full-upgrade-tray"* ]]
+  [[ "$(journal_hint_for 'sudo: pam_unix(sudo:auth): authentication failure')" == *"sudo/PAM"* ]]
+  [[ "$(journal_hint_for 'systemd[1]: Found ordering cycle on x')" == *"ciclo de ordenação"* ]]
+  [[ "$(journal_hint_for 'systemd-coredump: Process 1 (x) of user 1 dumped core.')" == *"coredump de app"* ]]
+  [ -z "$(journal_hint_for 'nada conhecido')" ]
+  [ "$(journal_signature_class '3 ZapZap WAWeb Theme Controller falhou')" = benign ]
+  [ "$(journal_signature_class 'kernel: BTRFS: error (device nvme0n1p2)')" = actionable ]
+  [ "$(journal_signature_class 'algo novo')" = unknown ]
+}
+
+@test "journal_filter_known_noise e journal_unknown_signatures: fallback sem mktemp" {
+  stub mktemp 1
+  run journal_filter_known_noise "kernel: ACPI BIOS Error (bug): x
+erro real"
+  [ "$output" = "erro real" ]
+  stub journalctl 0 "2026-11-17T10:00:00-03:00 host app[1]: erro estranho 7"
+  run journal_unknown_signatures
+  [[ "$output" == *"erro estranho"* ]]
+}
+
+@test "journal_errors: sem journalctl, leitura falha, vazio e só ruído" {
+  run doctor_journal_errors
+  [[ "$output" == *"journalctl não encontrado"* ]]
+  stub journalctl 1 ""
+  run doctor_journal_errors
+  [ "$status" -eq "$RC_WARN" ]
+  stub journalctl 0 ""
+  run doctor_journal_errors
+  [[ "$output" == *"Nenhum erro crítico"* ]]
+  stub journalctl 0 "2026-11-17T10:00:00-03:00 host kernel: ACPI BIOS Error (bug): Could not resolve"
+  run doctor_journal_errors
+  [[ "$output" == *"todos ruído conhecido filtrado"* ]]
+}
+
+@test "journal_errors: benignos viram ok; histórico antes do run não alarma; novo vira warn" {
+  LOG_FILE="$BATS_TEST_TMPDIR/run.log"; : > "$LOG_FILE"
+  stub journalctl 0 "2026-11-17T10:00:00-03:00 host app[1]: ZapZap WAWeb Theme Controller falhou"
+  doctor_journal_errors >/dev/null || status=$?
+  [ "${status:-0}" -eq 0 ]
+  [[ "$STEP_REASON" == "journal: 1 erro(s) benigno(s) conhecido(s)"* ]]
+  grep -q "erros filtrados, agrupados" "$LOG_FILE"
+  stub_script journalctl 'case "$*" in *--since*) exit 0 ;; *) echo "2026-11-17T10:00:00-03:00 host app[1]: erro desconhecido 9" ;; esac'
+  RUN_START_ISO="2026-11-17T11:00:00-03:00"
+  doctor_journal_errors >/dev/null
+  [[ "$STEP_REASON" == *"histórica(s), nenhuma durante o run"* ]]
+  stub_script journalctl 'echo "2026-11-17T12:00:00-03:00 host app[1]: erro desconhecido 9"'
+  unset status
+  doctor_journal_errors >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+}
+
+@test "ack_journal: confirmação interativa aceita e recusa" {
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"
+  stub journalctl 0 "2026-11-17T10:00:00-03:00 host minhaapp[123]: falha estranha 42"
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" \
+    'journal_effective_signature_class() { echo unknown; }; ASSUME_YES=0; doctor_ack_journal_interactive' 'n\r'
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Cancelado"* ]]
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" \
+    'journal_effective_signature_class() { echo unknown; }; ASSUME_YES=0; doctor_ack_journal_interactive' 's\r'
+  [ "$status" -eq 0 ]
+  [ -s "$XDG_CONFIG_HOME/full-upgrade/journal-noise.txt" ]
+}
+
+@test "ack_journal: padrão já gravado não duplica" {
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"
+  stub journalctl 0 ""
+  journal_unknown_signatures() { echo "app: erro 1"; }
+  ASSUME_YES=1 run doctor_ack_journal_interactive
+  [[ "$output" == *"1 padrão(ões) adicionado(s)"* ]]
+  ASSUME_YES=1 run doctor_ack_journal_interactive
+  [[ "$output" == *"já estavam"* ]]
+}
+
+@test "ack_coredumps: confirmação interativa aceita e recusa" {
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"
+  stub coredumpctl 0 "Thu 2026-11-17 01:00:00 -03 1 1000 1000 SIGSEGV present /usr/bin/prog 1K
+Thu 2026-11-17 02:00:00 -03 2 1000 1000 SIGSEGV present /usr/bin/prog 1K
+Thu 2026-11-17 03:00:00 -03 3 1000 1000 SIGSEGV present /usr/bin/prog 1K"
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" 'ASSUME_YES=0; doctor_ack_coredumps_interactive' 'n\r'
+  [ "$status" -eq 1 ]
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" 'ASSUME_YES=0; doctor_ack_coredumps_interactive' 's\r'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 ack(s) gravado(s)"* ]]
+}
+
+# Regressão: o modo batch imprime "NEEDRESTART-KSTA: 3"; o parser por "="
+# lia vazio e o kernel desatualizado nunca virava TODO por esta via.
+@test "stale_services: needrestart só com kernel desatualizado vira TODO" {
+  stub_privilege
+  stub needrestart 0 "NEEDRESTART-KSTA: 3"
+  run doctor_stale_services
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"kernel em execução está desatualizado"* ]]
+}
+
+@test "restart_stale_services: só unit que não é .service, confirmação e stop falho" {
+  _checkservices_units foo.socket
+  stub systemctl 0 ""
+  RESTART_SERVICES=1 ASSUME_YES=1 run restart_stale_services
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhum serviço systemd reiniciável"* ]]
+  _checkservices_units geoclue.service
+  stub_script systemctl 'case "$*" in show*) printf "Type=dbus\nUnitFileState=static\nBusName=org.x\n" ;; stop*) exit 1 ;; esac'
+  RESTART_SERVICES=1 ASSUME_YES=1 run restart_stale_services
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$output" == *"falha ao parar geoclue.service"* ]]
+  stub_script systemctl 'case "$*" in show*) exit 0 ;; *) exit 0 ;; esac'
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" 'RESTART_SERVICES=1; ASSUME_YES=0; restart_stale_services' 'n\r'
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"cancelado pelo usuário"* ]]
+  pty_call "steps/doctor/_common.sh steps/doctor/system.sh" 'RESTART_SERVICES=1; ASSUME_YES=0; restart_stale_services' 's\r'
+  [ "$status" -eq 0 ]
+}
+
+@test "desktop_health: portal, PipeWire e WirePlumber rodando; GPU; sugestões por desktop" {
+  stub pacman 0
+  stub pipewire 0
+  stub wireplumber 0
+  stub_script pgrep 'exit 0'
+  stub vulkaninfo 0 "deviceName = AMD Radeon"
+  stub glxinfo 0 "OpenGL renderer string: AMD Radeon (radeonsi)"
+  run doctor_desktop_health
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"xdg-desktop-portal: em execução"* ]]
+  [[ "$output" == *"WirePlumber: em execução"* ]]
+  [[ "$output" == *"GPU Vulkan: AMD"* ]]
+  rm "$STUB_BIN/vulkaninfo"; hash -r
+  run doctor_desktop_health
+  [[ "$output" == *"GPU OpenGL: AMD Radeon (radeonsi)"* ]]
+  stub_script pgrep 'case "$*" in *wireplumber*) exit 1 ;; *) exit 0 ;; esac'
+  run doctor_desktop_health
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "desktop_health: sugestão de portal por GNOME, KDE e Wayland genérico" {
+  stub_script pgrep 'exit 1'
+  local d
+  for d in GNOME KDE; do
+    XDG_CURRENT_DESKTOP="$d" run doctor_desktop_health
+    [[ "$output" == *"xdg-desktop-portal-${d,,}"* || "$output" == *"xdg-desktop-portal: "* ]]
+  done
+  XDG_CURRENT_DESKTOP="" XDG_SESSION_TYPE=wayland run doctor_desktop_health
+  [[ "$output" == *"xdg-desktop-portal-wlr"* || "$output" == *"xdg-desktop-portal: "* ]]
+}
+
+@test "desktop_health: portal ausente sugere o backend do desktop" {
+  export XDG_PORTAL_BIN="$BATS_TEST_TMPDIR/nao-existe"
+  stub_script pgrep 'exit 1'
+  HYPRLAND_INSTANCE_SIGNATURE=x run doctor_desktop_health
+  [[ "$output" == *"xdg-desktop-portal-hyprland"* ]]
+  local d
+  for d in GNOME KDE; do
+    HYPRLAND_INSTANCE_SIGNATURE="" XDG_CURRENT_DESKTOP="$d" run doctor_desktop_health
+    [[ "$output" == *"xdg-desktop-portal-${d,,}"* ]]
+  done
+  HYPRLAND_INSTANCE_SIGNATURE="" XDG_CURRENT_DESKTOP="" XDG_SESSION_TYPE=wayland run doctor_desktop_health
+  [[ "$output" == *"xdg-desktop-portal-wlr"* ]]
+  HYPRLAND_INSTANCE_SIGNATURE="" XDG_CURRENT_DESKTOP="" XDG_SESSION_TYPE=x11 run doctor_desktop_health
+  [[ "$output" == *"--needed xdg-desktop-portal'"* ]]
+}

@@ -80,3 +80,20 @@ stub_privilege() {
 stub_calls() {
   grep "^$1 " "$STUB_LOG" | sed "s/^$1 //"
 }
+
+# pty_call 'MÓDULOS' 'COMANDO' [RESPOSTA...] — roda COMANDO num pseudo-terminal
+# (stdin é TTY, então os prompts "[s/N]" aparecem) depois de carregar as libs
+# base e os MÓDULOS (caminhos relativos a lib/, separados por espaço). Herda o
+# PATH isolado e as funções exportadas com `export -f`. Saída em $output.
+pty_call() {
+  local mods="$1" cmd="$2" m src=""
+  shift 2
+  for m in globals.sh ui.sh core.sh json.sh catalog.sh $mods; do
+    src+="source \"${FU_LIB}/${m}\"; "
+  done
+  # globals.sh prependa ~/.cargo/bin, ~/.local/bin… (augment_user_path): sem
+  # restaurar o PATH isolado, o filho acharia o cargo/npm reais da máquina.
+  src+="PATH=$(printf '%q' "$PATH"); hash -r; "
+  run python3 -I "${BATS_TEST_DIRNAME}/pty_run.py" \
+    "export LOG_FILE=/dev/null QUIET=0 NO_COLOR=1; ${src} ${cmd}" "$@"
+}

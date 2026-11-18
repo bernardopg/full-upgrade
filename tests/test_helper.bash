@@ -17,6 +17,12 @@ export FU_LIB="${FU_TEST_ROOT}/lib"
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_NAMESPACE
 
+# Os diretórios XDG da sessão apontam para o HOME real: um teste que troca o
+# HOME por um tmpdir ainda cairia em ~/.local/share, ~/.cache etc. (o step do
+# Herdr achou o herdr-app de verdade). Sem eles, tudo deriva do HOME do teste,
+# como no runner do CI.
+unset XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME
+
 # Carrega libs compartilhadas, na ordem mínima do entrypoint:
 #   globals -> ui -> core -> json -> catalog.
 # NÃO carrega main/cli/sudo nem steps/* — esses podem ter efeitos colaterais
