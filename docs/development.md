@@ -39,12 +39,32 @@ XDG_CONFIG_HOME=/tmp/nocfg ./full-upgrade.sh --dry-run --mode full
   utilitários seguros (coreutils, awk, sed, grep, jq, python3), e `stub` /
   `stub_script` criam comandos falsos que registram cada chamada. Um gerenciador
   de pacotes não stubado simplesmente não existe, em vez de rodar de verdade.
+- Prompts `[s/N]` e o `--config-tui` só aparecem com stdin num terminal.
+  `pty_call` (em `stub_helper.bash`) roda um trecho num pseudo-terminal via
+  `tests/pty_run.py` e responde aos prompts; `tests/tui_pty.py` dirige o TUI
+  tecla a tecla. Os dois esperam o primeiro desenho e o fim do processo, sem
+  pausas fixas, para não falhar num runner lento. O `pty_call` recoloca o PATH
+  isolado depois de carregar `globals.sh`, que prependa `~/.cargo/bin`,
+  `~/.local/bin` etc.
 - `tests/tray_appindicator.py` exercita o menu do systray com o GTK stubado.
 - Cobertura: `scripts/coverage-bats.sh` roda a suíte sob kcov. Programas awk e
   Python embutidos (o applet AppIndicator, os geradores do `--report`) ficam
   entre `# kcov-excl-start` e `# kcov-excl-stop`, porque o kcov não os
   instrumenta; eles são testados por `tests/report.bats` e
   `tests/tray_appindicator.py`.
+- O kcov mede pelo `xtrace` do Bash e tem pontos cegos. Prefira a forma
+  medível equivalente:
+  - comando quebrado com `\` no fim da linha: a primeira linha nunca recebe
+    hit; deixe o comando numa linha ou use uma variável/array intermediário;
+  - array literal em várias linhas: use `arr=()` e um `arr+=(...)` por linha;
+  - braço de `case` vazio (`x) ;;`): escreva `x) : ;;`;
+  - padrão de `case` com `(`, mesmo entre aspas: guarde o texto numa variável;
+  - `done < <(cmd)` fica fora da medição (`--exclude-line`): o fecho nunca
+    recebe hit, e `done <<< "$(cmd)"` muda o comportamento com saída vazia.
+- `scripts/install-kcov.sh` aplica `scripts/kcov-bash-quote-state.patch`. Sem
+  ele, um `'` sem par numa linha do trace (`[[ it's == a ]]`, `for`, `case` e
+  `arr+=()` saem sem escape) fazia o kcov ignorar todo o trace seguinte, de
+  todos os processos, e a cobertura mudava com a ordem dos testes.
 - `lib/testable/*.sh` são cópias de helpers puros usadas só pelos
   `*_pure.bats`; não são carregadas em runtime.
 
@@ -85,7 +105,8 @@ Convenções que já custaram bugs reais:
 | `release.yml` | Valida, gera o standalone, atesta a proveniência, publica a release e o pacote AUR. |
 
 Todas as actions são fixadas por SHA e atualizadas pelo Dependabot. O kcov é
-compilado de um commit fixado (o v43 perde os traces com o bash 5.3).
+compilado de um commit fixado (o v43 perde os traces com o bash 5.3), com o
+patch de `scripts/kcov-bash-quote-state.patch`.
 
 ## Ícones
 
