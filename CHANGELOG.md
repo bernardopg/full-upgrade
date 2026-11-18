@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-18
 ### Adicionado
 
 - `FU_CONFIG_FILE`/`FU_CONFIG_DIR` no ambiente escolhem outro arquivo de config.
