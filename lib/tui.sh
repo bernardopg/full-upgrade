@@ -302,9 +302,7 @@ tui_rebuild_view() {
   TUI_VIEW=()
   local i needle="${TUI_FILTER,,}"
   for i in "${!TUI_NAME[@]}"; do
-    if [[ -z "$needle" \
-        || "${TUI_NAME[$i],,}" == *"$needle"* \
-        || "${TUI_DESC[$i],,}" == *"$needle"* ]]; then
+    if [[ -z "$needle" || "${TUI_NAME[$i],,}" == *"$needle"* || "${TUI_DESC[$i],,}" == *"$needle"* ]]; then
       TUI_VIEW+=("$i")
     fi
   done
@@ -338,7 +336,8 @@ tui_load_model() {
         TUI_ORIG=("${TUI_STEPS_ORIG[@]}"); TUI_META=("${TUI_STEPS_META[@]}")
       else
         tui_build_steps; tui_store_active_model
-      fi ;;
+      fi
+      ;;
     params)
       if (( TUI_PARAMS_READY )); then
         TUI_NAME=("${TUI_PARAMS_NAME[@]}"); TUI_DESC=("${TUI_PARAMS_DESC[@]}")
@@ -346,7 +345,8 @@ tui_load_model() {
         TUI_ORIG=("${TUI_PARAMS_ORIG[@]}"); TUI_META=("${TUI_PARAMS_META[@]}")
       else
         tui_build_params; tui_store_active_model
-      fi ;;
+      fi
+      ;;
   esac
 }
 
@@ -495,15 +495,18 @@ tui_decode_csi() {
     '[H'|OH) TUI_KEY="home" ;;
     '[F'|OF) TUI_KEY="end" ;;
     '[Z')    TUI_KEY="esc" ;;          # Shift-Tab
-    '[1'|'[2'|'[3'|'[4'|'[5'|'[6'|'[7'|'[8')
-      case "${rest}${extra}" in
-        '[5~')        TUI_KEY="pgup" ;;
-        '[6~')        TUI_KEY="pgdn" ;;
-        '[1~'|'[7~')  TUI_KEY="home" ;;
-        '[4~'|'[8~')  TUI_KEY="end" ;;
-        *)            TUI_KEY="esc" ;;
-      esac ;;
-    *) TUI_KEY="esc" ;;
+    *)       tui_decode_csi_tilde "${rest}${extra}" ;;
+  esac
+}
+
+# Sequências "ESC [ dígito ~" (PgUp/PgDn/Home/End); qualquer outra vira Esc.
+tui_decode_csi_tilde() {
+  case "$1" in
+    '[5~')        TUI_KEY="pgup" ;;
+    '[6~')        TUI_KEY="pgdn" ;;
+    '[1~'|'[7~')  TUI_KEY="home" ;;
+    '[4~'|'[8~')  TUI_KEY="end" ;;
+    *)            TUI_KEY="esc" ;;
   esac
 }
 
@@ -654,10 +657,6 @@ tui_footer() {
   else
     printf '\033[%d;1H\033[K%s%s%s\033[J' "$TUI_ROWS" "${pad}${C_DIM}" "$hints" "$C_RESET"
   fi
-}
-
-tui_visible_rows() {
-  echo $(( TUI_ROWS - TUI_HEAD_H - 2 ))
 }
 
 # Versão sem subshell (usada nos caminhos quentes de desenho/navegação).
@@ -983,17 +982,14 @@ tui_draw_review() {
   (( TUI_REVIEW_TOP < 0 )) && TUI_REVIEW_TOP=0
   end=$(( TUI_REVIEW_TOP + per_page )); (( end > TUI_PENDING )) && end=$TUI_PENDING
   tui_line ""
-  if (( TUI_PENDING == 0 )); then
-    tui_line "${pad} ${C_DIM}Nenhuma alteração pendente.${C_RESET}"
-  else
-    tui_line "${pad} ${C_BOLD}$(( TUI_REVIEW_TOP + 1 ))–$end de ${TUI_PENDING}${C_RESET}${C_DIM} → ${FU_CONFIG_FILE}${C_RESET}"
-    for (( k = TUI_REVIEW_TOP; k < end; k++ )); do
-      tui_line ""
-      tui_line "${pad} ${C_CYAN}${SYM_ARROW} ${CH_KEY[$k]}${C_RESET} ${C_DIM}[${CH_SECTION[$k]}]${C_RESET}"
-      tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_RED}- $(tui_trunc "${CH_OLD[$k]}" "$w")${C_RESET}"
-      tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_GREEN}+ $(tui_trunc "${CH_NEW[$k]}" "$w")${C_RESET}"
-    done
-  fi
+  # tui_review_and_save só abre a revisão com pendências (sem elas, "nada a salvar").
+  tui_line "${pad} ${C_BOLD}$(( TUI_REVIEW_TOP + 1 ))–$end de ${TUI_PENDING}${C_RESET}${C_DIM} → ${FU_CONFIG_FILE}${C_RESET}"
+  for (( k = TUI_REVIEW_TOP; k < end; k++ )); do
+    tui_line ""
+    tui_line "${pad} ${C_CYAN}${SYM_ARROW} ${CH_KEY[$k]}${C_RESET} ${C_DIM}[${CH_SECTION[$k]}]${C_RESET}"
+    tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_RED}- $(tui_trunc "${CH_OLD[$k]}" "$w")${C_RESET}"
+    tui_line "${pad}   ${C_DIM}${TUI_BOX_V}${C_RESET} ${C_GREEN}+ $(tui_trunc "${CH_NEW[$k]}" "$w")${C_RESET}"
+  done
   printf '\033[J'
   if (( TUI_PENDING > per_page )); then
     tui_footer "↑/↓ pagina · Enter aplica · Esc cancela"
@@ -1124,7 +1120,6 @@ tui_enter_screen() {
     steps)  TUI_MODE="steps";  tui_load_model steps;  TUI_SEL=0; TUI_TOP=0 ;;
     params) TUI_MODE="params"; tui_load_model params; TUI_SEL=0; TUI_TOP=0 ;;
     menu)   TUI_MODE="menu";   TUI_SEL=0; TUI_TOP=0 ;;
-    help)   TUI_MODE="help" ;;
   esac
   tui_rebuild_view
   tui_collect_changes

@@ -178,11 +178,7 @@ update_uv_python() {
   local -a seen_minors=()
   local ver minor
 
-  mapfile -t managed < <(
-    uv python list --only-installed 2>/dev/null \
-      | grep "uv/python" \
-      | awk '{print $1}'
-  )
+  mapfile -t managed < <(uv python list --only-installed 2>/dev/null | grep "uv/python" | awk '{print $1}')
 
   if (( ${#managed[@]} == 0 )); then
     log "  Sem versões Python gerenciadas pelo uv."

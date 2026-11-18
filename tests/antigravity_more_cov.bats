@@ -125,3 +125,15 @@ _exe() { mkdir -p "$(dirname "$1")"; printf '#!/bin/sh\n' > "$1"; chmod +x "$1";
   [ "${status:-0}" -eq "$RC_TODO" ]
   [[ "$STEP_REASON" == "falha ao mover "* ]]
 }
+
+@test "binários: nenhum candidato e instalação detectada só pelo binário" {
+  unset ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN
+  stub pacman 1 ""
+  run antigravity_bin
+  [ "$status" -eq 1 ]
+  run antigravity_ide_bin
+  [ "$status" -eq 1 ]
+  _exe "$ANTIGRAVITY_SYSTEM_BIN_DIR/antigravity"; _exe "$ANTIGRAVITY_SYSTEM_BIN_DIR/antigravity-ide"
+  antigravity_hub_installed
+  antigravity_ide_installed
+}

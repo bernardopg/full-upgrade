@@ -128,6 +128,13 @@ update_obs_plugins() {
   return 0
 }
 
+# Nomes dos módulos que falharam o load no log de sessão ($1), sem repetição.
+_obs_broken_modules() {
+  local hits
+  hits="$(grep -iE "Failed to load module file|Module '.*' not loaded|os_dlopen.*failed" "$1" 2>/dev/null)" || return 0
+  sed -E "s/.*(Failed to load module file|Module ')//i; s/['\"].*//; s/^[[:space:]]+//" <<<"$hits" | sort -u
+}
+
 # Doctor: saúde dos módulos do OBS.
 # Após upgrades (do OBS ou de libs), plugin com ABI antiga falha o load em
 # silêncio — só aparece no log da última sessão. Este check lê o log mais
@@ -155,11 +162,7 @@ doctor_obs_modules() {
   log "  Log de sessão analisado: $(basename "$latest")"
 
   local -a broken=()
-  mapfile -t broken < <(
-    grep -iE "Failed to load module file|Module '.*' not loaded|os_dlopen.*failed" "$latest" 2>/dev/null \
-      | sed -E "s/.*(Failed to load module file|Module ')//i; s/['\"].*//; s/^[[:space:]]+//" \
-      | sort -u
-  )
+  mapfile -t broken < <(_obs_broken_modules "$latest")
 
   if (( ${#broken[@]} > 0 )); then
     log "  ${C_YELLOW}Módulo(s) OBS falhando o load na última sessão:${C_RESET}"

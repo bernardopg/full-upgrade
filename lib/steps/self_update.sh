@@ -158,12 +158,14 @@ fi
 
 tmp="${unit}.tmp.$$"
 awk -v bin="$sysbin" '
+  # kcov-excl-start (programa embutido, não é Bash)
   /^ExecStart=(full-upgrade|.*\/\.local\/bin\/full-upgrade)[[:space:]]+--tray([[:space:]]|$)/ {
     print "ExecStart=" bin " --tray"
     next
   }
   { print }
 ' "$unit" > "$tmp" || {
+# kcov-excl-stop
 rm -f "$tmp"
 return 1
 }
@@ -205,7 +207,8 @@ self_update_notice() {
   local cmp
   cmp="$(self_version_compare "$current" "$latest")"
   case "$cmp" in
-    2)  # current < latest
+    # 2: a versão atual é anterior à última publicada.
+    2)
       log "  ${C_YELLOW}Nova versão disponível: v${current} → v${latest}.${C_RESET}"
       if [[ -n "$(self_pacman_managed_bin 2>/dev/null || true)" ]]; then
         log "  Instalação gerenciada pelo pacman: atualize via pacote AUR (ex.: paru/yay -Syu full-upgrade)."

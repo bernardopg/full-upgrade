@@ -15,7 +15,18 @@ _ARCH_NEWS_ACTION_RE='manual intervention|action required|requires (manual|atten
 # Puro (sem rede): parseia com awk, sem dependência de xmllint. A data RFC-2822
 # do pubDate vira epoch via `date -d` por item (GNU date, presente no Arch).
 arch_news_parse() {
-  awk 'BEGIN { RS="<item>"; FS="\n" }
+  _arch_news_items | _arch_news_unescape | while IFS='|' read -r pub title link; do
+    local epoch
+    epoch="$(date -d "$pub" +%s 2>/dev/null)" || continue
+    printf '%s|%s|%s\n' "$epoch" "$title" "$link"
+  done
+}
+
+# "pubDate|título|link" de cada <item> do RSS no stdin.
+_arch_news_items() {
+  awk '
+    # kcov-excl-start (programa embutido, não é Bash)
+    BEGIN { RS="<item>"; FS="\n" }
     NR > 1 {
       title = ""; link = ""; pub = ""
       if (match($0, /<title>[^<]*<\/title>/)) {
@@ -30,13 +41,13 @@ arch_news_parse() {
       if (title != "" && pub != "") {
         printf "%s|%s|%s\n", pub, title, link
       }
-    }' \
-  | sed -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&quot;/"/g' -e "s/&#39;/'/g" -e 's/&amp;/\&/g' \
-  | while IFS='|' read -r pub title link; do
-      local epoch
-      epoch="$(date -d "$pub" +%s 2>/dev/null)" || continue
-      printf '%s|%s|%s\n' "$epoch" "$title" "$link"
-    done
+    }'
+  # kcov-excl-stop
+}
+
+# Desfaz as entidades HTML que o feed usa nos títulos.
+_arch_news_unescape() {
+  sed -e 's/&gt;/>/g' -e 's/&lt;/</g' -e 's/&quot;/"/g' -e "s/&#39;/'/g" -e 's/&amp;/\&/g'
 }
 
 # Classifica um título de notícia: "action" (intervenção manual provável) ou

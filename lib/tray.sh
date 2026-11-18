@@ -199,10 +199,7 @@ tray_latest_completed_real_jsonl() {
     grep -q '"event":"summary"' "$f" 2>/dev/null || continue
     printf '%s\n' "$f"
     return 0
-  done < <(
-    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-      | sort -rn | cut -d' ' -f2-
-  )
+  done < <(jsonl_files_newest_first)
   return 1
 }
 
@@ -521,7 +518,8 @@ _tray_notify_transition() {
         body="Reboot pendente: ${reboot}"
       else
         if [[ "$todo" == 1 ]]; then body="1 item precisa de revisão."; else body="${todo} itens precisam de revisão."; fi
-      fi ;;
+      fi
+      ;;
     error)
       urgency=critical
       title="full-upgrade: último run com falha"
@@ -1785,8 +1783,8 @@ GLib.timeout_add_seconds(INTERVAL, every_interval)
 # O texto é trocado no lugar, sem recriar o menu.
 GLib.timeout_add_seconds(60, refresh_relative_labels)
 Gtk.main()
-# kcov-excl-stop
 PY
+  # kcov-excl-stop
 }
 
 # FD do coproc yad é ${FU_YAD[1]}; PID é FU_YAD_PID. Definidos por `coproc`.

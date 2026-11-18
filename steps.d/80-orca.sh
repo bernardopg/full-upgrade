@@ -53,6 +53,7 @@ orca_ide_release_appimage_sha256() {
   # Metadados via github_api_get (autenticado quando há token; ver lib/core.sh):
   # anônimo, o limite de 60/h por IP esgotava no meio do run.
   github_api_get "https://api.github.com/repos/stablyai/orca/releases/latest" 2>/dev/null | python -c '
+  # kcov-excl-start (programa embutido, não é Bash)
 import json
 import sys
 
@@ -69,6 +70,7 @@ for asset in release.get("assets", []):
             raise SystemExit(0)
 raise SystemExit(1)
 ' "$asset"
+# kcov-excl-stop
 }
 
 install_orca_ide_aur() {

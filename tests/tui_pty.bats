@@ -52,3 +52,43 @@ _tui() { timeout 240 python3 -I "$PTY" "$CFG" "$@"; }
   [ "$status" -eq 0 ]
   [ -s "$CFG" ]
 }
+
+@test "tui pty: filtro de uma linha, detalhe de enum e de inteiro, revisão vazia" {
+  run _tui 2 / 'MIRROR_TOOL' '\x1b[A' ' ' '\x7f' '\r' d x '\x1b' / 'SNAPSHOT_MIN' '\r' d x ' ' '\x1b' '\x1b' q
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"opções"*"(←/→ cicla)"* ]]
+  [[ "$output" == *"tipo    : int"* ]]
+}
+
+@test "tui pty: muitas alterações paginam a revisão" {
+  local -a keys=(2)
+  for _ in $(seq 1 40); do keys+=(' ' j); done
+  run _tui "${keys[@]}" s '\x1b[6~' j k '\x1b' q y
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"↑/↓ pagina"* ]]
+}
+
+@test "tui pty: Enter nos itens do menu, bool por Enter, q na revisão" {
+  run _tui '\x1b[B' '\x1b[B' '\r' '\x1b' '\x1b[H' '\r' '\x1b' '\x1b[B' '\r' / 'BACKUP_CONFIGS' '\r' '\r' s q
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"BACKUP_CONFIGS"* ]]
+  [ ! -e "$CFG" ]
+}
+
+@test "tui pty: teclas em rajada são processadas sem redesenho intermediário; sair pelo menu" {
+  run _tui 1 'jjjjjkk' '\x1b' '\x1b[B' '\x1b[B' '\x1b[B' '\x1b[B' '\r'
+  [ "$status" -eq 0 ]
+}
+
+@test "tui pty: falha ao gravar o config mostra o aviso" {
+  chmod 555 "${CFG%/*}"
+  run _tui 1 ' ' s '\r' q y
+  chmod 755 "${CFG%/*}"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"falha ao gravar config"* ]]
+}
+
+@test "tui pty: voltar às telas reaproveita o modelo e 5 no menu sai" {
+  run _tui 1 j '\x1b' 1 '\x1b' 2 '\x1b' 2 '\x1b' 5
+  [ "$status" -eq 0 ]
+}

@@ -415,7 +415,7 @@ pacnew_safe_merge() {
   awk '
     # kcov-excl-start (programa embutido, não é Bash)
     function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
-    FILENAME == ARGV[1] {   # não FNR == NR: com o atual vazio, valeria também no .pacnew
+    !segundo {   # não FNR == NR: com o atual vazio, valeria também no .pacnew
       t = trim($0)
       if (t == "") next
       if (substr(t, 1, 1) == "#") {
@@ -459,7 +459,7 @@ pacnew_safe_merge() {
         if (i in repl) print repl[i]; else print pn[i]
       }
     }
-  ' "$current" "$new"
+  ' "$current" segundo=1 "$new"
   # kcov-excl-stop
 }
 

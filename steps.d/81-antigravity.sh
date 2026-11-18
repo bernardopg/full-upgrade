@@ -18,8 +18,8 @@ antigravity_bin() {
     for candidate in \
         "${ANTIGRAVITY_BIN:-}" \
         "$(command -v antigravity 2>/dev/null || true)" \
-        /usr/bin/antigravity \
-        /opt/antigravity/antigravity; do
+        "${ANTIGRAVITY_SYSTEM_BIN_DIR:-/usr/bin}/antigravity" \
+        "${ANTIGRAVITY_OPT_DIR:-/opt}/antigravity/antigravity"; do
         [[ -n "$candidate" && -x "$candidate" ]] || continue
         printf '%s\n' "$candidate"
         return 0
@@ -32,8 +32,8 @@ antigravity_ide_bin() {
     for candidate in \
         "${ANTIGRAVITY_IDE_BIN:-}" \
         "$(command -v antigravity-ide 2>/dev/null || true)" \
-        /usr/bin/antigravity-ide \
-        /opt/antigravity-ide/bin/antigravity-ide; do
+        "${ANTIGRAVITY_SYSTEM_BIN_DIR:-/usr/bin}/antigravity-ide" \
+        "${ANTIGRAVITY_OPT_DIR:-/opt}/antigravity-ide/bin/antigravity-ide"; do
         [[ -n "$candidate" && -x "$candidate" ]] || continue
         printf '%s\n' "$candidate"
         return 0
@@ -48,16 +48,12 @@ antigravity_package_installed() {
 
 antigravity_hub_installed() {
     antigravity_package_installed "$ANTIGRAVITY_PACKAGE" && return 0
-    antigravity_bin >/dev/null 2>&1 && return 0
-    [[ -x /opt/antigravity/antigravity ]] && return 0
-    return 1
+    antigravity_bin >/dev/null 2>&1
 }
 
 antigravity_ide_installed() {
     antigravity_package_installed "$ANTIGRAVITY_IDE_PACKAGE" && return 0
-    antigravity_ide_bin >/dev/null 2>&1 && return 0
-    [[ -x /opt/antigravity-ide/bin/antigravity-ide ]] && return 0
-    return 1
+    antigravity_ide_bin >/dev/null 2>&1
 }
 
 antigravity_installed() {

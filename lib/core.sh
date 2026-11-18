@@ -1477,15 +1477,16 @@ pkg_diff() {
   [[ -r "$before" && -r "$after" ]] || return 1
   awk '
     # kcov-excl-start (programa embutido, não é Bash)
-    # FILENAME, não FNR == NR: com o "antes" vazio, FNR == NR continua
-    # verdadeiro no segundo arquivo e todo pacote saía como removido.
-    FILENAME == ARGV[1] { b[$1] = $2; next }
+    # `segundo` vira 1 entre os dois arquivos (atribuição na lista de args).
+    # FNR == NR falhava com o "antes" vazio (todo pacote saía como removido) e
+    # FILENAME == ARGV[1] falharia com os dois caminhos iguais.
+    !segundo { b[$1] = $2; next }
     {
       a[$1] = $2
       if ($1 in b) { if (b[$1] != $2) print "U " $1 " " b[$1] " " $2 }
       else print "I " $1 " " $2
     }
     END { for (n in b) if (!(n in a)) print "R " n " " b[n] }
-  ' "$before" "$after" | sort -k2
+  ' "$before" segundo=1 "$after" | sort -k2
   # kcov-excl-stop
 }

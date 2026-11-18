@@ -120,8 +120,10 @@ bootctl_status_field() {
   case "$field" in
     linux | initrd)
       printf '%s\n' "$out" | awk -v field="$field" '
+        # kcov-excl-start (programa embutido, não é Bash)
         $1 == field ":" { path=$2; gsub(/\/+/, "/", path); print path; exit }
       '
+      # kcov-excl-stop
       ;;
     title)
       printf '%s\n' "$out" | awk '/Default Boot Loader Entry:/{f=1} f && /^[[:space:]]+title:/{print $2" "$3" "$4; exit}'

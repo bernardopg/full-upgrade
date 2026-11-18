@@ -14,8 +14,7 @@ _report_resolve_jsonl() {
     f="${LOG_DIR}/full-upgrade-${from}.jsonl"
     [[ -r "$f" ]] && { printf '%s' "$f"; return 0; }
     # match parcial: run_id pode ser só o prefixo de data (ex.: 20260613-142301)
-    f="$(find "$LOG_DIR" -maxdepth 1 -name "full-upgrade-*${from}*.jsonl" -type f 2>/dev/null \
-          | sort | tail -n1)"
+    f="$(find "$LOG_DIR" -maxdepth 1 -name "full-upgrade-*${from}*.jsonl" -type f 2>/dev/null | sort | tail -n1)"
     [[ -n "$f" && -r "$f" ]] && { printf '%s' "$f"; return 0; }
     return 1
   fi
@@ -31,10 +30,7 @@ _report_resolve_jsonl() {
     [[ -n "$f" && -r "$f" ]] || continue
     jsonl_is_dry_run "$f" && continue
     printf '%s' "$f"; return 0
-  done < <(
-    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-      | sort -rn | cut -d' ' -f2-
-  )
+  done < <(jsonl_files_newest_first)
   return 1
 }
 

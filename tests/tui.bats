@@ -588,3 +588,19 @@ EOF
   tui_read_key < <(printf '\x04')
   [ "$TUI_KEY" = "char:q" ]
 }
+
+@test "tui_dispatch_nav: tecla que não é de navegação devolve 1" {
+  TUI_ROWS=24 TUI_COLS=100 TUI_MODE=menu
+  TUI_KEY="char:x"
+  run tui_dispatch_nav
+  [ "$status" -eq 1 ]
+}
+
+@test "tui_read_key: fim da entrada vira Esc; sequência desconhecida também" {
+  tui_read_key < /dev/null
+  [ "$TUI_KEY" = esc ]
+  tui_decode_csi '[9' '~'
+  [ "$TUI_KEY" = esc ]
+  tui_decode_csi '[4' '~'
+  [ "$TUI_KEY" = end ]
+}

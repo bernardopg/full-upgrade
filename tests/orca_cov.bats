@@ -127,3 +127,11 @@ setup() {
   run orca_ide_installed
   [ "$status" -eq 0 ]
 }
+
+@test "AppImage: arquitetura sem build" {
+  stub curl 0 ""
+  stub uname 0 riscv64
+  run install_orca_ide_appimage
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Arquitetura sem AppImage conhecido"* ]]
+}

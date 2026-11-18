@@ -77,7 +77,8 @@ doctor_disk_health() {
         if (( status != RC_TODO )); then
           log "  Aviso: ${mount} está com ${used_pct}% de uso."
           status=$RC_WARN
-        fi ;;
+        fi
+        ;;
     esac
   done < <(df -P -- "${paths[@]}" | tail -n +2)
 
@@ -93,7 +94,8 @@ doctor_disk_health() {
         if (( status != RC_TODO )); then
           log "  Aviso: ${mount} está com ${inode_pct}% de inodes usados."
           status=$RC_WARN
-        fi ;;
+        fi
+        ;;
     esac
   done < <(df -Pi -- "${paths[@]}" | tail -n +2)
 
@@ -332,6 +334,7 @@ btrfs_scrub_state() {
 # redundantes quando vários subvolumes do mesmo dispositivo estão montados.
 unique_btrfs_mountpoints() {
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     NF < 2 { next }
     {
       target=$1; src=$2
@@ -340,6 +343,7 @@ unique_btrfs_mountpoints() {
       print target
     }
   '
+  # kcov-excl-stop
 }
 
 

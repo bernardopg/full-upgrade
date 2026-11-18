@@ -300,3 +300,22 @@ zed 1-1 -> 2-1"
   [[ "$output" == *"main iniciado"* ]]
   ! kill -0 "$old" 2>/dev/null
 }
+
+@test "tray: filtro do AUR falho, estado não publicável e unit não gravável" {
+  stub checkupdates 0 ""
+  stub paru 0 "zed 1-1 -> 2-1"
+  detect_aur_helper() { echo paru; }
+  tray_filter_aur_ignore() { return 1; }
+  FULL_UPGRADE_AUR_IGNORE="x" run tray_gather_updates_detail "$BATS_TEST_TMPDIR/r" "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/f"
+  [ ! -e "$BATS_TEST_TMPDIR/a.filtered" ]
+  mv() { return 1; }
+  run tray_write_state idle idle 0 0 0 0 0 "" "" "" "" ""
+  unset -f mv
+  [ "$status" -eq 1 ]
+  [ -z "$(find "$LOG_DIR" -name 'tray-state.json.tmp.*')" ]
+  tray_self_bin() { echo /usr/bin/full-upgrade; }
+  stub systemctl 0 ""
+  mkdir -p "$XDG_CONFIG_HOME/systemd/user/full-upgrade-tray.service"
+  run tray_enable_systemd_unit
+  [ "$status" -eq 1 ]
+}

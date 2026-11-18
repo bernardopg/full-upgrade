@@ -64,3 +64,12 @@ _big() { mkdir -p "$(dirname "$1")"; truncate -s 2M "$1"; chmod +x "$1"; }
   [[ "$output" == *"Binários auxiliares conhecidos (3)"* ]]
   [[ "$output" == *"com step: 3"* ]]
 }
+
+@test "apps manuais: binário Go instalado com go install conta como coberto" {
+  stub pacman 1 ""
+  stub go 0 ""
+  go_tool_module() { echo example.com/x; }
+  local bin="$BATS_TEST_TMPDIR/ulb"; _big "$bin/meutool"
+  MANUAL_APPS_SYSTEM_BIN_DIR="$bin" MANUAL_APPS_OPT_DIR="$BATS_TEST_TMPDIR/nada" run doctor_manual_apps
+  [[ "$output" == *"com step: 1"* ]]
+}

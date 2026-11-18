@@ -148,3 +148,9 @@ _fake_git() {
   run pkg_diff "$BATS_TEST_TMPDIR/antes" "$BATS_TEST_TMPDIR/depois"
   [ "$output" = $'I bash 5.3-1\nI zsh 5.9-1' ]
 }
+
+@test "pkg_diff: o mesmo arquivo dos dois lados não gera diferença" {
+  printf 'bash 5.3-1\n' > "$BATS_TEST_TMPDIR/igual"
+  run pkg_diff "$BATS_TEST_TMPDIR/igual" "$BATS_TEST_TMPDIR/igual"
+  [ -z "$output" ]
+}

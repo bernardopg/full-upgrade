@@ -123,10 +123,8 @@ update_hermes() {
       printf '\n--- Git stderr completo ---\n' >> "$output_file"
       cat "$HERMES_GIT_STDERR" >> "$output_file"
     fi
-    {
-      printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)"
-      sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file"
-    } >> "$LOG_FILE"
+    printf '\n===== hermes update %d/%d (%s) =====\n' "$attempt" "$HERMES_UPDATE_ATTEMPTS" "$(date -Is)" >> "$LOG_FILE"
+    sed -r 's/\x1B\[[0-9;?]*[ -/]*[@-~]//g' "$output_file" >> "$LOG_FILE"
     # Limite da API não volta em 10s: repetir só gastaria tempo.
     (( rc != 0 && attempt < HERMES_UPDATE_ATTEMPTS )) && grep -qiE "${NETWORK_TRANSIENT_RE}|${HERMES_FETCH_FAILURE_RE}" "$output_file" \
       && ! is_github_rate_limited "$(cat -- "$output_file" 2>/dev/null)" || break

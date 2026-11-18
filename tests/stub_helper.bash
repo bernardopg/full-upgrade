@@ -17,7 +17,7 @@ STUB_SAFE_BINS=(
   awk basename bash cat chmod cmp comm cp cut date diff dirname du env expr
   false find getent grep gzip head id install jq ln ls md5sum mkdir mktemp
   mv nproc od paste printf python3 readlink realpath rm rmdir sed seq sh
-  sha256sum sleep sort stat tac tail tar tee timeout touch tr true truncate
+  sha256sum sleep sort stat tac tail tar tee test timeout touch tr true truncate
   uname uniq wc xargs zstd
 )
 
@@ -39,6 +39,9 @@ stub_path_init() {
     '[[ "${1:-}" == -m && "${2:-}" == pip ]] && exit 127' \
     'exec python3 "$@"' > "${STUB_SAFE}/python"
   chmod +x "${STUB_SAFE}/python"
+  # Sem pacman-conf no PATH isolado, a lista de IgnorePkg cai no parse do
+  # pacman.conf: nunca o da máquina.
+  export PACMAN_CONF_FILE="${BATS_TEST_TMPDIR}/pacman.conf"
   export STUB_BIN STUB_SAFE STUB_LOG
   export PATH="${STUB_BIN}:${STUB_SAFE}"
   hash -r

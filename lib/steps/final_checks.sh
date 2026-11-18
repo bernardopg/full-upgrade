@@ -44,10 +44,11 @@ pacman_ignored_packages() {
   # fallback quando o binário não existe ou falha de verdade.
   if has pacman-conf; then
     out="$(pacman-conf IgnorePkg 2>/dev/null)" || conf_rc=1
+  else
+    conf_rc=1
   fi
   if (( conf_rc != 0 )); then
-    out="$(sed -nE 's/^[[:space:]]*IgnorePkg[[:space:]]*=[[:space:]]*(.*)$/\1/p' \
-      "${PACMAN_CONF_FILE:-/etc/pacman.conf}" 2>/dev/null || true)"
+    out="$(sed -nE 's/^[[:space:]]*IgnorePkg[[:space:]]*=[[:space:]]*(.*)$/\1/p' "${PACMAN_CONF_FILE:-/etc/pacman.conf}" 2>/dev/null || true)"
   fi
   [[ $out == *[![:space:]]* ]] || return 0
   # `pacman-conf` devolve a lista separada por espaço; o pacman.conf aceita

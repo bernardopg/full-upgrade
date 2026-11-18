@@ -511,7 +511,7 @@ gem_shadow_diff() {
       }
       return out
     }
-    FILENAME == ARGV[1] { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }   # não NR == FNR: falha com o 1º arquivo vazio
+    !segundo { if ($0 ~ /\(/) sysv[gname($0)] = realvers($0); next }   # não NR == FNR: falha com o 1º arquivo vazio
     {
       if ($0 !~ /\(/) next
       name = gname($0)
@@ -526,7 +526,7 @@ gem_shadow_diff() {
       }
       if (diff) print name "|" sysv[name] "|" uv
     }
-  ' "$sys" "$usr"
+  ' "$sys" segundo=1 "$usr"
   # kcov-excl-stop
 }
 
@@ -619,8 +619,7 @@ doctor_mcp_servers() {
     has_source=1
     # O wrapper local do Codex reutiliza a credencial protegida pelo keyring do
     # gh. Espelha a resolução no Doctor sem persistir/imprimir o token.
-    if [[ -z "$CODEX_GITHUB_PERSONAL_ACCESS_TOKEN" ]] \
-       && grep -q 'CODEX_GITHUB_PERSONAL_ACCESS_TOKEN' "$codex_toml" && has gh; then
+    if [[ -z "$CODEX_GITHUB_PERSONAL_ACCESS_TOKEN" ]] && grep -q 'CODEX_GITHUB_PERSONAL_ACCESS_TOKEN' "$codex_toml" && has gh; then
       CODEX_GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token 2>/dev/null || true)"
     fi
     local cname cdetail cissue

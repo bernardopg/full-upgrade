@@ -4,6 +4,56 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- **Servers MCP fixados nunca eram comparados com a última release:** o plano
+  de cada server era lido com `IFS=$'\t'`, e tab é espaço em branco para o
+  IFS: campos vazios no meio colapsam. Um server npx fixado (sem nome de
+  distribuição) tinha o pin lido como distribuição, e o `@playwright/mcp`
+  fixado passava calado.
+- **Resumo listava todo pacote como removido:** `pkg_diff` usava `FNR == NR`
+  no awk, que também vale no segundo arquivo quando o primeiro está vazio. O
+  mesmo idioma afetava `gem_user_updatable` (sem gems do sistema, nenhuma gem
+  do usuário era atualizada), o Doctor de gems e o merge de `.pacnew` sobre um
+  arquivo vazio. Todos passam a marcar o segundo arquivo com uma atribuição
+  na lista de argumentos (`segundo=1`).
+- **Ctrl-C no `--config-tui` às vezes só voltava ao menu:** digitado entre duas
+  leituras, ele chega como byte em raw mode. Agora restaura o terminal e sai
+  com 130, como o SIGINT.
+- **Kernel desatualizado não era detectado pelo needrestart:** o modo batch
+  imprime `NEEDRESTART-KSTA: 3`, e o parser procurava `=`.
+- O backend yad (X11) do tray usava "1 avisos e pendências".
+- **IgnorePkg sem `pacman-conf`:** a lista de pacotes segurados devia cair no
+  parse do `pacman.conf` e não caía.
+- **Commits do projeto saíam como "Test <test@test.com>" e sem assinatura:** um
+  teste de set/2026 gravou identidade e `commit.gpgsign=false` no `.git/config`
+  do repositório (o `GIT_DIR` do hook pre-push vazava para os testes). A
+  configuração foi limpa e `tests/repo_hygiene.bats` impede a volta.
+
+### Testes
+
+- Cobertura de 57% para 100%: testes novos para os Doctors de sistema, disco,
+  SMART, boot, Python, JavaScript e pacman; update do pacman/AUR, npm, pnpm,
+  corepack, Snap, Neovim, Oh My Zsh, Yazi, Arduino, Android CLI, firmware,
+  bootctl, pip e gems; auto-update do full-upgrade; binários verificados (gk,
+  RTK, Snyk, ZAP); snapshots, mirrors e `.pacnew`; Antigravity e Burp; telas do
+  TUI e `--config`. `tests/stub_helper.bash` isola o PATH, então nenhum teste
+  chega a um gerenciador de pacotes real.
+- awk e Python embutidos saem da medição do kcov (marcadores
+  `# kcov-excl-start`/`# kcov-excl-stop`): o kcov não os instrumenta e os
+  contava como linhas nunca executadas.
+- Prompts `[s/N]` e o `--config-tui` rodam num pseudo-terminal
+  (`pty_call`, `tests/pty_run.py`, `tests/tui_pty.py`).
+- O kcov é compilado com `scripts/kcov-bash-quote-state.patch`: um `'` sem par
+  numa linha do xtrace fazia o kcov ignorar todo o trace seguinte, de todos os
+  processos, e a cobertura mudava com a ordem dos testes.
+- Testes isolados do HOME real: os diretórios XDG da sessão são removidos, o
+  `pty_call` recoloca o PATH isolado (um teste rodava o `cargo install-update`
+  da máquina) e `PACMAN_CONF_FILE` aponta para um arquivo descartável.
+- Os drivers de PTY esperam a tela ficar quieta e o processo ser colhido, em
+  vez de pausas fixas: sob `bats --jobs` o driver matava um TUI que já tinha
+  saído certo.
+
 ## [4.0.0] - 2026-11-17
 ### Destaques
 
@@ -16,20 +66,6 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   releases.
 - Plugins do Claude Code de 4–7 min para ~30 s; Doctor do Flatpak de 60 s
   (timeout) para 1 s.
-
-### Testes
-
-- Cobertura de 57% para 79%: testes novos para os Doctors de sistema, disco,
-  SMART, boot, Python, JavaScript e pacman; update do pacman/AUR, npm, pnpm,
-  corepack, Snap, Neovim, Oh My Zsh, Yazi, Arduino, Android CLI, firmware,
-  bootctl, pip e gems; auto-update do full-upgrade; binários verificados (gk,
-  RTK, Snyk, ZAP); snapshots, mirrors e `.pacnew`; Antigravity e Burp; telas do
-  TUI e `--config`. `tests/stub_helper.bash` isola o PATH, então nenhum teste
-  chega a um gerenciador de pacotes real.
-- awk e Python embutidos saem da medição do kcov (marcadores
-  `# kcov-excl-start`/`# kcov-excl-stop`): o kcov não os instrumenta e os
-  contava como linhas nunca executadas.
-- O backend yad (X11) do tray também usava "1 avisos e pendências".
 
 ### Documentação
 

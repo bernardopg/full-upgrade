@@ -77,3 +77,14 @@ _mcp_sources() {
   MCP_AUTO_UPDATE=1 run doctor_mcp_servers
   [[ "$output" == *"MCP_AUTO_UPDATE=1"* ]]
 }
+
+@test "MCP: token do Codex resolvido pelo gh e entrada inválida no JSON do hub" {
+  mkdir -p "$HOME/.codex"
+  printf '[mcp_servers.gh]\ncommand = "x"\nenv = { GITHUB_PERSONAL_ACCESS_TOKEN = "${CODEX_GITHUB_PERSONAL_ACCESS_TOKEN}" }\n' > "$HOME/.codex/config.toml"
+  stub gh 0 "gho_teste"
+  echo '{lixo' > "$HOME/hub.json"
+  mcp_hub_drift() { return 0; }
+  mcp_hub_json() { echo "$HOME/hub.json"; }
+  run doctor_mcp_servers
+  [[ "$output" == *"hub: JSON inválido"* ]]
+}

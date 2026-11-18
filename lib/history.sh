@@ -15,10 +15,7 @@ _history_jsonl_files() {
   while IFS= read -r f; do
     jsonl_is_dry_run "$f" && continue
     printf '%s\n' "$f"
-  done < <(
-    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-      | sort -rn | cut -d' ' -f2-
-  ) | head -n "$n"
+  done < <(jsonl_files_newest_first) | head -n "$n"
 }
 
 # Extrai de um JSONL a linha TSV do run:
@@ -27,6 +24,7 @@ _history_jsonl_files() {
 # Runs gravados antes do campo scope saem com "—".
 _history_row_for() {
   awk '
+    # kcov-excl-start (programa embutido, não é Bash)
     function jnum(line, key,   p, c, o, kk) {
       kk = "\"" key "\":"; p = index(line, kk); if (!p) return ""
       p += length(kk); o = ""
@@ -60,6 +58,7 @@ _history_row_for() {
       printf "%s\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", (ver == "" ? "—" : ver), d, ok, warn, todo, fail, skip, dur, (scope == "" ? "—" : scope)
     }
   ' "$1"
+  # kcov-excl-stop
 }
 
 # Emite (stdout) os nomes de step com status warn/todo de um JSONL, deduplicados
@@ -91,6 +90,12 @@ _history_line() {
 }
 
 # F8 — tabela/tendência dos últimos N runs. Read-only, sem rede.
+# Steps com warn/todo em 2+ dos JSONLs dados: "N× nome", do mais frequente.
+_history_recurrent_steps() {
+  local f
+  for f in "$@"; do _history_warn_todo_steps "$f"; done | sort | uniq -c | sort -rn | awk '$1 >= 2 { c = $1; $1 = ""; sub(/^ +/, ""); printf "%d× %s\n", c, $0 }'
+}
+
 report_history() {
   local n="${1:-10}"
   [[ "$n" =~ ^[0-9]+$ ]] || n=10
@@ -178,11 +183,7 @@ report_history() {
 
   # ── Warns/todos recorrentes (em >=2 runs) ──
   local -a recur=()
-  mapfile -t recur < <(
-    for f in "${files[@]}"; do
-      _history_warn_todo_steps "$f"
-    done | sort | uniq -c | sort -rn | awk '$1 >= 2 { c = $1; $1 = ""; sub(/^ +/, ""); printf "%d× %s\n", c, $0 }'
-  )
+  mapfile -t recur < <(_history_recurrent_steps "${files[@]}")
   if (( ${#recur[@]} > 0 )); then
     printf '\nWarns/todos recorrentes (em ≥2 runs):\n'
     for row in "${recur[@]}"; do

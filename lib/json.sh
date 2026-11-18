@@ -70,8 +70,8 @@ run_args_json() {
 
 write_run_event_json() {
   local event="$1"
-  write_jsonl "$(
-    printf '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"dry_run":%s,"pid":%s,"scope":%s,"args":%s}\n' \
+  local _jl
+  printf -v _jl '{"event":%s,"run_id":%s,"timestamp":%s,"script_version":%s,"script_path":%s,"script_sha256":%s,"log_file":%s,"jsonl_file":%s,"dry_run":%s,"pid":%s,"scope":%s,"args":%s}' \
       "$(json_escape "$event")" \
       "$(json_escape "$RUN_ID")" \
       "$(json_escape "$(date -Is)")" \
@@ -84,7 +84,7 @@ write_run_event_json() {
       "$$" \
       "$(json_escape "$(run_scope_label)")" \
       "$(run_args_json)"
-  )"
+  write_jsonl "$_jl"
 }
 
 write_step_event_json() {
@@ -99,8 +99,8 @@ write_step_event_json() {
   IFS='|' read -r category tags effect timeout cmd_deps func_name desc < <(catalog_info_for_step "$name")
   [[ -z "$command" ]] && command="$func_name"
 
-  write_jsonl "$(
-    printf '{"event":"step","run_id":%s,"timestamp":%s,"step":%s,"status":%s,"duration_seconds":%s,"exit_code":%s,"reason":%s,"category":%s,"tags":%s,"effect":%s,"timeout":%s,"cmd_deps":%s,"func_name":%s,"command":%s,"description":%s,"started_at":%s}\n' \
+  local _jl
+  printf -v _jl '{"event":"step","run_id":%s,"timestamp":%s,"step":%s,"status":%s,"duration_seconds":%s,"exit_code":%s,"reason":%s,"category":%s,"tags":%s,"effect":%s,"timeout":%s,"cmd_deps":%s,"func_name":%s,"command":%s,"description":%s,"started_at":%s}' \
       "$(json_escape "$RUN_ID")" \
       "$(json_escape "$(date -Is)")" \
       "$(json_escape "$name")" \
@@ -117,7 +117,7 @@ write_step_event_json() {
       "$(json_escape "$command")" \
       "$(json_escape "$desc")" \
       "$(json_escape "$STEP_START_ISO")"
-  )"
+  write_jsonl "$_jl"
 }
 
 summary_json_line() {
@@ -183,10 +183,7 @@ rotate_logs() {
   [[ -d "${LOG_DIR:-}" ]] || return 0
 
   local -a all_runs=()
-  mapfile -t all_runs < <(
-    find "$LOG_DIR" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null \
-      | grep -oE '[0-9]{8}-[0-9]{6}-[0-9]+' | sort -ru
-  )
+  mapfile -t all_runs < <(find "$LOG_DIR" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | grep -oE '[0-9]{8}-[0-9]{6}-[0-9]+' | sort -ru)
   (( ${#all_runs[@]} > MAX_LOGS )) || return 0
 
   # RUN_IDs a apagar = todos menos os MAX_LOGS mais recentes. O run atual é o
@@ -216,10 +213,10 @@ write_pkg_changes_json() {
   # no run X" é a pergunta forense central de um upgrader, o diff já está
   # calculado aqui, e os snapshots .pkgs-before são rotacionados — sem isto o
   # JSONL vira o único registro durável e ele só dizia "4 atualizados".
-  write_jsonl "$(
-    printf '{"event":"pkg_changes","run_id":%s,"upgraded":%d,"installed":%d,"removed":%d,"packages":%s}\n' \
+  local _jl
+  printf -v _jl '{"event":"pkg_changes","run_id":%s,"upgraded":%d,"installed":%d,"removed":%d,"packages":%s}' \
       "$(json_escape "$RUN_ID")" "$up" "$ins" "$rem" "$(pkg_diff_json "$diff")"
-  )"
+  write_jsonl "$_jl"
 }
 
 # Converte a saída do pkg_diff ("U nome antes depois" / "I nome ver" /
@@ -274,11 +271,11 @@ write_news_json() {
   [[ "$items" == *'"kind"'* ]] || return 0
   local action_count
   action_count="$(grep -c '|action|' "$NEWS_RECORDS_FILE" 2>/dev/null || true)"
-  write_jsonl "$(
-    printf '{"event":"news","run_id":%s,"count":%d,"action_count":%d,"items":%s}\n' \
+  local _jl
+  printf -v _jl '{"event":"news","run_id":%s,"count":%d,"action_count":%d,"items":%s}' \
       "$(json_escape "$RUN_ID")" "$(grep -c '|' "$NEWS_RECORDS_FILE" 2>/dev/null || true)" \
       "$action_count" "$items"
-  )"
+  write_jsonl "$_jl"
 }
 
 # L2 — jsonl mais recente de um run REAL (dry_run:false). Ignora dry-runs (que
@@ -292,11 +289,13 @@ resume_latest_real_jsonl() {
       printf '%s\n' "$f"
       return 0
     fi
-  done < <(
-    find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null \
-      | sort -rn | cut -d' ' -f2-
-  )
+  done < <(jsonl_files_newest_first)
   return 1
+}
+
+# JSONLs de run em LOG_DIR, do mais novo para o mais antigo (um por linha).
+jsonl_files_newest_first() {
+  find "$LOG_DIR" -maxdepth 1 -name 'full-upgrade-*.jsonl' -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-
 }
 
 # L2 — nomes de steps do último run REAL (ou do jsonl em $1) que NÃO fecharam ok:

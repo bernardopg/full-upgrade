@@ -204,6 +204,7 @@ EOF
 # Base do typo-guard: mede o quão perto uma chave digitada está de uma válida.
 levenshtein() {
   awk -v a="$1" -v b="$2" '
+    # kcov-excl-start (programa embutido, não é Bash)
     BEGIN {
       la = length(a); lb = length(b)
       for (i = 0; i <= la; i++) d[i, 0] = i
@@ -220,6 +221,7 @@ levenshtein() {
       }
       print d[la, lb]
     }'
+  # kcov-excl-stop
 }
 
 # L4 — nomes de variáveis atribuídas no topo de um config bash ($1). Captura
@@ -265,8 +267,7 @@ config_warn_typos() {
   while IFS='|' read -r key sug; do
     [[ -n "$key" && -n "$sug" ]] || continue
     if (( n++ == 0 )); then
-      printf '%s%s  [CONFIG] Chave(s) não reconhecida(s) — possível erro de digitação:%s\n' \
-        "$C_YELLOW" "$C_BOLD" "$C_RESET" >&2
+      printf '%s%s  [CONFIG] Chave(s) não reconhecida(s) — possível erro de digitação:%s\n' "$C_YELLOW" "$C_BOLD" "$C_RESET" >&2
     fi
     printf '%s    %s → talvez %s?%s\n' "$C_YELLOW" "$key" "$sug" "$C_RESET" >&2
   done < <(config_lint_keys "$FU_CONFIG_FILE")

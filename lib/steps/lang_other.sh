@@ -169,9 +169,11 @@ gem_user_updatable() {
   local outdated="$1" arch="$2"
   [[ -r "$outdated" && -r "$arch" ]] || return 0
   awk '
-    FILENAME == ARGV[1] { if ($0 ~ /\(/) arch[$1] = 1; next }   # não NR == FNR: falha com o 1º arquivo vazio
+    # kcov-excl-start (programa embutido, não é Bash)
+    !segundo { if ($0 ~ /\(/) arch[$1] = 1; next }   # não NR == FNR: falha com o 1º arquivo vazio
     $0 ~ /\(/ { if (!($1 in arch)) print $1 }
-  ' "$arch" "$outdated"
+  ' "$arch" segundo=1 "$outdated"
+  # kcov-excl-stop
 }
 
 
