@@ -58,6 +58,7 @@ foo 1.0 requires bar, which is not installed."
 }
 
 @test "python_env: pipx e uv saudáveis" {
+  _python_pip 0
   stub_script pipx 'echo "{\"venvs\":{\"ok\":{\"metadata\":{\"python_path\":\"/bin/sh\"}}}}"'
   stub_script uv 'echo "[{\"name\":\"ruff\",\"python\":\"/bin/sh\"}]"'
   run doctor_python_env

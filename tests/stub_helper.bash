@@ -16,7 +16,7 @@
 STUB_SAFE_BINS=(
   awk basename bash cat chmod cmp comm cp cut date diff dirname du env expr
   false find getent grep gzip head id install jq ln ls md5sum mkdir mktemp
-  mv nproc od paste printf python python3 readlink realpath rm rmdir sed seq sh
+  mv nproc od paste printf python3 readlink realpath rm rmdir sed seq sh
   sha256sum sleep sort stat tac tail tar tee timeout touch tr true truncate
   uname uniq wc xargs zstd
 )
@@ -32,6 +32,13 @@ stub_path_init() {
     p="$(type -P "$b" 2>/dev/null)" || continue
     [[ "$p" == /* ]] && ln -sf "$p" "${STUB_SAFE}/${b}"
   done
+  # `python` repassa scripts ao Python real, mas recusa `-m pip`: um teste que
+  # esqueça de stubar o pip não pode rodar `pip check`/`pip install` da máquina
+  # (no runner do CI o `pip check` real falha e mudava o resultado do teste).
+  printf '%s\n' '#!/usr/bin/env bash' \
+    '[[ "${1:-}" == -m && "${2:-}" == pip ]] && exit 127' \
+    'exec python3 "$@"' > "${STUB_SAFE}/python"
+  chmod +x "${STUB_SAFE}/python"
   export STUB_BIN STUB_SAFE STUB_LOG
   export PATH="${STUB_BIN}:${STUB_SAFE}"
   hash -r
