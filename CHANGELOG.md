@@ -4,6 +4,71 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- **Cinco steps para componentes que nenhum gerenciador atualiza:**
+  - `Atualizar CLIProxyAPI` (`tools`): release do GitHub com `checksums.txt`
+    obrigatório, troca atômica do symlink de versão, restart do serviço de
+    usuário com rollback se ele não subir e poda de versões antigas
+    (`CLIPROXYAPI_KEEP_VERSIONS`, `CLIPROXYAPI_RESTART_SERVICE`,
+    `CLIPROXYAPI_SERVICE`, `CLIPROXYAPI_BIN`).
+  - `Atualizar extensões do gh (GitHub CLI)` (`tools`): `gh extension upgrade
+    --all`; repositório sumido vira `todo`.
+  - `Atualizar assinaturas do ClamAV (freshclam)` (`security`): roda só quando
+    nem `clamav-freshclam.service` nem `clamav-freshclam-once.timer` estão
+    ativos; cool-down do CDN vira `warn`.
+  - `Atualizar ferramentas mise` (`lang-other`): `mise upgrade` dentro do
+    intervalo do config, a partir do `$HOME`, só quando `mise outdated` aponta
+    versão nova.
+  - `Atualizar plugins Zsh avulsos (git)` (`shell`): clones git carregados
+    direto pelo `.zshrc` fora do Oh My Zsh (`ZSH_STANDALONE_PLUGIN_DIRS`), com a
+    mesma política dos plugins customizados.
+- `Doctor: apps manuais` reconhece o `cli-proxy-api` como coberto.
+- **Mais vinte steps para componentes sem dono** (Série W, W8–W27):
+  - `packages`: `Atualizar bases de arquivos (pacman -F e pkgfile)`.
+  - `security`: templates do nuclei, Exploit-DB em clone git (`searchsploit
+    -u`) e rkhunter (`--update` e `--propupd` depois do upgrade).
+  - `lang-other`: juliaup/elan/coursier/SDKMAN!, Composer global e
+    `Checar ESP-IDF (EIM)` (só leitura; patch novo na série vira `todo`).
+  - `ai`: `Atualizar modelos do Ollama` (opt-in `OLLAMA_MODELS_UPDATE`).
+  - `tools`: Proton-GE (`PROTON_GE_KEEP`, `PROTON_GE_DIR`), Spicetify, krew,
+    plugins do Helm, AppImages com zsync (`APPIMAGE_DIRS`), Nerd Fonts
+    (`NERD_FONTS_DIR`), `Checar plugins do KiCad (PCM)` (só leitura) e arkenfox.
+  - `shell`: zinit/antidote/sheldon, tmux (tpm) e fish (fisher).
+  - `editor`: parsers do nvim-treesitter.
+- Helpers `_native_update` e `github_latest_release_tag` (regex de tag
+  configurável) em `manual_apps.sh`.
+
+### Corrigido
+
+- **Fonte do PKGBUILD em 404 era baixada três vezes:** o paru repetia o build
+  (com limpeza de cache entre as tentativas) para um arquivo que não existe.
+  Agora o retry para no primeiro 404 e o motivo do `todo` diz que a fonte sumiu.
+- **Uma falha AUR virava três "ações necessárias":** o pacote que falhou
+  build/download no run (caso real: `stably-orca-bin` com a fonte em 404) saía
+  como `todo` no step do sistema, de novo na verificação final ("rode paru
+  -Syu", que falharia igual) e no autofix. Os dois últimos agora leem o sidecar
+  `.aur-build-failed` e não repetem o item.
+
+### Testes
+
+- `tests/manual_steps_series_w.bats` (55) e `tests/series_w_candidates.bats`
+  (47) cobrem os 25 steps novos com stubs de `curl`, `systemctl`, `gh`,
+  `freshclam`, `mise`, tarballs e repositórios git descartáveis; todas as
+  linhas novas medidas por xtrace. Suíte: 2408 testes.
+- Regressões da dedupe do `todo` AUR (`tests/final_check_managers.bats`,
+  `tests/autofix_final_pending.bats`) e do corte do retry em 404
+  (`tests/pacman_update_cov.bats`).
+
+### Documentação
+
+- `docs/steps.md` e `docs/configuration.md` cobrem os steps e as chaves novas;
+  `--help steps` lista as ferramentas novas por categoria; README ganhou o
+  destaque do que nenhum gerenciador atualiza.
+- `TO-DO.md`: Série W (run real de 2026-11-19 e 25 steps) e Série X, com 50
+  processos recomendados a partir do estado real da máquina de referência
+  (segurança, disco/btrfs/boot, caches, clones e apps).
+
 ## [4.1.0] - 2026-11-18
 ### Adicionado
 
