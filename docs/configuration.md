@@ -92,7 +92,7 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `FULL_UPGRADE_PIP_USER_IGNORE` | vazio | Pacotes `pip --user` fora do update. `poetry-core` entra sozinho quando o Poetry o fixa. |
 | `FULL_UPGRADE_UV_TOOL_HOLD_IGNORE` | vazio | Ferramentas uv fixadas de propósito: o step não acusa que estão atrás do PyPI. |
 | `RUST_CVE_REBUILD_TTL_D` | `7` | Dias antes de repetir um rebuild cargo que não corrigiu a CVE. |
-| `GCLOUD_BIN`, `COPILOT_BIN`, `MIMO_BIN`, `OPENCLAW_BIN`, `RTK_BIN`, `ORCA_IDE_BIN` | auto | Overrides de binário. |
+| `GCLOUD_BIN`, `COPILOT_BIN`, `MIMO_BIN`, `CLIPROXYAPI_BIN`, `OPENCLAW_BIN`, `RTK_BIN`, `ORCA_IDE_BIN` | auto | Overrides de binário. |
 | `BURPSUITE_JAVA_BIN` | auto | Java do fallback de instalação do Burp. |
 
 ### IA, IDE e plugins
@@ -105,12 +105,22 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `AGENT_SKILLS_TIMEOUT_S` | `60` | Orçamento do `npx skills update --global`; versão lenta do CLI cai para a última boa. |
 | `AI_CLI_VERSION_TIMEOUT_S` | `5` | Limite de cada `<cli> --version` no Doctor. |
 | `OLLAMA_SELF_UPDATE` | `0` | `1` reexecuta o instalador oficial do Ollama. |
+| `CLIPROXYAPI_KEEP_VERSIONS` | `2` | Versões do CLIProxyAPI mantidas em `<home>/versions` (a em uso e a de rollback); mínimo 1. |
+| `CLIPROXYAPI_RESTART_SERVICE` | `1` | Reinicia o serviço de usuário depois do update; se ele não volta ativo, o binário anterior é restaurado. `0` só troca o binário. |
+| `CLIPROXYAPI_SERVICE` | `cliproxyapi.service` | Unit `systemctl --user` do CLIProxyAPI. |
+| `OLLAMA_MODELS_UPDATE` | `0` | `1` renova os modelos baixados do Ollama (`ollama pull` só traz as camadas que mudaram, mas um modelo pode ter dezenas de GB). |
 | `MCP_AUTO_UPDATE` | `0` | `1` renova o cache uv dos servidores MCP uvx. |
 | `MCP_HUB_RENDER` | `1` | Realinha as configs MCP de todos os harnesses ao hub `mcp/servers.json` do claude-env. |
 | `CLAUDE_ENV_DIR` | `~/claude-env` | Repositório claude-env (hub MCP e renderer). |
 | `IDE_EXT_CLIS` | auto | CLIs da família VSCode para atualizar extensões. |
 | `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins DankMaterialShell fixados (globs permitidos): nunca sofrem fetch, pull nem reset. |
 | `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` | Diretório dos plugins DankMaterialShell. |
+| `PROTON_GE_KEEP` | `0` | GE-Proton mantidos em `compatibilitytools.d` depois de instalar um novo. `0` nunca remove (o Steam fixa a versão por jogo). |
+| `PROTON_GE_DIR` | auto | `compatibilitytools.d` do Steam; vazio usa o que já tem algum GE-Proton. |
+| `APPIMAGE_DIRS` | auto | Diretórios com AppImages (espaço ou vírgula). Vazio: `~/Applications`, `~/AppImages`, `~/.local/bin`, `~/.local/opt`. |
+| `NERD_FONTS_DIR` | `~/.local/share/fonts/NerdFonts` | Raiz das famílias Nerd Fonts gerenciadas, uma pasta por família com o nome do asset do release (`JetBrainsMono`, `FiraCode`…). |
+| `EXPLOITDB_DIR` | auto | Clone git do Exploit-DB; vazio procura `/opt/exploitdb` e `~/exploitdb`. |
+| `ZSH_STANDALONE_PLUGIN_DIRS` | auto | Clones git de plugins Zsh fora do Oh My Zsh (espaço ou vírgula; globs e `~` aceitos). Vazio detecta `~/.local/share/zsh-*`, `~/.zsh/plugins/*`, `$ZDOTDIR/plugins/*` e `~/.config/zsh/plugins/*`. |
 | `ARTCRAFT_DIR` | `~/development/artcraft` | Inventário da suíte Artcraft. |
 
 ### Doctor

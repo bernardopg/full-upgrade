@@ -41,8 +41,12 @@ falhou, do que é só aviso e do que exige ação sua.
 
 ## Destaques
 
-- **Cobertura ampla, por presença:** mais de 150 steps em 19 categorias.
+- **Cobertura ampla, por presença:** mais de 175 steps em 19 categorias.
   Ferramenta ausente vira `skip` com o motivo; nada quebra o fluxo.
+- **Também o que nenhum gerenciador atualiza:** binários baixados à mão
+  (CLIProxyAPI, Proton-GE, Nerd Fonts, AppImages), extensões e plugins (gh,
+  krew, Helm, tmux, fish, zinit, treesitter), bases de segurança (ClamAV,
+  nuclei, Exploit-DB, rkhunter) e toolchains (mise, juliaup, elan, SDKMAN!).
 - **Seguro por construção:** lock anti-concorrência, snapshot pré-upgrade,
   backup de `/etc`, timeouts por step, `--dry-run` e um `--mode doctor`
   garantidamente read-only.

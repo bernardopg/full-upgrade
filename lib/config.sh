@@ -68,6 +68,16 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${CLAUDE_ENV_DIR:=${HOME}/claude-env}" # repositório claude-env (hub MCP em mcp/servers.json, renderer em scripts/mcp_render.py)
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
+: "${CLIPROXYAPI_KEEP_VERSIONS:=2}"  # versões do CLIProxyAPI mantidas em <home>/versions (a em uso + rollback; mínimo 1)
+: "${CLIPROXYAPI_RESTART_SERVICE:=1}" # 1 = reinicia o serviço de usuário do CLIProxyAPI após o update (rollback se não subir); 0 = só troca o binário
+: "${CLIPROXYAPI_SERVICE:=cliproxyapi.service}" # unit systemd --user do CLIProxyAPI
+: "${OLLAMA_MODELS_UPDATE:=0}"       # 1 = step 'Atualizar modelos do Ollama' renova os modelos baixados (ollama pull); 0 = só informa
+: "${PROTON_GE_KEEP:=0}"             # GE-Proton mantidos em compatibilitytools.d após instalar um novo (0 = nunca remove)
+: "${PROTON_GE_DIR:=}"               # compatibilitytools.d do Steam (vazio = detecta o que já tem GE-Proton)
+: "${APPIMAGE_DIRS:=}"               # diretórios com AppImages (espaço/vírgula); vazio = ~/Applications ~/AppImages ~/.local/bin ~/.local/opt
+: "${NERD_FONTS_DIR:=}"              # raiz das famílias Nerd Fonts gerenciadas (vazio = ~/.local/share/fonts/NerdFonts)
+: "${EXPLOITDB_DIR:=}"               # clone git do Exploit-DB (vazio = /opt/exploitdb, ~/exploitdb)
+: "${ZSH_STANDALONE_PLUGIN_DIRS:=}"  # clones git de plugins Zsh fora do OMZ (espaço/vírgula, globs); vazio = ~/.local/share/zsh-*, ~/.zsh/plugins/*, $ZDOTDIR/plugins/*
 : "${IDE_EXT_CLIS:=}"               # lista (espaço) de CLIs VSCode-family p/ atualizar extensões; vazio = autodetect (code cursor codium ...)
 : "${FULL_UPGRADE_DISABLED_INTEGRATIONS:=}" # IDs estáveis (ex.: openclaw,coderabbit)
 # Backup de configs críticas antes das mutações (F1)
@@ -82,6 +92,7 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${GCLOUD_BIN:=}"
 : "${COPILOT_BIN:=}"
 : "${MIMO_BIN:=}"
+: "${CLIPROXYAPI_BIN:=}"
 : "${DMS_PLUGINS_DIR:=}"
 : "${OPENCLAW_BIN:=}"
 : "${ARTCRAFT_DIR:=$HOME/development/artcraft}"
@@ -179,6 +190,16 @@ MCP_HUB_RENDER
 CLAUDE_ENV_DIR
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
+CLIPROXYAPI_KEEP_VERSIONS
+CLIPROXYAPI_RESTART_SERVICE
+CLIPROXYAPI_SERVICE
+ZSH_STANDALONE_PLUGIN_DIRS
+OLLAMA_MODELS_UPDATE
+PROTON_GE_KEEP
+PROTON_GE_DIR
+APPIMAGE_DIRS
+NERD_FONTS_DIR
+EXPLOITDB_DIR
 IDE_EXT_CLIS
 FULL_UPGRADE_REPO
 FULL_UPGRADE_UPDATE_CHANNEL
@@ -193,6 +214,7 @@ COREDUMP_IGNORE_EXE
 GCLOUD_BIN
 COPILOT_BIN
 MIMO_BIN
+CLIPROXYAPI_BIN
 DMS_PLUGINS_DIR
 OPENCLAW_BIN
 ARTCRAFT_DIR
@@ -402,9 +424,11 @@ load_config() {
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE TRAY_ICON_COLOR
   export AUR_HELPER PRIV_CMD
   export ARTCRAFT_DIR
-  export GCLOUD_BIN COPILOT_BIN MIMO_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
+  export GCLOUD_BIN COPILOT_BIN MIMO_BIN CLIPROXYAPI_BIN OPENCLAW_BIN ORCA_IDE_BIN ANTIGRAVITY_BIN ANTIGRAVITY_IDE_BIN DMS_PLUGINS_DIR
   export FULL_UPGRADE_REPO FULL_UPGRADE_UPDATE_CHANNEL FULL_UPGRADE_DISABLED_INTEGRATIONS STALE_SERVICES_IGNORE COREDUMP_IGNORE_EXE
   export FULL_UPGRADE_DMS_PLUGINS_IGNORE FULL_UPGRADE_UV_TOOL_HOLD_IGNORE DOCKER_PULL_JOBS CLAUDE_PLUGIN_PREFILTER
+  export CLIPROXYAPI_KEEP_VERSIONS CLIPROXYAPI_RESTART_SERVICE CLIPROXYAPI_SERVICE ZSH_STANDALONE_PLUGIN_DIRS
+  export OLLAMA_MODELS_UPDATE PROTON_GE_KEEP PROTON_GE_DIR APPIMAGE_DIRS NERD_FONTS_DIR EXPLOITDB_DIR
 
   # L4 — typo-guard: avisa (não bloqueia) sobre chaves de config mal-digitadas.
   config_warn_typos
@@ -624,6 +648,29 @@ CLAUDE_ENV_DIR="${HOME}/claude-env"
 # (curl -fsSL https://ollama.com/install.sh | sh) no step "Atualizar Ollama".
 OLLAMA_SELF_UPDATE=0
 
+# ── CLIProxyAPI (release do GitHub fora de pacote) ──
+# Versões mantidas em <home>/versions (a em uso + rollback; mínimo 1).
+CLIPROXYAPI_KEEP_VERSIONS=2
+# 1 = reinicia o serviço de usuário após o update; se não subir, volta o binário anterior.
+CLIPROXYAPI_RESTART_SERVICE=1
+CLIPROXYAPI_SERVICE="cliproxyapi.service"
+
+# ── Plugins Zsh avulsos (clones git fora do Oh My Zsh) ──
+# Vazio = detecta ~/.local/share/zsh-*, ~/.zsh/plugins/*, $ZDOTDIR/plugins/*.
+ZSH_STANDALONE_PLUGIN_DIRS=""
+
+# ── Componentes fora de gerenciador (Série W) ──
+# 1 = renova os modelos baixados do Ollama (cada pull pode ter dezenas de GB).
+OLLAMA_MODELS_UPDATE=0
+# GE-Proton mantidos depois de instalar um novo (0 = nunca remove; o Steam fixa por jogo).
+PROTON_GE_KEEP=0
+#PROTON_GE_DIR="$HOME/.local/share/Steam/compatibilitytools.d"
+# Diretórios com AppImages (vazio = ~/Applications ~/AppImages ~/.local/bin ~/.local/opt).
+APPIMAGE_DIRS=""
+# Famílias Nerd Fonts gerenciadas ficam em <dir>/<Família> (vazio = ~/.local/share/fonts/NerdFonts).
+NERD_FONTS_DIR=""
+#EXPLOITDB_DIR="/opt/exploitdb"
+
 # ── Extensões de IDE (H3) ──
 # Lista (separada por espaço) de CLIs VSCode-family cujas extensões atualizar.
 # Vazio = autodetect (code cursor codium code-insiders vscodium).
@@ -655,6 +702,7 @@ COREDUMP_IGNORE_EXE=""
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
 # MIMO_BIN="$HOME/.mimocode/bin/mimo"
+# CLIPROXYAPI_BIN="$HOME/.local/bin/cli-proxy-api"
 # DMS_PLUGINS_DIR="$HOME/.config/dms/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ARTCRAFT_DIR="$HOME/development/artcraft"
@@ -774,6 +822,16 @@ show_config() {
   _cfg_kv "MCP_HUB_RENDER" "$MCP_HUB_RENDER"
   _cfg_kv "CLAUDE_ENV_DIR" "$CLAUDE_ENV_DIR"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
+  _cfg_kv "CLIPROXYAPI_KEEP_VERSIONS" "$CLIPROXYAPI_KEEP_VERSIONS"
+  _cfg_kv "CLIPROXYAPI_RESTART_SERVICE" "$CLIPROXYAPI_RESTART_SERVICE"
+  _cfg_kv "CLIPROXYAPI_SERVICE" "$CLIPROXYAPI_SERVICE"
+  _cfg_kv "ZSH_STANDALONE_PLUGIN_DIRS" "${ZSH_STANDALONE_PLUGIN_DIRS:-(autodetect)}"
+  _cfg_kv "OLLAMA_MODELS_UPDATE" "$OLLAMA_MODELS_UPDATE"
+  _cfg_kv "PROTON_GE_KEEP" "$PROTON_GE_KEEP"
+  _cfg_kv "PROTON_GE_DIR" "${PROTON_GE_DIR:-(autodetect)}"
+  _cfg_kv "APPIMAGE_DIRS" "${APPIMAGE_DIRS:-(autodetect)}"
+  _cfg_kv "NERD_FONTS_DIR" "${NERD_FONTS_DIR:-(~/.local/share/fonts/NerdFonts)}"
+  _cfg_kv "EXPLOITDB_DIR" "${EXPLOITDB_DIR:-(autodetect)}"
   _cfg_kv "IDE_EXT_CLIS" "${IDE_EXT_CLIS:-(autodetect)}"
   _cfg_kv "FULL_UPGRADE_REPO" "$FULL_UPGRADE_REPO"
   _cfg_kv "FULL_UPGRADE_UPDATE_CHANNEL" "$FULL_UPGRADE_UPDATE_CHANNEL"
@@ -796,6 +854,7 @@ show_config() {
   _cfg_kv "GCLOUD_BIN" "$GCLOUD_BIN" "<não encontrado>"
   _cfg_kv "COPILOT_BIN" "$COPILOT_BIN" "<não encontrado>"
   _cfg_kv "MIMO_BIN" "$MIMO_BIN" "<não encontrado>"
+  _cfg_kv "CLIPROXYAPI_BIN" "$CLIPROXYAPI_BIN" "<auto>"
   _cfg_kv "OPENCLAW_BIN" "$OPENCLAW_BIN" "<não encontrado>"
   _cfg_kv "ARTCRAFT_DIR" "$ARTCRAFT_DIR"
   _cfg_kv "ORCA_IDE_BIN" "$ORCA_IDE_BIN" "<não encontrado>"

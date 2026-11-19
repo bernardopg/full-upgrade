@@ -294,3 +294,115 @@ update_zap() {
 # atualizado mesmo sem uso. Helper em manual_apps.sh.
 update_gitleaks() { _github_release_bin_update "gitleaks" gitleaks gitleaks/gitleaks x64 arm64; }
 update_trufflehog() { _github_release_bin_update "trufflehog" trufflehog trufflesecurity/trufflehog amd64 arm64; }
+
+
+# ── Assinaturas do ClamAV (freshclam) ──────────────────────────────────────────
+# O pacote clamav traz o motor; as assinaturas (main/daily/bytecode em
+# /var/lib/clamav) só chegam pelo freshclam. Sem clamav-freshclam.service
+# (daemon) nem clamav-freshclam-once.timer ativos — ambos vêm desabilitados no
+# Arch —, a base fica parada ou VAZIA numa instalação nova, e o clamscan não
+# detecta nada. Com um deles ativo a atualização já é automática: o step não
+# concorre com ele (o daemon segura o lock da base) e só registra quem cuida.
+# O CDN do ClamAV impõe cool-down a quem baixa demais (HTTP 429): isso é
+# transitório, nunca fail.
+FRESHCLAM_RETRY_RE='(cool-?down|HTTP 429|HTTP 403|retry later|rate.?limit|mirrors? (are|is) not fully synchronized)'
+
+# Unit do sistema que já mantém a base em dia; rc 1 quando nenhuma está ativa.
+freshclam_auto_unit() {
+  local u
+  for u in clamav-freshclam.service clamav-freshclam-once.timer; do
+    systemctl is-active --quiet "$u" 2>/dev/null && { printf '%s\n' "$u"; return 0; }
+  done
+  return 1
+}
+
+# Puro: uma linha por base a partir da saída do freshclam
+# ("daily.cvd updated (version: 27830, …)" => "daily 27830 (atualizada)").
+freshclam_summary() {
+  local pick='s/^[^A-Za-z]*([a-z]+)\.c[lv]d (updated|database is up-to-date) \(version: ([0-9]+).*/\1 \3 \2/p'
+  sed -nE "$pick" <<<"$1" | sed -E 's/ updated$/ (atualizada)/; s/ database is up-to-date$/ (em dia)/'
+}
+
+update_clamav_signatures() {
+  local unit out rc summary
+  if unit="$(freshclam_auto_unit)"; then
+    log "  Assinaturas do ClamAV mantidas por ${unit}; nada a fazer."
+    return 0
+  fi
+  out="$(run_network_cmd sudo freshclam --stdout)"
+  rc=$?
+  summary="$(freshclam_summary "$out")"
+  if [[ -n "$summary" ]]; then
+    printf '%s\n' "$summary" | log_stream
+  else
+    grep -iE '(error|warning)' <<<"$out" | head -n 10 | log_stream
+  fi
+  # rc 1 é "base já em dia" em versões antigas do freshclam.
+  ((rc == 0)) && return 0
+  [[ "$rc" == 1 && -n "$summary" ]] && return 0
+  if ((rc == RC_WARN)) || grep -qiE "$FRESHCLAM_RETRY_RE" <<<"$out"; then
+    STEP_REASON="freshclam: CDN do ClamAV indisponível ou em cool-down; tenta de novo no próximo run"
+    return "$RC_WARN"
+  fi
+  STEP_REASON="freshclam falhou (rc=${rc}); veja o log"
+  return 1
+}
+
+
+# ── Templates do nuclei ─────────────────────────────────────────────────────────
+# O binário vem do pacman ou do release; os templates (~/nuclei-templates)
+# nunca vêm no pacote e só sobem com -update-templates.
+update_nuclei_templates() {
+  _native_update "nuclei -update-templates" nuclei -update-templates -disable-update-check
+}
+
+
+# ── Exploit-DB (searchsploit) em clone git ──────────────────────────────────────
+# Instalado como clone git (o método do README), o Exploit-DB só sobe com
+# `searchsploit -u`. O pacote exploitdb do pacman/AUR é coberto pelo update do
+# sistema e fica de fora. Clone de root (ex.: /opt/exploitdb) usa sudo.
+exploitdb_git_dir() {
+  local d
+  for d in "${EXPLOITDB_DIR:-}" /opt/exploitdb "$HOME/exploitdb" "$HOME/.local/share/exploitdb"; do
+    [[ -n "$d" && -d "${d}/.git" ]] && { printf '%s\n' "$d"; return 0; }
+  done
+  return 0
+}
+
+update_exploitdb() {
+  local dir
+  dir="$(exploitdb_git_dir)"
+  [[ -n "$dir" ]] || { log "  Exploit-DB não é clone git; atualizado pelo gerenciador de pacotes."; return 0; }
+  if [[ -w "$dir" ]]; then
+    _native_update "searchsploit -u" searchsploit -u
+  elif ((${SUDO_READY:-0})); then
+    _native_update "searchsploit -u" sudo searchsploit -u
+  else
+    STEP_REASON="Exploit-DB em ${dir} exige sudo para atualizar"
+    return "$RC_TODO"
+  fi
+}
+
+
+# ── rkhunter: base de dados e propriedades dos arquivos ─────────────────────────
+# Depois de um upgrade, o rkhunter acusa como "alterado" todo binário que o
+# pacman trocou, até alguém rodar --propupd. O step baixa as bases (--update:
+# rc 0 nada novo, 2 atualizou, 1 erro) e regrava as propriedades. Os mirrors do
+# rkhunter caem com frequência: falha só do --update vira warn.
+update_rkhunter() {
+  local out rc
+  out="$(run_network_cmd sudo rkhunter --update --nocolors)"
+  rc=$?
+  printf '%s\n' "$out" | grep -E 'Updated|No update|Update failed|Checking' | tail -n 8 | log_stream
+  local upd_rc=$rc
+  if ! run_logged sudo rkhunter --propupd --nocolors; then
+    STEP_REASON="rkhunter --propupd falhou"
+    return 1
+  fi
+  log "  Propriedades dos arquivos regravadas (rkhunter --propupd)."
+  if ((upd_rc != 0 && upd_rc != 2)); then
+    STEP_REASON="rkhunter --update falhou (rc=${upd_rc}); mirrors do rkhunter instáveis"
+    return "$RC_WARN"
+  fi
+  return 0
+}

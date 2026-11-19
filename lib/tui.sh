@@ -91,6 +91,13 @@ TRAY_ICON_COLOR|string||Cor dos ícones do AppIndicator (auto = texto do tema GT
 MCP_AUTO_UPDATE|bool||Step MCP refresca o cache uv dos servers uvx
 MCP_HUB_RENDER|bool||Re-renderiza o hub MCP do claude-env em todos os harnesses
 OLLAMA_SELF_UPDATE|bool||Reexecuta o instalador oficial do Ollama
+CLIPROXYAPI_KEEP_VERSIONS|int||Versões do CLIProxyAPI mantidas para rollback (mín. 1)
+CLIPROXYAPI_RESTART_SERVICE|bool||Reinicia o serviço do CLIProxyAPI após o update (rollback se não subir)
+ZSH_STANDALONE_PLUGIN_DIRS|string||Clones git de plugins Zsh fora do OMZ (vazio = autodetecta)
+OLLAMA_MODELS_UPDATE|bool||Renova os modelos baixados do Ollama (ollama pull)
+PROTON_GE_KEEP|int||GE-Proton mantidos após instalar um novo (0 = nunca remove)
+APPIMAGE_DIRS|string||Diretórios com AppImages (vazio = autodetecta)
+NERD_FONTS_DIR|path||Raiz das famílias Nerd Fonts gerenciadas
 FULL_UPGRADE_UPDATE_CHANNEL|enum|release,main|Canal de auto-atualização (release = última tag)
 EOF
 }

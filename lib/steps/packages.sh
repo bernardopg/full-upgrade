@@ -368,3 +368,37 @@ update_snap() {
 }
 
 
+
+
+# ── Bases de arquivos: pacman -F e pkgfile ──────────────────────────────────────
+# O `pacman -Syu` não sincroniza os bancos .files: `pacman -F <arquivo>` passa a
+# responder com a base de quando alguém rodou `pacman -Fy` pela última vez. Só
+# entra quando a máquina já usa o recurso (algum .files em sync/), porque a
+# primeira sincronização baixa ~100 MB. O pkgfile tem timer próprio
+# (pkgfile-update.timer); sem ele ativo, a base fica parada do mesmo jeito.
+PACMAN_SYNC_DIR="${PACMAN_SYNC_DIR:-/var/lib/pacman/sync}"
+
+pacman_files_db_present() { compgen -G "${PACMAN_SYNC_DIR}/*.files" >/dev/null; }
+
+pkgfile_needs_update() {
+  has pkgfile || return 1
+  ! systemctl is-active --quiet pkgfile-update.timer 2>/dev/null
+}
+
+update_file_databases() {
+  local rc worst=0 did=0
+  if pacman_files_db_present; then
+    did=1
+    _native_update "pacman -Fy" sudo pacman -Fy
+    rc=$?
+    ((rc > worst)) && worst=$rc
+  fi
+  if pkgfile_needs_update; then
+    did=1
+    _native_update "pkgfile --update" sudo pkgfile --update
+    rc=$?
+    ((rc == 1 || (worst != 1 && rc > worst))) && worst=$rc
+  fi
+  ((did)) || log "  Sem base .files do pacman nem pkgfile fora do timer."
+  return "$worst"
+}

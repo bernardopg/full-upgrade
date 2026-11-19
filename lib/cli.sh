@@ -89,17 +89,22 @@ Categorias (conjunto fechado, uma por step):
   backup     configs de /etc, snapshot pré-upgrade, réplica em nuvem
   packages   pacman/AUR, mirrors, notícias, .pacnew, Flatpak, Snap, Docker
   repair     reparos idempotentes de estado quebrado
-  security   Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog
+  security   Wireshark, Burp Suite, Snyk, ZAP, gitleaks, trufflehog, ClamAV,
+             nuclei, Exploit-DB, rkhunter
   firmware   fwupd e systemd-boot
   lang-js    Node.js (nvm), npm, corepack, pnpm, Bun, Deno, vite-plus
   lang-py    pip --user, pipx, uv, Poetry
   lang-rust  rustup, bins cargo, auditoria de CVEs
-  lang-other Arduino, Go, .NET, gcloud, gems, ghcup
+  lang-other Arduino, Go, .NET, gcloud, gems, ghcup, mise, Composer, ESP-IDF,
+             juliaup, elan, coursier, SDKMAN!
   ai         CLIs de IA e de otimização de contexto
-  tools      utilitários fora de gestor de pacote (gk, Herdr, cloudflared, OBS)
+  tools      fora de gestor de pacote: gk, Herdr, CLIProxyAPI, gh, OBS,
+             Proton-GE, Spicetify, krew, Helm, AppImages, Nerd Fonts, KiCad,
+             arkenfox
   ide        Orca, Antigravity e extensões VSCode/Cursor
-  editor     Neovim (Lazy e Mason)
-  shell      Oh My Zsh, plugins Zsh, Yazi, hyprpm, tldr
+  editor     Neovim (Lazy, Mason e parsers do treesitter)
+  shell      Oh My Zsh, plugins Zsh (OMZ, avulsos, zinit/antidote/sheldon), tmux
+             (tpm), fish (fisher), Yazi, hyprpm, tldr
   cleanup    caches, snapshots antigos, órfãos, journal, coredumps, logs
   autofix    auto-remediações mutáveis (opt-in e/ou confirmação)
   doctor     auditorias estritamente read-only

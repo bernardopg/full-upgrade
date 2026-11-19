@@ -368,6 +368,7 @@ _manual_apps_has_step() {
     grok|jcode|qodercli|qoderwake|kimchi|cua-driver) return 0 ;;
     kilo|mimo|pool|purple|android|android-cli|gitleaks|trufflehog|muse|muse-bin-[0-9]*|cloudflared) return 0 ;;
     vp|vpr|vpx|vite-plus|herdr-core|hc|herdr-app|qodo|ori|spawn) return 0 ;;
+    cli-proxy-api|cliproxyapi) return 0 ;;
     *) return 1 ;;
   esac
 }

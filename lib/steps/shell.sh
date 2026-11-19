@@ -70,12 +70,25 @@ update_omz_custom_plugins() {
     return 0
   fi
 
+  local -a dirs=()
+  local dir
+  for dir in "$plugins_dir"/*/; do
+    [[ "$(basename "$dir")" == "example" ]] && continue
+    dirs+=("$dir")
+  done
+  zsh_git_plugins_update "${dirs[@]}"
+}
+
+# Atualiza os clones git de plugins Zsh passados como argumento (diretórios).
+# Compartilhado pelos plugins customizados do Oh My Zsh e pelos clones avulsos.
+# rc: 0 · RC_WARN rede · RC_TODO modificações locais/conflito · 1 fetch falhou
+# por motivo que não é rede.
+zsh_git_plugins_update() {
   local -a updated=() failed=() skipped=() dirty=()
   local plugin dir behind fetch_err net_fail=0
 
-  for dir in "$plugins_dir"/*/; do
+  for dir in "$@"; do
     plugin="$(basename "$dir")"
-    [[ "$plugin" == "example" ]] && continue
     [[ -d "$dir/.git" ]] || { skipped+=("$plugin"); continue; }
 
     # Repo travado por conflito anterior: git recusa fetch/pull/stash, então
@@ -220,4 +233,130 @@ update_tldr_cache() {
   # existente segue disponível e a correção não é automaticamente segura.
   log "  Não foi possível atualizar o cache do tldr; o cache atual foi preservado."
   return "$RC_WARN"
+}
+
+
+# ── Plugins Zsh avulsos (clones git fora do Oh My Zsh) ─────────────────────────
+# Plugins instalados com `git clone` e carregados por `source` direto no .zshrc
+# (ex.: ~/.local/share/zsh-defer, como manda o README do romkatv) não pertencem
+# a nenhum gerenciador: nem o Oh My Zsh nem o pacman os conhecem, e o clone fica
+# no commit do dia da instalação. Mesma política dos plugins customizados do
+# OMZ (fast-forward, realinhamento só com árvore limpa, conflito vira todo).
+# ZSH_STANDALONE_PLUGIN_DIRS (espaço ou vírgula; globs e ~ aceitos) substitui a
+# detecção padrão.
+zsh_standalone_plugin_dirs() {
+  local -a pats=()
+  local p d omz
+  if [[ -n "${ZSH_STANDALONE_PLUGIN_DIRS:-}" ]]; then
+    read -ra pats <<<"${ZSH_STANDALONE_PLUGIN_DIRS//,/ }"
+  else
+    pats+=("${XDG_DATA_HOME:-$HOME/.local/share}/zsh-*")
+    pats+=("$HOME/.zsh/plugins/*")
+    pats+=("${ZDOTDIR:-$HOME}/plugins/*")
+    pats+=("${XDG_CONFIG_HOME:-$HOME/.config}/zsh/plugins/*")
+  fi
+  omz="$(readlink -f "${ZSH:-$HOME/.oh-my-zsh}" 2>/dev/null || true)"
+  for p in "${pats[@]}"; do
+    p="${p/#\~/$HOME}"
+    # shellcheck disable=SC2086  # expansão de glob intencional
+    for d in $p; do
+      [[ -d "$d/.git" ]] || continue
+      # O Oh My Zsh e os customs dele têm step próprio.
+      [[ -n "$omz" && "$(readlink -f "$d")" == "$omz"* ]] && continue
+      printf '%s\n' "$d"
+    done
+  done | awk '!seen[$0]++'
+}
+
+update_zsh_standalone_plugins() {
+  local -a dirs=()
+  mapfile -t dirs < <(zsh_standalone_plugin_dirs)
+  if ((${#dirs[@]} == 0)); then
+    log "  Nenhum clone git de plugin Zsh fora do Oh My Zsh."
+    return 0
+  fi
+  zsh_git_plugins_update "${dirs[@]}"
+}
+
+
+# ── Plugins do tmux (tpm) ───────────────────────────────────────────────────────
+# O tpm clona os plugins do .tmux.conf e só os atualiza com prefix+U dentro do
+# tmux. `bin/update_plugins all` faz o mesmo de fora (o tpm se atualiza junto,
+# como plugin). Sem tpm, nenhum plugin tem dono.
+tpm_dir() {
+  local d
+  local -a cands=()
+  [[ -n "${TMUX_PLUGIN_MANAGER_PATH:-}" ]] && cands+=("${TMUX_PLUGIN_MANAGER_PATH%/}/tpm")
+  cands+=("$HOME/.tmux/plugins/tpm" "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/plugins/tpm")
+  for d in "${cands[@]}"; do
+    [[ -x "${d}/bin/update_plugins" ]] && { printf '%s\n' "$d"; return 0; }
+  done
+  return 0
+}
+
+update_tmux_plugins() {
+  local tpm
+  tpm="$(tpm_dir)"
+  [[ -n "$tpm" ]] || { log "  tpm não encontrado."; return 0; }
+  _native_update "tpm update_plugins" "${tpm}/bin/update_plugins" all
+}
+
+
+# ── Plugins do fish (fisher) ────────────────────────────────────────────────────
+# O fisher instala plugins a partir de ~/.config/fish/fish_plugins e só os
+# atualiza com `fisher update` (que também atualiza o próprio fisher).
+fisher_installed() { has fish && fish -c 'type -q fisher' 2>/dev/null; }
+
+update_fisher_plugins() { _native_update "fisher update" fish -c 'fisher update'; }
+
+
+# ── Gerenciadores de plugin Zsh (zinit, antidote, sheldon) ──────────────────────
+# Cada um clona os plugins que gerencia e só os atualiza a pedido, numa sessão
+# interativa. O step chama o comando de update de cada gerenciador presente,
+# carregando-o num zsh não interativo (os dois primeiros são funções de shell).
+zinit_home() {
+  local d
+  for d in "${ZINIT_HOME:-}" "${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git" "$HOME/.zinit/bin" "$HOME/.local/share/zinit/bin"; do
+    [[ -n "$d" && -f "${d}/zinit.zsh" ]] && { printf '%s\n' "$d"; return 0; }
+  done
+  return 0
+}
+
+antidote_home() {
+  local d
+  for d in "${ANTIDOTE_HOME:-}" "${ZDOTDIR:-$HOME}/.antidote" "$HOME/.antidote" /usr/share/zsh-antidote; do
+    [[ -n "$d" && -f "${d}/antidote.zsh" ]] && { printf '%s\n' "$d"; return 0; }
+  done
+  return 0
+}
+
+zsh_plugin_managers() {
+  [[ -n "$(zinit_home)" ]] && printf 'zinit\n'
+  [[ -n "$(antidote_home)" ]] && printf 'antidote\n'
+  has sheldon && printf 'sheldon\n'
+  return 0
+}
+
+update_zsh_plugin_managers() {
+  local m rc worst=0 home
+  local -a mgrs=()
+  mapfile -t mgrs <<<"$(zsh_plugin_managers)"
+  [[ -n "${mgrs[0]:-}" ]] || { log "  Nenhum gerenciador de plugin Zsh (zinit, antidote, sheldon)."; return 0; }
+  for m in "${mgrs[@]}"; do
+    log "  ${m}:"
+    case "$m" in
+      zinit)
+        home="$(zinit_home)"
+        _native_update "zinit update" zsh -c "source '${home}/zinit.zsh' && zinit self-update && zinit update --all --quiet"
+        ;;
+      antidote)
+        home="$(antidote_home)"
+        _native_update "antidote update" zsh -c "source '${home}/antidote.zsh' && antidote update"
+        ;;
+      sheldon) _native_update "sheldon lock --update" sheldon lock --update ;;
+    esac
+    rc=$?
+    ((rc == 1 || (worst != 1 && rc > worst))) && worst=$rc
+  done
+  return "$worst"
 }

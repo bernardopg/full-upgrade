@@ -139,6 +139,14 @@ run_all_steps() {
     else
         step_skip "Atualizar imagens Docker" "docker não instalado"
     fi
+
+    if ! pacman_files_db_present && ! pkgfile_needs_update; then
+        step_skip "Atualizar bases de arquivos (pacman -F e pkgfile)" "sem base .files nem pkgfile fora do timer"
+    elif (( SUDO_READY )); then
+        run_step "Atualizar bases de arquivos (pacman -F e pkgfile)" update_file_databases
+    else
+        step_skip "Atualizar bases de arquivos (pacman -F e pkgfile)" "sudo indisponível"
+    fi
     
     if has arduino-cli; then
         run_step "Atualizar Arduino (cores/libs)" update_arduino
@@ -302,6 +310,32 @@ run_all_steps() {
         step_skip "Atualizar ghcup" "ghcup não instalado"
     fi
 
+    # ── mise ──────────────────────────────────────────────────────────────────────
+
+    if has mise; then
+        run_step "Atualizar ferramentas mise" update_mise_tools
+    else
+        step_skip "Atualizar ferramentas mise" "mise não instalado"
+    fi
+
+    if [[ -n "$(toolchain_managers)" ]]; then
+        run_step "Atualizar gerenciadores de toolchain (juliaup/elan/coursier/SDKMAN!)" update_toolchain_managers
+    else
+        step_skip "Atualizar gerenciadores de toolchain (juliaup/elan/coursier/SDKMAN!)" "nenhum gerenciador de toolchain"
+    fi
+
+    if has composer && [[ -n "$(composer_global_json)" ]]; then
+        run_step "Atualizar pacotes globais do Composer" update_composer_global
+    else
+        step_skip "Atualizar pacotes globais do Composer" "sem projeto global do Composer"
+    fi
+
+    if [[ -n "$(esp_idf_installed)" ]]; then
+        run_step "Checar ESP-IDF (EIM)" check_esp_idf
+    else
+        step_skip "Checar ESP-IDF (EIM)" "ESP-IDF não instalado pelo EIM"
+    fi
+
     # ── Referência ────────────────────────────────────────────────────────────────
 
     if has tldr; then
@@ -402,6 +436,12 @@ run_all_steps() {
         run_step "Atualizar Ollama" update_ollama
     else
         step_skip "Atualizar Ollama" "ollama não instalado"
+    fi
+
+    if has ollama; then
+        run_step "Atualizar modelos do Ollama" update_ollama_models
+    else
+        step_skip "Atualizar modelos do Ollama" "ollama não instalado"
     fi
 
     if has claude; then
@@ -593,6 +633,66 @@ run_all_steps() {
         step_skip "Atualizar cloudflared" "nenhum cloudflared fora de pacote"
     fi
 
+    if [[ -n "$(cliproxyapi_bin)" ]]; then
+        run_step "Atualizar CLIProxyAPI" update_cliproxyapi
+    else
+        step_skip "Atualizar CLIProxyAPI" "cli-proxy-api não instalado"
+    fi
+
+    if has gh; then
+        run_step "Atualizar extensões do gh (GitHub CLI)" update_gh_extensions
+    else
+        step_skip "Atualizar extensões do gh (GitHub CLI)" "gh não instalado"
+    fi
+
+    if [[ -n "$(proton_ge_dir)" ]]; then
+        run_step "Atualizar Proton-GE" update_proton_ge
+    else
+        step_skip "Atualizar Proton-GE" "nenhum GE-Proton em compatibilitytools.d"
+    fi
+
+    if has spicetify; then
+        run_step "Reaplicar Spicetify" update_spicetify
+    else
+        step_skip "Reaplicar Spicetify" "spicetify não instalado"
+    fi
+
+    if krew_installed; then
+        run_step "Atualizar plugins do kubectl (krew)" update_krew_plugins
+    else
+        step_skip "Atualizar plugins do kubectl (krew)" "krew não instalado"
+    fi
+
+    if has helm; then
+        run_step "Atualizar plugins do Helm" update_helm_plugins
+    else
+        step_skip "Atualizar plugins do Helm" "helm não instalado"
+    fi
+
+    if has appimageupdatetool && [[ -n "$(appimage_files)" ]]; then
+        run_step "Atualizar AppImages (zsync)" update_appimages
+    else
+        step_skip "Atualizar AppImages (zsync)" "sem AppImage ou sem appimageupdatetool"
+    fi
+
+    if [[ -n "$(nerd_font_families)" ]]; then
+        run_step "Atualizar Nerd Fonts" update_nerd_fonts
+    else
+        step_skip "Atualizar Nerd Fonts" "nenhuma família em NERD_FONTS_DIR"
+    fi
+
+    if [[ -n "$(kicad_pcm_config_dir)" ]]; then
+        run_step "Checar plugins do KiCad (PCM)" check_kicad_plugins
+    else
+        step_skip "Checar plugins do KiCad (PCM)" "sem pacotes do PCM do KiCad"
+    fi
+
+    if [[ -n "$(arkenfox_profiles)" ]]; then
+        run_step "Atualizar arkenfox (user.js do Firefox)" update_arkenfox
+    else
+        step_skip "Atualizar arkenfox (user.js do Firefox)" "nenhum perfil com arkenfox"
+    fi
+
     if has zap || has zap.sh; then
         run_step "Atualizar OWASP ZAP (core e add-ons)" update_zap
     else
@@ -611,6 +711,34 @@ run_all_steps() {
         step_skip "Atualizar trufflehog" "trufflehog não instalado"
     fi
 
+    if ! has freshclam; then
+        step_skip "Atualizar assinaturas do ClamAV (freshclam)" "clamav não instalado"
+    elif (( SUDO_READY )); then
+        run_step "Atualizar assinaturas do ClamAV (freshclam)" update_clamav_signatures
+    else
+        step_skip "Atualizar assinaturas do ClamAV (freshclam)" "sudo indisponível"
+    fi
+
+    if has nuclei; then
+        run_step "Atualizar templates do nuclei" update_nuclei_templates
+    else
+        step_skip "Atualizar templates do nuclei" "nuclei não instalado"
+    fi
+
+    if has searchsploit && [[ -n "$(exploitdb_git_dir)" ]]; then
+        run_step "Atualizar Exploit-DB (searchsploit)" update_exploitdb
+    else
+        step_skip "Atualizar Exploit-DB (searchsploit)" "Exploit-DB ausente ou de pacote"
+    fi
+
+    if ! has rkhunter; then
+        step_skip "Atualizar rkhunter (base e propriedades)" "rkhunter não instalado"
+    elif (( SUDO_READY )); then
+        run_step "Atualizar rkhunter (base e propriedades)" update_rkhunter
+    else
+        step_skip "Atualizar rkhunter (base e propriedades)" "sudo indisponível"
+    fi
+
     if has gk; then
         run_step "Atualizar GitKraken CLI (gk)" update_gk
     else
@@ -625,6 +753,30 @@ run_all_steps() {
     else
         step_skip "Atualizar Oh My Zsh" "oh-my-zsh não encontrado"
         step_skip "Atualizar plugins customizados do Zsh" "oh-my-zsh não encontrado"
+    fi
+
+    if [[ -n "$(zsh_standalone_plugin_dirs)" ]]; then
+        run_step "Atualizar plugins Zsh avulsos (git)" update_zsh_standalone_plugins
+    else
+        step_skip "Atualizar plugins Zsh avulsos (git)" "nenhum clone de plugin Zsh fora do Oh My Zsh"
+    fi
+
+    if [[ -n "$(zsh_plugin_managers)" ]]; then
+        run_step "Atualizar gerenciadores de plugin Zsh (zinit/antidote/sheldon)" update_zsh_plugin_managers
+    else
+        step_skip "Atualizar gerenciadores de plugin Zsh (zinit/antidote/sheldon)" "nenhum gerenciador de plugin Zsh"
+    fi
+
+    if has tmux && [[ -n "$(tpm_dir)" ]]; then
+        run_step "Atualizar plugins do tmux (tpm)" update_tmux_plugins
+    else
+        step_skip "Atualizar plugins do tmux (tpm)" "tpm não instalado"
+    fi
+
+    if fisher_installed; then
+        run_step "Atualizar plugins do fish (fisher)" update_fisher_plugins
+    else
+        step_skip "Atualizar plugins do fish (fisher)" "fisher não instalado"
     fi
     
     if [[ -d "${DMS_PLUGINS_DIR:-$HOME/.config/dms/plugins}" ]]; then
@@ -653,9 +805,16 @@ run_all_steps() {
         else
             step_skip "Atualizar LSPs Neovim (Mason)" "mason.nvim não instalado"
         fi
+
+        if treesitter_installed; then
+            run_step "Atualizar parsers do nvim-treesitter" update_treesitter_parsers
+        else
+            step_skip "Atualizar parsers do nvim-treesitter" "nvim-treesitter não instalado"
+        fi
     else
         step_skip "Atualizar plugins Neovim (Lazy)" "nvim não instalado"
         step_skip "Atualizar LSPs Neovim (Mason)" "nvim não instalado"
+        step_skip "Atualizar parsers do nvim-treesitter" "nvim não instalado"
     fi
 
     # ── Extensões de IDE (família VSCode) ─────────────────────────────────────────

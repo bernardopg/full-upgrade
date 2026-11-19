@@ -113,6 +113,22 @@ MCP_HUB_RENDER=1
 CLAUDE_PLUGIN_PREFILTER=1
 #CLAUDE_ENV_DIR="$HOME/claude-env"
 
+# ── CLIProxyAPI e plugins Zsh avulsos / CLIProxyAPI and standalone Zsh plugins ──
+CLIPROXYAPI_KEEP_VERSIONS=2      # versões mantidas em <home>/versions (em uso + rollback; mín. 1)
+CLIPROXYAPI_RESTART_SERVICE=1    # 1 = reinicia o serviço de usuário após o update (rollback se não subir)
+CLIPROXYAPI_SERVICE="cliproxyapi.service"
+# Clones git de plugins Zsh fora do Oh My Zsh (espaço/vírgula; globs). Vazio =
+# ~/.local/share/zsh-*, ~/.zsh/plugins/*, $ZDOTDIR/plugins/*.
+ZSH_STANDALONE_PLUGIN_DIRS=""
+
+# ── Componentes fora de gerenciador / Unmanaged components ──
+OLLAMA_MODELS_UPDATE=0           # 1 = renova os modelos do Ollama (ollama pull; podem ter dezenas de GB)
+PROTON_GE_KEEP=0                 # GE-Proton mantidos após instalar um novo (0 = nunca remove)
+#PROTON_GE_DIR="$HOME/.local/share/Steam/compatibilitytools.d"
+APPIMAGE_DIRS=""                 # vazio = ~/Applications ~/AppImages ~/.local/bin ~/.local/opt
+NERD_FONTS_DIR=""                # vazio = ~/.local/share/fonts/NerdFonts (uma pasta por família)
+#EXPLOITDB_DIR="/opt/exploitdb"
+
 # ── Política de segurança / Security policy ───────────────────────────────────
 # 0 = Secure Boot desabilitado no --audit é informativo (default; postura/política)
 # 1 = classifica Secure Boot desabilitado como severidade média em ambientes rígidos
@@ -156,6 +172,7 @@ COREDUMP_IGNORE_EXE=""
 # GCLOUD_BIN="$HOME/google-cloud-sdk/bin/gcloud"
 # COPILOT_BIN="$HOME/.local/bin/copilot"
 # MIMO_BIN="$HOME/.mimocode/bin/mimo"
+# CLIPROXYAPI_BIN="$HOME/.local/bin/cli-proxy-api"
 # DMS_PLUGINS_DIR="$HOME/.config/dms/plugins"
 # OPENCLAW_BIN="/usr/local/bin/openclaw"
 # ARTCRAFT_DIR="$HOME/development/artcraft"

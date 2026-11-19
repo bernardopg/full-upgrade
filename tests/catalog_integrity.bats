@@ -294,7 +294,7 @@ setup() {
 @test "catálogo: tag usada em exatamente 1 step precisa estar na allowlist" {
   # Allowlist: tags de eixo estreito ou nome de ferramenta, aceitas como
   # singletons. Adicionar aqui = decisão consciente de vocabulário.
-  local allow="android antigravity arduino automation bun burp claude cloud cloudflared code-intelligence codex coderabbit copilot corepack cua cursor cve deno dms docker dotnet droid extensions firmware fwupd gcloud ghcup gk gnupg go grok haskell herdr hermes hyprpm inventory jcode kernel keyring kimchi kimi kiro lazy local-bin lock logs manual mason mirror muse news nvm ollama onedrive openclaw opencode ori orca paru pi plugins poetry pool purple qodo reference repair reports rtk rustup scrub self-update skills smart snap snyk spawn ssd system tldr tokensave tray trim user vite-plus vscode yazi zap"
+  local allow="android antigravity appimage arduino arkenfox automation bun burp clamav claude cliproxyapi cloud cloudflared code-intelligence coderabbit codex composer copilot corepack cua cursor cve deno dms docker dotnet droid esp-idf exploitdb extensions firefox firmware fish fonts fwupd gcloud gh ghcup gk gnupg go grok haskell helm herdr hermes hyprpm inventory jcode kernel keyring kicad kimchi kimi kiro krew lazy local-bin lock logs manual mason mirror mise muse news nuclei nvm ollama onedrive openclaw opencode orca ori paru pi pkgfile plugins poetry pool proton purple qodo reference repair reports rkhunter rtk rustup scrub self-update skills smart snap snyk spawn spicetify ssd system tldr tmux tokensave toolchain tray treesitter trim user vite-plus vscode yazi zap"
   local -A count=()
   local name cat tags rest t
   while IFS='|' read -r name cat tags rest; do

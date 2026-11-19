@@ -39,6 +39,38 @@ manual_bin_path() {
   return 0
 }
 
+# Tag da última release estável de <owner/repo> pelo redirect de
+# /releases/latest (sem API, sem rate limit de 60 req/h). Imprime a tag como
+# publicada (ex.: v8.0.78). $2 (opcional) é a regex que a tag precisa casar;
+# padrão: versão numérica com ou sem "v" (o Proton-GE usa GE-Proton11-12).
+# rc: 0 · RC_WARN quando o GitHub não respondeu ou a tag não casou.
+github_latest_release_tag() {
+  local repo="$1" re="${2:-^v?[0-9]+(\.[0-9]+)+$}" effective tag
+  local -a args=(-fsSL --connect-timeout 10 --max-time 30 -o /dev/null -w '%{url_effective}')
+  effective="$(curl "${args[@]}" "https://github.com/${repo}/releases/latest" 2>/dev/null || true)"
+  tag="${effective##*/}"
+  [[ "$tag" =~ $re ]] || return "$RC_WARN"
+  printf '%s\n' "$tag"
+}
+
+# Roda um updater nativo e mapeia o rc no contrato. Args: <rótulo> <comando…>.
+# Mostra só o fim da saída (os updaters imprimem uma linha por item).
+# rc: 0 · RC_WARN rede (via run_network_cmd) · 1 falha, com STEP_REASON.
+_native_update() {
+  local label="$1" out rc
+  shift
+  out="$(run_network_cmd "$@")"
+  rc=$?
+  printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -n 20 | log_stream
+  ((rc == 0)) && return 0
+  if ((rc == RC_WARN)); then
+    STEP_REASON="${label}: rede indisponível"
+    return "$RC_WARN"
+  fi
+  STEP_REASON="${label} falhou (rc=${rc})"
+  return 1
+}
+
 # ── CLIs com update nativo que já checa sozinho ──────────────────────────────
 # `pool update` (Poolside, ~/.local/bin/pool) e `purple update` comparam a versão
 # instalada com a última release, verificam checksum e só baixam se houver
