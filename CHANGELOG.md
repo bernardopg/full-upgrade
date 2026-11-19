@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.2.1] - 2026-11-19
 ### Corrigido
 
 - **`Doctor: saúde do desktop` não deixa mais um coredump do `vulkaninfo` a
