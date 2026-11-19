@@ -17,6 +17,11 @@ Base deste ciclo:
 - Série O (run 2026-07-01): mesclada na `main` via PR #107.
 - Revisão estrutural de steps/categorias (2026-09-14): originou as Séries S e T.
 - Estado na v3.50.0 (2026-10-26): 145 steps no catálogo, 1622 testes Bats.
+- Série W (2026-11-19): run real da v4.1.0 e cinco steps novos para
+  componentes que nenhum gerenciador atualiza, depois os 20 candidatos
+  (W8–W27), todos implementados; 2408 testes Bats.
+- Série X (2026-11-19): 50 processos recomendados a partir do estado real da
+  máquina (segurança, disco/btrfs/boot, caches, clones e apps), pendentes.
   `--mode doctor` real fechou com 31 ok, 0 warn, 1 todo (pacote oficial
   publicado após o sync) e 0 fail. O applet ganhou identidade visual própria
   (ícones Material Symbols monocromáticos, gerados por `scripts/gen-icons.py`).
@@ -41,6 +46,550 @@ só — os testes novos falham sem a reclassificação) — ☑ CONCLUÍDA (suí
 completa verde), **(2)** T1 (split do doctor.sh) — ☑ CONCLUÍDA (6 módulos, 65 funções)
 e **(3)** T2+T3 (preflight.sh e extrações) — ☑ CONCLUÍDA (suíte completa
 verdes). Restam T4/T5 (documentação de regra e guard-rail opcional).
+
+---
+
+## Série X — 50 processos recomendados para esta máquina (2026-11-19)
+
+Levantados no estado real da máquina de referência: Lenovo com i7-1255U, 38 GiB
+de RAM, NVMe WD SN350 de 1 TB em btrfs (`@`, `@home`, `@log`, `@pkg`, `@/swap`)
+e Timeshift, ESP de 1 GiB com systemd-boot (Arch, LTS, Recovery e Windows),
+NVMe UMIS só com Windows (NTFS), sbctl instalado com Secure Boot desligado,
+ufw ativo, sshd escutando, Tailscale, Docker, Steam, Bottles, libvirt e 1945
+pacotes. Cada item traz a evidência que o motivou. Nada aqui foi implementado.
+
+Todo item novo segue as convenções do topo: step no arquivo da categoria,
+catálogo, `main.sh`, config quando há escolha, docs e testes com stubs.
+Auditorias são `doctor` (read-only); qualquer mutação é `autofix`/`cleanup` com
+opt-in ou confirmação.
+
+### Segurança
+
+#### X1 — 🔴 P ☐ Doctor: exposição do sshd
+
+`sshd` ativo na porta 22, liberado no ufw para `192.168.15.0/24` e
+`tailscale0`. Hoje está bem (`PasswordAuthentication no`, `PermitRootLogin
+no`), mas nada impede a regressão. Auditar `sshd -T` (senha, root, `KbdInteractive`,
+`MaxAuthTries`, algoritmos fracos) e cruzar com as regras do ufw: regra
+`Anywhere` para 22 ou senha ligada vira `todo`.
+
+#### X2 — 🟡 P ☐ Doctor: chaves GPG expiradas ou perto de expirar
+
+O keyring tem 2 chaves públicas expiradas (fev/2026 e abr/2026). Chave
+própria (secret) a menos de 30 dias de expirar vira `todo` com `gpg
+--quick-set-expire`; pública expirada de terceiro vira nota com `gpg
+--refresh-keys`.
+
+#### X3 — 🟡 P ☐ Doctor: chaves SSH
+
+Cinco pares em `~/.ssh` (ed25519). Conferir tipo e tamanho (DSA/RSA < 3072
+viram `todo`), permissões (`~/.ssh` 700, privadas 600) e chave privada sem
+passphrase (`ssh-keygen -y -P '' -f`), reportada sem nunca ler o conteúdo.
+
+#### X4 — 🟡 P ☐ Doctor: AppArmor instalado e desligado
+
+`apparmor` está instalado, mas a cmdline não tem `lsm=…apparmor` e o serviço
+está inativo: o pacote não protege nada. Reportar a linha `options` da entry do
+systemd-boot que falta, ou sugerir remover o pacote.
+
+#### X5 — 🔴 M ☐ Secure Boot com sbctl
+
+`sbctl` instalado, chaves próprias criadas (Owner GUID, Setup Mode desligado),
+mas Secure Boot desligado. Doctor: `sbctl verify` após cada upgrade de kernel
+ou systemd-boot (arquivo não assinado = boot quebra quando o SB for ligado).
+Autofix opt-in: `sbctl sign-all` no fim do run.
+
+#### X6 — 🟡 M ☐ Doctor: ufw × serviços escutando
+
+Cruzar `ss -tulpn` com `ufw status`: porta liberada sem processo (regra órfã;
+ex.: 8472 do StreamWorks Hub) e serviço escutando em `0.0.0.0`/`::` sem regra
+(bloqueado sem o usuário saber, ou exposto se o ufw cair). 53317 (LocalSend)
+entra como esperado.
+
+#### X7 — 🟢 P ☐ Scan ClamAV de ~/Downloads (opt-in)
+
+Com as assinaturas em dia (W5), `clamscan -r --infected --no-summary` em
+`~/Downloads` (2,5 GiB) e nos AppImages. Opt-in (`CLAMAV_SCAN_DIRS`); achado
+vira `todo` com o caminho, nunca remove nada.
+
+#### X8 — 🟡 P ☐ Doctor: Tailscale
+
+`tailscaled` ativo. Ler `tailscale status --json`: chave do nó expirando
+(`KeyExpiry` < 14 dias), cliente atrás do servidor de controle, peers offline
+há muito tempo e `--accept-routes` inesperado.
+
+#### X9 — 🟡 P ☐ Doctor: segredos nos repositórios de config
+
+`~/.config/hypr` (zsh, Hyprland) e `~/claude-env` são repositórios git com
+remote. `gitleaks detect --no-banner` (já instalado) nos dois antes de um push
+acidental vazar token; achado vira `todo` sem imprimir o segredo.
+
+#### X10 — 🔴 P ☐ Doctor: permissões de arquivos sensíveis
+
+`~/.config/claude-env/secrets.env`, `~/.zshenv.local`, `~/.spawnrc`,
+`~/.config/full-upgrade/github-token`, `~/.docker/config.json`, `~/.netrc`:
+legível por grupo/outros vira `todo` com o `chmod 600`.
+
+#### X11 — 🟢 M ☐ Doctor: sandboxing dos serviços expostos
+
+`systemd-analyze security` para as units que escutam na rede (`sshd`,
+`tailscaled`, `docker`, e a user unit `cliproxyapi.service`). Exposição acima de
+um limiar configurável vira nota com as diretivas que faltam.
+
+#### X12 — 🟡 P ☐ Doctor: postura do sudo
+
+Nesta máquina `sudo -n true` passa sem senha: NOPASSWD global. Reportar a regra
+(`sudo -l`) e sugerir restringir a comandos; não acionável automaticamente.
+
+#### X13 — 🟢 M ☐ Auditoria Lynis mensal (opt-in)
+
+`lynis audit system --quick` uma vez por mês, guardando o hardening index no
+histórico do `--history` para mostrar tendência.
+
+### Disco, btrfs e boot
+
+#### X14 — 🔴 M ☐ Balance btrfs de manutenção
+
+836 de 930 GiB alocados (90%) com 692 GiB usados: o btrfs pode dar ENOSPC de
+metadata com espaço livre. `btrfs balance start -dusage=50 -musage=50` quando
+alocado/total > `BTRFS_BALANCE_ALLOC_PCT` (85%), em autofix opt-in, com a mesma
+guarda térmica do scrub.
+
+#### X15 — 🔴 P ☐ Doctor: pressão de memória e swap
+
+zram de 4 GiB 95% cheio e swapfile com 5,3 GiB usados, com 38 GiB de RAM.
+Reportar uso, `vm.swappiness`, tamanho do zram e OOM kills recentes
+(`journalctl -k | grep -i oom`, `systemd-oomd`); conferir que o swapfile btrfs
+tem `+C` (No_COW) e não é comprimido.
+
+#### X16 — 🟡 M ☐ Doctor: espaço dos snapshots Timeshift
+
+6 subvolumes de snapshot de um único dia. Medir o espaço exclusivo
+(`btrfs filesystem du -s`), contar por idade e avisar quando passam de um teto
+de GiB ou de N snapshots.
+
+#### X17 — 🔴 P ☐ Doctor: entries do systemd-boot
+
+Quatro entries (Arch, LTS, Recovery, Windows). Conferir que cada `linux` e
+`initrd` existe na ESP, que o `EFI/Microsoft` da entry do Windows existe, que a
+default é bootável (`bootctl list` sem `(not reported/missing)`) e que o
+`random-seed` está presente.
+
+#### X18 — 🟡 P ☐ Doctor: ESP
+
+ESP de 1 GiB em vfat: uso por kernel (initramfs `fallback` dobra o espaço), bit
+de sujeira (`fsck.vfat -n`) e permissões (`fmask=0077`, que já impede leitura
+pelo usuário nesta máquina).
+
+#### X19 — 🟢 P ☐ Limpar módulos de kernel órfãos
+
+Diretórios em `/usr/lib/modules` de kernel que não está instalado nem rodando
+(sobram após troca de kernel ou falha no hook). Remover com confirmação.
+
+#### X20 — 🟡 M ☐ Doctor: presets do mkinitcpio
+
+`linux` e `linux-lts` com `intel-ucode` como initrd separado. Conferir presets
+sem imagem `fallback` órfã, `HOOKS` coerentes (`systemd` × `udev`), módulos
+`btrfs` presentes e o `.pacnew` do `mkinitcpio.conf`.
+
+#### X21 — 🟡 P ☐ Doctor: partição NTFS do Windows
+
+`nvme0n1p2` (476 GiB, NTFS). Hibernação/Fast Startup do Windows deixa o volume
+"sujo" e o `ntfs3` recusa montar em rw. `ntfsfix -n` read-only e aviso com a
+causa.
+
+#### X22 — 🟢 P ☐ Doctor: taxa de compressão btrfs
+
+`compress=zstd:3` em todos os subvolumes. `compsize` em `/`, `/home` e
+`@pkg` mostra o ganho real; diretórios de mídia incompressível (Steam, 170 GiB)
+podem ir para `chattr +m` ou subvolume próprio.
+
+#### X23 — 🟢 G ☐ Dedupe btrfs (opt-in)
+
+`duperemove` em `~/development` e `~/.cache` (93 GiB) em modo hashfile
+incremental, fora do horário de uso e com a guarda térmica.
+
+#### X24 — 🟡 P ☐ Doctor: saúde da bateria
+
+Capacidade em 90% (41,3 de 45,7 Wh) com 131 ciclos. Guardar a série histórica,
+avisar abaixo de 80% e reportar o modo de conservação da Lenovo
+(`ideapad_acpi/conservation_mode`).
+
+#### X25 — 🟡 P ☐ Doctor: maiores consumidores de disco
+
+`~/.local/share/Steam` 170 GiB, `~/.cache` 93 GiB, Docker com ~35 GiB
+recuperáveis, `@pkg` 12 GiB, Bottles 8,6 GiB. Relatório dos dez maiores com a
+variação desde o último run (o `--history` já guarda a série).
+
+#### X26 — 🟢 P ☐ Doctor: fallback LTS testado
+
+`linux-lts` instalado como rede de segurança. Avisar quando o último boot com o
+LTS (journal `--list-boots`) tem mais de N dias: fallback nunca testado não é
+fallback.
+
+#### X27 — 🟢 P ☐ Doctor: sincronização de hora
+
+`timedatectl show -p NTPSynchronized`; relógio fora de sincronia quebra TLS,
+TOTP e o dual-boot com Windows (RTC em hora local × UTC).
+
+### Caches e gerenciadores de pacote
+
+#### X28 — 🔴 M ☐ Limpeza do Docker com limites
+
+Build cache de 12,5 GiB (8,9 recuperáveis), 10,8 GiB de imagens sem uso e
+15 GiB de volumes órfãos. `docker builder prune --keep-storage` e `docker image
+prune` acima de `DOCKER_PRUNE_MIN_GIB`; volumes só listados (podem ter dado).
+
+#### X29 — 🔴 P ☐ Limpar cache do uv
+
+`~/.cache/uv` com 26 GiB. `uv cache prune` só remove entradas sem uso; rodar
+quando passa de um teto.
+
+#### X30 — 🟡 P ☐ Limitar o sccache
+
+`~/.cache/sccache` com 10 GiB. Respeitar `SCCACHE_CACHE_SIZE` e podar os
+objetos mais velhos quando o diretório passa do teto.
+
+#### X31 — 🟡 P ☐ Limpar caches de build Go, npm e pnpm
+
+`go clean -cache` acima de N GiB (2,6 GiB hoje), `pnpm store prune` e `npm
+cache verify`.
+
+#### X32 — 🟡 P ☐ Limpar runtimes antigos das CLIs de IA
+
+`~/.cache/kimchi` 7,6 GiB, `~/.cache/copilot` 6,3 GiB, `~/.cache/codex-runtimes`
+1,7 GiB: versões que os updaters deixam para trás. Manter só a versão em uso de
+cada.
+
+#### X33 — 🟡 P ☐ Limpar browsers antigos do Playwright
+
+`~/.cache/ms-playwright` com 3,6 GiB. Remover revisões que nenhuma versão
+instalada do Playwright referencia.
+
+#### X34 — 🟡 P ☐ Limpar dados órfãos do Steam
+
+9,3 GiB de shadercache e 9 prefixos em `compatdata`. Remover os de appids que
+não estão mais instalados (`appmanifest_*.acf`); nunca os de jogos
+instalados.
+
+#### X35 — 🟢 P ☐ Limpar runners e componentes órfãos do Bottles
+
+Bottles com 8,6 GiB: runners, DXVK e VKD3D que nenhuma bottle usa
+(`bottle.yml`).
+
+#### X36 — 🟢 P ☐ Limpar revisões antigas do Hugging Face
+
+`~/.cache/huggingface` com 1,3 GiB. Revisões não referenciadas por nenhum
+`refs/` (`huggingface-cli delete-cache` em modo não interativo).
+
+#### X37 — 🟢 P ☐ Flatpak: runtimes sem uso
+
+`flatpak uninstall --unused --noninteractive` depois do update (1 app hoje, mas
+runtimes antigos ficam).
+
+#### X38 — 🟡 M ☐ Doctor: pacotes grandes esquecidos
+
+1945 pacotes. Listar explícitos grandes (`expac '%m %n'`) cujo binário principal
+não é acessado há meses (atime com `relatime`), como candidatos a remoção; ex.:
+`nvidia-utils` (X47).
+
+### Clones e fontes
+
+#### X39 — 🔴 M ☐ Clones de terceiros em ~/git-clones e ~/src
+
+`~/git-clones` (cava, nomacs, trizen, dankcalendar, odysseus, blender-mcp…),
+`~/src/dux-shell`, `~/src/dux-docs`, `~/Handy`. Fetch com os helpers do
+`core.sh` e relatório de commits/tags novos; fast-forward só em
+`GIT_CLONES_AUTOPULL` e só sem trabalho local (`git_has_local_work`).
+
+#### X40 — 🟡 P ☐ PKGBUILDs locais em ~/builds
+
+`~/builds/cloudflare-warp-bin` é um PKGBUILD clonado do AUR e montado à mão.
+Comparar o `pkgver` do clone, o do AUR e o instalado; versão nova vira `todo`
+com `git pull && makepkg -si`.
+
+#### X41 — 🟡 P ☐ Doctor: repositórios de config sem push
+
+`~/.config/hypr`, `~/claude-env`, `~/.claude/skills` e `~/.codex/memories`
+versionados. Mudanças não commitadas ou commits sem push há mais de N dias viram
+nota (risco de perda num disco só).
+
+#### X42 — 🟢 P ☐ Doctor: backups manuais esquecidos
+
+`~/.local/opt/*.manual-backup-*`, `~/.agents/skills.bak-*`,
+`~/.local/share/rtk-removal-backup-*`, `recordly-1.3.3-patched`: listar com
+tamanho e idade como candidatos a remoção.
+
+#### X43 — 🟢 M ☐ Doctor: worktrees e stashes esquecidos
+
+33 projetos em `~/development`. `git worktree list` com diretório sumido
+(`prune` em dry-run), stashes com mais de N dias e branches já mescladas.
+
+### Extensões, apps e ferramentas
+
+#### X44 — 🟡 M ☐ Doctor: extensões do Chrome/Chromium
+
+Ler `Extensions/*/manifest.json` dos perfis: extensão fora da Web Store
+(`update_url` ausente, nunca atualiza) e permissões amplas (`<all_urls>`,
+`nativeMessaging`).
+
+#### X45 — 🟢 P ☐ Limpar versões antigas de extensões de IDE
+
+`~/.vscode/extensions`, `~/.cursor/extensions` e afins guardam a versão
+anterior de cada extensão após o update. Remover as que o `extensions.json` não
+referencia.
+
+#### X46 — 🟢 P ☐ Neovim: limpar plugins e LSPs órfãos
+
+`Lazy clean` headless e pacotes do Mason fora do `ensure_installed`.
+
+#### X47 — 🟡 P ☐ Doctor: driver de GPU coerente
+
+`nvidia-utils` e `linux-firmware-nvidia` instalados numa máquina com Intel
+Iris Xe e sem módulo `nvidia` carregado. Detectar a GPU (`lspci`) e apontar
+pacotes de driver sem hardware (e o inverso).
+
+#### X48 — 🟡 P ☐ Wine: atualizar prefixos após upgrade
+
+`wine` do pacman atualiza o binário, mas `~/.wine` só migra no próximo
+`wineboot -u`. Rodar o `wineboot -u` headless quando a versão do prefixo
+(`system.reg`) é mais velha que a do wine.
+
+#### X49 — 🟡 P ☐ Doctor: units de usuário quebradas
+
+`cliproxyapi.service`, `t3code.service` e os timers do full-upgrade são units de
+usuário. `ExecStart` apontando para binário que sumiu e unit habilitada que
+falha no boot viram `todo` (complementa o Doctor de units falhadas, que olha o
+estado e não a causa).
+
+#### X50 — 🟡 P ☐ Doctor: credenciais de CLIs expirando
+
+`gh auth status`, `gcloud auth list`, `docker login` (`~/.docker/config.json`),
+chave do Tailscale (X8) e tokens de CLIs de IA: credencial expirada vira `todo`
+antes de um update falhar por 401.
+
+---
+
+## Série W — Run real de 2026-11-19 (v4.1.0) e componentes sem dono
+
+Run real completo (`full-upgrade -y -d`, 13m08s): **131 ok, 0 warn, 3 todo,
+0 fail, 18 skip**. Os três `todo` tinham uma causa só.
+
+### Correções
+
+#### W1 — 🔴 P ☑ Uma falha AUR virava três "ações necessárias"
+
+Feito: `final_check_pending` e `autofix_final_pending` (`final_checks.sh`) leem o sidecar `.aur-build-failed`; testes em `tests/final_check_managers.bats` e `tests/autofix_final_pending.bats`.
+
+`stably-orca-bin` 1.4.263 no AUR baixa de `github.com/stablyai/orca`, que
+passou a responder 404 (repositório fora do ar; a 1.4.262 instalada segue
+funcionando). O step do sistema já fechava em `todo` com a remediação, mas a
+verificação final repetia "1 pacote AUR pendente; rode paru -Syu" (que falharia
+igual) e o autofix repetia "retry AUR pulado". Agora o pacote que falhou no run
+aparece como "já reportado" na verificação final, e o autofix fecha `ok` sem
+duplicar o item. Resultado esperado no mesmo cenário: 1 `todo`.
+
+#### W2 — 🟡 P ☑ Não repetir o build AUR quando a fonte responde 404
+
+Feito: `aur_source_gone` (`pacman.sh`) corta o retry do paru e acrescenta "fonte do PKGBUILD em 404" ao motivo; testes em `tests/pacman_update_cov.bats`.
+
+O helper AUR fez 3 tentativas (com limpeza de cache entre elas) para o mesmo
+`curl: (22) ... 404` da fonte. 404 de fonte não é transitório: detectar
+`==> ERRO: Falha ao baixar` + `error: 404` e pular as tentativas restantes,
+com o motivo "fonte do PKGBUILD indisponível (404)" no `todo`.
+
+### Novos steps (componentes que nenhum gerenciador atualiza)
+
+#### W3 — 🟡 M ☑ Step `Atualizar CLIProxyAPI`
+
+Feito: `update_cliproxyapi` e helpers (`tools.sh`), `github_latest_release_tag` (`manual_apps.sh`).
+
+`~/.local/bin/cli-proxy-api` → `~/.local/share/cliproxyapi/versions/8.0.77`
+(8.0.78 publicada), servido por `cliproxyapi.service` (user). Baixa o tar.gz do
+release com `checksums.txt` obrigatório, confere a versão do binário, troca o
+symlink de forma atômica, reinicia o serviço e volta o binário anterior se ele
+não ficar ativo. Também cobre o layout de binário avulso. Config:
+`CLIPROXYAPI_KEEP_VERSIONS`, `CLIPROXYAPI_RESTART_SERVICE`,
+`CLIPROXYAPI_SERVICE`, `CLIPROXYAPI_BIN`.
+
+#### W4 — 🟡 P ☑ Step `Atualizar extensões do gh (GitHub CLI)`
+
+Feito: `update_gh_extensions` (`tools.sh`).
+
+O pacote `github-cli` nunca atualiza as extensões. `gh extension upgrade --all`
+sem prompt; limite da API vira `warn` e repositório sumido vira `todo`.
+
+#### W5 — 🟡 P ☑ Step `Atualizar assinaturas do ClamAV (freshclam)`
+
+Feito: `update_clamav_signatures` (`security.sh`).
+
+`clamav` 1.5.4 instalado com `/var/lib/clamav` **vazio**: as units
+`clamav-freshclam.service` e `clamav-freshclam-once.timer` vêm desabilitadas, e
+sem assinaturas o `clamscan` não detecta nada. O step roda `freshclam` só quando
+nenhuma das duas está ativa; cool-down do CDN (HTTP 429) vira `warn`.
+
+#### W6 — 🟡 P ☑ Step `Atualizar ferramentas mise`
+
+Feito: `update_mise_tools` (`lang_other.sh`).
+
+O pacote `mise` atualiza o binário, não as ferramentas: `node 24` estava em
+24.21.0 com a 24.22.3 publicada. `mise outdated --json` decide; `mise upgrade`
+respeita o intervalo do config (major nova fica com o usuário). Roda do `$HOME`
+para um `mise.toml` de projeto não mudar o escopo.
+
+#### W7 — 🟡 P ☑ Step `Atualizar plugins Zsh avulsos (git)`
+
+Feito: `update_zsh_standalone_plugins` + `zsh_git_plugins_update`, extraído de `update_omz_custom_plugins` (`shell.sh`).
+
+`~/.local/share/zsh-defer` (clone do romkatv carregado direto pelo `.zshrc`)
+nunca era atualizado. Mesma política dos plugins customizados do OMZ. Config:
+`ZSH_STANDALONE_PLUGIN_DIRS`.
+
+Testes dos cinco steps: `tests/manual_steps_series_w.bats` (55 testes, 100% das
+linhas novas medidas por xtrace).
+
+### Candidatos a step (componentes fora de gerenciador)
+
+Levantados nesta máquina e em setups Arch comuns. Todos implementados em
+2026-11-19 (função no arquivo da categoria, catálogo, `main.sh`, config quando
+há escolha, docs e testes em `tests/series_w_candidates.bats`, 47 testes).
+
+#### W8 — 🟡 M ☑ Modelos do Ollama
+
+Feito: `update_ollama_models` (`ai.sh`), opt-in `OLLAMA_MODELS_UPDATE`; modelo local é pulado.
+
+`ollama pull` só dos modelos cujo digest remoto mudou (`ollama list` +
+manifest do registry). Nenhum gerenciador renova modelos. Opt-in
+(`OLLAMA_MODELS_UPDATE`): um modelo pode ter dezenas de GB.
+
+#### W9 — 🟡 M ☑ Proton-GE e Wine-GE em `compatibilitytools.d`
+
+Feito: `update_proton_ge` (`tools.sh`): sha512 do release, instala ao lado, `PROTON_GE_KEEP`/`PROTON_GE_DIR`.
+
+Releases do GloriousEggroll com `.sha512sum`. Instalar a versão nova ao lado
+(o Steam fixa a versão por jogo) e manter as N últimas.
+
+#### W10 — 🟢 P ☑ Plugins do tmux (tpm)
+
+Feito: `update_tmux_plugins` (`shell.sh`).
+
+`~/.tmux/plugins/tpm/bin/update_plugins all`; o tpm se atualiza como plugin.
+
+#### W11 — 🟢 P ☑ Plugins do fish (fisher)
+
+Feito: `update_fisher_plugins` (`shell.sh`).
+
+`fish -c 'fisher update'` quando `~/.config/fish/fish_plugins` existe (`fish`
+instalado nesta máquina, sem fisher ainda).
+
+#### W12 — 🟡 P ☑ Spicetify depois de update do Spotify
+
+Feito: `update_spicetify` (`tools.sh`): `apply`, `backup apply` quando o Spotify mudou, `upgrade` só do CLI no `$HOME`.
+
+Update do Spotify apaga o patch: `spicetify backup apply` quando o hash do
+`Apps/xpui.spa` mudou; `spicetify update` para o próprio CLI manual.
+
+#### W13 — 🟢 P ☑ Plugins do kubectl (krew)
+
+Feito: `update_krew_plugins` (`tools.sh`).
+
+`kubectl krew upgrade` (o `kubectl` desta máquina é do pacman; o krew não).
+
+#### W14 — 🟢 P ☑ Plugins do Helm
+
+Feito: `update_helm_plugins` (`tools.sh`).
+
+`helm plugin update <nome>` para cada `helm plugin list`.
+
+#### W15 — 🟡 P ☑ Base de arquivos do pacman (`pacman -Fy`) e pkgfile
+
+Feito: `update_file_databases` (`packages.sh`).
+
+O `-Syu` não sincroniza os `.files`: `pacman -F` responde com base velha. Só
+quando `.files` já existe (opt-in implícito) ou o `pkgfile-update.timer` não
+está ativo.
+
+#### W16 — 🟡 M ☑ AppImages com informação de update (zsync)
+
+Feito: `update_appimages` (`tools.sh`), `APPIMAGE_DIRS`; sem update info só lista.
+
+`~/Applications/*.AppImage` com `--appimage-updateinformation`: atualizar via
+`appimageupdatetool`, mantendo a anterior até a nova abrir.
+
+#### W17 — 🟢 M ☑ Nerd Fonts instaladas à mão
+
+Feito: `update_nerd_fonts` (`tools.sh`), `NERD_FONTS_DIR/<Família>` com `.nf-version`.
+
+Fontes de `ryanoasis/nerd-fonts` em `~/.local/share/fonts`: comparar a versão
+do nome/metadado com o último release e reinstalar + `fc-cache`.
+
+#### W18 — 🟡 M ☑ Plugins do KiCad (PCM)
+
+Feito: `check_kicad_plugins` (`tools.sh`), só leitura: versão nova vira `todo` (atualizar pelo PCM).
+
+`~/.local/share/kicad/10.0/3rdparty` tem `kicad-jlcpcb-tools` nesta máquina; o
+PCM só atualiza pela GUI. Comparar com o `repository.json` do PCM e
+reinstalar o zip com sha256 do índice.
+
+#### W19 — 🟡 P ☑ ESP-IDF instalado pelo EIM
+
+Feito: `check_esp_idf` (`lang_other.sh`), só leitura.
+
+`~/.espressif/v6.0.1` nesta máquina. Patch novo na mesma série (6.0.x) vira
+`todo` com o comando do `eim`; major nova só informa.
+
+#### W20 — 🟢 P ☑ Templates do nuclei
+
+Feito: `update_nuclei_templates` (`security.sh`).
+
+`nuclei -update-templates` quando o binário é manual ou do pacman (os templates
+nunca vêm no pacote).
+
+#### W21 — 🟢 P ☑ Exploit-DB (searchsploit) em clone git
+
+Feito: `update_exploitdb` (`security.sh`), `EXPLOITDB_DIR`; sudo para clone de root.
+
+`searchsploit -u` quando `/opt/exploitdb` ou `~/exploitdb` é clone git.
+
+#### W22 — 🟢 P ☑ rkhunter: base e propriedades pós-upgrade
+
+Feito: `update_rkhunter` (`security.sh`).
+
+`rkhunter --update` e `rkhunter --propupd` depois do upgrade do sistema, para o
+próximo scan não acusar os binários recém-atualizados.
+
+#### W23 — 🟢 P ☑ arkenfox `user.js` nos perfis do Firefox
+
+Feito: `update_arkenfox` (`tools.sh`).
+
+`updater.sh -s` em cada perfil que tem o `user.js` do arkenfox.
+
+#### W24 — 🟢 P ☑ Gerenciadores de plugin Zsh (zinit, antidote, sheldon)
+
+Feito: `update_zsh_plugin_managers` (`shell.sh`).
+
+`zinit self-update && zinit update --all`, `antidote update`, `sheldon lock
+--update`. Complementa W7.
+
+#### W25 — 🟡 P ☑ Gerenciadores de toolchain: juliaup, elan, coursier, SDKMAN!
+
+Feito: `update_toolchain_managers` (`lang_other.sh`); `sdk upgrade` fica com o usuário.
+
+`juliaup update`, `elan self update && elan update`, `cs update`, `sdk
+selfupdate && sdk update`. Mesmo molde do rustup/ghcup.
+
+#### W26 — 🟢 P ☑ Pacotes globais do Composer
+
+Feito: `update_composer_global` (`lang_other.sh`).
+
+`composer global update` (há PHP 8.3 via mise nesta máquina).
+
+#### W27 — 🟢 P ☑ Parsers do nvim-treesitter
+
+Feito: `update_treesitter_parsers` (`editor.sh`).
+
+`nvim --headless '+TSUpdateSync' +qa` depois do Lazy: 17 parsers compilados
+nesta máquina, que ficam presos ao ABI antigo quando o plugin sobe.
 
 ---
 
