@@ -453,13 +453,16 @@ Thu 2026-11-17 03:00:00 -03 3 1000 1000 SIGSEGV present /usr/bin/prog 1K"
   stub pipewire 0
   stub wireplumber 0
   stub_script pgrep 'exit 0'
-  stub vulkaninfo 0 "deviceName = AMD Radeon"
+  stub_script vulkaninfo 'printf "D=%s W=%s\n" "${DISPLAY-unset}" "${WAYLAND_DISPLAY-unset}" >> "$BATS_TEST_TMPDIR/vk.env"; printf "deviceName         = AMD Radeon RX 7600 (RADV NAVI33)\n"'
   stub glxinfo 0 "OpenGL renderer string: AMD Radeon (radeonsi)"
-  run doctor_desktop_health
+  DISPLAY=:0 WAYLAND_DISPLAY=wayland-1 run doctor_desktop_health
   [ "$status" -eq 0 ]
+  # vulkaninfo roda sem display: com um X que recusa conexão ele segfaulta.
+  [[ "$(cat "$BATS_TEST_TMPDIR/vk.env")" == "D=unset W=unset" ]]
   [[ "$output" == *"xdg-desktop-portal: em execução"* ]]
   [[ "$output" == *"WirePlumber: em execução"* ]]
-  [[ "$output" == *"GPU Vulkan: AMD"* ]]
+  # Nome completo do dispositivo (antes saía só a 1ª palavra).
+  [[ "$output" == *"GPU Vulkan: AMD Radeon RX 7600 (RADV NAVI33)"* ]]
   rm "$STUB_BIN/vulkaninfo"; hash -r
   run doctor_desktop_health
   [[ "$output" == *"GPU OpenGL: AMD Radeon (radeonsi)"* ]]

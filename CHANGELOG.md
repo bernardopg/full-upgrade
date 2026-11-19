@@ -3,6 +3,25 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Doctor: saúde do desktop` não deixa mais um coredump do `vulkaninfo` a
+  cada run** (#209): com um `DISPLAY` que recusa conexão (sessão de agente,
+  `sudo`, SSH com X forwarding quebrado), o `vulkaninfo --summary` 1.4.x
+  segfaulta na limpeza da surface Xlib (KhronosGroup/Vulkan-Tools#1278), e o
+  `Doctor: crashes recorrentes (coredump)` passava a acusar o próprio
+  `vulkaninfo`. O FU agora roda o comando sem `DISPLAY`/`WAYLAND_DISPLAY` e com
+  `timeout`. A linha `GPU Vulkan:` mostra o nome completo do dispositivo; antes
+  mostrava só a primeira palavra (`Intel(R)`).
+- **`Checar ESP-IDF (EIM)` fecha o `todo` depois do update** (#210): o EIM
+  instala o patch novo ao lado do antigo, e o step media a versão antiga e
+  ficava em `todo` para sempre. Agora conta só a maior versão instalada de cada
+  série `vX.Y`. As anteriores aparecem numa linha informativa com o
+  `eim remove`.
+- **Remediação do ESP-IDF executável como escrita** (#210): o EIM é resolvido
+  pelo `PATH` ou pelo `eimPath` do `eim_idf.json` (a GUI deixa o binário em
+  `~/.espressif/eim_gui/eim`, fora do `PATH`). O comando sugerido usa esse
+  caminho e inclui o `eim remove` da versão antiga.
 
 ## [4.2.0] - 2026-11-19
 ### Adicionado

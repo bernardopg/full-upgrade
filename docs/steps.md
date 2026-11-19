@@ -76,7 +76,7 @@ dentro de `packages`.
 | Apps manuais | Programas fora de gerenciador com step dedicado: droid, Snyk CLI e GitKraken CLI (sha256 conferido), OWASP ZAP (core e add-ons), vite-plus, Herdr, cloudflared, CLIProxyAPI (sha256, troca atômica e rollback do serviço). `Doctor: apps manuais` aponta o que ainda não tem step. |
 | Componentes sem dono | O pacote instala, mas não mantém: extensões do `gh`, assinaturas do ClamAV (`freshclam`, só sem unit do freshclam ativa), ferramentas do mise, modelos do Ollama (opt-in `OLLAMA_MODELS_UPDATE`), bases `pacman -F`/pkgfile, templates do nuclei, Exploit-DB em clone git, bases e propriedades do rkhunter, plugins do krew, Helm, tmux, fish e dos gerenciadores Zsh, parsers do nvim-treesitter, Composer global e toolchains de juliaup/elan/coursier/SDKMAN!. |
 | Baixados à mão | Proton-GE (instala ao lado, `PROTON_GE_KEEP`), AppImages com zsync, Nerd Fonts (`NERD_FONTS_DIR`), arkenfox e Spicetify (reaplica depois do update do Spotify). |
-| Só checagem (`todo`) | Plugins do KiCad com versão nova no PCM e patch novo do ESP-IDF na série instalada: atualizar por fora quebraria a contabilidade da ferramenta dona. |
+| Só checagem (`todo`) | Plugins do KiCad com versão nova no PCM e patch novo do ESP-IDF na série instalada (só a maior versão instalada de cada série `vX.Y` conta; patches antigos lado a lado são apenas listados para `eim remove`): atualizar por fora quebraria a contabilidade da ferramenta dona. |
 
 ## Integrações empacotadas
 
