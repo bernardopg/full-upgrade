@@ -96,3 +96,29 @@ echo "error: failed to commit transaction (conflicting files)"; exit 1'
   [ "$status" -eq 0 ]
   grep -q "^pikaur -Syu --noconfirm --noedit" "$STUB_LOG"
 }
+
+@test "aur_source_gone: 404 no download da fonte, e só ele" {
+  run aur_source_gone "$(printf '%s\n' 'curl: (22) The requested URL returned error: 404' '==> ERRO: Falha ao baixar https://x/orca-linux.AppImage')"
+  [ "$status" -eq 0 ]
+  run aur_source_gone "curl: (22) The requested URL returned error: 404"
+  [ "$status" -ne 0 ]
+  run aur_source_gone "==> ERROR: Failure while downloading https://x (timeout)"
+  [ "$status" -ne 0 ]
+}
+
+@test "update_system_aur: fonte em 404 não repete o paru e diz no motivo" {
+  # Caso real (2026-11-19): stably-orca-bin 1.4.263 com o upstream fora do ar
+  # fez 3 tentativas idênticas, com limpeza de cache entre elas.
+  AUR_HELPER=paru
+  stub pacman 0 ""
+  stub_script paru 'case "$*" in -Qu*) exit 0 ;; esac
+echo "curl: (22) The requested URL returned error: 404"
+echo "==> ERRO: Falha ao baixar https://github.com/x/orca-linux.AppImage"
+echo "erro: falha ao baixar fontes para '"'"'stably-orca-bin-1.4.263-1'"'"': "
+echo "erro: pacotes falharam ao compilar: stably-orca-bin-1.4.263-1"
+exit 1'
+  update_system_aur >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_TODO" ]
+  [ "$(grep -c -- '-Syu' "$STUB_LOG")" -eq 1 ]
+  [[ "$STEP_REASON" == *"fonte do PKGBUILD em 404"* ]]
+}

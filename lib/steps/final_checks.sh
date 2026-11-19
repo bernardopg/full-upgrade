@@ -154,6 +154,22 @@ final_check_pending() {
       '
     )"
 
+    # Pacote AUR que falhou build/download neste run já virou todo no step de
+    # sistema, com a remediação. Repeti-lo aqui (e no autofix) transformava UMA
+    # causa em três itens de "ação necessária" — caso real: stably-orca-bin
+    # 1.4.263 com o repositório upstream fora do ar (fonte 404).
+    local _abf_path _abf_list="" _already=""
+    _abf_path="$(aur_build_failed_file)"
+    [[ -s "$_abf_path" ]] && _abf_list="$(grep -E '[^[:space:]]' "$_abf_path" | sort -u | paste -sd' ' -)"
+    if [[ -n "$_abf_list" && $filtered == *[![:space:]]* ]]; then
+      _already="$(awk -v list="$_abf_list" 'BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) f[a[i]] = 1 } ($1 in f)' <<<"$filtered")"
+      filtered="$(awk -v list="$_abf_list" 'BEGIN { n = split(list, a, " "); for (i = 1; i <= n; i++) f[a[i]] = 1 } !($1 in f)' <<<"$filtered")"
+      if [[ $_already == *[![:space:]]* ]]; then
+        log "  Pendência AUR já reportada pelo step do sistema (build/download falhou neste run):"
+        printf '%s\n' "$_already" | log_stream
+      fi
+    fi
+
     if [[ $filtered == *[![:space:]]* ]]; then
       pending=1
       aur_count="$(printf '%s\n' "$filtered" | grep -c '[^[:space:]]' || true)"
@@ -453,9 +469,10 @@ autofix_final_pending() {
       if [[ $_remaining != *[![:space:]]* ]]; then
         log "  Pendência AUR restrita a pacote(s) que já falharam build neste run: ${_known_failed[*]}"
         log "  Falha de compilação é determinística — retry pulado (economiza rebuild garantido a falhar)."
-        remediation "paru -S ${_known_failed[*]}  # ou aguarde o mantenedor corrigir o PKGBUILD"
-        STEP_REASON="retry AUR pulado: ${#_known_failed[@]} pacote(s) com falha de build determinística"
-        return "$RC_TODO"
+        # A ação (paru -S ou esperar o mantenedor) já é todo do step de sistema;
+        # repeti-la aqui só duplicava o item em "Próximos passos".
+        log "  Ação já registrada no step 'Atualizar pacotes do sistema e AUR'."
+        return 0
       fi
       log "  Ignorando no retry ${#_known_failed[@]} pacote(s) com falha de build determinística: ${_known_failed[*]}"
       aur_pending="$_remaining"

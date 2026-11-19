@@ -55,9 +55,11 @@ EOF
   printf 'pcsx2\n' > "$(aur_build_failed_file)"
 
   run autofix_final_pending
-  [ "$status" -eq "$RC_TODO" ]
+  # A ação já é todo do step de sistema: repetir aqui duplicava o item.
+  [ "$status" -eq 0 ]
   [[ "$output" == *"retry pulado"* ]]
   [[ "$output" == *"pcsx2"* ]]
+  [[ "$output" == *"já registrada"* ]]
   # o retry (paru -Sua) não pode ter sido invocado
   ! grep -q -- "-Sua" "$MOCKDIR/paru.calls"
 }
