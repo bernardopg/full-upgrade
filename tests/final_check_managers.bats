@@ -279,3 +279,33 @@ stub() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Nenhuma pendência acionável para remediar"* ]]
 }
+
+# ── pacote AUR que já falhou neste run ────────────────────────────────────────
+# Caso real (2026-11-19): stably-orca-bin 1.4.263 com o repositório upstream
+# fora do ar (fonte 404). A mesma causa saía como todo no step de sistema, na
+# verificação final e no autofix: três "ações necessárias" para um fato só.
+_abf_setup() {
+  LOG_DIR="${BATS_TEST_TMPDIR}/logs"
+  RUN_ID="abf-run"
+  mkdir -p "$LOG_DIR"
+  printf 'stably-orca-bin\n' > "$(aur_build_failed_file)"
+  stub checkupdates ""
+  QUIET=0
+}
+
+@test "final_check_pending: pendência AUR só de pacote que falhou no run não repete o todo" {
+  _abf_setup
+  # yay vem antes do paru na verificação; os dois ficam stubados (setup).
+  stub yay "stably-orca-bin 1.4.262-1 -> 1.4.263-1"
+  run final_check_pending
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"já reportada pelo step do sistema"* ]]
+  [[ "$output" == *"stably-orca-bin"* ]]
+}
+
+@test "final_check_pending: outro pacote AUR pendente segue como pendência" {
+  _abf_setup
+  stub yay "$(printf '%s\n' 'stably-orca-bin 1.4.262-1 -> 1.4.263-1' 'outro-bin 1.0-1 -> 1.1-1')"
+  final_check_pending >/dev/null || true
+  [[ "$STEP_REASON" == *"1 pacote(s) AUR"* ]]
+}

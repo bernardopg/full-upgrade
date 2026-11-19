@@ -133,6 +133,15 @@ _AUR_NETWORK_RE="${NETWORK_TRANSIENT_RE:-name or service not known|name resoluti
 
 _AUR_TRANSIENT_SRC_RE='não passaram na verificação de validade|did not pass the validity check|FALHOU|one or more files did not pass|falha ao baixar fontes|failure while downloading|error downloading sources'
 
+# Fonte do PKGBUILD que responde 404: o arquivo não existe (tag apagada,
+# repositório upstream fora do ar, asset ainda não anexado). Não cura com
+# limpeza de cache nem com espera de segundos, então não vale a 2ª e a 3ª
+# tentativa. Caso real: stably-orca-bin 1.4.263, 3 tentativas para o mesmo 404.
+aur_source_gone() {
+  grep -qE 'returned error: 404' <<<"$1" || return 1
+  grep -qiE 'falha ao baixar|failed to download|failure while downloading|error downloading sources' <<<"$1"
+}
+
 
 
 # Regex (grep -E, case-insensitive) de erros de rede transitórios.
@@ -305,6 +314,10 @@ update_system_aur() {
         [[ -s "$_aur_ood_file" ]] || rm -f "$_aur_ood_file"
       fi
       (( _paru_rc == 0 )) && break
+      if aur_source_gone "$_paru_out"; then
+        log "  paru: fonte do PKGBUILD respondeu 404; repetir não muda o resultado."
+        break
+      fi
       # Só vale repetir se a falha for de rede OU de integridade de fonte
       # (checksum/download), que a limpeza pode curar. Erro de PKGBUILD,
       # conflito ou compilação não cura com retry — aborta o loop.
@@ -363,6 +376,7 @@ update_system_aur() {
         log "  Sistema (repos oficiais) atualizado; falha restrita ao AUR — marcando como ação manual, não erro fatal."
         remediation "paru -S ${_failed_aur[*]:-<pacote>}  # ou aguarde o mantenedor corrigir o PKGBUILD"
         STEP_REASON="$(_aur_failed_count_or_one "${#_failed_aur[@]}") pacote(s) AUR falharam build/download (sistema OK)"
+        aur_source_gone "$_paru_out" && STEP_REASON+="; fonte do PKGBUILD em 404 (upstream sem o arquivo)"
         return "$RC_TODO"
       fi
     fi

@@ -86,7 +86,7 @@ Two consequences for contributors: **(a)** a step that talks to the network must
 
 A step with a catalog timeout runs in a **subshell**, so any global it sets is lost (only `STEP_REASON` survives, via a temp file — see `run_step`). State that must reach a later step is written to a file named by `RUN_ID` under `LOG_DIR`: `.pkgs-before` (`lib/json.sh`), `.pacfiles-todo` (`lib/core.sh`), `.aur-out-of-date` and `.aur-build-failed` (both `lib/steps/pacman.sh` → read by `lib/steps/cleanup.sh`). `rotate_logs` groups artifacts by `RUN_ID` and is extension-agnostic, so a new sidecar is cleaned up automatically — no list to register in.
 
-`.aur-build-failed` is the reason `autofix_final_pending` does not rebuild a package that already failed `build()` earlier in the same run: a compile error is deterministic, and the blind retry burned minutes to fail identically.
+`.aur-build-failed` is the reason `autofix_final_pending` does not rebuild a package that already failed `build()` earlier in the same run: a compile error is deterministic, and the blind retry burned minutes to fail identically. `final_check_pending` reads it too and lists those packages as already reported instead of raising a second `todo` (one AUR failure used to surface as three action items).
 
 ### Updating cloned plugins (Zsh, DMS, OBS)
 
