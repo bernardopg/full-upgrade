@@ -1210,10 +1210,14 @@ doctor_desktop_health() {
     log "  WirePlumber: não encontrado."
   fi
 
-  # GPU básico — apenas informativo
+  # GPU básico — apenas informativo. Sem DISPLAY/WAYLAND_DISPLAY: o --summary
+  # só lê os dispositivos, e com um DISPLAY que não aceita conexão (sessão de
+  # agente, sudo, SSH com X forwarding quebrado) o vulkaninfo 1.4.x segfaulta
+  # na limpeza da surface Xlib (XDestroyWindow com Display nulo,
+  # KhronosGroup/Vulkan-Tools#1278) — cada run do Doctor deixava um coredump.
   if has vulkaninfo; then
     local vk_dev
-    vk_dev="$(vulkaninfo --summary 2>/dev/null | awk '/deviceName/{print $3; exit}' || true)"
+    vk_dev="$(env -u DISPLAY -u WAYLAND_DISPLAY timeout 20 vulkaninfo --summary 2>/dev/null | awk -F' = ' '/deviceName/{print $2; exit}' || true)"
     [[ -n "$vk_dev" ]] && log "  GPU Vulkan: ${vk_dev}"
   elif has glxinfo; then
     local gl_renderer

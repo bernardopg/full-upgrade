@@ -384,12 +384,36 @@ esp_idf_latest_in_series() {
   grep -E "^${series//./\\.}(\.[0-9]+)?$" <<<"$2" | sort -V | tail -1
 }
 
+# Puro: da lista ordenada (sort -V) de versões instaladas, a maior de cada série
+# vX.Y. Com v6.0.1 e v6.0.3 lado a lado (o EIM instala o patch novo ao lado do
+# antigo), só a v6.0.3 conta: medir a v6.0.1 deixava o step em todo para sempre
+# mesmo com o patch já instalado.
+esp_idf_series_heads() {
+  awk '{ s = $0; sub(/^v/, "", s); split(s, p, "."); head[p[1] "." p[2]] = $0; order[p[1] "." p[2]] = NR }
+       END { for (k in head) print order[k], head[k] }' <<<"$1" | sort -n | cut -d' ' -f2-
+}
+
+# Caminho do EIM CLI: o do PATH ou o `eimPath` do eim_idf.json. A instalação
+# pela GUI deixa o binário em ~/.espressif/eim_gui/eim, fora do PATH, e a
+# remediação `eim install` não rodava como estava escrita.
+esp_idf_eim_bin() {
+  local json="${IDF_TOOLS_PATH:-$HOME/.espressif/tools}/eim_idf.json" alt=""
+  [[ -r "$json" ]] && alt="$(jq -r '.eimPath // empty' "$json" 2>/dev/null || true)"
+  manual_bin_path eim ${alt:+"$alt"}
+}
+
 check_esp_idf() {
-  local json published v latest newest
+  local json published v latest newest eim
   local -a pending=()
+  local -a superseded=()
   local -a installed=()
-  mapfile -t installed <<<"$(esp_idf_installed)"
-  [[ -n "${installed[0]:-}" ]] || { log "  Nenhum ESP-IDF instalado pelo EIM."; return 0; }
+  local -a all=()
+  mapfile -t all <<<"$(esp_idf_installed)"
+  [[ -n "${all[0]:-}" ]] || { log "  Nenhum ESP-IDF instalado pelo EIM."; return 0; }
+  mapfile -t installed <<<"$(esp_idf_series_heads "$(printf '%s\n' "${all[@]}")")"
+  for v in "${all[@]}"; do
+    array_contains "$v" "${installed[@]}" || superseded+=("$v")
+  done
   json="$(fetch_network_text --connect-timeout 10 --max-time 30 "$ESP_IDF_VERSIONS_URL")" || {
     STEP_REASON="índice de versões do ESP-IDF indisponível"
     return "$RC_WARN"
@@ -408,8 +432,16 @@ check_esp_idf() {
   done
   version_is_outdated "${installed[-1]#v}" "${newest#v}" \
     && log "  Série mais nova publicada: ${newest} (migração é decisão do projeto)."
+  if ((${#superseded[@]} > 0)); then
+    log "  Superadas por um patch mais novo da mesma série: ${superseded[*]} (libere espaço com: eim remove <versão>)."
+  fi
   ((${#pending[@]} == 0)) && return 0
-  remediation "eim install -i ${pending[*]}  # ou pela GUI do EIM"
+  eim="$(esp_idf_eim_bin)"
+  if [[ -n "$eim" ]]; then
+    remediation "${eim} install -i ${pending[*]}  # depois: ${eim} remove <versão antiga>"
+  else
+    remediation "eim install -i ${pending[*]}  # EIM CLI fora do PATH: instale o eim-cli ou use a GUI do EIM"
+  fi
   STEP_REASON="ESP-IDF: patch novo na série instalada (${pending[*]})"
   return "$RC_TODO"
 }

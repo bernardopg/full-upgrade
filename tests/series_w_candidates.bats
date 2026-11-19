@@ -535,12 +535,58 @@ _idf_json='{"VERSIONS":[{"name":"latest"},{"name":"v6.1.1"},{"name":"v6.0.2"},{"
 
 @test "check_esp_idf: patch novo na série vira TODO e série nova só é informada" {
   mkdir -p "$HOME/.espressif/v6.0.1"
+  _rec eim
   fetch_network_text() { printf '%s\n' "$_idf_json"; }
   check_esp_idf >"$BATS_TEST_TMPDIR/out" || status=$?
   [ "${status:-0}" -eq "$RC_TODO" ]
   grep -q 'patch v6.0.2 disponível' "$BATS_TEST_TMPDIR/out"
   grep -q 'Série mais nova publicada: v6.1.1' "$BATS_TEST_TMPDIR/out"
-  grep -q 'REMEDIACAO: eim install -i v6.0.2' "$BATS_TEST_TMPDIR/out"
+  grep -qF "REMEDIACAO: $BATS_TEST_TMPDIR/bin/eim install -i v6.0.2  # depois: $BATS_TEST_TMPDIR/bin/eim remove <versão antiga>" "$BATS_TEST_TMPDIR/out"
+}
+
+@test "esp_idf_series_heads: só a maior versão de cada série, na ordem das séries" {
+  run esp_idf_series_heads "$(printf '%s\n' v5.5 v5.5.3 v6.0.1 v6.0.3 v6.1)"
+  [ "$output" = "$(printf '%s\n' v5.5.3 v6.0.3 v6.1)" ]
+  run esp_idf_series_heads v6.0.1
+  [ "$output" = v6.0.1 ]
+}
+
+@test "check_esp_idf: patch antigo ao lado do novo não mantém o TODO" {
+  # O EIM instala o patch novo ao lado do antigo; medir a v6.0.1 deixava o step
+  # em todo para sempre mesmo com a v6.0.2 instalada.
+  mkdir -p "$HOME/.espressif/v6.0.1" "$HOME/.espressif/v6.0.2"
+  fetch_network_text() { printf '%s\n' "$_idf_json"; }
+  run check_esp_idf
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"v6.0.2: em dia na série"* ]]
+  [[ "$output" != *"v6.0.1: patch"* ]]
+  [[ "$output" == *"Superadas por um patch mais novo da mesma série: v6.0.1"* ]]
+}
+
+@test "esp_idf_eim_bin: PATH, eimPath do eim_idf.json da GUI e ausente" {
+  # PATH mínimo (só o jq) nas chamadas, para o eim do host não vazar no teste.
+  local min="$BATS_TEST_TMPDIR/min"
+  mkdir -p "$min" "$HOME/.espressif/tools" "$HOME/.espressif/eim_gui"
+  ln -s "$(command -v jq)" "$min/jq"
+  PATH="$min" run esp_idf_eim_bin
+  [ -z "$output" ]
+  printf '#!/bin/sh\n' >"$HOME/.espressif/eim_gui/eim"
+  chmod +x "$HOME/.espressif/eim_gui/eim"
+  printf '{"eimPath":"%s"}\n' "$HOME/.espressif/eim_gui/eim" >"$HOME/.espressif/tools/eim_idf.json"
+  PATH="$min" run esp_idf_eim_bin
+  [ "$output" = "$HOME/.espressif/eim_gui/eim" ]
+  _rec eim
+  PATH="$BATS_TEST_TMPDIR/bin:$min" run esp_idf_eim_bin
+  [ "$output" = "$BATS_TEST_TMPDIR/bin/eim" ]
+}
+
+@test "check_esp_idf: sem EIM CLI a remediação aponta o eim-cli/GUI" {
+  mkdir -p "$HOME/.espressif/v6.0.1"
+  esp_idf_eim_bin() { :; }
+  fetch_network_text() { printf '%s\n' "$_idf_json"; }
+  check_esp_idf >"$BATS_TEST_TMPDIR/out" || status=$?
+  [ "${status:-0}" -eq "$RC_TODO" ]
+  grep -qF 'REMEDIACAO: eim install -i v6.0.2  # EIM CLI fora do PATH: instale o eim-cli ou use a GUI do EIM' "$BATS_TEST_TMPDIR/out"
 }
 
 @test "check_esp_idf: nada instalado, em dia, índice fora e índice vazio" {
