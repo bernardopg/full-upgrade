@@ -287,3 +287,188 @@ update_arduino() {
 
   return 0
 }
+
+
+# ── mise (ferramentas gerenciadas) ─────────────────────────────────────────────
+# O pacote mise atualiza o binário; as ferramentas que ele instala (node, php,
+# python… em ~/.local/share/mise/installs) só sobem com `mise upgrade`. O
+# upgrade respeita o intervalo do config (node = "24" => último 24.x); subir de
+# major (--bump) reescreve o mise.toml e fica com o usuário. A versão antiga sai
+# depois do upgrade.prune_after do próprio mise, nunca na mão.
+# Tudo roda a partir de $HOME: um mise.toml de projeto no cwd do run mudaria o
+# escopo para as ferramentas daquele projeto. Plugins asdf/vfox (não-core) vivem
+# em clones git e são renovados antes, porque definem a lista de versões.
+
+# Puro: "ferramenta atual → última" por linha, do JSON de `mise outdated --json`.
+# rc != 0 quando o JSON não parseia (o chamador cai para o upgrade completo).
+mise_outdated_summary() {
+  local fmt='to_entries[] | "\(.key) \(.value.current // "?") → \(.value.latest // "?")"'
+  jq -er "$fmt" <<<"$1" 2>/dev/null && return 0
+  jq -e 'type == "object" and length == 0' <<<"$1" >/dev/null 2>&1
+}
+
+update_mise_tools() {
+  local plugins out rc errf json summary
+  plugins="$(cd "$HOME" && mise plugins ls 2>/dev/null)"
+  if [[ -n "$plugins" ]]; then
+    log "  Atualizando plugins do mise: $(tr '\n' ' ' <<<"$plugins")"
+    out="$(cd "$HOME" && run_network_cmd mise plugins update)"
+    rc=$?
+    printf '%s\n' "$out" | _strip_ansi | grep -v '^[[:space:]]*$' | tail -n 5 | log_stream
+    ((rc == 0)) || log "  Aviso: mise plugins update falhou (rc=${rc}); seguindo com as ferramentas."
+  fi
+
+  errf="$(mktemp)" || return "$RC_WARN"
+  json="$(cd "$HOME" && mise outdated --json 2>"$errf")"
+  rc=$?
+  if ((rc != 0)); then
+    log_raw "$(<"$errf")"
+    if grep -qiE "$NETWORK_TRANSIENT_RE" "$errf"; then
+      rm -f -- "$errf"
+      STEP_REASON="mise outdated: rede indisponível"
+      return "$RC_WARN"
+    fi
+  fi
+  rm -f -- "$errf"
+
+  # Atalho só quando dá para PROVAR que nada mudou: JSON válido e vazio.
+  if summary="$(mise_outdated_summary "$json")"; then
+    if [[ -z "$summary" ]]; then
+      log "  Ferramentas do mise já estão nas últimas versões do intervalo configurado."
+      return 0
+    fi
+    printf '%s\n' "$summary" | log_stream
+  else
+    log "  Não foi possível ler 'mise outdated' (rc=${rc}); rodando o upgrade completo."
+  fi
+
+  out="$(cd "$HOME" && run_network_cmd env MISE_YES=1 mise upgrade)"
+  rc=$?
+  # Sem TTY o mise ainda imprime o progresso do download a cada 3s: fica só o resultado.
+  printf '%s\n' "$out" | _strip_ansi | grep -vE '^[[:space:]]*$|(downloading|extracting) [0-9.]+s|[█░]' | tail -n 15 | log_stream
+  ((rc == 0)) && return 0
+  if ((rc == RC_WARN)); then
+    STEP_REASON="mise upgrade: rede indisponível"
+    return "$RC_WARN"
+  fi
+  STEP_REASON="mise upgrade falhou (rc=${rc})"
+  return 1
+}
+
+
+# ── ESP-IDF instalado pelo EIM ──────────────────────────────────────────────────
+# O Espressif Installation Manager (EIM) põe cada versão do ESP-IDF em
+# ~/.espressif/vX.Y.Z e nunca avisa de patch novo. Só leitura: patch novo na
+# mesma série vira todo com o comando; série nova só é informada (migrar de
+# série muda APIs e é decisão do projeto). Índice: idf_versions.json oficial.
+ESP_IDF_VERSIONS_URL="${ESP_IDF_VERSIONS_URL:-https://dl.espressif.com/dl/esp-idf/idf_versions.json}"
+
+esp_idf_installed() {
+  local root="${IDF_TOOLS_PATH:-$HOME/.espressif}" d
+  [[ -d "$root" ]] || return 0
+  for d in "$root"/v[0-9]*/; do
+    [[ -d "$d" ]] && basename "$d"
+  done | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V
+  return 0
+}
+
+# Puro: versões vX.Y.Z publicadas (sem pré-release) de um idf_versions.json.
+esp_idf_published() {
+  jq -r '.VERSIONS[].name' <<<"$1" 2>/dev/null | grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V
+}
+
+# Puro: maior versão publicada na série de $1 (vX.Y[.Z]) dentre $2 (lista).
+esp_idf_latest_in_series() {
+  local series
+  series="$(sed -E 's/^(v[0-9]+\.[0-9]+).*/\1/' <<<"$1")"
+  grep -E "^${series//./\\.}(\.[0-9]+)?$" <<<"$2" | sort -V | tail -1
+}
+
+check_esp_idf() {
+  local json published v latest newest
+  local -a pending=()
+  local -a installed=()
+  mapfile -t installed <<<"$(esp_idf_installed)"
+  [[ -n "${installed[0]:-}" ]] || { log "  Nenhum ESP-IDF instalado pelo EIM."; return 0; }
+  json="$(fetch_network_text --connect-timeout 10 --max-time 30 "$ESP_IDF_VERSIONS_URL")" || {
+    STEP_REASON="índice de versões do ESP-IDF indisponível"
+    return "$RC_WARN"
+  }
+  published="$(esp_idf_published "$json")"
+  [[ -n "$published" ]] || { STEP_REASON="índice do ESP-IDF sem versões"; return "$RC_WARN"; }
+  newest="$(tail -1 <<<"$published")"
+  for v in "${installed[@]}"; do
+    latest="$(esp_idf_latest_in_series "$v" "$published")"
+    if [[ -n "$latest" ]] && version_is_outdated "${v#v}" "${latest#v}"; then
+      pending+=("$latest")
+      log "  ESP-IDF ${v}: patch ${latest} disponível na mesma série."
+    else
+      log "  ESP-IDF ${v}: em dia na série."
+    fi
+  done
+  version_is_outdated "${installed[-1]#v}" "${newest#v}" \
+    && log "  Série mais nova publicada: ${newest} (migração é decisão do projeto)."
+  ((${#pending[@]} == 0)) && return 0
+  remediation "eim install -i ${pending[*]}  # ou pela GUI do EIM"
+  STEP_REASON="ESP-IDF: patch novo na série instalada (${pending[*]})"
+  return "$RC_TODO"
+}
+
+
+# ── Gerenciadores de toolchain: juliaup, elan, coursier, SDKMAN! ────────────────
+# Mesmo molde do rustup/ghcup: instalados por script no $HOME, cada um atualiza
+# o próprio binário e os toolchains só a pedido. Do SDKMAN! só o próprio sdk e
+# a lista de candidatos são atualizados; `sdk upgrade` pode trocar a major do
+# Java e fica com o usuário.
+toolchain_managers() {
+  has juliaup && printf 'juliaup\n'
+  has elan && printf 'elan\n'
+  has cs && printf 'coursier\n'
+  [[ -f "${SDKMAN_DIR:-$HOME/.sdkman}/bin/sdkman-init.sh" ]] && printf 'sdkman\n'
+  return 0
+}
+
+# O binário instalado por pacote não tem self-update (o pacman cuida dele).
+_toolchain_self_managed() { [[ "$(readlink -f "$(type -P "$1")")" == "$HOME"/* ]]; }
+
+update_toolchain_managers() {
+  local m rc worst=0
+  local -a mgrs=()
+  mapfile -t mgrs <<<"$(toolchain_managers)"
+  [[ -n "${mgrs[0]:-}" ]] || { log "  Nenhum gerenciador de toolchain (juliaup, elan, coursier, SDKMAN!)."; return 0; }
+  for m in "${mgrs[@]}"; do
+    log "  ${m}:"
+    rc=0
+    case "$m" in
+      juliaup)
+        _toolchain_self_managed juliaup && { _native_update "juliaup self update" juliaup self update || rc=$?; }
+        ((rc == 0)) && { _native_update "juliaup update" juliaup update || rc=$?; }
+        ;;
+      elan)
+        _toolchain_self_managed elan && { _native_update "elan self update" elan self update || rc=$?; }
+        ((rc == 0)) && { _native_update "elan update" elan update || rc=$?; }
+        ;;
+      coursier) _native_update "cs update" cs update || rc=$? ;;
+      sdkman)
+        _native_update "sdk selfupdate" bash -c 'export sdkman_auto_answer=true sdkman_auto_selfupdate=false; source "${SDKMAN_DIR:-$HOME/.sdkman}/bin/sdkman-init.sh" && sdk selfupdate && sdk update' || rc=$?
+        ;;
+    esac
+    ((rc == 1 || (worst != 1 && rc > worst))) && worst=$rc
+  done
+  return "$worst"
+}
+
+
+# ── Pacotes globais do Composer ─────────────────────────────────────────────────
+# `composer global require` instala ferramentas PHP (laravel/installer,
+# phpstan…) num projeto global que nenhum gerenciador atualiza.
+composer_global_json() {
+  local home
+  home="$(composer global config home --quiet 2>/dev/null)" || return 0
+  [[ -f "${home}/composer.json" ]] && printf '%s\n' "${home}/composer.json"
+  return 0
+}
+
+update_composer_global() {
+  _native_update "composer global update" composer global update --no-interaction --no-progress
+}

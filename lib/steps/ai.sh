@@ -1508,3 +1508,57 @@ spawn_is_openrouter() {
   grep -q 'OpenRouterLabs/spawn' <<<"$out"
 }
 update_spawn() { _selfupdate_direct "spawn (OpenRouter)" spawn; }
+
+
+# ── Modelos do Ollama ───────────────────────────────────────────────────────────
+# O step "Atualizar Ollama" cuida do binário; os modelos baixados nunca são
+# renovados (uma quantização corrigida no registry não chega sozinha). `ollama
+# pull` só baixa as camadas que mudaram. Opt-in (OLLAMA_MODELS_UPDATE=1): um
+# modelo novo pode ter dezenas de GB. Modelo criado localmente (Modelfile) não
+# existe no registry e é pulado sem erro.
+OLLAMA_LOCAL_MODEL_RE='(file does not exist|not found|pull model manifest: 404)'
+
+# Puro: nomes da 1ª coluna de `ollama list`, sem o cabeçalho.
+ollama_model_names() { awk 'NR > 1 && NF { print $1 }' <<<"$1"; }
+
+update_ollama_models() {
+  if [[ "${OLLAMA_MODELS_UPDATE:-0}" != 1 ]]; then
+    log "  OLLAMA_MODELS_UPDATE=0: modelos não são renovados (cada pull pode ter dezenas de GB)."
+    return 0
+  fi
+  local list models m out rc n_ok=0 n_local=0 n_net=0 n_fail=0
+  if ! list="$(ollama list 2>&1)"; then
+    log_raw "$list"
+    STEP_REASON="ollama list falhou (servidor do Ollama parado?)"
+    return "$RC_WARN"
+  fi
+  models="$(ollama_model_names "$list")"
+  [[ -n "$models" ]] || { log "  Nenhum modelo do Ollama instalado."; return 0; }
+  while IFS= read -r m; do
+    out="$(run_network_cmd ollama pull "$m")"
+    rc=$?
+    if ((rc == 0)); then
+      n_ok=$((n_ok + 1))
+      log "  ${m}: em dia."
+    elif grep -qiE "$OLLAMA_LOCAL_MODEL_RE" <<<"$out"; then
+      n_local=$((n_local + 1))
+      log "  ${m}: modelo local (sem registro); pulado."
+    elif ((rc == RC_WARN)); then
+      n_net=$((n_net + 1))
+      log "  ${m}: rede indisponível."
+    else
+      n_fail=$((n_fail + 1))
+      log "  ${m}: ollama pull falhou (rc=${rc})."
+    fi
+  done <<<"$models"
+  log "  Modelos: ${n_ok} renovado(s)/em dia, ${n_local} local(is), ${n_net} sem rede, ${n_fail} falha(s)."
+  if ((n_fail > 0)); then
+    STEP_REASON="${n_fail} modelo(s) do Ollama não renovado(s)"
+    return 1
+  fi
+  if ((n_net > 0)); then
+    STEP_REASON="${n_net} modelo(s) do Ollama sem rede"
+    return "$RC_WARN"
+  fi
+  return 0
+}

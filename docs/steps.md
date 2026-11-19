@@ -36,19 +36,19 @@ ferramenta…).
 | --- | --- |
 | `core` | Preflight obrigatório: lock, sudo, espaço em disco, keyring. Sempre roda. |
 | `backup` | Backup de configs de `/etc`, snapshot pré-upgrade e réplica do snapshot em nuvem. |
-| `packages` | pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap e Docker. |
+| `packages` | pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap, Docker e bases de arquivos (`pacman -F`, pkgfile). |
 | `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
-| `security` | Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks e trufflehog. |
+| `security` | Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog, assinaturas do ClamAV, templates do nuclei, Exploit-DB e rkhunter. |
 | `firmware` | `fwupd` e `systemd-boot`. |
 | `lang-js` | Node.js e nvm, npm (todos os prefixos), corepack, pnpm, Bun, Deno, vite-plus. |
 | `lang-py` | pip `--user`, pipx, uv (self, Python e ferramentas), Poetry. |
 | `lang-rust` | rustup, binários cargo e auditoria de CVEs. |
-| `lang-other` | Arduino, Go, .NET, Google Cloud SDK, gems e ghcup. |
+| `lang-other` | Arduino, Go, .NET, Google Cloud SDK, gems, ghcup, ferramentas do mise, juliaup/elan/coursier/SDKMAN!, Composer global e ESP-IDF (checagem). |
 | `ai` | CLIs de IA, plugins do Claude Code e do Codex, agent skills e servidores MCP. |
-| `tools` | Utilitários fora de gerenciador: GitKraken CLI, purple, Android CLI, Herdr, cloudflared, OBS. |
+| `tools` | Utilitários fora de gerenciador: GitKraken CLI, purple, Android CLI, Herdr, cloudflared, CLIProxyAPI, extensões do `gh`, OBS, Proton-GE, Spicetify, krew, plugins do Helm, AppImages, Nerd Fonts, plugins do KiCad (checagem) e arkenfox. |
 | `ide` | Orca, Antigravity e extensões da família VSCode. |
-| `editor` | Neovim (Lazy e Mason). |
-| `shell` | Oh My Zsh, plugins Zsh, Yazi, Hyprland (`hyprpm`) e cache do tldr. |
+| `editor` | Neovim (Lazy, Mason e parsers do nvim-treesitter). |
+| `shell` | Oh My Zsh, plugins Zsh (customizados, clones avulsos, zinit/antidote/sheldon), tmux (tpm), fish (fisher), Yazi, Hyprland (`hyprpm`) e cache do tldr. |
 | `cleanup` | Caches, snapshots antigos, órfãos, journal, coredumps e relatórios. |
 | `autofix` | Auto-remediações mutáveis, sempre atrás de opt-in e/ou confirmação. |
 | `doctor` | Auditorias estritamente read-only (ver [Doctor](doctor.md)). |
@@ -70,10 +70,13 @@ dentro de `packages`.
 | JavaScript | npm (prefixo ativo, `~/.npm-global` e o do Node em uso), globais npm e pnpm, corepack, Bun e Deno (pulados quando vêm do pacman). |
 | Python | pip `--user`, pipx, uv, Python gerenciado pelo uv e Poetry. Ferramenta uv presa por restrição do receipt vira `todo`. |
 | Rust | `rustup`, `cargo-install-update`, auditoria com `cargo-audit` e remediação opcional de CVEs (`AUTO_FIX_RUST_CVES`). |
-| Outras linguagens | Go (só reinstala o que mudou), .NET, Ruby gems, ghcup e Arduino CLI. |
-| Shell, editor e IDE | Oh My Zsh, plugins Zsh, Neovim Lazy/Mason, `hyprpm`, extensões VSCode/Cursor/Codium e cache do tldr. |
+| Outras linguagens | Go (só reinstala o que mudou), .NET, Ruby gems, ghcup, Arduino CLI e ferramentas do mise (dentro do intervalo do config). |
+| Shell, editor e IDE | Oh My Zsh, plugins Zsh (customizados e clones git avulsos, como `~/.local/share/zsh-defer`), Neovim Lazy/Mason, `hyprpm`, extensões VSCode/Cursor/Codium e cache do tldr. |
 | IA | Claude Code (CLI e plugins), Codex (plugins), Copilot, opencode, kilo, mimo, pi, Ollama, Hermes, TokenSave, droid, Kiro, grok, kimchi, muse, qodo, ori, pool, agent skills e servidores MCP uvx. |
-| Apps manuais | Programas fora de gerenciador com step dedicado: droid, Snyk CLI e GitKraken CLI (sha256 conferido), OWASP ZAP (core e add-ons), vite-plus, Herdr, cloudflared. `Doctor: apps manuais` aponta o que ainda não tem step. |
+| Apps manuais | Programas fora de gerenciador com step dedicado: droid, Snyk CLI e GitKraken CLI (sha256 conferido), OWASP ZAP (core e add-ons), vite-plus, Herdr, cloudflared, CLIProxyAPI (sha256, troca atômica e rollback do serviço). `Doctor: apps manuais` aponta o que ainda não tem step. |
+| Componentes sem dono | O pacote instala, mas não mantém: extensões do `gh`, assinaturas do ClamAV (`freshclam`, só sem unit do freshclam ativa), ferramentas do mise, modelos do Ollama (opt-in `OLLAMA_MODELS_UPDATE`), bases `pacman -F`/pkgfile, templates do nuclei, Exploit-DB em clone git, bases e propriedades do rkhunter, plugins do krew, Helm, tmux, fish e dos gerenciadores Zsh, parsers do nvim-treesitter, Composer global e toolchains de juliaup/elan/coursier/SDKMAN!. |
+| Baixados à mão | Proton-GE (instala ao lado, `PROTON_GE_KEEP`), AppImages com zsync, Nerd Fonts (`NERD_FONTS_DIR`), arkenfox e Spicetify (reaplica depois do update do Spotify). |
+| Só checagem (`todo`) | Plugins do KiCad com versão nova no PCM e patch novo do ESP-IDF na série instalada: atualizar por fora quebraria a contabilidade da ferramenta dona. |
 
 ## Integrações empacotadas
 

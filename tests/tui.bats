@@ -482,10 +482,11 @@ EOF
   TUI_FILTER="ollama"
   tui_rebuild_view
   [ "${#TUI_VIEW[@]}" -ge 1 ]
-  TUI_SEL=0
+  # "ollama" casa o binário e os modelos: no último item, down não passa do fim
+  local last=$(( ${#TUI_VIEW[@]} - 1 ))
+  TUI_SEL=$last
   TUI_KEY="down"; tui_dispatch_nav
-  # filtro com 1 resultado não deixa passar do fim
-  [ "$TUI_SEL" -eq 0 ]
+  [ "$TUI_SEL" -eq "$last" ]
 }
 
 # ── guardas ───────────────────────────────────────────────────────────────────

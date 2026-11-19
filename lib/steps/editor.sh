@@ -53,3 +53,47 @@ update_nvim_mason() {
   fi
   return "$rc"
 }
+
+
+# ── Parsers do nvim-treesitter ──────────────────────────────────────────────────
+# O Lazy atualiza o plugin nvim-treesitter, mas os parsers compilados (.so)
+# ficam na versão antiga: com a ABI nova do plugin, o highlight quebra até
+# alguém rodar :TSUpdate. O step roda o update síncrono headless: :TSUpdateSync
+# no branch master, require('nvim-treesitter').update():wait() no branch main.
+# O require vem primeiro porque o lazy.nvim só cria os comandos ao carregar.
+treesitter_installed() {
+  [[ -d "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/nvim-treesitter" ]]
+}
+
+update_treesitter_parsers() {
+  local lua out rc
+  lua="$(mktemp --suffix=.lua)" || return "$RC_WARN"
+  cat >"$lua" <<'LUA'
+-- Com lazy.nvim o plugin só carrega no require: antes dele, :TSUpdateSync não existe.
+local has, ts = pcall(require, 'nvim-treesitter')
+if vim.fn.exists(':TSUpdateSync') == 2 then
+  if not pcall(vim.cmd, 'TSUpdateSync') then vim.cmd('cquit 1') end
+elseif has and type(ts.update) == 'function' then
+  local task = ts.update()
+  if task and task.wait then task:wait(600000) end
+else
+  vim.cmd('cquit 3')
+end
+vim.cmd('qall!')
+LUA
+  out="$(run_network_cmd timeout 900 nvim --headless -c "luafile ${lua}")"
+  rc=$?
+  rm -f "$lua"
+  printf '%s\n' "$out" | _strip_ansi | grep -iE 'install|updat|up-to-date|error|compil' | tail -n 15 | log_stream
+  ((rc == 0)) && return 0
+  if ((rc == RC_WARN)); then
+    STEP_REASON="nvim-treesitter: rede indisponível"
+    return "$RC_WARN"
+  fi
+  if ((rc == 3)); then
+    STEP_REASON="nvim-treesitter sem :TSUpdateSync nem update() (versão desconhecida)"
+    return "$RC_TODO"
+  fi
+  STEP_REASON="atualização dos parsers do nvim-treesitter falhou (rc=${rc})"
+  return 1
+}
