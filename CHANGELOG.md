@@ -4,6 +4,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-19
 ### Adicionado
 
 - **Cinco steps para componentes que nenhum gerenciador atualiza:**
