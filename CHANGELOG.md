@@ -3,6 +3,15 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Cooldown do backup Timeshift em nuvem** (`TIMESHIFT_CLOUD_COOLDOWN_DAYS`,
+  padrão `7`): mesmo incremental, cada envio ao OneDrive leva horas, e o step
+  prendia o fim de todo full-upgrade. Depois de um envio bem-sucedido, os runs
+  seguintes registram `skip` com o motivo `cooldown: último envio há Nd` até a
+  janela expirar. `0` volta a enviar em todo run. O carimbo fica em
+  `~/.local/state/full-upgrade/timeshift-cloud-last-ok` (apague-o para forçar).
+  Carimbo ausente, ilegível ou no futuro conta como "enviar".
 
 ## [4.2.1] - 2026-11-19
 ### Corrigido

@@ -927,8 +927,11 @@ run_all_steps() {
 
     # O upload é deliberadamente pós-upgrade: snapshots locais continuam sendo
     # criados antes das mutações, mas uma primeira cópia grande não atrasa updates.
+    local cloud_cooldown=""
     if [[ "${TIMESHIFT_CLOUD_BACKUP:-0}" == "1" ]]; then
-        if (( SUDO_READY )); then
+        if cloud_cooldown="$(timeshift_cloud_cooldown_active)"; then
+            step_skip "Backup Timeshift em nuvem" "$cloud_cooldown"
+        elif (( SUDO_READY )); then
             run_step "Backup Timeshift em nuvem" backup_timeshift_cloud
         else
             step_skip "Backup Timeshift em nuvem" "sudo indisponível"

@@ -40,6 +40,10 @@ TIMESHIFT_CLOUD_EXCLUDE_FILE="$HOME/.config/full-upgrade/restic-timeshift-exclud
 # arquivos, velocidade da janela e ETA. O upload dura horas na primeira carga;
 # sem isso o step fica mudo. Menor = mais linhas no log. 0/inválido → 60.
 TIMESHIFT_CLOUD_PROGRESS_INTERVAL=60
+# Dias mínimos entre envios. Mesmo incremental, cada envio leva horas (scan de
+# @ + @home inteiro); dentro da janela o step vira skip. 0 = envia em todo run.
+# Carimbo: ~/.local/state/full-upgrade/timeshift-cloud-last-ok (apague p/ forçar).
+TIMESHIFT_CLOUD_COOLDOWN_DAYS=7
 
 # ── Backup de configs críticas / Critical config backup ─────────────────────────
 # Arquiva configs essenciais de /etc em tar.zst antes das mutações, com rotação.

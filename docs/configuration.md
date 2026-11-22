@@ -71,6 +71,7 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `TIMESHIFT_CLOUD_RCLONE_CONFIG` | `~/.config/rclone/rclone.conf` | Config do rclone com o remote. |
 | `TIMESHIFT_CLOUD_EXCLUDE_FILE` | `~/.config/full-upgrade/restic-timeshift-excludes` | Padrões Restic para omitir caches e artefatos. |
 | `TIMESHIFT_CLOUD_PROGRESS_INTERVAL` | `60` | Segundos entre heartbeats do upload. |
+| `TIMESHIFT_CLOUD_COOLDOWN_DAYS` | `7` | Dias mínimos entre envios; dentro da janela o step vira `skip`. `0` envia em todo run. O carimbo do último envio fica em `~/.local/state/full-upgrade/timeshift-cloud-last-ok`. |
 
 ### Pacotes e limpeza
 

@@ -10,6 +10,52 @@ timeshift_cloud_keep_count() {
   printf '%s' "$keep"
 }
 
+# ── Cooldown entre envios ─────────────────────────────────────────────────────
+# Um envio incremental ainda leva horas no OneDrive (scan completo de @ + @home
+# e upload do que mudou), então replicar a cada full-upgrade prendia o fim de
+# todo run. TIMESHIFT_CLOUD_COOLDOWN_DAYS espaça os envios: dentro da janela o
+# step vira skip. O carimbo guarda o epoch do último envio bem-sucedido.
+
+# Dias mínimos entre envios. 0 desliga o cooldown; inválido volta a 7.
+timeshift_cloud_cooldown_days() {
+  local days="${TIMESHIFT_CLOUD_COOLDOWN_DAYS:-7}"
+  [[ "$days" =~ ^[0-9]+$ ]] || days=7
+  printf '%s' "$((10#$days))"
+}
+
+# Carimbo durável (XDG state, não cache): limpar ~/.cache não deve disparar um
+# envio de horas fora de hora, nem o contrário.
+timeshift_cloud_stamp_file() {
+  printf '%s\n' "${TIMESHIFT_CLOUD_STAMP:-${XDG_STATE_HOME:-${HOME}/.local/state}/full-upgrade/timeshift-cloud-last-ok}"
+}
+
+# Registra o envio bem-sucedido agora (ou no epoch $1, para testes).
+timeshift_cloud_mark_done() {
+  local stamp now="${1:-$(date +%s)}"
+  stamp="$(timeshift_cloud_stamp_file)"
+  mkdir -p -- "$(dirname -- "$stamp")" 2>/dev/null || return 1
+  printf '%s\n' "$now" >"$stamp" 2>/dev/null
+}
+
+# rc 0 + motivo no stdout quando o último envio ainda está dentro do cooldown.
+# Qualquer dúvida (cooldown 0, sem carimbo, carimbo ilegível ou no futuro)
+# => rc 1, ou seja, envia: um atalho que pula na dúvida congelaria o backup.
+# $1 (opcional): epoch "agora", para testes.
+timeshift_cloud_cooldown_active() {
+  local now="${1:-$(date +%s)}" days stamp last age remaining
+  days="$(timeshift_cloud_cooldown_days)"
+  (( days > 0 )) || return 1
+  stamp="$(timeshift_cloud_stamp_file)"
+  [[ -r "$stamp" ]] || return 1
+  last="$(head -n1 -- "$stamp" 2>/dev/null)"
+  [[ "$last" =~ ^[0-9]+$ ]] || return 1
+  age=$(( now - last ))
+  (( age >= 0 && age < days * 86400 )) || return 1
+  remaining=$(( (days * 86400 - age + 86399) / 86400 ))
+  printf 'cooldown: último envio há %sd (< %sd); próximo em ~%sd\n' \
+    "$(( age / 86400 ))" "$days" "$remaining"
+}
+
 # Dado o mount do top-level Btrfs (subvolid=5), retorna o snapshot Timeshift mais
 # recente. Os nomes ISO usados pelo Timeshift ordenam cronologicamente.
 timeshift_cloud_latest_name() {
@@ -365,6 +411,10 @@ backup_timeshift_cloud() {
     backup_args+=("${snapshot_dir}/@" "${snapshot_dir}/@home")
     if _timeshift_cloud_restic_progress "${backup_args[@]}"; then
       log "  Snapshot ${snapshot} armazenado no OneDrive via Restic."
+      # O cooldown conta do upload, não da retenção: o snapshot já está fora
+      # da máquina mesmo que o forget/prune abaixo falhe.
+      timeshift_cloud_mark_done ||
+        log "  Aviso: não foi possível gravar $(timeshift_cloud_stamp_file); o próximo run enviará de novo."
     else
       STEP_REASON="falha no upload Restic do snapshot ${snapshot}"
       rc="$RC_WARN"

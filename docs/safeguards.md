@@ -45,6 +45,11 @@ o que o full-upgrade faz e por quê.
 repositório Restic criptografado via rclone.
 
 - Falha na nuvem vira aviso e nunca remove a cópia local.
+- Cooldown: depois de um envio bem-sucedido, os próximos runs pulam o step
+  por `TIMESHIFT_CLOUD_COOLDOWN_DAYS` dias (padrão 7; `0` desliga). O carimbo
+  fica em `~/.local/state/full-upgrade/timeshift-cloud-last-ok`; apague-o para
+  forçar o envio no próximo run. Carimbo ausente, ilegível ou no futuro conta
+  como "enviar": o atalho nunca pula na dúvida.
 - O catálogo reserva até 48 horas para a primeira réplica; o lock é mantido
   durante o envio, então não rode outro full-upgrade em paralelo.
 - A leitura dos snapshots (root:root 0700) usa privilégio administrativo, sem
