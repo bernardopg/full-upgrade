@@ -57,6 +57,7 @@ run_all_steps() {
             if (( NO_REPAIR )); then
                 step_skip "Reparar comandos locais conflitantes"        "--no-repair"
                 step_skip "Limpar scopes transitórios de apps"          "--no-repair"
+                step_skip "Reparar portais XDG falhados"                "--no-repair"
                 step_skip "Reparar configuração de coredump"            "--no-repair"
                 step_skip "Reparar sombra local do full-upgrade"        "--no-repair"
                 step_skip "Reparar unit stale do full-upgrade tray"     "--no-repair"
@@ -69,6 +70,7 @@ run_all_steps() {
                 # antes do update principal.
                 run_step "Reparar comandos locais conflitantes"         repair_known_command_shadowing
                 run_step "Limpar scopes transitórios de apps"           repair_stale_user_app_scopes
+                run_step "Reparar portais XDG falhados"                 repair_failed_xdg_portals
                 run_step "Reparar configuração de coredump"             repair_coredump_obsolete_keys
                 run_step "Reparar sombra local do full-upgrade"          repair_full_upgrade_shadow
                 run_step "Reparar unit stale do full-upgrade tray"       repair_full_upgrade_tray_unit
@@ -98,6 +100,7 @@ run_all_steps() {
             "Garantir Burp Suite" \
             "Reparar comandos locais conflitantes" \
             "Limpar scopes transitórios de apps" \
+            "Reparar portais XDG falhados" \
             "Reparar configuração de coredump" \
             "Reparar permissões de captura do Wireshark" \
             "Reparar atalhos antigos do Burp"; do

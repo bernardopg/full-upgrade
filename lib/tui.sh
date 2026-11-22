@@ -668,8 +668,13 @@ tui_footer() {
 }
 
 # Versão sem subshell (usada nos caminhos quentes de desenho/navegação).
+# Linhas de ITEM visíveis: tela menos cabeçalho, a linha de títulos das colunas
+# e as 2 do rodapé. A janela de rolagem (tui_ensure_visible) e o laço de desenho
+# precisam usar o MESMO número: antes a rolagem contava a linha de títulos como
+# item, o desenho não, e o último item ficava "visível" para a rolagem mas fora
+# da tela — escondido sob o rodapé ao chegar ao fim da lista.
 tui_visible_rows_var() {
-  TUI_VIS=$(( TUI_ROWS - TUI_HEAD_H - 2 ))
+  TUI_VIS=$(( TUI_ROWS - TUI_HEAD_H - 3 ))
   (( TUI_VIS < 1 )) && TUI_VIS=1
   return 0
 }
@@ -788,7 +793,7 @@ tui_draw_list() {
     tui_line "${pad}   ${C_DIM}$(ui_pad "tipo" "$kind_w") $(ui_pad "chave" "$name_w")$(ui_pad "valor" "$value_w")descrição${C_RESET}"
   fi
 
-  rowsv=$(( vis - 1 ))
+  rowsv=$vis
   if (( total > rowsv )); then
     sb_on=1
     sb_thumb_n=$(( rowsv * rowsv / total )); (( sb_thumb_n < 1 )) && sb_thumb_n=1

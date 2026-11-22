@@ -71,6 +71,19 @@ _tui_press() { { TUI_KEY="$1"; tui_handle_key; _tui_draw; } || true; }
   grep -q "categoria/efeito" "$BATS_TEST_TMPDIR/screen"
 }
 
+@test "tui: End deixa o último parâmetro visível acima do rodapé" {
+  # Regressão: a rolagem contava a linha de títulos como item e o último
+  # parâmetro ficava fora da tela, coberto pelas dicas do rodapé.
+  _tui_init
+  _tui_press char:2 >/dev/null
+  local last="${TUI_NAME[${TUI_VIEW[$(( ${#TUI_VIEW[@]} - 1 ))]}]}"
+  _tui_press end > "$BATS_TEST_TMPDIR/screen"
+  grep -q -- "$last" "$BATS_TEST_TMPDIR/screen"
+  # E nenhuma linha de item é desenhada na região do rodapé (linhas 29-30).
+  tui_visible_rows_var
+  [ $(( TUI_HEAD_H + 1 + TUI_VIS )) -le $(( TUI_ROWS - 2 )) ]
+}
+
 @test "tui: parâmetros com enum, bool, filtro vivo e volta ao menu" {
   _tui_init
   { _tui_press char:2; _tui_press right; _tui_press left; _tui_press down

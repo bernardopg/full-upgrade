@@ -3,6 +3,24 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Step `Reparar portais XDG falhados`** (categoria `repair`): reativa com
+  `reset-failed` + `start` os portais XDG do usuário (`xdg-document-portal`,
+  `xdg-desktop-portal*`, `xdg-permission-store`) que ficaram em `failed`. Caso
+  real: um `dbus-run-session` sob xvfb (smoke test de app) compartilha o
+  `XDG_RUNTIME_DIR` e desmonta `/run/user/<uid>/doc` ao sair. O portal da
+  sessão real saía com status 21, e o acesso a arquivos dos Flatpaks ficava
+  quebrado até o próximo login.
+
+### Corrigido
+
+- **`--config-tui`: o último item da lista não fica mais escondido sob o
+  rodapé**: a janela de rolagem contava a linha de títulos das colunas como uma
+  linha de item, e o laço de desenho não. Ao chegar ao fim da lista (`End`,
+  `↓` ou `PgDn`), o último parâmetro ou step ficava "visível" para a rolagem,
+  mas fora da tela, coberto pelas dicas de navegação. As duas contas agora usam
+  o mesmo número de linhas.
 
 ## [4.3.0] - 2026-11-22
 ### Adicionado
