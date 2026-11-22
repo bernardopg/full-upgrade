@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.4.0] - 2026-11-22
 ### Adicionado
 
 - **Step `Reparar portais XDG falhados`** (categoria `repair`): reativa com
