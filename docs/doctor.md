@@ -12,7 +12,7 @@ ação vira `todo` com a remediação; achado não bloqueante vira `warn`.
 | Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
 | systemd | Units falhadas no sistema e no usuário. Scopes transitórios (`*.scope`) já encerrados são informativos e limpos pelo reparo. |
 | Journal | Erros críticos do boot atual, agrupados e com ruído conhecido filtrado. |
-| Crashes recorrentes | Coredumps dos últimos 14 dias por programa; `todo` quando quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h. |
+| Crashes recorrentes | Coredumps dos últimos 14 dias por programa; `todo` quando quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h. Binários de build do cargo (`target/debug`, `target/release`) viram nota informativa, sem `todo`. |
 | Firmware | Nível HSI de `fwupdmgr security`: contagem de atributos ✔ e lista dos ✘. |
 | Flatpak | Inconsistências via `flatpak repair --user --dry-run` (repete a verificação completa só quando os refs mudam ou a cada 7 dias). |
 | Disco | Espaço e inodes nos mounts essenciais. |

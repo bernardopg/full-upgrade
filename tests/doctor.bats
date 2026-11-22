@@ -539,6 +539,28 @@ _mock_coredumpctl() {
   unset COREDUMP_IGNORE_EXE
 }
 
+@test "recurrent_coredumps: binário de teste do cargo em target/ não vira todo" {
+  # cargo test que panica/segfaulta é desenvolvimento normal, não defeito da
+  # máquina (caso real: bitter_ui-874eccf6a459cdbb em target/debug/build/).
+  QUIET=0 LOG_FILE=/dev/null
+  STEP_REASON=""
+  local crash="Sat 2026-11-22 10:00:00 -03 4242 1000 1000 SIGSEGV present /home/u/dev/app/target/debug/build/app/874eccf6a459cdbb/out/app-874eccf6a459cdbb 1M"
+  _mock_coredumpctl "$crash"$'\n'"$crash"$'\n'"$crash" "$crash"
+  run doctor_recurrent_coredumps
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Artefato de build do cargo"* ]]
+  [[ "$output" == *"app-874eccf6a459cdbb (3x)"* ]]
+  [[ "$output" != *"Crash recorrente ativo"* ]]
+}
+
+@test "coredump_path_is_dev_artifact: só target/ do cargo" {
+  coredump_path_is_dev_artifact /src/target/debug/bitter-ui
+  coredump_path_is_dev_artifact /p/target/release/deps/x-0123456789abcdef
+  coredump_path_is_dev_artifact /p/target/x86_64-unknown-linux-gnu/debug/x
+  ! coredump_path_is_dev_artifact /opt/termius/termius-app
+  ! coredump_path_is_dev_artifact /usr/lib/target/foo
+}
+
 @test "recurrent_coredumps: crashes antigos sem ocorrência recente => ok" {
   QUIET=0 LOG_FILE=/dev/null
   local crash="Tue 2026-07-21 19:44:48 -03 3167135 0 0 SIGTRAP inaccessible /tmp/e/hub -"

@@ -13,6 +13,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
   `~/.local/state/full-upgrade/timeshift-cloud-last-ok` (apague-o para forçar).
   Carimbo ausente, ilegível ou no futuro conta como "enviar".
 
+### Corrigido
+
+- **`Doctor: crashes recorrentes (coredump)` ignora binários de build do
+  cargo**: um teste que panica ou segfaulta em `target/debug`/`target/release`
+  é desenvolvimento normal, e o nome com hash do build virava um "programa" novo
+  a cada rebuild. Esses crashes agora aparecem numa linha informativa, sem
+  `todo`.
+
 ## [4.2.1] - 2026-11-19
 ### Corrigido
 
