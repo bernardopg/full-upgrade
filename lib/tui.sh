@@ -70,6 +70,7 @@ BACKUP_CONFIGS|bool||Arquiva configs críticas de /etc antes do update
 BACKUP_KEEP|int||Quantos tarballs privados manter (mínimo 1 quando ativo)
 TIMESHIFT_CLOUD_BACKUP|bool||Réplica do snapshot Timeshift para nuvem (Restic+rclone)
 TIMESHIFT_CLOUD_KEEP|int||Versões remotas mais recentes a manter
+TIMESHIFT_CLOUD_COOLDOWN_DAYS|int||Dias mínimos entre envios à nuvem (0 = todo run)
 NETWORK_GATE|bool||Portão de conectividade antes dos steps de rede
 NETWORK_GATE_WAIT_S|int||Espera máxima pela volta da rede no portão (s)
 AUTO_FIX_RUST_CVES|bool||Oferece remediar CVEs de toolchain Rust sob --yes/confirmação

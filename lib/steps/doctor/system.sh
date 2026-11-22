@@ -618,6 +618,18 @@ coredump_group_by_executable() {
 }
 
 
+# Artefato de build do cargo (target/debug, target/release, inclusive com
+# triple: target/<triple>/debug). Binário de teste que panica/segfaulta durante
+# `cargo test` é o ciclo normal de desenvolvimento, não defeito da máquina; e o
+# nome leva o hash do build (bitter_ui-874eccf6a459cdbb), então cada rebuild
+# vira um "programa" novo. Vira nota informativa, nunca TODO.
+coredump_path_is_dev_artifact() {
+  case "$1" in
+    */target/debug/* | */target/release/* | */target/*/debug/* | */target/*/release/*) return 0 ;;
+  esac
+  return 1
+}
+
 # Um crash isolado é ruído (OOM, kill no shutdown, arquivo corrompido pontual);
 # o mesmo programa quebrando várias vezes é bug. O Doctor de journal já lista
 # "dumped core" como assinatura, mas apenas do boot atual e sem agregar por
@@ -667,10 +679,14 @@ doctor_recurrent_coredumps() {
       | coredump_group_by_executable | awk '{ print $2 }'
   )"
 
-  local hot="" stale="" ignored="" count name path
+  local hot="" stale="" ignored="" dev="" count name path
   while read -r count name path; do
     [[ -n "$name" ]] || continue
     (( count >= min_crashes )) || continue
+    if coredump_path_is_dev_artifact "$path"; then
+      dev+="${dev:+, }${name} (${count}x)"
+      continue
+    fi
     if coredump_exe_is_ignored "$name"; then
       ignored+="${ignored:+, }${name} (${count}x)"
       continue
@@ -684,6 +700,10 @@ doctor_recurrent_coredumps() {
 
   if [[ -n "$ignored" ]]; then
     log "  Saciado via COREDUMP_IGNORE_EXE (crash esperado/conhecido, sem TODO): ${ignored}"
+  fi
+
+  if [[ -n "$dev" ]]; then
+    log "  Artefato de build do cargo (target/; crash de teste/debug, sem TODO): ${dev}"
   fi
 
   if [[ -n "$stale" ]]; then

@@ -277,3 +277,71 @@ STUB
   [[ "$output" == *"36.7GiB lidos"* ]]
   [[ "$output" != *"100%"* ]]
 }
+
+# ── Cooldown entre envios ─────────────────────────────────────────────────────
+
+@test "timeshift cloud: cooldown padrão 7, inválido volta a 7, 0 desliga" {
+  unset TIMESHIFT_CLOUD_COOLDOWN_DAYS
+  run timeshift_cloud_cooldown_days
+  [ "$output" = "7" ]
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=abc run timeshift_cloud_cooldown_days
+  [ "$output" = "7" ]
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=-1 run timeshift_cloud_cooldown_days
+  [ "$output" = "7" ]
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=014 run timeshift_cloud_cooldown_days
+  [ "$output" = "14" ]
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=0 run timeshift_cloud_cooldown_days
+  [ "$output" = "0" ]
+}
+
+@test "timeshift cloud: carimbo padrão vive em XDG_STATE_HOME" {
+  unset TIMESHIFT_CLOUD_STAMP
+  XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" run timeshift_cloud_stamp_file
+  [ "$output" = "$BATS_TEST_TMPDIR/state/full-upgrade/timeshift-cloud-last-ok" ]
+}
+
+@test "timeshift cloud: sem carimbo, o envio acontece" {
+  TIMESHIFT_CLOUD_STAMP="$BATS_TEST_TMPDIR/nao-existe"
+  run timeshift_cloud_cooldown_active 1000000
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "timeshift cloud: envio recente fica em cooldown com motivo legível" {
+  TIMESHIFT_CLOUD_STAMP="$BATS_TEST_TMPDIR/state/fu/stamp"
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=7
+  timeshift_cloud_mark_done 1000000
+  [ "$(cat "$TIMESHIFT_CLOUD_STAMP")" = "1000000" ]
+  run timeshift_cloud_cooldown_active $(( 1000000 + 2 * 86400 + 60 ))
+  [ "$status" -eq 0 ]
+  [ "$output" = "cooldown: último envio há 2d (< 7d); próximo em ~5d" ]
+}
+
+@test "timeshift cloud: cooldown expira exatamente após N dias" {
+  TIMESHIFT_CLOUD_STAMP="$BATS_TEST_TMPDIR/stamp"
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=7
+  timeshift_cloud_mark_done 1000000
+  run timeshift_cloud_cooldown_active $(( 1000000 + 7 * 86400 - 1 ))
+  [ "$status" -eq 0 ]
+  run timeshift_cloud_cooldown_active $(( 1000000 + 7 * 86400 ))
+  [ "$status" -eq 1 ]
+}
+
+@test "timeshift cloud: cooldown 0 sempre envia" {
+  TIMESHIFT_CLOUD_STAMP="$BATS_TEST_TMPDIR/stamp"
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=0
+  timeshift_cloud_mark_done 1000000
+  run timeshift_cloud_cooldown_active 1000010
+  [ "$status" -eq 1 ]
+}
+
+@test "timeshift cloud: carimbo corrompido ou no futuro não pula o envio" {
+  TIMESHIFT_CLOUD_STAMP="$BATS_TEST_TMPDIR/stamp"
+  TIMESHIFT_CLOUD_COOLDOWN_DAYS=7
+  printf 'lixo\n' >"$TIMESHIFT_CLOUD_STAMP"
+  run timeshift_cloud_cooldown_active 1000000
+  [ "$status" -eq 1 ]
+  timeshift_cloud_mark_done 2000000
+  run timeshift_cloud_cooldown_active 1000000
+  [ "$status" -eq 1 ]
+}
