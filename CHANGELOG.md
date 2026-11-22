@@ -3,6 +3,14 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`--config-tui`: o último item da lista não fica mais escondido sob o
+  rodapé**: a janela de rolagem contava a linha de títulos das colunas como uma
+  linha de item, e o laço de desenho não. Ao chegar ao fim da lista (`End`,
+  `↓` ou `PgDn`), o último parâmetro ou step ficava "visível" para a rolagem,
+  mas fora da tela, coberto pelas dicas de navegação. As duas contas agora usam
+  o mesmo número de linhas.
 
 ## [4.3.0] - 2026-11-22
 ### Adicionado
