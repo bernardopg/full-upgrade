@@ -75,6 +75,51 @@ repair_stale_user_app_scopes() {
     return 0
 }
 
+# Portais XDG (xdg-document-portal, xdg-desktop-portal*, xdg-permission-store)
+# são ativados por D-Bus e, depois de cair, ficam em "failed" até alguém
+# resetar. Caso real: um `dbus-run-session` (smoke test sob xvfb) compartilha o
+# XDG_RUNTIME_DIR, sobe o próprio xdg-document-portal e desmonta
+# /run/user/<uid>/doc ao sair; o portal da sessão real sai com status 21 e o
+# acesso a arquivos dos Flatpaks quebra até o próximo login. reset-failed +
+# start traz o portal de volta sem tocar na sessão gráfica.
+repair_failed_xdg_portals() {
+    has systemctl || { log "  systemctl ausente; nada a reparar."; return 0; }
+    [[ "$(systemd_user_scope_status 2>/dev/null || true)" == "available" ]] || {
+        log "  Sessão systemd --user indisponível; reparo de portais pulado."
+        return 0
+    }
+
+    local failed unit line
+    failed="$(systemctl --user --failed --plain --no-legend 2>/dev/null || true)"
+    local -a portals=() broken=()
+    while IFS= read -r line; do
+        unit="${line%%[[:space:]]*}"
+        [[ "$unit" == xdg-*portal*.service || "$unit" == xdg-permission-store.service ]] && portals+=("$unit")
+    done <<< "$failed"
+
+    if (( ${#portals[@]} == 0 )); then
+        log "  Nenhum portal XDG em estado failed."
+        return 0
+    fi
+
+    log "  Reativando ${#portals[@]} portal(is) XDG em estado failed: ${portals[*]}"
+    for unit in "${portals[@]}"; do
+        systemctl --user reset-failed "$unit" 2>>"$LOG_FILE" || true
+        if systemctl --user start "$unit" 2>>"$LOG_FILE" && systemctl --user is-active --quiet "$unit"; then
+            log "    ${unit}: ativo."
+        else
+            broken+=("$unit")
+        fi
+    done
+
+    if (( ${#broken[@]} > 0 )); then
+        STEP_REASON="portal XDG não voltou: ${broken[*]}"
+        log "  Veja: journalctl --user -u ${broken[0]} -b"
+        return "$RC_WARN"
+    fi
+    return 0
+}
+
 # MaxAge= e Keep= nunca foram opções válidas de coredump.conf nas versões
 # atuais do systemd. Como são ignoradas, removê-las não muda a política efetiva;
 # apenas elimina warnings repetidos. O backup torna o reparo reversível.

@@ -3,6 +3,16 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Step `Reparar portais XDG falhados`** (categoria `repair`): reativa com
+  `reset-failed` + `start` os portais XDG do usuário (`xdg-document-portal`,
+  `xdg-desktop-portal*`, `xdg-permission-store`) que ficaram em `failed`. Caso
+  real: um `dbus-run-session` sob xvfb (smoke test de app) compartilha o
+  `XDG_RUNTIME_DIR` e desmonta `/run/user/<uid>/doc` ao sair. O portal da
+  sessão real saía com status 21, e o acesso a arquivos dos Flatpaks ficava
+  quebrado até o próximo login.
+
 ### Corrigido
 
 - **`--config-tui`: o último item da lista não fica mais escondido sob o

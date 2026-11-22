@@ -37,7 +37,7 @@ ferramenta…).
 | `core` | Preflight obrigatório: lock, sudo, espaço em disco, keyring. Sempre roda. |
 | `backup` | Backup de configs de `/etc`, snapshot pré-upgrade e réplica do snapshot em nuvem. |
 | `packages` | pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap, Docker e bases de arquivos (`pacman -F`, pkgfile). |
-| `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas). |
+| `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas, portais XDG presos em `failed`). |
 | `security` | Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog, assinaturas do ClamAV, templates do nuclei, Exploit-DB e rkhunter. |
 | `firmware` | `fwupd` e `systemd-boot`. |
 | `lang-js` | Node.js e nvm, npm (todos os prefixos), corepack, pnpm, Bun, Deno, vite-plus. |
