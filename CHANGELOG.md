@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.3.0] - 2026-11-22
 ### Adicionado
 
 - **Cooldown do backup Timeshift em nuvem** (`TIMESHIFT_CLOUD_COOLDOWN_DAYS`,
