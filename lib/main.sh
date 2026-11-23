@@ -1030,6 +1030,18 @@ run_all_steps() {
     else
         run_step "Sincronizar hub MCP (claude-env)" mcp_render_hub
     fi
+    # Depois do hub: o agent-memory-sync confere a entrada headroom_memory do
+    # hub, grava os harnesses que o hub não renderiza e religa os stores de
+    # memória por repositório que os updates de IA logo acima podem ter desfeito.
+    if (( ${HEADROOM_MEMORY_SYNC:-1} == 0 )); then
+        step_skip "Sincronizar memória Headroom" "HEADROOM_MEMORY_SYNC=0"
+    elif (( NO_REPAIR )); then
+        step_skip "Sincronizar memória Headroom" "--no-repair"
+    elif ! agent_memory_sync_bin >/dev/null; then
+        step_skip "Sincronizar memória Headroom" "agent-memory-sync não instalado"
+    else
+        run_step "Sincronizar memória Headroom" autofix_headroom_memory
+    fi
     # Roda ANTES do Doctor de MCP: `headroom init codex` (disparado pelos steps
     # de IA logo acima) reanexa [mcp_servers.headroom_memory] e invalida o TOML,
     # zerando os mcp_servers do Codex no mesmo run. Remediar aqui faz o Doctor
@@ -1050,6 +1062,11 @@ run_all_steps() {
         run_step "Doctor: servidores MCP" doctor_mcp_servers
     else
         step_skip "Doctor: servidores MCP" "nenhuma fonte MCP conhecida"
+    fi
+    if agent_memory_sync_bin >/dev/null; then
+        run_step "Doctor: memória Headroom" doctor_headroom_memory
+    else
+        step_skip "Doctor: memória Headroom" "agent-memory-sync não instalado"
     fi
     run_step "Doctor: ambiente Python" doctor_python_env
     # Auto-remediação opcional: deps pip --user AUSENTES apontadas pelo pip

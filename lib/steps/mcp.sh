@@ -793,6 +793,72 @@ mcp_render_hub() {
   return 0
 }
 
+# ── Memória Headroom (agent-memory-sync do claude-env) ───────────────────────
+# Um store de memória por repositório para todos os harnesses (Claude, Codex,
+# opencode, pi, Gemini…): o agent-memory-sync do claude-env remove os hooks
+# 'headroom init hook ensure', estaciona perfis init-* (sobem um 2º proxy sem
+# memória na porta 8791), mantém o headroom_memory do hub no wrapper
+# headroom-memory-mcp, grava Claude/Codex/Copilot (que o hub não renderiza) e
+# liga o store do proxy de cada repositório ao <repo>/.headroom. Os updates de
+# IA deste run (CLIs, uv tools/headroom) podem desfazer qualquer parte disso.
+
+# Caminho do agent-memory-sync: AGENT_MEMORY_SYNC_BIN, ~/.local/bin ou o
+# próprio claude-env. rc 1 = não instalado.
+agent_memory_sync_bin() {
+  local bin
+  for bin in "${AGENT_MEMORY_SYNC_BIN:-}" "${HOME}/.local/bin/agent-memory-sync" \
+    "$(mcp_hub_dir)/scripts/agent-memory-sync"; do
+    [[ -n "$bin" && -x "$bin" ]] && { printf '%s\n' "$bin"; return 0; }
+  done
+  return 1
+}
+
+# Puro/testável: resume a saída do agent-memory-sync ($1) em
+# "ajustes<TAB>problemas". Linha "PROBLEM: ..." = algo que o sync não corrige
+# sozinho (ex.: porta 8791 com outro dono); demais linhas = ajuste feito (ou,
+# sob --check, ajuste pendente). "everything already in sync" não conta.
+headroom_memory_sync_summary() {
+  local out="$1" chg=0 prob=0 line
+  while IFS= read -r line; do
+    case "$line" in
+      "" | "everything already in sync") ;;
+      PROBLEM:*) ((prob++)) ;;
+      *) ((chg++)) ;;
+    esac
+  done <<<"$out"
+  printf '%s\t%s\n' "$chg" "$prob"
+}
+
+# Step mutating (gated HEADROOM_MEMORY_SYNC=1): roda o agent-memory-sync
+# DEPOIS do hub MCP. Idempotente, com backup; ajuste feito = algum update tinha
+# desfeito a configuração (ok). Problema que ele não corrige vira todo.
+autofix_headroom_memory() {
+  local bin out rc chg prob
+  if ! bin="$(agent_memory_sync_bin)"; then
+    log "  agent-memory-sync não instalado; nada a sincronizar."
+    return 0
+  fi
+  out="$(timeout 600 "$bin" 2>&1)"
+  rc=$?
+  [[ $out == *[![:space:]]* ]] && printf '%s\n' "$out" | log_stream
+  if ((rc != 0)); then
+    STEP_REASON="agent-memory-sync: rc=${rc}"
+    return "$RC_WARN"
+  fi
+  IFS=$'\t' read -r chg prob <<<"$(headroom_memory_sync_summary "$out")"
+  if ((prob > 0)); then
+    STEP_REASON="memória Headroom: ${prob} problema(s) que o agent-memory-sync não corrige"
+    remediation "leia as linhas PROBLEM acima e ~/.headroom/logs/agent-memory-sync.log"
+    return "$RC_TODO"
+  fi
+  if ((chg > 0)); then
+    log "  ${C_GREEN}${chg} ajuste(s) da memória Headroom reaplicado(s)${C_RESET} (algum update tinha desfeito a configuração)."
+  else
+    log "  Memória Headroom já alinhada (hub, harnesses, hooks e stores por repositório)."
+  fi
+  return 0
+}
+
 # Read-only: 0 = configs alinhadas ao hub; 1 = divergência; 2 = hub/renderer
 # indisponível. Usado pelo Doctor de MCP (em --mode doctor o step mutating acima
 # não roda, então a divergência só aparece aqui).

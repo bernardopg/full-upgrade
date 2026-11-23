@@ -66,6 +66,8 @@ export FU_CONFIG_DIR FU_CONFIG_FILE
 : "${AI_PLUGIN_BLOCKLIST:=}"       # plugins/marketplaces (espaço ou vírgula) que os steps de plugins do Codex e do Claude Code desinstalam antes de renovar
 : "${AGENT_SKILLS_TIMEOUT_S:=60}"  # orçamento de cada tentativa do `npx skills update`; estourou e a versão anterior coube => a nova é marcada lenta
 : "${MCP_HUB_RENDER:=1}"            # 1 = step 'Sincronizar hub MCP (claude-env)' re-renderiza o hub nas configs de todos os harnesses após os updates; 0 = só doctor (drift)
+: "${HEADROOM_MEMORY_SYNC:=1}"      # 1 = step 'Sincronizar memória Headroom' roda o agent-memory-sync do claude-env após o hub MCP; 0 = só doctor (--check)
+: "${AGENT_MEMORY_SYNC_BIN:=}"      # caminho do agent-memory-sync (vazio = ~/.local/bin ou $CLAUDE_ENV_DIR/scripts)
 : "${CLAUDE_ENV_DIR:=${HOME}/claude-env}" # repositório claude-env (hub MCP em mcp/servers.json, renderer em scripts/mcp_render.py)
 : "${MCP_AUTO_UPDATE:=0}"           # 1 = step 'Atualizar servidores MCP' refresca o cache uv dos servers uvx (rebuild da última no próximo launch); 0 = só doctor read-only
 : "${OLLAMA_SELF_UPDATE:=0}"        # 1 = reexecuta o instalador oficial do Ollama (curl|sh) no step; 0 = só reporta a versão
@@ -189,6 +191,8 @@ TRAY_ICON_COLOR
 AI_PLUGIN_BLOCKLIST
 AGENT_SKILLS_TIMEOUT_S
 MCP_HUB_RENDER
+HEADROOM_MEMORY_SYNC
+AGENT_MEMORY_SYNC_BIN
 CLAUDE_ENV_DIR
 MCP_AUTO_UPDATE
 OLLAMA_SELF_UPDATE
@@ -422,7 +426,7 @@ load_config() {
   export BACKUP_CONFIGS BACKUP_KEEP BACKUP_PATHS
   export BTRFS_DEVICE_STATS_ACK_SHA256
   export BTRFS_SCRUB_MAX_DAYS BOOT_TIME_WARN_S FWUPD_HSI_MIN DOCKER_INFO_TIMEOUT_S ORPHAN_CLEANUP_MAX_ROUNDS COREDUMP_KEEP_DAYS CODEX_TMP_KEEP_DAYS
-  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW AUTO_RECREATE_STALE_CONTAINERS SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE MCP_HUB_RENDER CLAUDE_ENV_DIR
+  export AUTO_FIX_RUST_CVES RUST_CVE_REBUILD_TTL_D AUTO_BTRFS_SCRUB AUTO_FIX_FINAL_PENDING AUTO_FIX_PIP_DEPS AUTO_FIX_CODEX_MCP AUTO_MERGE_PACNEW AUTO_RECREATE_STALE_CONTAINERS SECURE_BOOT_STRICT REPORT_ON_FINISH IDE_EXT_CLIS NOTIFY_ON_FINISH OLLAMA_SELF_UPDATE MCP_AUTO_UPDATE MCP_HUB_RENDER HEADROOM_MEMORY_SYNC AGENT_MEMORY_SYNC_BIN CLAUDE_ENV_DIR
   export TRAY_CHECK_INTERVAL_M TRAY_TERMINAL TRAY_NOTIFICATIONS TRAY_BADGE TRAY_ICON_COLOR
   export AUR_HELPER PRIV_CMD
   export ARTCRAFT_DIR
@@ -642,6 +646,10 @@ MCP_AUTO_UPDATE=0
 # (CLAUDE_ENV_DIR/mcp/servers.json), sem segredos (só referências ${VAR}).
 # Idempotente: só grava quando algo divergiu, sempre com backup.
 MCP_HUB_RENDER=1
+# 1 = ligado (default). O step 'Sincronizar memória Headroom' roda o
+# agent-memory-sync do claude-env depois do hub: hooks 'headroom init hook
+# ensure', perfis init-*, headroom_memory no wrapper e stores por repositório.
+HEADROOM_MEMORY_SYNC=1
 # 1 = só chama `claude plugin update` nos plugins cuja versão/sha mudou no marketplace
 CLAUDE_PLUGIN_PREFILTER=1
 CLAUDE_ENV_DIR="${HOME}/claude-env"
@@ -824,6 +832,8 @@ show_config() {
   _cfg_kv "AGENT_SKILLS_TIMEOUT_S" "$AGENT_SKILLS_TIMEOUT_S"
   _cfg_kv "MCP_AUTO_UPDATE" "$MCP_AUTO_UPDATE"
   _cfg_kv "MCP_HUB_RENDER" "$MCP_HUB_RENDER"
+  _cfg_kv "HEADROOM_MEMORY_SYNC" "$HEADROOM_MEMORY_SYNC"
+  _cfg_kv "AGENT_MEMORY_SYNC_BIN" "${AGENT_MEMORY_SYNC_BIN:-(auto)}"
   _cfg_kv "CLAUDE_ENV_DIR" "$CLAUDE_ENV_DIR"
   _cfg_kv "OLLAMA_SELF_UPDATE" "$OLLAMA_SELF_UPDATE"
   _cfg_kv "CLIPROXYAPI_KEEP_VERSIONS" "$CLIPROXYAPI_KEEP_VERSIONS"

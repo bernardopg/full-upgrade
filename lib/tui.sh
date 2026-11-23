@@ -91,6 +91,7 @@ TRAY_BADGE|bool||AppIndicator mostra contador de updates/todo/falhas
 TRAY_ICON_COLOR|string||Cor dos ícones do AppIndicator (auto = texto do tema GTK; ou #rrggbb)
 MCP_AUTO_UPDATE|bool||Step MCP refresca o cache uv dos servers uvx
 MCP_HUB_RENDER|bool||Re-renderiza o hub MCP do claude-env em todos os harnesses
+HEADROOM_MEMORY_SYNC|bool||Roda o agent-memory-sync (memória Headroom por repositório) após o hub MCP
 OLLAMA_SELF_UPDATE|bool||Reexecuta o instalador oficial do Ollama
 CLIPROXYAPI_KEEP_VERSIONS|int||Versões do CLIProxyAPI mantidas para rollback (mín. 1)
 CLIPROXYAPI_RESTART_SERVICE|bool||Reinicia o serviço do CLIProxyAPI após o update (rollback se não subir)

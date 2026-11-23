@@ -104,6 +104,13 @@ COREDUMP_KEEP_DAYS=7  # dias de retenção de dumps em /var/lib/systemd/coredump
 # MCP_HUB_RENDER          1 = LIGADO por padrão. Após os updates de IA, roda
 #                         $CLAUDE_ENV_DIR/scripts/mcp_render.py e realinha as
 #                         configs MCP de todos os harnesses ao hub (sem segredos).
+# HEADROOM_MEMORY_SYNC    1 = LIGADO por padrão. Depois do hub, roda o
+#                         agent-memory-sync do claude-env: remove hooks
+#                         'headroom init hook ensure', estaciona perfis init-*,
+#                         mantém headroom_memory no wrapper headroom-memory-mcp
+#                         e liga o store do proxy de cada repositório a
+#                         <repo>/.headroom. 0 = só o doctor (--check).
+# AGENT_MEMORY_SYNC_BIN   caminho do agent-memory-sync (vazio = autodetecta)
 # CLAUDE_ENV_DIR          repositório claude-env (default ~/claude-env)
 AUTO_FIX_RUST_CVES=0
 RUST_CVE_REBUILD_TTL_D=7
@@ -112,6 +119,7 @@ AUTO_FIX_FINAL_PENDING=0
 AUTO_FIX_PIP_DEPS=0
 AUTO_FIX_CODEX_MCP=1
 MCP_HUB_RENDER=1
+HEADROOM_MEMORY_SYNC=1
 # 1 = o step de plugins do Claude Code só chama `claude plugin update` nos
 # plugins cuja versão/sha mudou no marketplace; 0 = chama em todos.
 CLAUDE_PLUGIN_PREFILTER=1

@@ -575,6 +575,38 @@ doctor_gem_shadow() {
 }
 
 
+# Doctor read-only da memória Headroom: `agent-memory-sync --check` não grava
+# nada e sai 1 quando algo saiu do alinhamento (hub ou harness fora do wrapper,
+# hook 'headroom init hook ensure', perfil init-*, store de repositório não
+# ligado, porta 8791 fora do headroom.service). Em --mode doctor o step
+# mutating não roda, então a divergência aparece aqui.
+doctor_headroom_memory() {
+  local bin out rc chg prob
+  if ! bin="$(agent_memory_sync_bin)"; then
+    log "  agent-memory-sync não instalado; nada a checar."
+    return 0
+  fi
+  out="$(timeout 150 "$bin" --check 2>&1)"
+  rc=$?
+  [[ $out == *[![:space:]]* ]] && printf '%s\n' "$out" | log_stream
+  case "$rc" in
+    0)
+      log "  Memória Headroom alinhada: um store por repositório em todos os harnesses."
+      return 0
+      ;;
+    1)
+      IFS=$'\t' read -r chg prob <<<"$(headroom_memory_sync_summary "$out")"
+      STEP_REASON="memória Headroom fora do alinhamento: ${chg} ajuste(s) pendente(s), ${prob} problema(s)"
+      remediation "agent-memory-sync   # reaplica; PROBLEM restante: ~/.headroom/logs/agent-memory-sync.log"
+      return "$RC_TODO"
+      ;;
+    *)
+      STEP_REASON="agent-memory-sync --check: rc=${rc}"
+      return "$RC_WARN"
+      ;;
+  esac
+}
+
 # H6 — Doctor read-only: enumera servidores MCP configurados nas fontes conhecidas
 # (hoje: Claude Code via ~/.claude.json, Codex via ~/.codex/config.toml). Lista
 # cada servidor com escopo e binário/runtime (stdio:npx, stdio:uvx, remote...).
