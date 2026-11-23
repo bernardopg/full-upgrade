@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.5.1] - 2026-11-23
 ### Corrigido
 
 - **`Atualizar gems de usuário` roda `gem cleanup` no diretório de gems do
