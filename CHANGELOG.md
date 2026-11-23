@@ -3,6 +3,13 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Atualizar gems de usuário` roda `gem cleanup` no diretório de gems do
+  usuário** (com `GEM_PATH` restrito a ele, então as gems do Arch ficam de
+  fora). O `gem update` deixava versões antigas e dependências repetidas (ex.:
+  `psych` 5.4.0 e 5.5.0, `cgi` 0.5.1 e 0.5.2), e todo comando do RubyGems
+  avisava `WARN: Unresolved or ambiguous specs during Gem::Specification.reset`.
 
 ## [4.5.0] - 2026-11-23
 ### Adicionado
