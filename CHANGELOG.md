@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.5.0] - 2026-11-23
 ### Adicionado
 
 - **Step `Sincronizar memória Headroom`** (categoria `autofix`, `HEADROOM_MEMORY_SYNC=1`
