@@ -112,6 +112,8 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `OLLAMA_MODELS_UPDATE` | `0` | `1` renova os modelos baixados do Ollama (`ollama pull` só traz as camadas que mudaram, mas um modelo pode ter dezenas de GB). |
 | `MCP_AUTO_UPDATE` | `0` | `1` renova o cache uv dos servidores MCP uvx. |
 | `MCP_HUB_RENDER` | `1` | Realinha as configs MCP de todos os harnesses ao hub `mcp/servers.json` do claude-env. |
+| `HEADROOM_MEMORY_SYNC` | `1` | Depois do hub MCP, roda o `agent-memory-sync` do claude-env: um store de memória Headroom por repositório em todos os harnesses (remove hooks `headroom init hook ensure`, estaciona perfis `init-*`, mantém `headroom_memory` no wrapper `headroom-memory-mcp`, liga os stores do proxy a `<repo>/.headroom`). `0` deixa só o `Doctor: memória Headroom` (`--check`). |
+| `AGENT_MEMORY_SYNC_BIN` | auto | Caminho do `agent-memory-sync` (vazio: `~/.local/bin` ou `$CLAUDE_ENV_DIR/scripts`). |
 | `CLAUDE_ENV_DIR` | `~/claude-env` | Repositório claude-env (hub MCP e renderer). |
 | `IDE_EXT_CLIS` | auto | CLIs da família VSCode para atualizar extensões. |
 | `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins DankMaterialShell fixados (globs permitidos): nunca sofrem fetch, pull nem reset. |

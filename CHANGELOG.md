@@ -3,6 +3,16 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Adicionado
+
+- **Step `Sincronizar memória Headroom`** (categoria `autofix`, `HEADROOM_MEMORY_SYNC=1`
+  por padrão) e **`Doctor: memória Headroom`**: rodam o `agent-memory-sync` do
+  claude-env depois do hub MCP (e `--check`, read-only, no doctor). Caso real:
+  o hub renderizava `headroom_memory` sem o wrapper `headroom-memory-mcp`, e o
+  hub e o sync se desfaziam de hora em hora; cada harness gravava num store
+  próprio em vez do `<repo>/.headroom` compartilhado. Os updates de IA do run
+  também podem religar hooks `headroom init hook ensure`, que sobem um 2º proxy
+  sem memória na porta 8791.
 
 ## [4.4.0] - 2026-11-22
 ### Adicionado
