@@ -174,6 +174,31 @@ exec python3 "$@"'
   grep -q "^gem update minha_gem" "$STUB_LOG"
 }
 
+@test "update_gem_user: gem cleanup só no diretório do usuário, e conta o que removeu" {
+  mkdir -p "$HOME/.local/share/gem/ruby"
+  stub_script gem "case \"\$*\" in
+    'env home') echo /usr/lib/ruby/gems/3.4.0 ;;
+    'env user_gemhome') echo '$HOME/.local/share/gem/ruby' ;;
+    cleanup) echo \"cleanup GEM_HOME=\$GEM_HOME GEM_PATH=\$GEM_PATH\" >> '$BATS_TEST_TMPDIR/cleanup.log'
+             printf 'Successfully uninstalled psych-5.4.0\nSuccessfully uninstalled cgi-0.5.1\n' ;;
+  esac"
+  run update_gem_user
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Versões antigas de gems do usuário removidas: 2."* ]]
+  grep -qx "cleanup GEM_HOME=$HOME/.local/share/gem/ruby GEM_PATH=$HOME/.local/share/gem/ruby" "$BATS_TEST_TMPDIR/cleanup.log"
+}
+
+@test "cleanup_gem_user_dir: fora do HOME não roda; falha vira aviso" {
+  stub_script gem 'echo chamado >> "$BATS_TEST_TMPDIR/g.log"; exit 1'
+  run cleanup_gem_user_dir /usr/lib/ruby/gems/3.4.0
+  [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/g.log" ]
+  mkdir -p "$HOME/.gem"
+  run cleanup_gem_user_dir "$HOME/.gem"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"gem cleanup no diretório do usuário falhou"* ]]
+}
+
 @test "update_gem_user: sem GEM_HOME falha" {
   stub gem 0 ""
   run update_gem_user

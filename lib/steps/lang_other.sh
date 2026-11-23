@@ -177,6 +177,29 @@ gem_user_updatable() {
 }
 
 
+# `gem update` mantém as versões antigas e as dependências que puxou (ex.: psych
+# e cgi, nomes que o Arch também traz) no diretório de gems do usuário. Com
+# duas versões de usuário da mesma gem, todo comando do RubyGems avisa
+# "WARN: Unresolved or ambiguous specs during Gem::Specification.reset"
+# (visto no run de 2026-11-23). Remove as versões antigas SÓ desse diretório:
+# GEM_PATH restrito a ele, então as gems do Arch nunca entram na conta; o
+# cleanup mantém a mais nova e pula versão de que outra gem dependa.
+cleanup_gem_user_dir() {
+  local dir="$1" out
+  [[ -n "$dir" && "$dir" == "$HOME"* && -d "$dir" ]] || return 0
+  out="$(GEM_HOME="$dir" GEM_PATH="$dir" gem cleanup </dev/null 2>&1)" || {
+    log "  Aviso: gem cleanup no diretório do usuário falhou (versões antigas mantidas)."
+    return 0
+  }
+  local removed
+  removed="$(grep -c '^Successfully uninstalled' <<<"$out" || true)"
+  if ((removed > 0)); then
+    log "  Versões antigas de gems do usuário removidas: ${removed}."
+    printf '%s\n' "$out" | grep '^Successfully uninstalled' | log_stream
+  fi
+  return 0
+}
+
 update_gem_user() {
   local gem_home gem_user_dir
   gem_home="$(gem env home 2>/dev/null || true)"
@@ -224,6 +247,7 @@ update_gem_user() {
           GEM_HOME="$gem_user_dir" run_logged gem update "${updatable[@]}"
         fi
       fi
+      cleanup_gem_user_dir "$gem_user_dir"
     fi
     return 0
   fi
@@ -239,6 +263,7 @@ update_gem_user() {
   printf '%s\n' "$outdated" | log_stream
   # rdoc/rake/rubygems-update podem gerar conflito com versão do Arch — ignorar erros não-fatais
   run_logged gem update || log "  Aviso: gem update retornou erro (possível conflito rdoc/rake com pacman — inofensivo)."
+  cleanup_gem_user_dir "$gem_home"
 }
 
 
