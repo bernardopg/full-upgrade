@@ -21,4 +21,4 @@ opentelemetry-instrumentation-threading==0.66b2
 # mantém o mesmo pin): wcmatch 11.2 corrige CVE-2026-132276. O Semgrep só usa
 # wcmatch.glob para casar padrões de ignore; o job valida o import e o scan
 # antes da auditoria. Remover quando o Semgrep aceitar wcmatch>=11.2.
-wcmatch==11.2
+wcmatch==12.0.3
