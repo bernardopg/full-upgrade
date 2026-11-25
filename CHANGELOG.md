@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.5.2] - 2026-11-25
 ### Corrigido
 
 - **`Atualizar plugins do Claude Code` ignora os plugins `@builtin`.** Desde o
