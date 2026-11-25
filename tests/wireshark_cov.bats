@@ -27,6 +27,22 @@ setup() {
   [[ "$output" == *"Falha ao garantir wireshark-qt"* ]]
 }
 
+@test "ensure: lê a versão do repo em locale pt_BR (LC_ALL=C) e não reinstala" {
+  stub_script pacman 'case "$1" in -Q) echo "wireshark-qt 4.4.0-1" ;; -Si) if [[ "${LC_ALL:-}" == C ]]; then echo "Version         : 4.4.0-1"; else echo "Versão          : 4.4.0-1"; fi ;; -S) touch "$BATS_TEST_TMPDIR/s-called" ;; esac'
+  LANG=pt_BR.UTF-8 run ensure_wireshark
+  [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/s-called" ]
+}
+
+@test "ensure: instalado com base de sync ilegível vira warn sem reinstalar" {
+  # -Si falha (assinatura PGP inválida); -S também falharia pelo mesmo motivo.
+  stub_script pacman 'case "$1" in -Q) echo "wireshark-qt 4.4.0-1" ;; -Si) echo "erro: assinatura inválida" >&2; exit 1 ;; -S) touch "$BATS_TEST_TMPDIR/s-called"; exit 1 ;; esac'
+  run ensure_wireshark
+  [ "$status" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON$output" == *"ilegível"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/s-called" ]
+}
+
 @test "permissões: sem dumpcap, sem grupo, sem setcap e completo" {
   run repair_wireshark_capture_permissions
   [ "$status" -eq 1 ]

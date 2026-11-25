@@ -41,6 +41,17 @@ foo 1.0 requires bar, which is not installed."
   [ "${status:-0}" -eq "$RC_WARN" ]
 }
 
+@test "python_env: dep não declarada por pacote do pacman sugere pacman -S e preenche o motivo" {
+  export PIP_CHECK_OUT="python-dateutil 4.0.0 requires tzdata, which is not installed."
+  _python_pip 1
+  _classify_pip_origins() { printf 'python-dateutil\tsystem\n'; }
+  stub_script pacman '[[ "$1 $2" == "-Si python-tzdata" ]]'
+  doctor_python_env >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_WARN" ]
+  [[ "$STEP_REASON" == *"python-dateutil"* ]]
+  [[ "$STEP_REASON" == *"falta no repositório: python-tzdata"* ]]
+}
+
 @test "python_env: saída do pip check fora do formato preserva o dump" {
   export PIP_CHECK_OUT="algo inesperado"
   _python_pip 1

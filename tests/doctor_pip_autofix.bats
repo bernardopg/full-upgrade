@@ -14,7 +14,26 @@ setup() {
   PIP_INSTALL_ARGS="${BATS_TEST_TMPDIR}/pip-install.args"
   : >"$PIP_INSTALL_ARGS"
   PIP_INSTALL_RC=0
+  # pacman/sudo NUNCA reais: o ramo de pacotes do sistema consulta o
+  # repositório e instalaria com sudo. Repositório controlado pelo teste.
+  REPO_PKGS=""
+  PACMAN_S_ARGS="${BATS_TEST_TMPDIR}/pacman-S.args"
+  : >"$PACMAN_S_ARGS"
+  SUDO_OK=1
+  # Depois do source das libs (que redefinem has/_doctor_sudo_ok).
+  has() { [[ "$1" == pacman ]] && return 0; command -v "$1" >/dev/null 2>&1; }
+  _doctor_sudo_ok() { (( SUDO_OK )); }
+  PRIV_CMD=_priv
 }
+
+pacman() {
+  case "$1" in
+    -Si) [[ " $REPO_PKGS " == *" $2 "* ]] ;;
+    -S) shift; printf '%s\n' "$*" >>"$PACMAN_S_ARGS"; return "${PACMAN_S_RC:-0}" ;;
+    *) return 1 ;;
+  esac
+}
+_priv() { [[ "$1" == -n ]] && shift; "$@"; }
 
 # Mocka `python -m pip …` com o estado do teste e registra os installs.
 python() {
@@ -93,6 +112,47 @@ python3() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"nada a remediar"* ]]
   [ ! -s "$PIP_INSTALL_ARGS" ]
+}
+
+@test "autofix pip deps: dep ausente de pacote system existente no repo vai pelo pacman" {
+  PIP_ORIGIN="system"
+  PIP_CHECK_OUT="python-dateutil 4.0.0 requires tzdata, which is not installed."
+  REPO_PKGS="python-tzdata"
+  run autofix_pip_user_deps
+  [ "$status" -eq 0 ]
+  [[ "$(cat "$PACMAN_S_ARGS")" == *"--needed --noconfirm python-tzdata"* ]]
+  # --asdeps faria da dep um órfão: a limpeza de órfãos a removeria no run.
+  [[ "$(cat "$PACMAN_S_ARGS")" != *"--asdeps"* ]]
+  [ ! -s "$PIP_INSTALL_ARGS" ]
+}
+
+@test "autofix pip deps: dep do repo sem sudo sem prompt vira TODO" {
+  PIP_ORIGIN="system"
+  PIP_CHECK_OUT="python-dateutil 4.0.0 requires tzdata, which is not installed."
+  REPO_PKGS="python-tzdata"
+  SUDO_OK=0
+  autofix_pip_user_deps >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *"pacman -S python-tzdata"* ]]
+  [ ! -s "$PACMAN_S_ARGS" ]
+}
+
+@test "autofix pip deps: falha do pacman -S vira warn" {
+  PIP_ORIGIN="system"
+  PIP_CHECK_OUT="python-dateutil 4.0.0 requires tzdata, which is not installed."
+  REPO_PKGS="python-tzdata"
+  PACMAN_S_RC=1
+  run autofix_pip_user_deps
+  [ "$status" -eq "$RC_WARN" ]
+}
+
+@test "pip_req_arch_pkg: normaliza nome, extras, spec e marker" {
+  run pip_req_arch_pkg "tzdata"
+  [ "$output" = "python-tzdata" ]
+  run pip_req_arch_pkg "Foo_Bar.baz[x]>=1,<2; python_version<'4'"
+  [ "$output" = "python-foo-bar-baz" ]
+  run pip_req_arch_pkg ">=1"
+  [ -z "$output" ]
 }
 
 @test "autofix pip deps: conflito de versão não é auto-instalado" {

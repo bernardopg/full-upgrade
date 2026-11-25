@@ -807,6 +807,10 @@ agent_skills_git_ff() {
 # project/local pertencem a um projeto e synced é gerido pelo claude.ai: ficam
 # de fora. Nunca passa -y: plugin cujo comando de instalação mudou exige
 # confirmação humana e vira TODO. rc: 0 ok · RC_WARN rede/falha · RC_TODO.
+# Plugins `@builtin` (desde o Claude Code 2.1.332: cc-plugin-agents-md,
+# cc-plugin-privacy...) aparecem no `plugin list --json` com scope user e
+# version "unknown", mas vêm dentro do binário: `plugin update` responde
+# 'Plugin "x" not found' e o step virava warn em todo run. Sobem junto com a CLI.
 claude_plugin_user_ids() {
   python3 -c '
   # kcov-excl-start (programa embutido, não é Bash)
@@ -818,6 +822,8 @@ except Exception:
 seen = set()
 for p in data if isinstance(data, list) else []:
     pid = p.get("id") or ""
+    if pid.endswith("@builtin"):
+        continue
     if p.get("scope") == "user" and pid and pid not in seen:
         seen.add(pid)
         print(pid)

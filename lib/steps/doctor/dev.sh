@@ -287,6 +287,51 @@ for line in sys.stdin:
 
 
 
+# Puro: nome de pacote do Arch para um requisito Python ausente do pip check.
+# "tzdata" -> "python-tzdata"; "Foo_Bar[x]>=1; python_version<'4'" ->
+# "python-foo-bar". Normalização PEP 503 (minúsculas, [-_.]+ -> -), que é a
+# convenção de nomes do [extra]. Saída vazia se o requisito não tiver nome.
+pip_req_arch_pkg() {
+  local req="${1:-}" name
+  name="${req%%;*}"
+  name="${name%%[*}"
+  name="${name%%[<>=!~ (]*}"
+  name="${name,,}"
+  name="$(sed -E 's/[-_.]+/-/g' <<<"$name")"
+  [[ -n "$name" ]] && printf 'python-%s\n' "$name"
+}
+
+# Lista (uma por linha) os pacotes do repositório que suprem deps AUSENTES de
+# pacotes Python do pacman. stdin: summary do summarize_pip_check. Só considera
+# dependentes de origem system e candidatos que existem na base de sync —
+# `pacman -Si` é read-only. Caso real (2026-11-25): python-dateutil 4.0.0-1
+# passou a exigir tzdata sem declarar python-tzdata no PKGBUILD.
+pip_system_missing_arch_pkgs() {
+  has pacman || return 0
+  local summary pkg detail d req cand
+  local -A seen=()
+  summary="$(cat)"
+  [[ $summary == *[![:space:]]* ]] || return 0
+  local -A origin=()
+  local _p _o
+  while IFS=$'\t' read -r _p _o; do
+    [[ -n "$_p" ]] && origin["$_p"]="$_o"
+  done < <(_classify_pip_origins < <(cut -f1 <<<"$summary"))
+  while IFS=$'\t' read -r pkg detail; do
+    [[ -n "$pkg" && "${origin[$pkg]:-user}" == system ]] || continue
+    while IFS= read -r d; do
+      d="${d#"${d%%[![:space:]]*}"}"; d="${d%"${d##*[![:space:]]}"}"
+      [[ "$d" == *"(ausente)" ]] || continue
+      req="${d% (ausente)}"
+      cand="$(pip_req_arch_pkg "$req")"
+      [[ -n "$cand" && -z "${seen[$cand]:-}" ]] || continue
+      seen["$cand"]=1
+      pacman -Si "$cand" >/dev/null 2>&1 && printf '%s\n' "$cand"
+    done <<< "${detail//;/$'\n'}"
+  done <<< "$summary"
+}
+
+
 doctor_python_env() {
   local status=0
 
@@ -320,6 +365,18 @@ doctor_python_env() {
           fi
         done <<< "$summary"
         log "  Remediação sugerida (sem auto-instalação):"
+        local -a repo_fix=()
+        (( sys == 1 )) && mapfile -t repo_fix < <(pip_system_missing_arch_pkgs <<<"$summary")
+        if (( ${#repo_fix[@]} > 0 )); then
+          # Dependência que o PKGBUILD esqueceu de declarar: o pacote existe no
+          # repositório, então `pacman -Syu` não resolve, mas instalá-lo resolve.
+          # Explícito, NÃO --asdeps: como nada o declara, `pacman -Qdtq` o vê
+          # como órfão e a limpeza de órfãos do run o removeria (caso real
+          # 2026-11-25: python-tzdata removido e reinstalado no mesmo run).
+          log "    • [pacman/AUR]: dependência não declarada pelo pacote — instale do repositório: sudo pacman -S ${repo_fix[*]}"
+          (( ${AUTO_FIX_PIP_DEPS:-0} == 0 )) \
+            && log "    • AUTO_FIX_PIP_DEPS=1 instala sozinho essas dependências do repositório (step 'Auto-remediar deps Python ausentes')."
+        fi
         (( sys == 1 )) && log "    • [pacman/AUR]: NÃO use 'pip install' (quebra o pacman) — atualize via 'sudo pacman -Syu' ou rebuild do pacote AUR."
         (( usr == 1 )) && log "    • [pip --user]: isole com 'pipx install <ferramenta>' (venv) ou corrija o pin com 'pip install --user <dep>==<ver>'."
         # Deps AUSENTES de pacotes pip --user têm auto-remediação opcional;
@@ -327,7 +384,13 @@ doctor_python_env() {
         if (( usr == 1 )) && (( ${AUTO_FIX_PIP_DEPS:-0} == 0 )); then
           log "    • AUTO_FIX_PIP_DEPS=1 instala sozinho as deps AUSENTES de pacotes pip --user (step 'Auto-remediar deps Python ausentes')."
         fi
+        local _deps
+        _deps="$(cut -f1 <<<"$summary" | paste -sd' ' -)"
+        STEP_REASON="pip check: ${cnt} pacote(s) com dependência quebrada (${_deps})"
+        (( ${#repo_fix[@]} > 0 )) && STEP_REASON+="; falta no repositório: ${repo_fix[*]}"
       else
+        STEP_REASON="pip check reportou dependências Python quebradas"
+
         # Parser não casou — preserva o dump bruto.
         log "  pip check encontrou dependências Python quebradas:"
         printf '%s\n' "$pip_check_out" | grep -v '^$' | log_stream
@@ -414,7 +477,10 @@ for tool in (data if isinstance(data, list) else []):
 # do pacman), o pip check não a teria listado como ausente —, logo nunca
 # sobrepõe arquivo gerenciado pelo pacman. Conflitos de VERSÃO ('requires X,
 # but you have Y') seguem manuais: a correção certa depende de pin/downgrade e
-# o doctor segue sugerindo. Pacotes de origem system são intocáveis. Re-executa
+# o doctor segue sugerindo. Pacotes de origem system são intocáveis pelo pip;
+# dependência AUSENTE deles que existe no repositório (python-<dep>) é
+# instalada pelo pacman como explícita (sudo sem prompt; com --asdeps a limpeza
+# de órfãos a removeria, já que nenhum pacote a declara). Re-executa
 # o pip check ao final e reporta antes→depois. Gate de wiring em main.sh (nunca
 # sob --no-repair; --mode doctor/--dry-run pulam steps mutating).
 autofix_pip_user_deps() {
@@ -449,8 +515,42 @@ autofix_pip_user_deps() {
     done <<< "${detail//;/$'\n'}"
   done <<< "$summary"
 
+  # Pacotes do pacman com dependência AUSENTE que existe no repositório (o
+  # PKGBUILD esqueceu de declarar): instala do repositório, explícito — nunca
+  # com pip, nunca --asdeps (viraria órfão e a limpeza de órfãos o removeria).
+  local -a repo_fix=()
+  mapfile -t repo_fix < <(pip_system_missing_arch_pkgs <<<"$summary")
+  local repo_rc=0
+  if (( ${#repo_fix[@]} > 0 )); then
+    if _doctor_sudo_ok; then
+      log "  Instalando do repositório dependência(s) não declarada(s) por pacotes do pacman: ${repo_fix[*]}"
+      if ! run_logged "${PRIV_CMD:-sudo}" -n pacman -S --needed --noconfirm "${repo_fix[@]}"; then
+        log "  Falha ao instalar ${repo_fix[*]} pelo pacman."
+        STEP_REASON="pacman -S falhou para ${repo_fix[*]}"
+        repo_rc="$RC_WARN"
+      fi
+    else
+      log "  Dependência(s) do repositório pendente(s) (${repo_fix[*]}), mas sudo exige senha; rode: sudo pacman -S ${repo_fix[*]}"
+      STEP_REASON="requer sudo: pacman -S ${repo_fix[*]}"
+      repo_rc="$RC_TODO"
+    fi
+  fi
+
   if (( ${#reqs[@]} == 0 )); then
-    log "  Sem dependências ausentes em pacotes pip --user; nada a remediar."
+    if (( ${#repo_fix[@]} == 0 )); then
+      log "  Sem dependências ausentes em pacotes pip --user; nada a remediar."
+    fi
+    (( repo_rc != 0 )) && return "$repo_rc"
+    if (( ${#repo_fix[@]} > 0 )); then
+      local after_sys
+      after_sys="$(python -m pip check 2>&1 | summarize_pip_check)"
+      if [[ $after_sys != *[![:space:]]* ]]; then
+        log "  ${C_GREEN}pip check limpo após remediação.${C_RESET}"
+      else
+        log "  pip check ainda reporta pendências:"
+        printf '%s\n' "$after_sys" | log_stream
+      fi
+    fi
     return 0
   fi
 
@@ -471,6 +571,7 @@ autofix_pip_user_deps() {
     STEP_REASON="pip install falhou para ${#failed_installs[@]} dep(s)"
     return "$RC_WARN"
   fi
+  (( repo_rc != 0 )) && return "$repo_rc"
 
   local after
   after="$(python -m pip check 2>&1 | summarize_pip_check)"

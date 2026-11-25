@@ -10,12 +10,24 @@ wireshark_install_arch_package() {
 
     installed_ver="$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' || true)"
     if [[ -n "$installed_ver" ]]; then
-        available_ver="$(pacman -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
+        # LC_ALL=C: em pt_BR o campo é "Versão" e o awk nunca casava — a versão
+        # disponível vinha sempre vazia e todo run caía no `pacman -S --needed`.
+        available_ver="$(LC_ALL=C pacman -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
         if [[ -n "$available_ver" && "$installed_ver" == "$available_ver" ]]; then
             log "  ${pkg} ${installed_ver} já na versão mais recente."
             return 0
         fi
-        [[ -n "$available_ver" ]] && log "  ${pkg}: ${installed_ver} → ${available_ver}"
+        if [[ -z "$available_ver" ]]; then
+            # Instalado, mas a base de sync não respondeu (assinatura PGP
+            # inválida de um repo de terceiros no meio da publicação, base
+            # corrompida...). Caso real (2026-11-25): `pacman -S --needed`
+            # tropeçou na mesma base e o step virou fail com o pacote já
+            # instalado. O upgrade principal sobe o pacote quando a base voltar.
+            log "  ${pkg} ${installed_ver} instalado; versão do repositório ilegível (base de sync indisponível) — sem reinstalar."
+            STEP_REASON="base de sync ilegível; ${pkg} ${installed_ver} mantido"
+            return "$RC_WARN"
+        fi
+        log "  ${pkg}: ${installed_ver} → ${available_ver}"
     fi
 
     run_logged sudo pacman -S --needed --noconfirm "$pkg"
@@ -23,11 +35,11 @@ wireshark_install_arch_package() {
 
 # Garante/atualiza apenas o Wireshark (pacote oficial wireshark-qt).
 ensure_wireshark() {
-    if ! wireshark_install_arch_package wireshark-qt; then
-        log "  Falha ao garantir wireshark-qt."
-        return 1
-    fi
-    return 0
+    local rc=0
+    wireshark_install_arch_package wireshark-qt || rc=$?
+    (( rc == 0 || rc == RC_WARN )) && return "$rc"
+    log "  Falha ao garantir wireshark-qt."
+    return 1
 }
 
 repair_wireshark_capture_permissions() {
