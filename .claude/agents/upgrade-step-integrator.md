@@ -10,7 +10,7 @@ Você integra **um** tool ao orquestrador `full-upgrade` (Bash puro, Arch Linux,
 Entrada: nome + como detectar + comando de update (de `.mind/features.md`). Saída: step pronto, testado, validado.
 
 ## Leia primeiro (obrigatório)
-- `CLAUDE.md` do projeto — arquitetura, contrato de step, load order, convenções.
+- `AGENTS.md` do projeto — arquitetura, contrato de step, load order, convenções.
 - `.mind/plan.md` — o contrato de "pronto" (definition of done). **Siga-o à risca.**
 - Um step existente análogo como template: `lib/steps/*.sh` para `update_droid`, `update_kiro_cli`, `update_snyk` (self-update de binário fora de pacote, com/sem sha256).
 

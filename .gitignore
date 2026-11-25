@@ -12,7 +12,6 @@ coverage/
 .mind/
 .tokensave/
 .headroom/
-AGENTS.md
 .claude/.headroom_wrap_marker.json
 .claude/.headroom_wrap_settings.lock
 .github/copilot-instructions.md

@@ -99,7 +99,7 @@ O padrão central é `run_step "Nome exato" funcao_impl`. Para um novo step:
 > do catálogo, na chamada em `main.sh` e em qualquer `--skip`/`--explain-step`.
 > Uma divergência quebra silenciosamente a busca de metadados.
 
-Veja [`CLAUDE.md`](CLAUDE.md) para a arquitetura completa.
+Veja [`AGENTS.md`](AGENTS.md) para a arquitetura completa e as regras para agentes de IA.
 
 ## Convenções
 

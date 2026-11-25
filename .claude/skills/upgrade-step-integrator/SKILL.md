@@ -1,11 +1,11 @@
 ---
 name: upgrade-step-integrator
-description: Conhecimento de referência para integrar um tool (curl|sh, wget, self-download, updater nativo) como step do full-upgrade — contrato RC, catálogo, wiring em main.sh, teste bats, validação CI. Use ao implementar/integrar um novo step de atualização neste projeto, ou junto do agente upgrade-step-integrator. Complementa CLAUDE.md e .mind/plan.md com os padrões de código concretos.
+description: Conhecimento de referência para integrar um tool (curl|sh, wget, self-download, updater nativo) como step do full-upgrade — contrato RC, catálogo, wiring em main.sh, teste bats, validação CI. Use ao implementar/integrar um novo step de atualização neste projeto, ou junto do agente upgrade-step-integrator. Complementa AGENTS.md e .mind/plan.md com os padrões de código concretos.
 ---
 
 # Integrar um step de atualização no full-upgrade
 
-Referência de padrões. O **contrato de "pronto"** vive em `.mind/plan.md`; a **arquitetura** em `CLAUDE.md`. Aqui: os moldes de código.
+Referência de padrões. O **contrato de "pronto"** vive em `.mind/plan.md`; a **arquitetura** em `AGENTS.md`. Aqui: os moldes de código.
 
 ## Anatomia de um step self-update (molde base)
 
