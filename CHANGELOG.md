@@ -3,6 +3,34 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Atualizar plugins do Claude Code` ignora os plugins `@builtin`.** Desde o
+  Claude Code 2.1.332, `plugin list --json` lista `cc-plugin-*@builtin` com
+  escopo user; eles vêm dentro do binário, `plugin update` responde
+  `Plugin "…" not found` e o step virava warn em todo run.
+- **`Auto-remediar scrub btrfs` não espera mais o scrub inteiro.** O processo
+  em background do `btrfs scrub start` herdava o pipe do `log_stream`, que só
+  via EOF no fim do scrub: um scrub de 688 GiB (5m52s, sem erros) estourava o
+  limite de 300s e fechava em warn falso. A saída agora vai para um arquivo.
+- **`Garantir Wireshark` não falha com o pacote instalado e a base de sync
+  ilegível** (assinatura PGP inválida de um repo de terceiros no meio da
+  publicação): vira warn sem tentar reinstalar. O `pacman -Si` agora roda em
+  `LC_ALL=C`: em pt_BR o campo é `Versão`, a versão disponível nunca era lida e
+  todo run reexecutava `pacman -S --needed wireshark-qt`.
+- **`Doctor: ambiente Python` diz o motivo do warn** e, quando um pacote do
+  pacman exige uma dependência que o PKGBUILD não declarou (caso real:
+  `python-dateutil` 4.0.0-1 sem `python-tzdata`), sugere
+  `sudo pacman -S python-<dep>` em vez de `pacman -Syu`. Sob
+  `AUTO_FIX_PIP_DEPS=1`, `Auto-remediar deps Python ausentes` instala essa
+  dependência do repositório (nunca com pip).
+- **`Verificação final de pendências` separa pacote publicado depois do
+  upgrade do run.** Se o upgrade oficial concluiu neste run e a base
+  sincronizada no início não tinha a versão nova, o pacote é listado como
+  informativo (entra no próximo run) em vez de virar todo. Caso real: o repo
+  `rex` subiu de 2639 para 2641 entre o upgrade e a verificação final.
+- **`Verificação final de pendências` sem yay/paru** não reconta mais os
+  pacotes oficiais como pendência AUR.
 
 ## [4.5.1] - 2026-11-23
 ### Corrigido

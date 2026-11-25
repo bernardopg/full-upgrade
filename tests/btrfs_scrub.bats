@@ -3,7 +3,8 @@
 #
 # btrfs_scrub_state é puro (parser de texto + data) e testado com fixtures.
 # autofix_btrfs_scrub orquestra sudo/btrfs; os testes isolam o sistema stubando
-# has/findmnt/_doctor_sudo_ok/sudo/run_logged e validam a máquina de estados.
+# has/findmnt/_doctor_sudo_ok/sudo/btrfs_scrub_start_detached e validam a máquina
+# de estados.
 
 load test_helper
 
@@ -21,7 +22,7 @@ setup() {
   has() { return 0; }
   findmnt() { printf '/ /dev/sda2\n'; }
   _doctor_sudo_ok() { return 0; }
-  run_logged() { return 0; }
+  btrfs_scrub_start_detached() { return 0; }
   # sudo emite o status de scrub do fixture corrente (sobrescrito por teste).
   SCRUB_FIXTURE="no stats available"
   sudo() { printf '%s\n' "$SCRUB_FIXTURE"; }
@@ -107,7 +108,7 @@ setup() {
 
 @test "autofix: scrub com erro ou estado desconhecido não vira nada a fazer" {
   SCRUB_FIXTURE=$'Status: finished\nError summary: csum=1\nUncorrectable: 1'
-  run_logged() { return 99; }
+  btrfs_scrub_start_detached() { return 99; }
   run autofix_btrfs_scrub
   [ "$status" -eq "$RC_TODO" ]
   [[ "$output" != *'todos os scrub estão em dia'* ]]
@@ -169,7 +170,7 @@ setup() {
 }
 
 @test "autofix: falha ao iniciar scrub vira RC_WARN" {
-  run_logged() { return 1; }
+  btrfs_scrub_start_detached() { return 1; }
   run autofix_btrfs_scrub
   [ "$status" -eq "$RC_WARN" ]
   [[ "$output" == *"falhou em 1"* ]]
@@ -193,4 +194,26 @@ setup() {
   run autofix_btrfs_scrub
   [ "$status" -eq 0 ]
   [ "$(printf '%s\n' "$output" | grep -c 'Iniciando scrub em')" -eq 1 ]
+}
+
+# ── regressão: scrub em background não prende o step ────────────────────────
+
+@test "start_detached: filho em background herdando stdout não bloqueia" {
+  # Imita o fork do `btrfs scrub start`: o pai sai na hora, o filho continua
+  # vivo com o stdout herdado. Com `cmd | log_stream` o retorno esperava o filho.
+  source "${FU_LIB}/steps/doctor/storage.sh"  # desfaz o stub do setup
+  sudo() { ( sleep 5 ) & printf 'scrub started on %s\n' "${*: -1}"; }
+  local t0=$SECONDS
+  run btrfs_scrub_start_detached /
+  [ "$status" -eq 0 ]
+  (( SECONDS - t0 < 3 ))
+  [[ "$output" == *"scrub started on /"* ]]
+}
+
+@test "start_detached: rc do btrfs é propagado" {
+  source "${FU_LIB}/steps/doctor/storage.sh"
+  sudo() { echo "ERROR: permission denied"; return 1; }
+  run btrfs_scrub_start_detached /
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"permission denied"* ]]
 }

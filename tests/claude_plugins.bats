@@ -22,6 +22,11 @@ setup() {
   [ "$output" = "a@m" ]
 }
 
+@test "claude_plugin_user_ids: plugins @builtin vêm com a CLI e ficam de fora" {
+  run claude_plugin_user_ids <<<'[{"id":"a@m","scope":"user"},{"id":"cc-plugin-privacy@builtin","scope":"user","version":"unknown"}]'
+  [ "$output" = "a@m" ]
+}
+
 @test "claude_plugin_update_classify: updated, current, confirm e fail" {
   run claude_plugin_update_classify <<EOF2
 a@m	{"outcome":"ok","updateOutcome":"updated","oldVersion":"1","newVersion":"2"}

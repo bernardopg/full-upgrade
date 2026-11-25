@@ -67,6 +67,20 @@ pending_is_ignored_pkg() {
 
 
 
+# Puro/testável: `$1` tem versão nova que a base de sync DESTE run não via?
+# `$2` = nomes (um por linha) do `pacman -Qu`, que compara o instalado com a
+# base de sync do sistema. Se o checkupdates (base fresca) acusa o pacote e a
+# base do run não, a versão saiu depois do sync: o upgrade fez o que podia e a
+# pendência entra no próximo run. Caso real (2026-11-25): rex (repo de
+# terceiros com dezenas de builds por dia) subiu 2639→2641 entre o upgrade e a
+# verificação final, e o run fechava em todo pedindo `pacman -Syu`.
+pending_published_after_sync() {
+  local name="${1:-}" sync_newer="${2:-}"
+  [[ $name == *[![:space:]]* ]] || return 1
+  ! grep -qxF -- "$name" <<<"$sync_newer"
+}
+
+
 final_pending_reason() {
   local official="$1" aur="$2"
   if (( official > 0 )); then
@@ -86,12 +100,19 @@ final_check_pending() {
   local filtered
   local official_count=0 aur_count=0
 
-  local -a held_official=() actionable_official=() held_ignored=()
+  local -a held_official=() actionable_official=() held_ignored=() fresh_official=()
   local ignored_list=""
   ignored_list="$(pacman_ignored_packages)"
   if has checkupdates; then
     out="$(checkupdates 2>/dev/null || true)"
     if [[ $out == *[![:space:]]* ]]; then
+      # Só com o upgrade oficial concluído neste run a base de sync do sistema
+      # é "a deste run"; sem o marcador, toda pendência segue acionável.
+      local _synced=0 _sync_newer=""
+      if [[ -n "${RUN_ID:-}" && -e "$(pacman_synced_file)" ]] && has pacman; then
+        _synced=1
+        _sync_newer="$(pacman -Qu 2>/dev/null | awk '{print $1}' || true)"
+      fi
       local _ln _nm
       while IFS= read -r _ln; do
         [[ $_ln == *[![:space:]]* ]] || continue
@@ -100,10 +121,17 @@ final_check_pending() {
           held_official+=("$_ln")
         elif pending_is_ignored_pkg "$_nm" "$ignored_list"; then
           held_ignored+=("$_ln")
+        elif (( _synced )) && pending_published_after_sync "$_nm" "$_sync_newer"; then
+          fresh_official+=("$_ln")
         else
           actionable_official+=("$_ln")
         fi
       done <<< "$out"
+
+      if (( ${#fresh_official[@]} > 0 )); then
+        log "  ${#fresh_official[@]} pacote(s) publicado(s) depois do upgrade deste run (a base sincronizada no início não os tinha) — entram no próximo run:"
+        printf '%s\n' "${fresh_official[@]}" | log_stream
+      fi
 
       if (( ${#held_official[@]} > 0 )); then
         log "  ${#held_official[@]} pacote(s) oficiais segurados por rebuild upstream (cluster Haskell/GHC); o pacman evita o partial upgrade até o cluster publicar — não acionável agora:"
@@ -126,6 +154,9 @@ final_check_pending() {
     fi
   fi
 
+  # Zera antes: sem yay/paru, `out` ainda carregaria a saída do checkupdates
+  # e os pacotes oficiais seriam recontados como pendência AUR.
+  out=""
   if has yay; then
     out="$(yay -Qua 2>/dev/null || true)"
   elif has paru; then
@@ -217,8 +248,8 @@ final_check_pending() {
   fi
 
   if (( pending == 0 )); then
-    if (( ${#held_official[@]} > 0 )) || (( ${#held_ignored[@]} > 0 )); then
-      log "  Sem pendências acionáveis: só restam pacotes segurados (rebuild upstream / IgnorePkg)."
+    if (( ${#held_official[@]} > 0 )) || (( ${#held_ignored[@]} > 0 )) || (( ${#fresh_official[@]} > 0 )); then
+      log "  Sem pendências acionáveis: só restam pacotes segurados (rebuild upstream / IgnorePkg) ou publicados depois do upgrade."
     else
       log "  Nenhuma atualização pendente em pacman/AUR."
     fi
@@ -446,6 +477,7 @@ autofix_final_pending() {
       STEP_REASON="pacman -Syu de remediação falhou"
       return 1
     fi
+    pacman_mark_synced
   fi
 
   # Pacote que já falhou em build() neste run não cura com retry: erro de

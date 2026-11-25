@@ -744,6 +744,21 @@ aur_build_failed_file() {
     "${LOG_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/system-upgrade}" "${RUN_ID:-unknown}"
 }
 
+# Marcador de que o upgrade dos repositórios oficiais concluiu NESTE run (escrito
+# por update_system_aur e pelo `pacman -Syu` de autofix_final_pending). Com ele, a
+# verificação final sabe que a base de sync do sistema reflete este run e pode
+# separar "pacote publicado depois do sync" (entra no próximo run) de pendência
+# real. Sem ele (--mode doctor, upgrade pulado ou falho), nada muda.
+pacman_synced_file() {
+  printf '%s/full-upgrade-%s.pacman-synced' \
+    "${LOG_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/system-upgrade}" "${RUN_ID:-unknown}"
+}
+
+pacman_mark_synced() {
+  [[ -n "${RUN_ID:-}" ]] || return 0
+  : >"$(pacman_synced_file)" 2>/dev/null || true
+}
+
 # Extrai pacotes AUR marcados pelo mantenedor como out-of-date da saída de
 # helpers (paru/yay). Isso não significa update aplicável; é sinal informativo.
 aur_out_of_date_pkgs() {

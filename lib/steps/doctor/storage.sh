@@ -354,6 +354,29 @@ list_btrfs_mountpoints() {
 }
 
 
+# Inicia o scrub sem prender o step. `btrfs scrub start` (sem -B) faz fork: o
+# processo do scrub roda como root em background e HERDA stdout/stderr. Com
+# `run_logged` (`cmd | log_stream`) esse filho segurava o pipe aberto, o
+# log_stream nunca via EOF e o step esperava o scrub inteiro — caso real
+# (2026-11-24): 688 GiB, 5m52s, estouro do limite de 300s do catálogo e warn
+# falso num scrub que terminou sem erros. A saída vai para um arquivo (que o
+# filho pode manter aberto sem bloquear ninguém) e é ecoada depois.
+btrfs_scrub_start_detached() {
+  local mp="$1" out rc
+  out="$(mktemp 2>/dev/null)" || out=""
+  if [[ -z "$out" ]]; then
+    sudo -n btrfs scrub start "$mp" </dev/null >/dev/null 2>&1
+    return $?
+  fi
+  # shellcheck disable=SC2024  # o arquivo é do usuário de propósito (só a saída)
+  sudo -n btrfs scrub start "$mp" </dev/null >"$out" 2>&1
+  rc=$?
+  [[ -s "$out" ]] && log_stream <"$out"
+  rm -f "$out"
+  return "$rc"
+}
+
+
 autofix_btrfs_scrub() {
   if (( ${AUTO_BTRFS_SCRUB:-0} == 0 )); then
     log "  AUTO_BTRFS_SCRUB desligado; nada a remediar."
@@ -436,7 +459,7 @@ autofix_btrfs_scrub() {
   local rc=0 started=0 failed=0
   for mp in "${todo[@]}"; do
     log "  Iniciando scrub em ${mp} (background)..."
-    if run_logged sudo -n btrfs scrub start "$mp"; then
+    if btrfs_scrub_start_detached "$mp"; then
       started=$((started + 1))
     else
       failed=$((failed + 1))

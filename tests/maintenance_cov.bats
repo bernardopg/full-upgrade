@@ -340,6 +340,46 @@ flex 2.6.10-1 -> 2.6.15-1"
   [ "${status:-0}" -ne 0 ]
 }
 
+@test "pending_published_after_sync: só o que a base do run não via" {
+  source "${FU_LIB}/steps/final_checks.sh"
+  pending_published_after_sync rex $'flex\nfoo'
+  ! pending_published_after_sync flex $'flex\nfoo'
+  ! pending_published_after_sync "" "flex"
+}
+
+@test "final_check_pending: pacote publicado depois do upgrade do run não é pendência" {
+  source "${FU_LIB}/steps/final_checks.sh"
+  LOG_DIR="$BATS_TEST_TMPDIR/log"; mkdir -p "$LOG_DIR"; RUN_ID=r1
+  pacman_ignored_packages() { echo ""; }
+  : >"$(pacman_synced_file)"
+  stub checkupdates 0 "rex 0.1.0alpha2639-1 -> 0.1.0alpha2641-1"
+  stub pacman 1 ""   # pacman -Qu: a base do run não tinha versão nova
+  run final_check_pending
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"publicado(s) depois do upgrade"* ]]
+}
+
+@test "final_check_pending: pendência que a base do run já via segue acionável" {
+  source "${FU_LIB}/steps/final_checks.sh"
+  LOG_DIR="$BATS_TEST_TMPDIR/log"; mkdir -p "$LOG_DIR"; RUN_ID=r1
+  pacman_ignored_packages() { echo ""; }
+  : >"$(pacman_synced_file)"
+  stub checkupdates 0 "flex 2.6.10-1 -> 2.6.15-1"
+  stub pacman 0 "flex 2.6.10-1 -> 2.6.15-1"
+  final_check_pending >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_TODO" ]
+}
+
+@test "final_check_pending: sem o marcador de sync (doctor/upgrade pulado) nada é rebaixado" {
+  source "${FU_LIB}/steps/final_checks.sh"
+  LOG_DIR="$BATS_TEST_TMPDIR/log"; mkdir -p "$LOG_DIR"; RUN_ID=r2
+  pacman_ignored_packages() { echo ""; }
+  stub checkupdates 0 "rex 0.1.0alpha2639-1 -> 0.1.0alpha2641-1"
+  stub pacman 1 ""
+  final_check_pending >/dev/null || status=$?
+  [ "${status:-0}" -eq "$RC_TODO" ]
+}
+
 @test "final_check_pending: AUR só com ignorados e IgnorePkg não é pendência" {
   # shellcheck source=/dev/null
   source "${FU_LIB}/steps/final_checks.sh"

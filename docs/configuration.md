@@ -144,7 +144,7 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `AUTO_FIX_RUST_CVES` | `0` | `1` remedia CVEs de toolchain Rust. |
 | `AUTO_BTRFS_SCRUB` | `0` | `1` inicia o scrub quando vencido. |
 | `AUTO_MERGE_PACNEW` | `0` | `1` mescla os `.pacnew` cujo merge preserva exatamente a config ativa (com backup). `sudoers`, `passwd`, `shadow`, `group`, `gshadow`, `fstab` e `crypttab` nunca entram. |
-| `AUTO_FIX_PIP_DEPS` | `0` | `1` instala dependências **ausentes** apontadas pelo `pip check`. |
+| `AUTO_FIX_PIP_DEPS` | `0` | `1` instala dependências **ausentes** apontadas pelo `pip check`: com `pip install --user` para pacotes pip `--user`; para pacotes do pacman, só a dependência que o PKGBUILD não declarou e que existe no repositório (`pacman -S python-<dep>`, explícito para a limpeza de órfãos não removê-lo; requer sudo sem prompt). |
 | `AUTO_RECREATE_STALE_CONTAINERS` | `0` | `1` recria serviços Compose que seguem com imagem antiga (volumes preservados). |
 
 ### Rede

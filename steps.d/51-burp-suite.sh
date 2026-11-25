@@ -191,8 +191,9 @@ upgrade_arch_package() {
     installed_ver="$(pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' || true)"
 
     if [[ -n "$installed_ver" ]]; then
-        # checar se há versão nova disponível antes de invocar o helper
-        available_ver="$(paru -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
+        # checar se há versão nova disponível antes de invocar o helper (LC_ALL=C:
+        # em pt_BR o campo é "Versão" e o awk nunca casava)
+        available_ver="$(LC_ALL=C paru -Si "$pkg" 2>/dev/null | awk '/^Version/{print $3; exit}' || true)"
         if [[ -n "$available_ver" && "$installed_ver" == "$available_ver" ]]; then
             log "  ${pkg} ${installed_ver} já na versão mais recente."
             return 0

@@ -122,3 +122,16 @@ exit 1'
   [ "$(grep -c -- '-Syu' "$STUB_LOG")" -eq 1 ]
   [[ "$STEP_REASON" == *"fonte do PKGBUILD em 404"* ]]
 }
+
+@test "update_system_aur: marca a base de sync do run só quando os repos oficiais subiram" {
+  AUR_HELPER=""
+  stub pacman 0 ""
+  run update_system_aur
+  [ "$status" -eq 0 ]
+  [ -e "$(pacman_synced_file)" ]
+  rm -f "$(pacman_synced_file)"
+  stub pacman 1 ""
+  run update_system_aur
+  [ "$status" -eq 1 ]
+  [ ! -e "$(pacman_synced_file)" ]
+}

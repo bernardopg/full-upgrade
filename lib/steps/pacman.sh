@@ -271,7 +271,19 @@ warn_running_binaries_for_packages() {
 
 
 
+# Marca a base de sync como "deste run" quando os repositórios oficiais subiram
+# (rc 0, ou RC_TODO, que só sai de falha restrita a pacote AUR). Veja
+# pacman_synced_file em lib/core.sh.
 update_system_aur() {
+  local rc=0
+  _update_system_aur_run || rc=$?
+  if (( rc == 0 || rc == RC_TODO )); then
+    pacman_mark_synced
+  fi
+  return "$rc"
+}
+
+_update_system_aur_run() {
   local -a ignore_args=()
   mapfile -t ignore_args < <(aur_ignore_args)
 
@@ -335,6 +347,7 @@ update_system_aur() {
         log "  paru: falha de rede transitória após ${_paru_max} tentativas."
         log "  Fallback: aplicando upgrade dos repositórios oficiais via pacman (AUR fica para o próximo run)..."
         if run_logged sudo pacman -Syu --noconfirm "${ignore_args[@]}"; then
+          pacman_mark_synced
           log "  Repositórios oficiais atualizados; só o AUR ficou pendente por rede."
           STEP_REASON="AUR indisponível (rede); repos oficiais atualizados via fallback pacman"
         else
