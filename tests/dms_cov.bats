@@ -75,3 +75,50 @@ _repo() { mkdir -p "$DMS_PLUGINS_DIR/.repos/$1/.git"; }
   [[ "$output" == *"monorepo local: trabalho local em andamento"* ]]
   [[ "$output" == *"monorepo stashpop: resetado para origin/main; o stash pop conflitou"* ]]
 }
+
+# ── pós-update: lockfile e aviso de restart do shell ──────────────────────────
+
+@test "pós-update: plugin atualizado regrava o lock do dir gerenciado e pede restart do shell" {
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"
+  export DMS_PLUGINS_DIR="$XDG_CONFIG_HOME/dms/plugins"
+  _plugin novo
+  export PULL_OK=novo
+  git_has_unmerged() { return 1; }
+  stub dms 0 "locked"
+  stub_script systemctl 'case "$*" in *is-active*dms.service*) exit 0 ;; esac; exit 1'
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  grep -q "^dms plugins lock" "$STUB_LOG"
+  [[ "$output" == *"Lockfile dos plugins regravado"* ]]
+  [[ "$output" == *"só entram em vigor quando o shell reinicia: novo"* ]]
+  [[ "$output" == *"systemctl --user restart dms.service"* ]]
+}
+
+@test "pós-update: DMS_PLUGINS_DIR fora do dir do dms não regrava o lock" {
+  _plugin novo
+  export PULL_OK=novo
+  git_has_unmerged() { return 1; }
+  stub dms 0 ""
+  stub_script systemctl 'exit 3'
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  ! grep -q "^dms " "$STUB_LOG"
+  [[ "$output" != *"shell reinicia"* ]]
+}
+
+@test "pós-update: lock falhando só avisa; nada atualizado não chama nada" {
+  export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/cfg"
+  export DMS_PLUGINS_DIR="$XDG_CONFIG_HOME/dms/plugins"
+  _plugin novo
+  export PULL_OK=novo
+  git_has_unmerged() { return 1; }
+  stub dms 1 "boom"
+  stub_script systemctl 'exit 3'
+  run update_dms_plugins
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"'dms plugins lock' falhou"* ]]
+  : > "$STUB_LOG"
+  run dms_plugins_post_update "$DMS_PLUGINS_DIR"
+  [ "$status" -eq 0 ]
+  [ ! -s "$STUB_LOG" ]
+}
