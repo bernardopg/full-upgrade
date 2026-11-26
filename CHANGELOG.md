@@ -3,6 +3,35 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Atualizar firmware (fwupd)` não falha mais quando o LVFS recusa o
+  relatório automático.** Com `AutomaticReports=true`, o `fwupdmgr refresh`
+  sai com rc=1 em `server rejected report: too many reports for this machine
+  and firmware today`, mesmo depois de baixar os metadados; o step virava fail
+  em todo run do mesmo dia. Metadados baixados + só o relatório recusado agora
+  é ok.
+- **`Doctor: units systemd falhadas` detecta units em loop de restart.** Uma
+  unit com `Restart=on-failure` alterna entre `auto-restart` e `activating`,
+  nunca fica `failed` e não aparece em `systemctl --failed`: um
+  `bw-autounlock.service` do usuário falhou 442 vezes num dia com o step
+  verde. Unit em `auto-restart`, ou com `NRestarts>0` na última ativação
+  (mesmo que já tenha passado), com pelo menos `SYSTEMD_RESTART_LOOP_MIN`
+  (padrão 3) falhas no boot atual vira todo.
+- **`Auto-remediar CVEs de toolchain Rust` volta a renovar as dependências
+  quando a fonte do crate não está em `~/.cargo/registry/src`.** O fallback
+  `cargo install --force` reaproveita o `Cargo.lock` empacotado no `.crate`
+  (cargo 1.100): o `tauri-driver` 2.1.0 era "recompilado" com o `tokio` 1.45.1
+  vulnerável (RUSTSEC-2026-0386) e entrava no memo de "sem correção". A fonte
+  agora é baixada antes com `cargo fetch` e passa pelo `cargo update` +
+  `cargo auditable build`; o binário sai com `tokio` 1.54.1.
+- **`Atualizar plugins DankMaterialShell` regrava o lockfile e avisa sobre o
+  restart do shell.** Plugin atualizado só entra em vigor quando o shell
+  reinicia: o `homeAssistantMonitor` atualizado às 10:46 seguiu rodando o
+  código antigo, e o hot-reload por IPC não serve de remédio (o engine guarda
+  o `qmldir` da subida, um tipo novo do upstream vira `X is not a type` e o
+  plugin fica desabilitado). O step agora roda `dms plugins lock` e indica
+  `systemctl --user restart dms.service`, sem reiniciar a barra sozinho.
 
 ## [4.5.2] - 2026-11-25
 ### Corrigido
