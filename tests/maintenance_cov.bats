@@ -106,6 +106,29 @@ setup() {
   [ "$status" -eq "$RC_WARN" ]
 }
 
+@test "update_fwupd: LVFS recusando só o relatório automático não é fail" {
+  stub_script fwupdmgr 'case "$1" in
+    refresh) printf "%s\n" "Successfully downloaded new metadata:" \
+      "server rejected report: too many reports for this machine and firmware today"; exit 1 ;;
+    get-updates) echo "No updates available"; exit 2 ;;
+    get-devices) printf "{\"DeviceId\":1}\n" ;;
+  esac'
+  _retry() { shift; "$@"; }
+  run update_fwupd
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"recusou só o relatório automático"* ]]
+  [[ "$output" == *"(1 dispositivos verificados)"* ]]
+}
+
+@test "update_fwupd: refresh com erro real continua fail" {
+  stub_script fwupdmgr 'case "$1" in
+    refresh) echo "server rejected report: too many reports"; exit 1 ;;
+  esac'
+  _retry() { shift; "$@"; }
+  run update_fwupd
+  [ "$status" -eq 1 ]
+}
+
 # ── update_pip_user ───────────────────────────────────────────────────────────
 
 _python_stub() {

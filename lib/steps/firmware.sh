@@ -3,6 +3,18 @@
 # Sourced por full-upgrade.sh. Não executar direto.
 # shellcheck shell=bash
 
+# Puro/testável: o `fwupdmgr refresh` saiu com erro só porque o LVFS recusou o
+# upload automático de relatórios (AutomaticReports=true), depois de baixar os
+# metadados com sucesso? O LVFS limita relatórios por máquina/firmware/dia
+# ("server rejected report: too many reports for this machine and firmware
+# today"); isso não afeta a atualização e se repete em todo run do mesmo dia,
+# então tratar como fail quebrava o step sem ação possível.
+fwupd_refresh_only_report_failed() {
+  local out="${1:-}"
+  grep -q 'Successfully downloaded new metadata' <<<"$out" || return 1
+  grep -Eqi 'server rejected report|failed to upload report' <<<"$out"
+}
+
 update_fwupd() {
   # LC_ALL=C em todo fwupdmgr cuja saída é parseada: as strings de UI mudam
   # com o locale (pt_BR, es, ...) e quebrariam os filtros/contagens abaixo.
@@ -12,6 +24,12 @@ update_fwupd() {
   rc_refresh=$?
   # Filtrar linhas de progresso de download do terminal (gravadas no log integralmente)
   printf '%s\n' "$refresh_output" | grep -v '^Downloading\|^Baixando' | log_out || true
+
+  if (( rc_refresh != 0 && rc_refresh != RC_WARN )) \
+    && fwupd_refresh_only_report_failed "$refresh_output"; then
+    log "  fwupdmgr refresh: metadados atualizados; o LVFS recusou só o relatório automático (limite diário) — não é erro."
+    rc_refresh=0
+  fi
 
   if (( rc_refresh != 0 && rc_refresh != RC_WARN )); then
     return "$rc_refresh"

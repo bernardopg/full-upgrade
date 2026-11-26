@@ -39,7 +39,7 @@ ferramenta…).
 | `packages` | pacman/AUR, mirrors, notícias do Arch, `.pacnew`, Flatpak, Snap, Docker e bases de arquivos (`pacman -F`, pkgfile). |
 | `repair` | Reparos idempotentes de estado quebrado (lock stale, GnuPG, shadowing, units obsoletas, portais XDG presos em `failed`). |
 | `security` | Wireshark, Burp Suite, Snyk, OWASP ZAP, gitleaks, trufflehog, assinaturas do ClamAV, templates do nuclei, Exploit-DB e rkhunter. |
-| `firmware` | `fwupd` e `systemd-boot`. |
+| `firmware` | `fwupd` e `systemd-boot`. Recusa do LVFS ao relatório automático (limite diário) com metadados baixados não é falha. |
 | `lang-js` | Node.js e nvm, npm (todos os prefixos), corepack, pnpm, Bun, Deno, vite-plus. |
 | `lang-py` | pip `--user`, pipx, uv (self, Python e ferramentas), Poetry. |
 | `lang-rust` | rustup, binários cargo e auditoria de CVEs. |
