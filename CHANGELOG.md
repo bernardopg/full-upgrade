@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.6.0] - 2026-11-26
 ### Corrigido
 
 - **`Atualizar firmware (fwupd)` não falha mais quando o LVFS recusa o
