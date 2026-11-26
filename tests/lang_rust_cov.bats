@@ -190,6 +190,54 @@ esac'
   [ "$(cat "$CARGO_HOME/bin/tokei")" = '#!/bin/sh' ]
 }
 
+@test "rebuild: sem fonte em registry/src baixa via cargo fetch e usa o lock fresco" {
+  _bin tokei
+  _cargo_build 0 0 tokei
+  # O stub de cargo também atende o fetch: extrai a fonte como o cargo real.
+  stub_script cargo '
+case "$1 $2" in
+  "install --list") printf "%s\n" "$LIST" ;;
+  "install --force") exit 0 ;;
+  "fetch --manifest-path")
+    grep -q "^tokei = \"=1.0\"$" "$3" || exit 9
+    mkdir -p "$CARGO_HOME/registry/src/index/tokei-1.0"; echo "[package]" > "$CARGO_HOME/registry/src/index/tokei-1.0/Cargo.toml" ;;
+  "update --manifest-path") exit "$UPD_RC" ;;
+  "auditable build")
+    d=""; while [[ $# -gt 0 ]]; do [[ "$1" == --target-dir ]] && d="$2"; shift; done
+    mkdir -p "$d/release"
+    for b in $BUILD_BINS; do printf "#!/bin/sh\n" > "$d/release/$b"; chmod +x "$d/release/$b"; done
+    exit "$BUILD_RC" ;;
+esac'
+  run _rust_rebuild_crate tokei 1.0
+  [ "$status" -eq 0 ]
+  grep -q "^cargo fetch --manifest-path" "$STUB_LOG"
+  grep -q "^cargo auditable build" "$STUB_LOG"
+  ! grep -q "^cargo install --force" "$STUB_LOG"
+}
+
+@test "rebuild: fetch falhando cai no cargo install --force" {
+  _bin tokei
+  _cargo_build 0 0 tokei
+  stub_script cargo '
+case "$1 $2" in
+  "install --list") printf "%s\n" "$LIST" ;;
+  "install --force") exit 0 ;;
+  "fetch --manifest-path") exit 101 ;;
+esac'
+  run _rust_rebuild_crate tokei 1.0
+  [ "$status" -eq 0 ]
+  grep -q "^cargo install --force tokei" "$STUB_LOG"
+}
+
+@test "_rust_fetch_crate_source: nome ou versão inválidos não geram manifesto" {
+  stub cargo 0 ""
+  run _rust_fetch_crate_source 'x"; evil' 1.0
+  [ "$status" -eq 1 ]
+  run _rust_fetch_crate_source tokei '1.0"'
+  [ "$status" -eq 1 ]
+  [ -z "$(stub_calls cargo)" ]
+}
+
 # ── autofix_rust_cves: ramos restantes ───────────────────────────────────────
 
 _autofix_env() {
