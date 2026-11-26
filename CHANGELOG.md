@@ -3,6 +3,15 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+### Corrigido
+
+- **`Doctor: servidores MCP` não cobra mais `env_vars` do Codex como
+  obrigatória.** No Codex, `env_vars` só repassa variáveis do ambiente do
+  processo pai quando existem; o `node_repl` que o `chatgpt-desktop` injeta
+  em `~/.codex/config.toml` lista variáveis que só o app define ao lançar o
+  codex, e o doctor virava warn em toda máquina com o app. Só
+  `bearer_token_env_var`, sem a qual o servidor remoto não autentica, segue
+  obrigatória.
 
 ## [4.6.0] - 2026-11-26
 ### Corrigido
