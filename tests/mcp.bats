@@ -110,6 +110,16 @@ TOML
   [[ "$out" == "github"$'\t'"remote"$'\t'"env ausente: TEST_MCP_TOKEN_AUSENTE" ]]
 }
 
+@test "codex entries: env_vars é repasse opcional, não env obrigatória" {
+  cat > "$HOME/config.toml" <<'TOML'
+[mcp_servers.node_repl]
+command = "/bin/sh"
+env_vars = ["TEST_MCP_REPASSE_AUSENTE"]
+TOML
+  out="$(parse_mcp_codex_entries "$HOME/config.toml")"
+  [[ "$out" == "node_repl"$'\t'"stdio:/bin/sh"$'\t' ]]
+}
+
 @test "json entries: cobre OpenCode e hub central" {
   cat > "$HOME/opencode.json" <<'JSON'
 {"mcp":{"local":{"type":"local","command":["npx","pkg"]},"remote":{"type":"remote","url":"https://example.com/mcp"}}}

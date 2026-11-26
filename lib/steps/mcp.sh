@@ -218,16 +218,14 @@ def inspect(name, cfg):
         found = os.access(binary, os.X_OK) if os.path.isabs(binary) else shutil.which(binary) is not None
         if not found:
             issues.append("comando ausente: " + binary)
-    env_refs = []
+    # Só bearer_token_env_var é obrigatória: sem ela o servidor remoto não
+    # autentica. `env_vars` é repasse opcional do ambiente do processo pai
+    # (o Codex repassa a variável quando existe); o node_repl que o
+    # chatgpt-desktop injeta lista variáveis que só o app define ao lançar o
+    # codex, e cobrá-las aqui era warn falso em toda máquina com o app.
     bearer = cfg.get("bearer_token_env_var")
-    if isinstance(bearer, str) and bearer:
-        env_refs.append(bearer)
-    raw_refs = cfg.get("env_vars") or []
-    if isinstance(raw_refs, list):
-        env_refs.extend(str(v) for v in raw_refs if v)
-    for var in sorted(set(env_refs)):
-        if not os.environ.get(var):
-            issues.append("env ausente: " + var)
+    if isinstance(bearer, str) and bearer and not os.environ.get(bearer):
+        issues.append("env ausente: " + bearer)
     return (name, detail, "; ".join(issues))
 
 servers = data.get("mcp_servers") or {}

@@ -30,7 +30,7 @@ ação vira `todo` com a remediação; achado não bloqueante vira `warn`.
 | Apps manuais | Programas fora de gerenciador sem step de atualização. |
 | Pacotes locais | Pacote de PKGBUILD local que o AUR não conhece e está atrás do release do GitHub. |
 | CLIs de IA | Versões das CLIs detectadas, cada `--version` limitado por `AI_CLI_VERSION_TIMEOUT_S`. |
-| Servidores MCP | Configs de Claude, Codex, OpenCode, hub central e Hermes: executáveis, configurações e variáveis obrigatórias, sem imprimir segredos. |
+| Servidores MCP | Configs de Claude, Codex, OpenCode, hub central e Hermes: executáveis, configurações e variáveis obrigatórias (no Codex, `bearer_token_env_var`; `env_vars` é repasse opcional), sem imprimir segredos. |
 | Python e JavaScript | Dependências quebradas, venvs ausentes, interpretadores inválidos e conflitos npm/pnpm. |
 
 Os limites e opt-ins de cada check (`BTRFS_SCRUB_MAX_DAYS`,
