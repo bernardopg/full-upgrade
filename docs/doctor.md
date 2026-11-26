@@ -10,7 +10,7 @@ ação vira `todo` com a remediação; achado não bloqueante vira `warn`.
 | Check | Detecta |
 | --- | --- |
 | Reboot pendente | Kernel, systemd ou microcode atualizados sem reboot. |
-| systemd | Units falhadas no sistema e no usuário. Scopes transitórios (`*.scope`) já encerrados são informativos e limpos pelo reparo. |
+| systemd | Units falhadas no sistema e no usuário, e units em loop de restart (`Restart=on-failure` rearmando: em `auto-restart` agora, ou com `NRestarts>0` na última ativação, mesmo que já tenham passado) com pelo menos `SYSTEMD_RESTART_LOOP_MIN` (padrão 3) falhas no boot atual — essas nunca chegam a `failed`. Scopes transitórios (`*.scope`) já encerrados são informativos e limpos pelo reparo. |
 | Journal | Erros críticos do boot atual, agrupados e com ruído conhecido filtrado. |
 | Crashes recorrentes | Coredumps dos últimos 14 dias por programa; `todo` quando quebrou 3+ vezes **e** voltou a quebrar nas últimas 48 h. Binários de build do cargo (`target/debug`, `target/release`) viram nota informativa, sem `todo`. |
 | Firmware | Nível HSI de `fwupdmgr security`: contagem de atributos ✔ e lista dos ✘. |
