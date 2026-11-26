@@ -117,7 +117,7 @@ também aponta chaves com cara de erro de digitação e sugere a correta.
 | `CLAUDE_ENV_DIR` | `~/claude-env` | Repositório claude-env (hub MCP e renderer). |
 | `IDE_EXT_CLIS` | auto | CLIs da família VSCode para atualizar extensões. |
 | `FULL_UPGRADE_DMS_PLUGINS_IGNORE` | vazio | Plugins DankMaterialShell fixados (globs permitidos): nunca sofrem fetch, pull nem reset. |
-| `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` | Diretório dos plugins DankMaterialShell. |
+| `DMS_PLUGINS_DIR` | `~/.config/dms/plugins` | Diretório dos plugins DankMaterialShell/Dux Shell. O `dms plugins lock` só é regravado quando ele é o diretório que o próprio `dms` gerencia. |
 | `PROTON_GE_KEEP` | `0` | GE-Proton mantidos em `compatibilitytools.d` depois de instalar um novo. `0` nunca remove (o Steam fixa a versão por jogo). |
 | `PROTON_GE_DIR` | auto | `compatibilitytools.d` do Steam; vazio usa o que já tem algum GE-Proton. |
 | `APPIMAGE_DIRS` | auto | Diretórios com AppImages (espaço ou vírgula). Vazio: `~/Applications`, `~/AppImages`, `~/.local/bin`, `~/.local/opt`. |

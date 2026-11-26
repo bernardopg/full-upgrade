@@ -25,6 +25,43 @@ dms_plugin_is_pinned() {
   return 1
 }
 
+# Depois de atualizar plugins: regrava o lockfile do registry e avisa que o
+# código novo só entra em vigor quando o shell reinicia.
+#
+# - `dms plugins lock` registra a revisão exata de cada plugin em
+#   plugins.lock.json; sem ele o `dms plugins restore` reinstalaria as
+#   revisões antigas (o lock da máquina ficou parado em 2026-11-09).
+# - O shell carrega o QML na subida e não relê o que o git trocou: o
+#   homeAssistantMonitor atualizado às 10:46 seguiu rodando o código antigo.
+#   Hot-reload por IPC (`plugins reload`) não serve de remédio automático:
+#   o engine guarda o qmldir de ./components da subida, então um tipo novo do
+#   upstream vira "X is not a type" e o plugin fica desabilitado. Reiniciar o
+#   shell fica com o usuário (derrubar a barra no meio do run não é decisão
+#   do full-upgrade), como os demais serviços de sessão.
+dms_plugins_post_update() {
+  local plugins_dir="$1"
+  shift
+  (( $# > 0 )) || return 0
+  # O lock do CLI descreve o diretório que o próprio dms gerencia; com
+  # DMS_PLUGINS_DIR apontando para outro lugar (testes, instalação manual)
+  # regravá-lo descreveria plugins que este step não tocou.
+  if has dms && [[ "$plugins_dir" -ef "${XDG_CONFIG_HOME:-$HOME/.config}/dms/plugins" ]]; then
+    local lock_out
+    if lock_out="$(timeout 60 dms plugins lock 2>&1)"; then
+      log_raw "$lock_out"
+      log "  Lockfile dos plugins regravado (dms plugins lock): ${plugins_dir%/plugins}/plugins.lock.json"
+    else
+      log_raw "$lock_out"
+      log "  Aviso: 'dms plugins lock' falhou; o lockfile segue com as revisões anteriores."
+    fi
+  fi
+  if has systemctl && systemctl --user is-active --quiet dms.service 2>/dev/null; then
+    log "  Plugins atualizados só entram em vigor quando o shell reinicia: $*"
+    remediation "systemctl --user restart dms.service"
+  fi
+  return 0
+}
+
 update_dms_plugins() {
   local plugins_dir="${DMS_PLUGINS_DIR:-${HOME}/.config/dms/plugins}"
 
@@ -220,6 +257,7 @@ update_dms_plugins() {
 
   if (( ${#updated[@]} > 0 )); then
     log "  DMS plugins atualizados: ${updated[*]}"
+    dms_plugins_post_update "$plugins_dir" "${updated[@]}"
   elif (( ${#failed[@]} + ${#stash_conflicts[@]} + ${#conflicted[@]} + ${#gone[@]} + ${#local_work[@]} == 0 )); then
     log "  DMS plugins: todos já atualizados."
   fi

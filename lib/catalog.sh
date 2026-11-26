@@ -141,7 +141,7 @@ Atualizar plugins Zsh avulsos (git)|shell|zsh,git,update,network|mutating|120|gi
 Atualizar gerenciadores de plugin Zsh (zinit/antidote/sheldon)|shell|zsh,update,network|mutating|300||update_zsh_plugin_managers|Atualiza os plugins (e o próprio gerenciador) de zinit (self-update e update --all), antidote (update) e sheldon (lock --update).
 Atualizar plugins do tmux (tpm)|shell|tmux,plugins,update,network|mutating|300|tmux|update_tmux_plugins|Atualiza os plugins do tmux e o próprio tpm de fora do tmux (tpm/bin/update_plugins all).
 Atualizar plugins do fish (fisher)|shell|fish,plugins,update,network|mutating|300|fish|update_fisher_plugins|Atualiza os plugins do fish e o próprio fisher (fisher update).
-Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza plugins do DankMaterialShell.
+Atualizar plugins DankMaterialShell|shell|dms,git,update,network|mutating|120|git|update_dms_plugins|Atualiza os plugins do DankMaterialShell/Dux Shell (clones git e monorepos .repos do registry), regrava o plugins.lock.json com 'dms plugins lock' e avisa que o código novo só vale após reiniciar o shell.
 Atualizar plugins Yazi|shell|yazi,plugins,update,network|mutating|120|ya|update_yazi_plugins|Atualiza plugins do Yazi via ya pkg upgrade.
 Atualizar plugins Neovim (Lazy)|editor|nvim,lazy,update,network,slow|mutating|300|nvim|update_nvim_lazy|Sincroniza plugins Lazy.nvim.
 Atualizar LSPs Neovim (Mason)|editor|nvim,mason,update,network|mutating|300|nvim|update_nvim_mason|Atualiza registros e ferramentas Mason.nvim.
