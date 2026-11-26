@@ -303,10 +303,33 @@ cargo_cve_bins_all_memo_known() {
 # cargo install de registry resolve um lock temporário, mas cargo-auditable
 # consulta o manifest original. Copie a fonte e resolva um único lock explícito
 # para a compilação e seus metadados, sem modificar o cache de crates.
+#
+# A fonte nem sempre está em registry/src (cache limpo, binário instalado por
+# binstall ou em outra máquina). Sem ela, o fallback `cargo install --force` NÃO
+# renova as dependências: o cargo 1.100 reaproveita o Cargo.lock empacotado no
+# .crate — o tauri-driver 2.1.0 foi "recompilado" com o tokio 1.45.1 vulnerável
+# mesmo com tokio ^1 e 1.54.1 publicado. Então a fonte é baixada antes, com um
+# `cargo fetch` de um manifesto descartável que depende de =<versão>.
+_rust_fetch_crate_source() {
+  local crate="$1" version="$2" tmp rc
+  [[ "$crate" =~ ^[A-Za-z0-9_-]+$ && "$version" =~ ^[0-9A-Za-z.+-]+$ ]] || return 1
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/full-upgrade-fetch.XXXXXX")" || return 1
+  mkdir -p "$tmp/src" && printf 'fn main() {}\n' > "$tmp/src/main.rs"
+  printf '[package]\nname = "full-upgrade-fetch"\nversion = "0.0.0"\nedition = "2021"\npublish = false\n\n[dependencies]\n%s = "=%s"\n' \
+    "$crate" "$version" > "$tmp/Cargo.toml"
+  run_logged cargo fetch --manifest-path "$tmp/Cargo.toml"
+  rc=$?
+  rm -rf -- "$tmp"
+  return "$rc"
+}
+
 _rust_rebuild_crate() {
   local crate="$1" version="$2" source_dir work rc bin
   local -a installed_bins=()
   source_dir="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -mindepth 2 -maxdepth 2 -type d -name "${crate}-${version}" -print -quit 2>/dev/null)"
+  if has cargo-auditable && [[ -z "$source_dir" ]] && _rust_fetch_crate_source "$crate" "$version"; then
+    source_dir="$(find "${CARGO_HOME:-$HOME/.cargo}/registry/src" -mindepth 2 -maxdepth 2 -type d -name "${crate}-${version}" -print -quit 2>/dev/null)"
+  fi
   if ! has cargo-auditable || [[ -z "$source_dir" ]]; then
     run_logged cargo install --force "$crate"
     return "$?"
