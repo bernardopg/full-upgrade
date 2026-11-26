@@ -58,6 +58,18 @@ _setup_failed_units() {
   has() { [[ "$1" == systemctl ]]; }
   systemctl() {
     # O doctor chama: systemctl --failed ...  e  systemctl --user --failed ...
+    # e também list-units --state=auto-restart (loop de restart).
+    local _loop
+    if [[ "$1" == "--user" ]]; then _loop="${_MOCK_USER_LOOP:-}"; else _loop="${_MOCK_SYS_LOOP:-}"; fi
+    if [[ " $* " == *" list-units "* ]]; then printf '%s' "$_loop"; return 0; fi
+    if [[ " $* " == *" show "* ]]; then
+      local _u _l _a _sub
+      while read -r _u _l _a _sub _ || [[ -n "${_u:-}" ]]; do
+        [[ -n "$_u" ]] || continue
+        printf 'Id=%s\nSubState=%s\nNRestarts=%s\n\n' "$_u" "$_sub" "${_MOCK_NRESTARTS:-0}"
+      done <<<"$_loop"
+      return 0
+    fi
     if [[ "$1" == "--user" ]]; then
       printf '%s' "$_MOCK_USER_FAILED"
     else
@@ -129,4 +141,83 @@ _setup_failed_units() {
   run doctor_failed_systemd_units
   [ "$status" -eq "$RC_TODO" ]
   [[ "$output" == *"docker.service"* ]]
+}
+
+# ── loop de restart: unit em auto-restart nunca fica "failed" ─────────────────
+
+_setup_loop_journal() {
+  # $1 = falhas por unit no journal do boot atual
+  export _MOCK_FAILS="$1"
+  journalctl() {
+    local i
+    for (( i=0; i<_MOCK_FAILS; i++ )); do echo "x.service: Failed with result 'exit-code'."; done
+  }
+}
+
+@test "failed_units: unit --user em loop de restart => RC_TODO com contagem" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" ""
+  export _MOCK_USER_LOOP="bw-autounlock.service loaded activating auto-restart Bitwarden"
+  _setup_loop_journal 31
+  run doctor_failed_systemd_units
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"bw-autounlock.service (usuário): 31 falha(s) neste boot"* ]]
+  [[ "$output" != *"Nenhuma unit systemd falhada"* ]]
+}
+
+@test "failed_units: uma retentativa isolada em auto-restart não é loop" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" ""
+  export _MOCK_SYS_LOOP="net.service loaded activating auto-restart Net"
+  _setup_loop_journal 1
+  run doctor_failed_systemd_units
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Nenhuma unit systemd falhada"* ]]
+}
+
+@test "failed_units: unit falhada + loop somam no motivo" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "nginx.service loaded failed failed nginx" ""
+  export _MOCK_SYS_LOOP="net.service loaded activating auto-restart Net"
+  _setup_loop_journal 5
+  doctor_failed_systemd_units >/dev/null || rc=$?
+  [ "$rc" -eq "$RC_TODO" ]
+  [[ "$STEP_REASON" == *"1 unit(s) sistema"*"+ 1 em loop de restart"* ]]
+}
+
+@test "failed_units: oneshot em loop pego na fase activating (NRestarts>0)" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" ""
+  export _MOCK_USER_LOOP="bw-autounlock.service loaded activating start Bitwarden"
+  export _MOCK_NRESTARTS=9
+  _setup_loop_journal 12
+  run doctor_failed_systemd_units
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"bw-autounlock.service (usuário): 12 falha(s)"* ]]
+}
+
+@test "failed_units: start normal em andamento (NRestarts=0) não é loop" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" ""
+  export _MOCK_USER_LOOP="slow.service loaded activating start Slow"
+  export _MOCK_NRESTARTS=0
+  _setup_loop_journal 9
+  run doctor_failed_systemd_units
+  [ "$status" -eq 0 ]
+}
+
+@test "failed_units: oneshot que enfim passou após muitos restarts ainda é loop" {
+  QUIET=0 LOG_FILE=/dev/null
+  _setup_failed_units "" ""
+  export _MOCK_USER_LOOP="bw-autounlock.service loaded inactive dead Bitwarden"
+  export _MOCK_NRESTARTS=16
+  _setup_loop_journal 43
+  run doctor_failed_systemd_units
+  [ "$status" -eq "$RC_TODO" ]
+  [[ "$output" == *"bw-autounlock.service (usuário): 43 falha(s)"* ]]
+}
+
+@test "systemd_restart_candidates: ordem livre de propriedades e último bloco sem linha vazia" {
+  run systemd_restart_candidates <<<$'NRestarts=0\nId=a.service\nSubState=running\n\nSubState=auto-restart\nId=b.service\nNRestarts=0\n\nId=c.service\nNRestarts=4\nSubState=dead'
+  [ "$output" = $'b.service\nc.service' ]
 }

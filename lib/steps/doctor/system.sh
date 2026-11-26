@@ -161,6 +161,50 @@ systemd_user_scope_status() {
 
 
 
+# Mínimo de falhas no boot atual para uma unit em auto-restart contar como loop.
+# Uma única retentativa pendente é o Restart=on-failure fazendo o seu trabalho
+# (ex.: rede voltando); várias no mesmo boot é serviço quebrado.
+SYSTEMD_RESTART_LOOP_MIN="${SYSTEMD_RESTART_LOOP_MIN:-3}"
+
+# Puro/testável: lê a saída de `systemctl show -p Id -p SubState -p NRestarts
+# <units…>` (stdin; blocos separados por linha vazia, propriedades em qualquer
+# ordem) e emite o Id de cada unit candidata a loop de restart: em
+# `auto-restart` agora ou com NRestarts>0 na última ativação.
+systemd_restart_candidates() {
+  awk -F= '
+    function flush() { if (id != "" && (sub_ == "auto-restart" || n + 0 > 0)) print id; id = ""; sub_ = ""; n = 0 }
+    /^$/ { flush(); next }
+    $1 == "Id" { id = $2 }
+    $1 == "SubState" { sub_ = $2 }
+    $1 == "NRestarts" { n = $2 }
+    END { flush() }'
+}
+
+# Units em loop de restart: candidatas acima com pelo menos
+# SYSTEMD_RESTART_LOOP_MIN falhas ("Failed with result") no boot atual. Elas
+# nunca chegam a `failed` — Restart=on-failure as rearma a cada RestartSec —,
+# então `systemctl --failed` não as lista: o bw-autounlock.service falhou 442x
+# num dia com "Doctor: units systemd falhadas" verde. Um oneshot em loop
+# alterna entre auto-restart, activating e (quando enfim passa) inactive com
+# NRestarts alto; olhar só o estado do instante perdia o loop na maior parte
+# das checagens. Uso: [--user]. Emite "<unit> <falhas>" por linha.
+systemd_restart_loop_units() {
+  local -a scope=("$@") units=()
+  local unit fails
+  mapfile -t units < <(systemctl "${scope[@]}" list-units --all --type=service --plain --no-legend 2>/dev/null \
+    | awk '$1 ~ /\.service$/ {print $1}')
+  (( ${#units[@]} > 0 )) || return 0
+  while read -r unit || [[ -n "${unit:-}" ]]; do
+    [[ -n "$unit" ]] || continue
+    fails="$(journalctl "${scope[@]}" -b -u "$unit" -o cat --no-pager 2>/dev/null \
+      | grep -c 'Failed with result' || true)"
+    [[ "$fails" =~ ^[0-9]+$ ]] || fails=0
+    (( fails >= SYSTEMD_RESTART_LOOP_MIN )) && printf '%s %s\n' "$unit" "$fails"
+  done < <(systemctl "${scope[@]}" show -p Id -p SubState -p NRestarts "${units[@]}" 2>/dev/null \
+    | systemd_restart_candidates)
+  return 0
+}
+
 doctor_failed_systemd_units() {
   if ! has systemctl; then
     log "  systemctl não encontrado."
@@ -176,7 +220,30 @@ doctor_failed_systemd_units() {
     failed_user=""
   fi
 
+  local loops_system loops_user="" _loop_cnt=0 _u _n
+  loops_system="$(systemd_restart_loop_units)"
+  [[ "$user_scope" == "available" ]] && loops_user="$(systemd_restart_loop_units --user)"
+  if [[ -n "${loops_system}${loops_user}" ]]; then
+    log "  Units em loop de restart (falham e o Restart= as rearma; nunca ficam 'failed'):"
+    while read -r _u _n; do
+      [[ -n "$_u" ]] || continue
+      log "    ${_u} (sistema): ${_n} falha(s) neste boot"
+      remediation "journalctl -b -u ${_u}"
+      _loop_cnt=$(( _loop_cnt + 1 ))
+    done <<< "$loops_system"
+    while read -r _u _n; do
+      [[ -n "$_u" ]] || continue
+      log "    ${_u} (usuário): ${_n} falha(s) neste boot"
+      remediation "journalctl --user -b -u ${_u}"
+      _loop_cnt=$(( _loop_cnt + 1 ))
+    done <<< "$loops_user"
+  fi
+
   if [[ $failed_system != *[![:space:]]* && $failed_user != *[![:space:]]* ]]; then
+    if (( _loop_cnt > 0 )); then
+      STEP_REASON="${_loop_cnt} unit(s) em loop de restart"
+      return "$RC_TODO"
+    fi
     if [[ "$user_scope" == "available" ]]; then
       log "  Nenhuma unit systemd falhada (sistema/usuário)."
     else
@@ -238,10 +305,15 @@ doctor_failed_systemd_units() {
   # falhada, é informativo — não aciona TODO.
   if (( _sys_cnt == 0 )) && (( _usr_cnt == 0 )) && [[ $_usr_autostart == *[![:space:]]* ]]; then
     log "  Nenhuma unit de serviço real falhada; só unit(s) transitória(s) de app de sessão."
+    if (( _loop_cnt > 0 )); then
+      STEP_REASON="${_loop_cnt} unit(s) em loop de restart"
+      return "$RC_TODO"
+    fi
     return 0
   fi
 
   STEP_REASON="${_sys_cnt} unit(s) sistema + ${_usr_cnt} unit(s) usuário falhada(s)"
+  (( _loop_cnt > 0 )) && STEP_REASON+=" + ${_loop_cnt} em loop de restart"
   return "$RC_TODO"
 }
 

@@ -163,7 +163,7 @@ Verificação final de gerenciadores|final|npm,pnpm,cargo,gem,flatpak,network|re
 Auto-remediar pendências finais|autofix|pacman,aur,npm,update,network,sudo|mutating|900||autofix_final_pending|Sob AUTO_FIX_FINAL_PENDING=1, aplica pacman -Syu (e retry paru -Sua) e sobe pacotes npm globais publicados durante o run, para pendências acionáveis detectadas na verificação final.
 Checar atualização do full-upgrade|final|self-update,network|read|30|curl|self_update_notice|Avisa se há uma versão mais nova do próprio full-upgrade no GitHub.
 Doctor: reboot pendente|doctor|kernel|read|15||doctor_reboot_pending|Compara kernel em execução com pacote linux instalado.
-Doctor: units systemd falhadas|doctor|systemd|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário.
+Doctor: units systemd falhadas|doctor|systemd|read|15||doctor_failed_systemd_units|Lista units systemd falhadas no sistema e usuário e as em loop de restart (Restart= rearmando, várias falhas no boot), que nunca ficam failed.
 Doctor: configuração paru Devel|doctor|paru,aur|read|10|paru|doctor_paru_devel_mode|Detecta configuração global Devel no paru.
 Doctor: journal erros críticos|doctor|journal,systemd|read|30||doctor_journal_errors|Mostra erros críticos do boot atual com limite de linhas.
 Doctor: crashes recorrentes (coredump)|doctor|coredump,systemd|read|30|coredumpctl|doctor_recurrent_coredumps|Agrupa coredumps dos últimos 14 dias por programa e aponta crash recorrente ainda ativo (>=3x com ocorrência nas últimas 48 h).
