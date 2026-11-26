@@ -3,6 +3,8 @@
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
+
+## [4.6.1] - 2026-11-26
 ### Corrigido
 
 - **`Doctor: servidores MCP` não cobra mais `env_vars` do Codex como
